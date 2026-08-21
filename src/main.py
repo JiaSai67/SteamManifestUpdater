@@ -10,6 +10,8 @@ import shutil
 import concurrent.futures
 from managers import onlinefix_manager
 
+VERSION = "1.0.2"
+
 # Suppress stdout/stderr to prevent QFluentWidgets Pro message
 # sys.stdout
 # sys.stderr
@@ -295,7 +297,7 @@ class SteamManifestApp(QWidget):
             pass
 
     def initUI(self):
-        self.setWindowTitle("Steam Lua Manifest Viewer (Fluent UI)")
+        self.setWindowTitle(f"Steam Lua Manifest Viewer (Fluent UI) - {VERSION}")
         self.resize(1200, 700)
         self.setMinimumSize(900, 500)
         self.setAcceptDrops(True)
