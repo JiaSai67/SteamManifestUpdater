@@ -73,7 +73,7 @@ def get_extractor():
     return None
 
 EXTRACTOR = get_extractor()
-RAR_PASSWORD = "online-fix.me"
+ARCHIVE_PASSWORDS = ["online-fix.me", "zeigames.com", ""]
 
 _cache_dir = Path(_config.get("cache_dir", str(config_manager._root_dir / "data" / "cache")))
 _cache_dir.mkdir(parents=True, exist_ok=True)
@@ -105,7 +105,7 @@ def get_patch_sources(target_app_id=None, target_app_name=""):
     if LOCAL_PATCH_DIR.exists():
         for root, dirs, files in os.walk(LOCAL_PATCH_DIR):
             lua_files = [f for f in files if f.endswith('.lua')]
-            rar_files = [f for f in files if f.endswith('.rar')]
+            rar_files = [f for f in files if f.endswith('.rar') or f.endswith('.zip')]
             
             # Use lua file to determine app_id if available, otherwise try to extract from folder name
             app_id = None
@@ -144,11 +144,11 @@ def get_patch_sources(target_app_id=None, target_app_name=""):
                 cloud_folders[folder] = {'lua': None, 'rar': None}
             if name.endswith('.lua'):
                 cloud_folders[folder]['lua'] = {'name': name.replace('.lua', ''), 'obj': f}
-            elif name.endswith('.rar'):
+            elif name.endswith('.rar') or name.endswith('.zip'):
                 cloud_folders[folder]['rar'] = f
         elif len(parts) == 1:
             name = parts[0]
-            if name.endswith('.rar'):
+            if name.endswith('.rar') or name.endswith('.zip'):
                 root_rar_files.append(f)
                 
     for folder, data in cloud_folders.items():
@@ -296,46 +296,51 @@ def _save_records(records):
 
 def get_rar_file_list(rar_path):
     if not EXTRACTOR:
-        return []
+        return None, []
         
-    try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        
-        if EXTRACTOR["type"] == "7z":
-            output = subprocess.check_output(
-                [EXTRACTOR["path"], "l", f"-p{RAR_PASSWORD}", str(rar_path)],
-                startupinfo=startupinfo,
-                stderr=subprocess.STDOUT,
-                text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-            files = []
-            parsing = False
-            for line in output.split('\n'):
-                if line.startswith('----'):
-                    parsing = not parsing
-                    continue
-                if parsing:
-                    parts = line.split(maxsplit=5)
-                    if len(parts) >= 6 and 'D' not in parts[2]:
-                        files.append(parts[5].strip())
-            return files
+    for pwd in ARCHIVE_PASSWORDS:
+        try:
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             
-        elif EXTRACTOR["type"] == "winrar":
-            output = subprocess.check_output(
-                [EXTRACTOR["path"], "lb", f"-p{RAR_PASSWORD}", str(rar_path)],
-                startupinfo=startupinfo,
-                stderr=subprocess.STDOUT,
-                text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-            files = [line.strip() for line in output.split('\n') if line.strip() and not line.strip().endswith('\\')]
-            return files
+            if EXTRACTOR["type"] == "7z":
+                output = subprocess.check_output(
+                    [EXTRACTOR["path"], "l", f"-p{pwd}", str(rar_path)],
+                    startupinfo=startupinfo,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                files = []
+                parsing = False
+                for line in output.split('\n'):
+                    if line.startswith('----'):
+                        parsing = not parsing
+                        continue
+                    if parsing:
+                        parts = line.split(maxsplit=5)
+                        if len(parts) >= 6 and 'D' not in parts[2]:
+                            files.append(parts[5].strip())
+                return pwd, files
+                
+            elif EXTRACTOR["type"] == "winrar":
+                output = subprocess.check_output(
+                    [EXTRACTOR["path"], "lb", f"-p{pwd}", str(rar_path)],
+                    startupinfo=startupinfo,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                files = [line.strip() for line in output.split('\n') if line.strip() and not line.strip().endswith('\\')]
+                return pwd, files
+                
+        except subprocess.CalledProcessError:
+            continue
+        except Exception as e:
+            print(f"Error reading RAR: {e}")
+            break
             
-    except Exception as e:
-        print(f"Error reading RAR: {e}")
-        return []
+    return None, []
 
 def install_fix(app_id, rar_path, game_dir):
     rar_path = Path(rar_path)
@@ -348,7 +353,7 @@ def install_fix(app_id, rar_path, game_dir):
     if not EXTRACTOR:
         return False, "找不到解壓縮工具！請先安裝 7-Zip 或 WinRAR。"
         
-    files_to_extract = get_rar_file_list(rar_path)
+    working_pwd, files_to_extract = get_rar_file_list(rar_path)
     if not files_to_extract:
         return False, "無法讀取壓縮檔內容，可能密碼錯誤或檔案毀損"
         
@@ -371,7 +376,7 @@ def install_fix(app_id, rar_path, game_dir):
         
         if EXTRACTOR["type"] == "7z":
             subprocess.check_call(
-                [EXTRACTOR["path"], "x", f"-p{RAR_PASSWORD}", "-y", f"-o{game_dir}", str(rar_path)],
+                [EXTRACTOR["path"], "x", f"-p{working_pwd}", "-y", f"-o{game_dir}", str(rar_path)],
                 startupinfo=startupinfo,
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
@@ -381,7 +386,7 @@ def install_fix(app_id, rar_path, game_dir):
             if not dest_dir.endswith('\\'):
                 dest_dir += '\\'
             subprocess.check_call(
-                [EXTRACTOR["path"], "x", f"-p{RAR_PASSWORD}", "-y", str(rar_path), dest_dir],
+                [EXTRACTOR["path"], "x", f"-p{working_pwd}", "-y", str(rar_path), dest_dir],
                 startupinfo=startupinfo,
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
@@ -409,7 +414,7 @@ def uninstall_fix(app_id, forced_rar_path=None):
             if not game_dir or not game_dir.exists():
                 return False, "找不到遊戲目錄，無法執行強制移除"
             
-            files_to_remove = get_rar_file_list(forced_rar_path)
+            _, files_to_remove = get_rar_file_list(forced_rar_path)
             if not files_to_remove:
                 return False, "無法讀取比對壓縮檔內容"
                 
@@ -466,8 +471,13 @@ def get_fix_status(app_id):
         game_dir = _find_steam_game_dir(app_id)
         if game_dir and game_dir.exists():
             # Check for generic online-fix signatures without a specific record
-            if (game_dir / 'OnlineFix.ini').exists() or (game_dir / 'OnlineFix64.dll').exists():
-                if (game_dir / 'OnlineFix64.dll').exists():
+            has_of_ini = (game_dir / 'OnlineFix.ini').exists()
+            has_of_dll = (game_dir / 'OnlineFix64.dll').exists()
+            has_zg_ini = (game_dir / 'unsteam.ini').exists()
+            has_zg_dll = (game_dir / 'unsteam.dll').exists()
+            
+            if has_of_ini or has_of_dll or has_zg_ini or has_zg_dll:
+                if has_of_dll or has_zg_dll:
                     return "✅ 已安裝 (自行安裝)"
                 else:
                     return "⚠️ 防毒破壞"
@@ -481,7 +491,7 @@ def get_fix_status(app_id):
         return "⚠️ 遊戲目錄遺失"
         
     # Check core online-fix files presence
-    core_files = [f for f in installed if 'onlinefix' in f.lower() and f.endswith('.dll')]
+    core_files = [f for f in installed if ('onlinefix' in f.lower() or 'unsteam' in f.lower()) and f.endswith('.dll')]
     for core_file in core_files:
         if not (game_dir / core_file).exists():
             return "⚠️ 防毒破壞"
