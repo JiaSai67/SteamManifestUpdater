@@ -266,6 +266,11 @@ class SteamManifestApp(QWidget):
         self.defender_timer.timeout.connect(self.check_defender_status)
         self.defender_timer.start(500) # Initial poll at 500ms
         self.check_defender_status()
+        
+        # Check for GitHub updates silently in background
+        from auto_updater import check_for_updates
+        check_for_updates(self)
+
 
     def update_theme_styles(self):
         from qfluentwidgets import isDarkTheme
