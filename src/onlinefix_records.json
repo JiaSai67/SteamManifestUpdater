@@ -1,0 +1,34 @@
+{
+    "3293260": {
+        "game_dir": "g:\\games\\steam\\steamapps\\common\\WaterPark Simulator",
+        "installed_files": [
+            "winmm.dll",
+            "WaterparkSimulator_Data\\Plugins\\x86_64\\steam_api64.dll",
+            "dlllist.txt",
+            "OnlineFix.ini",
+            "OnlineFix.url",
+            "OnlineFix64.dll",
+            "SteamOverlay64.dll"
+        ],
+        "backed_up_files": [
+            "WaterparkSimulator_Data\\Plugins\\x86_64\\steam_api64.dll"
+        ],
+        "timestamp": 1786790516.0
+    },
+    "4450620": {
+        "game_dir": "G:\\Games\\Steam\\steamapps\\common\\Grain Rot",
+        "installed_files": [
+            "Engine\\Binaries\\ThirdParty\\Steamworks\\Steamv161\\Win64\\steam_api64.dll",
+            "Helden\\Binaries\\Win64\\dlllist.txt",
+            "Helden\\Binaries\\Win64\\inventory.json",
+            "Helden\\Binaries\\Win64\\OnlineFix.ini",
+            "Helden\\Binaries\\Win64\\OnlineFix.url",
+            "Helden\\Binaries\\Win64\\OnlineFix64.dll",
+            "Helden\\Binaries\\Win64\\winmm.dll"
+        ],
+        "backed_up_files": [
+            "Engine\\Binaries\\ThirdParty\\Steamworks\\Steamv161\\Win64\\steam_api64.dll"
+        ],
+        "timestamp": 1786792101.0
+    }
+}

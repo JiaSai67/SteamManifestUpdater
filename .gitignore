@@ -1,0 +1,25 @@
+# 打包與執行相關 (絕不上傳)
+exegogo/
+dist/
+build/
+*.exe
+*.spec
+SteamManifestUpdater.exe
+
+# 暫存與快取檔案
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# 使用者數據與日誌 (避免把測試資料上傳)
+data/
+logs/
+
+# IDE 相關
+.vscode/
+.idea/
