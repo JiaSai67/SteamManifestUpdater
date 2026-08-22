@@ -304,6 +304,14 @@ def get_rar_file_list(rar_path):
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             
             if EXTRACTOR["type"] == "7z":
+                subprocess.check_call(
+                    [EXTRACTOR["path"], "t", f"-p{pwd}", str(rar_path)],
+                    startupinfo=startupinfo,
+                    stderr=subprocess.STDOUT,
+                    stdout=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                
                 output = subprocess.check_output(
                     [EXTRACTOR["path"], "l", f"-p{pwd}", str(rar_path)],
                     startupinfo=startupinfo,
@@ -324,6 +332,14 @@ def get_rar_file_list(rar_path):
                 return pwd, files
                 
             elif EXTRACTOR["type"] == "winrar":
+                subprocess.check_call(
+                    [EXTRACTOR["path"], "t", f"-p{pwd}", str(rar_path)],
+                    startupinfo=startupinfo,
+                    stderr=subprocess.STDOUT,
+                    stdout=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                
                 output = subprocess.check_output(
                     [EXTRACTOR["path"], "lb", f"-p{pwd}", str(rar_path)],
                     startupinfo=startupinfo,
