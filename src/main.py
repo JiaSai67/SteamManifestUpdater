@@ -554,7 +554,7 @@ class SteamManifestApp(QWidget):
     def update_ost_status(self):
         if not self.steam_path:
             self.lbl_ost_status.setText("OpenSteamTools 狀態: 找不到 Steam 安裝路徑")
-            self.lbl_ost_status.setStyleSheet(f"color: {get_state_color(\'error\')};")
+            self.lbl_ost_status.setStyleSheet(f"color: {get_state_color('error')};")
             self.btn_install_ost.setEnabled(False)
             self.btn_uninstall_ost.setEnabled(False)
             return
@@ -564,12 +564,12 @@ class SteamManifestApp(QWidget):
         
         if is_installed:
             self.lbl_ost_status.setText("OpenSteamTools 狀態: ✅ 已部署 (完美運行中)")
-            self.lbl_ost_status.setStyleSheet(f"color: {get_state_color(\'success\')};")
+            self.lbl_ost_status.setStyleSheet(f"color: {get_state_color('success')};")
             self.btn_install_ost.setEnabled(False)
             self.btn_uninstall_ost.setEnabled(True)
         else:
             self.lbl_ost_status.setText("OpenSteamTools 狀態: ❌ 未安裝")
-            self.lbl_ost_status.setStyleSheet(f"color: {get_state_color(\'error\')};")
+            self.lbl_ost_status.setStyleSheet(f"color: {get_state_color('error')};")
             self.btn_install_ost.setEnabled(True)
             self.btn_uninstall_ost.setEnabled(False)
             
@@ -703,12 +703,12 @@ class SteamManifestApp(QWidget):
 
         if is_disabled:
             self.lbl_defender_status.setText("Defender 即時保護: ❌ 已關閉 (安全，不干擾破解)")
-            self.lbl_defender_status.setStyleSheet(f"color: {get_state_color(\'success\')};")
+            self.lbl_defender_status.setStyleSheet(f"color: {get_state_color('success')};")
             # Low-frequency polling when disabled (safe state) to conserve resources
             self.defender_timer.setInterval(3000)
         else:
             self.lbl_defender_status.setText("Defender 即時保護: ⚠️ 開啟中 (可能誤刪破解檔)")
-            self.lbl_defender_status.setStyleSheet(f"color: {get_state_color(\'error\')};")
+            self.lbl_defender_status.setStyleSheet(f"color: {get_state_color('error')};")
             # High-frequency polling when enabled (warning state) for real-time feedback
             self.defender_timer.setInterval(500)
 
