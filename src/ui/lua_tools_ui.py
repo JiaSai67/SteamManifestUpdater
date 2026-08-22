@@ -472,7 +472,7 @@ class LuaToolsDownloaderWidget(QWidget):
                     content = open(vdf_path, encoding='utf-8', errors='ignore').read()
                     matches = re.findall(r'"path"\s+"([^"]+)"', content, re.IGNORECASE)
                     for m in matches:
-                        m = m.replace('\\\\', '\')
+                        m = m.replace('\\\\', '\\')
                         libs.add(os.path.normpath(m))
                 except:
                     pass
