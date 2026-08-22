@@ -19,7 +19,7 @@ VERSION = "1.0.2"
 os.environ["QT_API"] = "pyside6"
 
 from PySide6.QtCore import Qt, QThread, Signal, QUrl, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QFont
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QHeaderView, QFileDialog, QTreeWidget, QTreeWidgetItem, QStackedWidget
 
 from qfluentwidgets import (
