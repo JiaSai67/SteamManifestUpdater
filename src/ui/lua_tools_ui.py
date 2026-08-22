@@ -1,3 +1,4 @@
+from ui.theme_utils import get_state_color
 import os
 import json
 from pathlib import Path
@@ -232,14 +233,14 @@ class LuaToolsDownloaderWidget(QWidget):
             
             if s == "Luie":
                 rec_lbl = BodyLabel("RECOMMENDED", self)
-                rec_lbl.setStyleSheet("color: #a855f7; border: 1px solid #a855f7; border-radius: 4px; padding: 2px 4px; font-size: 10px;")
+                rec_lbl.setStyleSheet(f"color: {get_state_color(\'accent\')}; border: 1px solid {get_state_color(\'accent\')}; border-radius: 4px; padding: 2px 4px; font-size: 10px;")
                 c_layout.addWidget(rec_lbl)
                 
             c_layout.addStretch(1)
             
             # Status
             status_lbl = BodyLabel("N/A", self)
-            status_lbl.setStyleSheet("color: #999;")
+            status_lbl.setStyleSheet(f"color: {get_state_color(\'muted\')};")
             c_layout.addWidget(status_lbl)
             
             # Download Btn
@@ -334,7 +335,7 @@ class LuaToolsDownloaderWidget(QWidget):
         
     def on_client_ready(self):
         self.status_label.setText("連線狀態：已登入 (準備就緒)")
-        self.status_label.setStyleSheet("color: #4CAF50;")
+        self.status_label.setStyleSheet(f"color: {get_state_color(\'success\')};")
         self.login_btn.hide()
         self.relogin_btn.show()
         self.search_input.setEnabled(True)
@@ -342,7 +343,7 @@ class LuaToolsDownloaderWidget(QWidget):
         
     def on_client_not_logged_in(self):
         self.status_label.setText("連線狀態：憑證無效或未登入")
-        self.status_label.setStyleSheet("color: #F44336;")
+        self.status_label.setStyleSheet(f"color: {get_state_color(\'error\')};")
         self.login_btn.show()
         self.relogin_btn.hide()
         self.search_input.setEnabled(False)
@@ -436,18 +437,18 @@ class LuaToolsDownloaderWidget(QWidget):
                 self.of_install_btn.setText("自動下載並安裝 Online-Fix 補丁")
                 
             self.of_status_lbl.setText(status_text)
-            self.of_status_lbl.setStyleSheet("color: #4CAF50; font-weight: bold;")
+            self.of_status_lbl.setStyleSheet(f"color: {get_state_color(\'success\')}; font-weight: bold;")
             self.of_install_btn.setEnabled(True)
         else:
             if is_patched:
                 status_text = f"✅ 遊戲已打過補丁！但雲端庫無對應補丁 (AppID: {appid})"
-                self.of_status_lbl.setStyleSheet("color: #4CAF50; font-weight: bold;")
+                self.of_status_lbl.setStyleSheet(f"color: {get_state_color(\'success\')}; font-weight: bold;")
             elif is_installed:
                 status_text = f"❌ 遊戲已安裝，但補丁庫無對應補丁 (AppID: {appid})"
-                self.of_status_lbl.setStyleSheet("color: #FF5C5C; font-weight: bold;")
+                self.of_status_lbl.setStyleSheet(f"color: {get_state_color(\'error\')}; font-weight: bold;")
             else:
                 status_text = f"❌ 補丁庫無對應補丁，且遊戲未安裝 (AppID: {appid})"
-                self.of_status_lbl.setStyleSheet("color: #FF5C5C; font-weight: bold;")
+                self.of_status_lbl.setStyleSheet(f"color: {get_state_color(\'error\')}; font-weight: bold;")
                 
             self.of_install_btn.setText("自動下載並安裝 Online-Fix 補丁")
             self.of_status_lbl.setText(status_text)
@@ -603,7 +604,7 @@ class LuaToolsDownloaderWidget(QWidget):
         # Reset all sources
         for s in self.sources:
             self.sources[s]["status"].setText("N/A")
-            self.sources[s]["status"].setStyleSheet("color: #999;")
+            self.sources[s]["status"].setStyleSheet(f"color: {get_state_color(\'muted\')};")
             self.sources[s]["btn"].setEnabled(False)
             try:
                 self.sources[s]["btn"].clicked.disconnect()
@@ -641,7 +642,7 @@ class LuaToolsDownloaderWidget(QWidget):
             if s_lower in parsed_sources:
                 if parsed_sources[s_lower]["available"]:
                     self.sources[s]["status"].setText("AVAILABLE")
-                    self.sources[s]["status"].setStyleSheet("color: #4CAF50; font-weight: bold;")
+                    self.sources[s]["status"].setStyleSheet(f"color: {get_state_color(\'success\')}; font-weight: bold;")
                     self.sources[s]["btn"].setEnabled(True)
                     # Connect the button directly to download
                     self.sources[s]["btn"].clicked.connect(
@@ -652,7 +653,7 @@ class LuaToolsDownloaderWidget(QWidget):
                     )
                 else:
                     self.sources[s]["status"].setText("N/A")
-                    self.sources[s]["status"].setStyleSheet("color: #999;")
+                    self.sources[s]["status"].setStyleSheet(f"color: {get_state_color(\'muted\')};")
 
     def on_download_result(self, appid, text):
         if text.startswith("ERROR:") or "error" in text.lower() or not text.strip():

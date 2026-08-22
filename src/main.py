@@ -1,5 +1,6 @@
 import os
 import sys
+from ui.theme_utils import get_state_color
 import json
 import urllib.request
 import threading
@@ -274,10 +275,10 @@ class SteamManifestApp(QWidget):
         from qfluentwidgets import isDarkTheme
         is_dark = isDarkTheme()
         
-        if is_dark:
-            self.setStyleSheet("#mainWindow { background-color: rgb(32, 32, 32); }")
+        if not isDarkTheme():
+            pass # Fluent Widgets handles the background natively, do not override
         else:
-            self.setStyleSheet("#mainWindow { background-color: rgb(243, 243, 243); }")
+            self.setStyleSheet("#mainWindow { background-color: rgb(32, 32, 32); }")
             
         # Force title bar to match theme on Windows
         try:
@@ -553,7 +554,7 @@ class SteamManifestApp(QWidget):
     def update_ost_status(self):
         if not self.steam_path:
             self.lbl_ost_status.setText("OpenSteamTools 狀態: 找不到 Steam 安裝路徑")
-            self.lbl_ost_status.setStyleSheet("color: #FF5C5C;")
+            self.lbl_ost_status.setStyleSheet(f"color: {get_state_color(\'error\')};")
             self.btn_install_ost.setEnabled(False)
             self.btn_uninstall_ost.setEnabled(False)
             return
@@ -563,12 +564,12 @@ class SteamManifestApp(QWidget):
         
         if is_installed:
             self.lbl_ost_status.setText("OpenSteamTools 狀態: ✅ 已部署 (完美運行中)")
-            self.lbl_ost_status.setStyleSheet("color: #00CC6A;")
+            self.lbl_ost_status.setStyleSheet(f"color: {get_state_color(\'success\')};")
             self.btn_install_ost.setEnabled(False)
             self.btn_uninstall_ost.setEnabled(True)
         else:
             self.lbl_ost_status.setText("OpenSteamTools 狀態: ❌ 未安裝")
-            self.lbl_ost_status.setStyleSheet("color: #FF5C5C;")
+            self.lbl_ost_status.setStyleSheet(f"color: {get_state_color(\'error\')};")
             self.btn_install_ost.setEnabled(True)
             self.btn_uninstall_ost.setEnabled(False)
             
@@ -702,12 +703,12 @@ class SteamManifestApp(QWidget):
 
         if is_disabled:
             self.lbl_defender_status.setText("Defender 即時保護: ❌ 已關閉 (安全，不干擾破解)")
-            self.lbl_defender_status.setStyleSheet("color: #00CC6A;")
+            self.lbl_defender_status.setStyleSheet(f"color: {get_state_color(\'success\')};")
             # Low-frequency polling when disabled (safe state) to conserve resources
             self.defender_timer.setInterval(3000)
         else:
             self.lbl_defender_status.setText("Defender 即時保護: ⚠️ 開啟中 (可能誤刪破解檔)")
-            self.lbl_defender_status.setStyleSheet("color: #FF5C5C;")
+            self.lbl_defender_status.setStyleSheet(f"color: {get_state_color(\'error\')};")
             # High-frequency polling when enabled (warning state) for real-time feedback
             self.defender_timer.setInterval(500)
 
@@ -893,7 +894,14 @@ if __name__ == "__main__":
         pass
         
     app = QApplication(sys.argv)
-    setTheme(Theme.DARK) # Force dark theme to prevent invisible elements on light mode systems
+    
+    # 設置全域字型 (Impeccable Typography)
+    font = QFont("Segoe UI Variable Display", 10)
+    font.insertSubstitution("Segoe UI Variable Display", "Microsoft YaHei UI")
+    app.setFont(font)
+    
+    setTheme(Theme.AUTO) # Allow adaptive themes instead of forced dark
+    
     from managers import config_manager
     icon_path = str(config_manager._root_dir / "assets" / "icon.ico")
         

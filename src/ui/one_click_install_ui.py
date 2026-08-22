@@ -1,3 +1,4 @@
+from ui.theme_utils import get_state_color
 import os
 import re
 import winreg
@@ -160,7 +161,7 @@ class OneClickInstallWidget(QWidget):
         if is_installed:
             self.stack.setCurrentWidget(self.main_page)
             self.chk_ost.setText("✅ 1. OpenSteamTools 安裝狀態: 已安裝")
-            self.chk_ost.setStyleSheet("color: #4CAF50;")
+            self.chk_ost.setStyleSheet(f"color: {get_state_color(\'success\')};")
         else:
             self.stack.setCurrentWidget(self.blocker_page)
 
@@ -230,10 +231,10 @@ class OneClickInstallWidget(QWidget):
             
         if is_disabled:
             self.chk_def.setText("✅ 2. Defender 狀態: 已關閉 (安全)")
-            self.chk_def.setStyleSheet("color: #4CAF50;")
+            self.chk_def.setStyleSheet(f"color: {get_state_color(\'success\')};")
         else:
             self.chk_def.setText("⚠️ 2. Defender 狀態: 開啟中 (會阻擋補丁，必須關閉)")
-            self.chk_def.setStyleSheet("color: #FFB900;")
+            self.chk_def.setStyleSheet(f"color: {get_state_color(\'warning\')};")
             
         # 3. Lua.tools Login
         from managers import lua_tools_manager
@@ -243,11 +244,11 @@ class OneClickInstallWidget(QWidget):
         if client.has_checked:
             if client.is_logged_in:
                 self.chk_login.setText("✅ 3. lua.tools 登入狀態: 已登入")
-                self.chk_login.setStyleSheet("color: #4CAF50;")
+                self.chk_login.setStyleSheet(f"color: {get_state_color(\'success\')};")
                 is_logged_in = True
             else:
                 self.chk_login.setText("❌ 3. lua.tools 登入狀態: 未登入 (請點擊按鈕登入)")
-                self.chk_login.setStyleSheet("color: #FF5C5C;")
+                self.chk_login.setStyleSheet(f"color: {get_state_color(\'error\')};")
         else:
             self.chk_login.setText("⏳ 3. lua.tools 登入狀態: 檢查中...")
             self.chk_login.setStyleSheet("color: #FFFFFF;")
@@ -256,11 +257,11 @@ class OneClickInstallWidget(QWidget):
         lua_path = self.main_app.steam_path / "config" / "lua" / f"{appid}.lua"
         if lua_path.exists():
             self.chk_lua.setText("✅ 4. Lua 補丁狀態: 已部署")
-            self.chk_lua.setStyleSheet("color: #4CAF50;")
+            self.chk_lua.setStyleSheet(f"color: {get_state_color(\'success\')};")
             lua_ok = True
         else:
             self.chk_lua.setText("❌ 4. Lua 補丁狀態: 未部署")
-            self.chk_lua.setStyleSheet("color: #FF5C5C;")
+            self.chk_lua.setStyleSheet(f"color: {get_state_color(\'error\')};")
             lua_ok = False
             
         # 4. Game Status
@@ -277,28 +278,28 @@ class OneClickInstallWidget(QWidget):
 
         if game_installed:
             self.chk_game.setText("✅ 5. 遊戲安裝狀態: 已安裝")
-            self.chk_game.setStyleSheet("color: #4CAF50;")
+            self.chk_game.setStyleSheet(f"color: {get_state_color(\'success\')};")
         else:
             self.chk_game.setText("❌ 5. 遊戲安裝狀態: 未安裝 (將喚起 Steam)")
-            self.chk_game.setStyleSheet("color: #FF5C5C;")
+            self.chk_game.setStyleSheet(f"color: {get_state_color(\'error\')};")
             
         # 6. Online-Fix
         from managers import onlinefix_manager
         sources = onlinefix_manager.get_patch_sources(target_app_id=appid, target_app_name=getattr(self, 'current_app_name', ''))
         if str(appid) not in sources and int(appid) not in sources:
             self.chk_of.setText("⚠️ 6. Online-Fix 狀態: 雲端無檔 (無聯機補丁可安裝)")
-            self.chk_of.setStyleSheet("color: #FFB900;")
+            self.chk_of.setStyleSheet(f"color: {get_state_color(\'warning\')};")
             of_ok = True
         else:
             fix_status = onlinefix_manager.get_fix_status(appid)
             of_ok = False
             if "已安裝" in fix_status:
                 self.chk_of.setText(f"✅ 6. Online-Fix 狀態: {fix_status}")
-                self.chk_of.setStyleSheet("color: #4CAF50;")
+                self.chk_of.setStyleSheet(f"color: {get_state_color(\'success\')};")
                 of_ok = True
             else:
                 self.chk_of.setText(f"❌ 6. Online-Fix 狀態: {fix_status}")
-                self.chk_of.setStyleSheet("color: #FF5C5C;")
+                self.chk_of.setStyleSheet(f"color: {get_state_color(\'error\')};")
             
         # Update Action Button State
         self.action_btn.setEnabled(True)
@@ -346,12 +347,12 @@ class OneClickInstallWidget(QWidget):
         
         if self.deploy_step == 1:
             self.chk_lua.setText("⏳ 4. Lua 補丁狀態: 部署中...")
-            self.chk_lua.setStyleSheet("color: #FFB900;")
+            self.chk_lua.setStyleSheet(f"color: {get_state_color(\'warning\')};")
             # Check Lua
             lua_path = self.main_app.steam_path / "config" / "lua" / f"{appid}.lua"
             if lua_path.exists():
                 self.chk_lua.setText("✅ 4. Lua 補丁狀態: 已部署")
-                self.chk_lua.setStyleSheet("color: #4CAF50;")
+                self.chk_lua.setStyleSheet(f"color: {get_state_color(\'success\')};")
                 self.deploy_step = 2
                 return
             
@@ -393,7 +394,7 @@ class OneClickInstallWidget(QWidget):
                     if not available_source:
                         InfoBar.warning("略過", "該遊戲無可用的 Lua 補丁來源", parent=self)
                         self.chk_lua.setText("✅ 4. Lua 補丁狀態: 無需部署 (無資源)")
-                        self.chk_lua.setStyleSheet("color: #4CAF50;")
+                        self.chk_lua.setStyleSheet(f"color: {get_state_color(\'success\')};")
                         self._finish_lua()
                         return
                         
@@ -420,7 +421,7 @@ class OneClickInstallWidget(QWidget):
                                 with open(lua_dir / f"{appid}.lua", "w", encoding="utf-8") as f:
                                     f.write(dl_res.get("data", ""))
                                 self.chk_lua.setText("✅ 4. Lua 補丁狀態: 已部署")
-                                self.chk_lua.setStyleSheet("color: #4CAF50;")
+                                self.chk_lua.setStyleSheet(f"color: {get_state_color(\'success\')};")
                                 self._finish_lua()
                             except Exception as e:
                                 InfoBar.error("Lua 寫入失敗", str(e), parent=self)
@@ -433,7 +434,7 @@ class OneClickInstallWidget(QWidget):
                 
         elif self.deploy_step == 2:
             self.chk_game.setText("⏳ 5. 遊戲安裝狀態: 檢查中...")
-            self.chk_game.setStyleSheet("color: #FFB900;")
+            self.chk_game.setStyleSheet(f"color: {get_state_color(\'warning\')};")
             # Check Game Install
             game_installed = False
             try:
@@ -448,11 +449,11 @@ class OneClickInstallWidget(QWidget):
                 
             if game_installed:
                 self.chk_game.setText("✅ 5. 遊戲安裝狀態: 已安裝")
-                self.chk_game.setStyleSheet("color: #4CAF50;")
+                self.chk_game.setStyleSheet(f"color: {get_state_color(\'success\')};")
                 self.deploy_step = 4 # Skip wait
             else:
                 self.chk_game.setText("⏳ 5. 遊戲安裝狀態: 安裝中 (等待 Steam)...")
-                self.chk_game.setStyleSheet("color: #FFB900;")
+                self.chk_game.setStyleSheet(f"color: {get_state_color(\'warning\')};")
                 self.action_btn.setText("🚀 正在喚起 Steam 安裝遊戲 (2/6)...")
                 import os
                 try:
@@ -464,7 +465,7 @@ class OneClickInstallWidget(QWidget):
         elif self.deploy_step == 3:
             # Wait for Game Install
             self.chk_game.setText("⏳ 5. 遊戲安裝狀態: 安裝中 (等待 Steam)...")
-            self.chk_game.setStyleSheet("color: #FFB900;")
+            self.chk_game.setStyleSheet(f"color: {get_state_color(\'warning\')};")
             self.action_btn.setText("🚀 等待 Steam 遊戲安裝完畢 (3/6)...")
             game_installed = False
             try:
@@ -479,13 +480,13 @@ class OneClickInstallWidget(QWidget):
                 
             if game_installed:
                 self.chk_game.setText("✅ 5. 遊戲安裝狀態: 已安裝")
-                self.chk_game.setStyleSheet("color: #4CAF50;")
+                self.chk_game.setStyleSheet(f"color: {get_state_color(\'success\')};")
                 self.deploy_step = 4
                 
         elif self.deploy_step == 4:
             # Install OF
             self.chk_of.setText("⏳ 6. Online-Fix 狀態: 部署中...")
-            self.chk_of.setStyleSheet("color: #FFB900;")
+            self.chk_of.setStyleSheet(f"color: {get_state_color(\'warning\')};")
             self.action_btn.setText("🚀 正在下載並打入 Online-Fix (4/6)...")
             self.deploy_timer.stop()
             
@@ -514,22 +515,22 @@ class OneClickInstallWidget(QWidget):
                             success, msg = onlinefix_manager.install_fix(appid, rar_path, game_dir_info[0])
                             if success:
                                 self.chk_of.setText("✅ 6. Online-Fix 狀態: 已安裝")
-                                self.chk_of.setStyleSheet("color: #4CAF50;")
+                                self.chk_of.setStyleSheet(f"color: {get_state_color(\'success\')};")
                             else:
                                 self.chk_of.setText("❌ 6. Online-Fix 狀態: 安裝失敗")
-                                self.chk_of.setStyleSheet("color: #FF5C5C;")
+                                self.chk_of.setStyleSheet(f"color: {get_state_color(\'error\')};")
                                 InfoBar.error("Online-Fix 失敗", msg, parent=self)
                                 self._abort_deploy()
                                 return
                     except Exception as e:
                         self.chk_of.setText("❌ 6. Online-Fix 狀態: 安裝錯誤")
-                        self.chk_of.setStyleSheet("color: #FF5C5C;")
+                        self.chk_of.setStyleSheet(f"color: {get_state_color(\'error\')};")
                         InfoBar.error("錯誤", str(e), parent=self)
                         self._abort_deploy()
                         return
             else:
                 self.chk_of.setText("✅ 6. Online-Fix 狀態: 無需安裝 (無資源)")
-                self.chk_of.setStyleSheet("color: #4CAF50;")
+                self.chk_of.setStyleSheet(f"color: {get_state_color(\'success\')};")
             
             self._finish_deploy()
     def _finish_lua(self):
