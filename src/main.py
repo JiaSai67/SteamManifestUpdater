@@ -776,19 +776,19 @@ class SteamManifestApp(QWidget):
         node_updated.setText(0, "📁 本次啟動被修正的 Lua")
         node_updated.setFirstColumnSpanned(True)
         node_updated.setExpanded(True)
-        node_updated.setForeground(0, QBrush(QColor("#00CC6A")))
+        node_updated.setForeground(0, QBrush(QColor(get_state_color("success"))))
 
         node_normal = CustomTreeWidgetItem(self.tree, is_category=True, category_priority=1)
         node_normal.setText(0, "📁 維持現狀 (已經是最新的)")
         node_normal.setFirstColumnSpanned(True)
         node_normal.setExpanded(True)
-        node_normal.setForeground(0, QBrush(QColor("#FFFFFF")))
+        node_normal.setForeground(0, QBrush(QColor(get_state_color("text"))))
 
         node_error = CustomTreeWidgetItem(self.tree, is_category=True, category_priority=2)
         node_error.setText(0, "📁 讀取失敗 / 無法更新")
         node_error.setFirstColumnSpanned(True)
         node_error.setExpanded(True)
-        node_error.setForeground(0, QBrush(QColor("#FF5C5C")))
+        node_error.setForeground(0, QBrush(QColor(get_state_color("error"))))
         
         # Sort results by update date descending by default
         def get_ts(r):
@@ -798,7 +798,7 @@ class SteamManifestApp(QWidget):
         results.sort(key=get_ts, reverse=True)
         
         # Zebra striping PER GAME
-        bg_colors = ["#222222", "#2B2B2B"]
+        bg_colors = [get_state_color("bg_stripe_1"), get_state_color("bg_stripe_2")]
         color_idx = 0
         
         # Fetch sources once per refresh
@@ -814,13 +814,13 @@ class SteamManifestApp(QWidget):
         for r in results:
             if r["status"] == "updated":
                 parent = node_updated
-                fg_color = "#00CC6A"
+                fg_color = get_state_color("success")
             elif r["status"] == "normal":
                 parent = node_normal
-                fg_color = "#FFFFFF"
+                fg_color = get_state_color("text")
             else:
                 parent = node_error
-                fg_color = "#FF5C5C"
+                fg_color = get_state_color("error")
                 
             bg_brush = QBrush(QColor(bg_colors[color_idx % 2]))
             color_idx += 1
@@ -863,14 +863,14 @@ class SteamManifestApp(QWidget):
                     child.setBackground(col_idx, bg_brush)
                     if col_idx == 3:
                         if "⚠️" in of_status:
-                            child.setForeground(col_idx, QBrush(QColor("#FF5C5C")))
+                            child.setForeground(col_idx, QBrush(QColor(get_state_color("error"))))
                         elif "✅" in of_status:
-                            child.setForeground(col_idx, QBrush(QColor("#00CC6A")))
+                            child.setForeground(col_idx, QBrush(QColor(get_state_color("success"))))
                         else:
                             child.setForeground(col_idx, QBrush(QColor(fg_color)))
                     elif col_idx in (4, 5):
                         # Make the source columns easily visible
-                        child.setForeground(col_idx, QBrush(QColor("#00CC6A" if "✅" in child.text(col_idx) or "+" in child.text(col_idx) else "#888888")))
+                        child.setForeground(col_idx, QBrush(QColor(get_state_color("success") if "✅" in child.text(col_idx) or "+" in child.text(col_idx) else get_state_color("text_muted"))))
                     else:
                         child.setForeground(col_idx, QBrush(QColor(fg_color)))
                     child.setTextAlignment(col_idx, Qt.AlignVCenter | Qt.AlignLeft)
