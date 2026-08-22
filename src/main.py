@@ -11,7 +11,7 @@ import shutil
 import concurrent.futures
 from managers import onlinefix_manager
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 # Suppress stdout/stderr to prevent QFluentWidgets Pro message
 # sys.stdout
