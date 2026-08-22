@@ -295,6 +295,28 @@ def _save_records(records):
         json.dump(records, f, indent=4, ensure_ascii=False)
 
 def get_rar_file_list(rar_path):
+    rar_path_str = str(rar_path)
+    if rar_path_str.lower().endswith('.zip'):
+        import zipfile
+        try:
+            with zipfile.ZipFile(rar_path_str) as zf:
+                for pwd in ARCHIVE_PASSWORDS:
+                    try:
+                        # Test password by reading 1 byte of the first file
+                        for f in zf.infolist():
+                            if not f.is_dir():
+                                with zf.open(f, pwd=pwd.encode('utf-8')) as test_f:
+                                    test_f.read(1)
+                                break
+                        # If we get here, password is correct
+                        files = [f.filename for f in zf.infolist() if not f.is_dir()]
+                        return pwd, files
+                    except Exception:
+                        continue
+        except Exception as e:
+            print(f"Error reading ZIP: {e}")
+        return None, []
+        
     if not EXTRACTOR:
         return None, []
         
@@ -333,7 +355,7 @@ def get_rar_file_list(rar_path):
                 
             elif EXTRACTOR["type"] == "winrar":
                 subprocess.check_call(
-                    [EXTRACTOR["path"], "t", f"-p{pwd}", str(rar_path)],
+                    [EXTRACTOR["path"], "t", "-inul", f"-p{pwd}", str(rar_path)],
                     startupinfo=startupinfo,
                     stderr=subprocess.STDOUT,
                     stdout=subprocess.DEVNULL,
@@ -341,7 +363,7 @@ def get_rar_file_list(rar_path):
                 )
                 
                 output = subprocess.check_output(
-                    [EXTRACTOR["path"], "lb", f"-p{pwd}", str(rar_path)],
+                    [EXTRACTOR["path"], "lb", "-inul", f"-p{pwd}", str(rar_path)],
                     startupinfo=startupinfo,
                     stderr=subprocess.STDOUT,
                     text=True,
@@ -366,7 +388,9 @@ def install_fix(app_id, rar_path, game_dir):
     if not rar_path.exists() or not game_dir.exists():
         return False, "檔案或資料夾不存在"
         
-    if not EXTRACTOR:
+    if str(rar_path).lower().endswith('.zip'):
+        pass # Python native zip handles this without EXTRACTOR
+    elif not EXTRACTOR:
         return False, "找不到解壓縮工具！請先安裝 7-Zip 或 WinRAR。"
         
     working_pwd, files_to_extract = get_rar_file_list(rar_path)
@@ -387,25 +411,32 @@ def install_fix(app_id, rar_path, game_dir):
                     pass
                     
     try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        
-        if EXTRACTOR["type"] == "7z":
-            subprocess.check_call(
-                [EXTRACTOR["path"], "x", f"-p{working_pwd}", "-y", f"-o{game_dir}", str(rar_path)],
-                startupinfo=startupinfo,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-        elif EXTRACTOR["type"] == "winrar":
-            # WinRAR x command requires trailing backslash for destination directory
-            dest_dir = str(game_dir)
-            if not dest_dir.endswith('\\'):
-                dest_dir += '\\'
-            subprocess.check_call(
-                [EXTRACTOR["path"], "x", f"-p{working_pwd}", "-y", str(rar_path), dest_dir],
-                startupinfo=startupinfo,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
+        if str(rar_path).lower().endswith('.zip'):
+            import zipfile
+            with zipfile.ZipFile(str(rar_path)) as zf:
+                zf.extractall(path=str(game_dir), pwd=working_pwd.encode('utf-8'))
+        else:
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            
+            if EXTRACTOR["type"] == "7z":
+                subprocess.check_call(
+                    [EXTRACTOR["path"], "x", f"-p{working_pwd}", "-y", f"-o{game_dir}", str(rar_path)],
+                    startupinfo=startupinfo,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+            elif EXTRACTOR["type"] == "winrar":
+                # WinRAR x command requires trailing backslash for destination directory
+                dest_dir = str(game_dir)
+                if not dest_dir.endswith('\\'):
+                    dest_dir += '\\'
+                
+                # Use -inul -ibck to prevent GUI popup errors and background execution
+                subprocess.check_call(
+                    [EXTRACTOR["path"], "x", f"-p{working_pwd}", "-y", "-inul", "-ibck", str(rar_path), dest_dir],
+                    startupinfo=startupinfo,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
             
         records = _load_records()
         records[app_id] = {
