@@ -21,6 +21,10 @@ venv/
 data/
 logs/
 src/cache/
+*.log
+debug_*.json
+.scratch/
+.tmp/
 
 # IDE 相關
 .vscode/

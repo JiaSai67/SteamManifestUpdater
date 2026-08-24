@@ -139,7 +139,17 @@ class OneClickInstallWidget(QWidget):
         for chk in [self.chk_ost, self.chk_def, self.chk_login, self.chk_lua, self.chk_game, self.chk_of]:
             status_layout.addWidget(chk)
             
-        status_layout.addSpacing(20)
+        status_layout.addSpacing(5)
+        web_btn_h = QHBoxLayout()
+        self.btn_web_of = PushButton("🌐 Online-Fix.me: 尚未檢查", self)
+        self.btn_web_of.setEnabled(False)
+        self.btn_web_zg = PushButton("🌐 ZeiGames.com: 尚未檢查", self)
+        self.btn_web_zg.setEnabled(False)
+        web_btn_h.addWidget(self.btn_web_of)
+        web_btn_h.addWidget(self.btn_web_zg)
+        status_layout.addLayout(web_btn_h)
+            
+        status_layout.addSpacing(15)
         self.action_btn = PrimaryPushButton("一鍵自動處理所有缺漏", self)
         self.action_btn.setEnabled(False)
         self.action_btn.clicked.connect(self.do_action)
@@ -205,7 +215,56 @@ class OneClickInstallWidget(QWidget):
         self.search_input.setEnabled(True)
         self.game_title_lbl.setText(f"🎮 目標遊戲: {name} (ID: {appid})" if name else f"🎮 目標遊戲 AppID: {appid}")
         
+        # Trigger background web check
+        if name:
+            self.btn_web_of.setText("🌐 Online-Fix.me: ⏳ 搜尋中...")
+            self.btn_web_of.setEnabled(False)
+            self.btn_web_zg.setText("🌐 ZeiGames.com: ⏳ 搜尋中...")
+            self.btn_web_zg.setEnabled(False)
+            
+            if hasattr(self, 'web_patch_thread') and self.web_patch_thread and self.web_patch_thread.isRunning():
+                self.web_patch_thread.terminate()
+            from api.web_patch_checker import WebPatchCheckThread
+            self.web_patch_thread = WebPatchCheckThread(name, self)
+            self.web_patch_thread.results_ready.connect(self._on_web_patch_results)
+            self.web_patch_thread.start()
+        else:
+            self.btn_web_of.setText("🌐 Online-Fix.me: ❌ 無遊戲名稱")
+            self.btn_web_of.setEnabled(False)
+            self.btn_web_zg.setText("🌐 ZeiGames.com: ❌ 無遊戲名稱")
+            self.btn_web_zg.setEnabled(False)
+        
         self.refresh_all_status()
+
+    def _on_web_patch_results(self, res):
+        import webbrowser
+        of_url = res.get("onlinefix_url")
+        zg_url = res.get("zeigames_url")
+        
+        try:
+            self.btn_web_of.clicked.disconnect()
+        except Exception:
+            pass
+        try:
+            self.btn_web_zg.clicked.disconnect()
+        except Exception:
+            pass
+            
+        if of_url:
+            self.btn_web_of.setText("🌐 Online-Fix.me: ✅ 有補丁 (點擊前往)")
+            self.btn_web_of.setEnabled(True)
+            self.btn_web_of.clicked.connect(lambda: webbrowser.open(of_url))
+        else:
+            self.btn_web_of.setText("🌐 Online-Fix.me: ❌ 無對應網頁")
+            self.btn_web_of.setEnabled(False)
+            
+        if zg_url:
+            self.btn_web_zg.setText("🌐 ZeiGames.com: ✅ 有補丁 (點擊前往)")
+            self.btn_web_zg.setEnabled(True)
+            self.btn_web_zg.clicked.connect(lambda: webbrowser.open(zg_url))
+        else:
+            self.btn_web_zg.setText("🌐 ZeiGames.com: ❌ 無對應網頁")
+            self.btn_web_zg.setEnabled(False)
         
 
     def refresh_all_status(self):
@@ -505,7 +564,7 @@ class OneClickInstallWidget(QWidget):
                     if not os.path.exists(rar_path):
                         self.chk_of.setText("⏳ 6. Online-Fix 狀態: 下載補丁中...")
                         QApplication.processEvents()
-                        dl_path = onlinefix_manager.download_cloud_patch(source['cloud_rar'])
+                        dl_path = onlinefix_manager.download_cloud_patch(appid, getattr(self, 'current_app_name', ''), source['cloud_rar'])
                         rar_path = dl_path if dl_path else None
                         
                 if rar_path:

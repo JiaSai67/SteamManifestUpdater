@@ -11,7 +11,7 @@ import shutil
 import concurrent.futures
 from managers import onlinefix_manager
 
-VERSION = "1.0.3"
+VERSION = "1.0.14-dev"
 
 # Suppress stdout/stderr to prevent QFluentWidgets Pro message
 # sys.stdout
@@ -95,45 +95,54 @@ def get_steam_path():
             return p
     return None
 
-class UpdateWorker(QThread):
-    progress = Signal(int, int) # completed, total
-    finished = Signal(list)
-    status = Signal(str)
-
-    def __init__(self, lua_dir):
-        super().__init__()
-        self.lua_dir = lua_dir
+class CloudPrecacheWorker(QThread):
+    finished = Signal()
 
     def run(self):
-        filenames = sorted([f for f in os.listdir(self.lua_dir) if f.endswith(".lua")])
-        total_files = len(filenames)
-        completed = 0
-        results = []
+        onlinefix_manager.fetch_cloud_cache()
+        self.finished.emit()
 
+class UpdateWorker(QThread):
+    progress = Signal(int, int) # completed, total
+    finished = Signal()
+    item_checked = Signal(dict)
+    status = Signal(str)
+
+    def __init__(self, items):
+        super().__init__()
+        self.items = items
+        self.is_cancelled = False
+
+    def run(self):
+        total = len(self.items)
+        if total == 0:
+            self.finished.emit()
+            return
+            
+        completed = 0
         import concurrent.futures
 
-        def process_single_lua(filename):
-            nonlocal completed
-            filepath = os.path.join(self.lua_dir, filename)
-            appid = filename.replace(".lua", "")
+        def process_single(item):
+            if self.is_cancelled: return item
             
+            filepath = item["filepath"]
+            appid = item["appid"]
             result = {
                 "appid": appid,
                 "status": "normal",
-                "game_name": "Unknown",
+                "game_name": item.get("game_name", "未知遊戲"),
                 "error_msg": "",
                 "rows": [],
-                "update_date": "未知"
+                "update_date": "未知",
+                "filepath": filepath
             }
             
             try:
-                with open(filepath, "r", encoding="utf-8") as f:
+                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
                     content = f.read()
             except Exception as e:
                 result["status"] = "error"
                 result["error_msg"] = str(e)
-                completed += 1
-                self.progress.emit(completed, total_files)
                 return result
                 
             import re
@@ -143,15 +152,14 @@ class UpdateWorker(QThread):
                 
             pattern = re.compile(r'(setManifestid\(\s*(\d+)\s*,\s*"(\d+)"(?:,\s*(\d+))?\s*\))')
             matches = pattern.findall(content)
-            
             if not matches:
                 result["status"] = "error"
                 result["error_msg"] = "找不到 setManifestid (格式不符)"
-                completed += 1
-                self.progress.emit(completed, total_files)
                 return result
                 
+            from api.update_manifests import get_app_info
             info = get_app_info(appid)
+            
             is_error = False
             build_id = "未知"
             
@@ -228,17 +236,79 @@ class UpdateWorker(QThread):
             else:
                 result["status"] = "normal"
                 
-            completed += 1
-            self.progress.emit(completed, total_files)
             return result
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-            futures = [executor.submit(process_single_lua, f) for f in filenames]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+            futures = {executor.submit(process_single, item): item for item in self.items}
             for future in concurrent.futures.as_completed(futures):
-                results.append(future.result())
+                if self.is_cancelled: break
+                final_res = future.result()
+                completed += 1
+                self.progress.emit(completed, total)
+                self.item_checked.emit(final_res)
 
-        self.finished.emit(results)
+        self.finished.emit()
 
+class SearchableTreeWidget(TreeWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.search_text = ""
+        self.search_timer = QTimer(self)
+        self.search_timer.setSingleShot(True)
+        self.search_timer.setInterval(1000)
+        self.search_timer.timeout.connect(self.clear_search)
+        
+        # Remove QFluentWidgets smooth scroll delegate filter to eliminate animation and delay
+        if hasattr(self, 'scrollDelegate') and self.scrollDelegate:
+            try:
+                self.viewport().removeEventFilter(self.scrollDelegate)
+            except Exception:
+                pass
+                
+        # Set discrete scroll mode for immediate jumping
+        self.setVerticalScrollMode(QTreeWidget.ScrollPerItem)
+        if self.verticalScrollBar():
+            self.verticalScrollBar().setSingleStep(1)
+        
+    def clear_search(self):
+        self.search_text = ""
+        
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Up, Qt.Key_Down, Qt.Key_PageUp, Qt.Key_PageDown, Qt.Key_Home, Qt.Key_End, Qt.Key_Return, Qt.Key_Enter):
+            super().keyPressEvent(event)
+            return
+            
+        text = event.text()
+        if text.isprintable() and text:
+            self.search_text += text.lower()
+            self.search_timer.start()
+            self.find_and_select()
+        else:
+            super().keyPressEvent(event)
+            
+    def find_and_select(self):
+        from PySide6.QtWidgets import QTreeWidgetItemIterator
+        iterator = QTreeWidgetItemIterator(self)
+        while iterator.value():
+            item = iterator.value()
+            if not getattr(item, 'is_category', False):
+                game_name = item.text(1).lower()
+                appid = item.text(0).lower()
+                if game_name.startswith(self.search_text) or appid.startswith(self.search_text):
+                    self.setCurrentItem(item)
+                    self.scrollToItem(item)
+                    break
+            iterator += 1
+
+    def wheelEvent(self, event):
+        # Native instant wheel jump (3 items per notch, 0ms delay, zero interpolation)
+        num_degrees = event.angleDelta().y() / 8
+        num_steps = num_degrees / 15
+        sb = self.verticalScrollBar()
+        if sb:
+            new_val = int(sb.value() - num_steps * 3)
+            sb.setValue(max(sb.minimum(), min(sb.maximum(), new_val)))
+        event.accept()
 
 class SteamManifestApp(QWidget):
     def __init__(self):
@@ -255,11 +325,17 @@ class SteamManifestApp(QWidget):
         self.update_theme_styles()
         qconfig.themeChanged.connect(self.update_theme_styles)
         
-        # Pre-cache online-fix sources in background
-        import threading
-        def _precache():
-            onlinefix_manager.get_patch_sources()
-        threading.Thread(target=_precache, daemon=True).start()
+        # Pre-cache online-fix sources in background QThread with live UI sync
+        self.cloud_pending = (onlinefix_manager._cloud_cache is None)
+        self.cloud_worker = CloudPrecacheWorker(self)
+        self.cloud_worker.finished.connect(self.refresh_sources_column)
+        self.cloud_worker.start()
+        
+        # Looping animation timer for pending data queries
+        self.loading_timer = QTimer(self)
+        self.loading_dots_count = 0
+        self.loading_timer.timeout.connect(self.animate_loading_dots)
+        self.checking_appids = set()
         
         self.update_ost_status()
         self.start_auto_update_flow()
@@ -380,7 +456,7 @@ class SteamManifestApp(QWidget):
         layout_local = QVBoxLayout(self.page_local)
         layout_local.setContentsMargins(0, 0, 0, 0)
         
-        self.tree = TreeWidget(self)
+        self.tree = SearchableTreeWidget(self)
         self.tree.setColumnCount(6)
         self.tree.setHeaderLabels([
             "AppID", "遊戲名稱 (Game)", "更新日期 (Update Date)", "Online-Fix 狀態", "Lua 來源", "補丁 來源"
@@ -509,10 +585,11 @@ class SteamManifestApp(QWidget):
         if not item or item.is_category: return
         
         app_id = item.text(0)
+        game_name = item.text(1)
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
         
-        sources = onlinefix_manager.get_patch_sources()
+        sources = onlinefix_manager.get_patch_sources(target_apps={app_id: game_name}, allow_network=False)
         has_source = app_id in sources
         app_src = sources.get(app_id, {})
         
@@ -523,16 +600,16 @@ class SteamManifestApp(QWidget):
             install_action = menu.addAction("📦 安裝 Online-Fix (雲端/本地皆無檔案)")
             install_action.setEnabled(False)
             
-        install_action.triggered.connect(lambda: self.ui_install_onlinefix(app_id, sources.get(app_id)))
+        install_action.triggered.connect(lambda: self.ui_install_onlinefix(app_id, game_name, sources.get(app_id)))
         
         status = onlinefix_manager.get_fix_status(app_id)
         # Uninstall is allowed if we have a record OR if we have a source to compare with
-        has_record = str(app_id) in onlinefix_manager._load_records()
+        has_record = onlinefix_manager._load_record(app_id) is not None
         can_uninstall = has_record or (has_source and status != "未安裝")
         
         if can_uninstall:
             uninstall_action = menu.addAction("🗑️ 移除 Online-Fix 補丁")
-            uninstall_action.triggered.connect(lambda: self.ui_uninstall_onlinefix(app_id, sources.get(app_id)))
+            uninstall_action.triggered.connect(lambda: self.ui_uninstall_onlinefix(app_id, game_name, sources.get(app_id)))
             
             
         menu.exec_(self.tree.viewport().mapToGlobal(pos))
@@ -622,7 +699,7 @@ class SteamManifestApp(QWidget):
         except:
             pass
 
-    def ui_install_onlinefix(self, app_id, source):
+    def ui_install_onlinefix(self, app_id, app_name, source):
         if not source: return
         
         # Determine RAR path
@@ -634,7 +711,7 @@ class SteamManifestApp(QWidget):
                 self.lbl_status.setText("⏳ 正在從 Google Drive 下載補丁...")
                 self.progress_bar.show()
                 QApplication.processEvents()
-                dl_path = onlinefix_manager.download_cloud_patch(source['cloud_rar'])
+                dl_path = onlinefix_manager.download_cloud_patch(app_id, app_name, source['cloud_rar'])
                 self.progress_bar.hide()
                 if not dl_path:
                     InfoBar.error("下載失敗", "無法從 Google Drive 取得補丁", position=InfoBarPosition.TOP, parent=self)
@@ -653,7 +730,7 @@ class SteamManifestApp(QWidget):
         else:
             InfoBar.error("安裝失敗", msg, position=InfoBarPosition.TOP, parent=self)
             
-    def ui_uninstall_onlinefix(self, app_id, source):
+    def ui_uninstall_onlinefix(self, app_id, app_name, source):
         # Determine RAR path for comparison
         rar_path = None
         if source:
@@ -664,7 +741,7 @@ class SteamManifestApp(QWidget):
                     self.lbl_status.setText("⏳ 正在從 Google Drive 下載比對檔...")
                     self.progress_bar.show()
                     QApplication.processEvents()
-                    dl_path = onlinefix_manager.download_cloud_patch(source['cloud_rar'])
+                    dl_path = onlinefix_manager.download_cloud_patch(app_id, app_name, source['cloud_rar'])
                     self.progress_bar.hide()
                     rar_path = dl_path
                     
@@ -718,15 +795,48 @@ class SteamManifestApp(QWidget):
             self.lbl_status.setText(f"找不到資料夾: {lua_dir}")
             return
             
-        self.tree.clear()
+        if hasattr(self, 'worker') and self.worker.isRunning():
+            self.worker.is_cancelled = True
+            self.worker.wait()
+            
+        filenames = sorted([f for f in os.listdir(lua_dir) if f.endswith(".lua")])
+        initial_items = []
+        import re
+        for filename in filenames:
+            filepath = os.path.join(lua_dir, filename)
+            appid = filename[:-4]
+            game_name = "未知遊戲"
+            try:
+                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                    chunk = f.read(512)
+                m = re.search(r'--\s*\d+\s*-\s*(.+)', chunk)
+                if m:
+                    game_name = m.group(1).strip()
+            except:
+                pass
+            initial_items.append({
+                "appid": appid,
+                "game_name": game_name,
+                "update_date": "查詢中",
+                "status": "normal",
+                "filepath": filepath
+            })
+            
+        self.checking_appids = set(str(r["appid"]) for r in initial_items)
+        if not self.loading_timer.isActive():
+            self.loading_timer.start(350)
+            
+        self.populate_initial_table(initial_items)
+        
         self.btn_update.setEnabled(False)
         self.progress_bar.show()
         self.progress_bar.setValue(0)
-        self.lbl_status.setText("🔄 正在背景極速比對並更新 Lua...")
+        self.lbl_status.setText(f"🔄 正在背景比對並更新 Lua (共 {len(initial_items)} 個遊戲)...")
         
-        self.worker = UpdateWorker(lua_dir)
+        self.worker = UpdateWorker(initial_items)
         self.worker.progress.connect(self.update_progress)
-        self.worker.finished.connect(self.populate_table)
+        self.worker.item_checked.connect(self.on_item_checked)
+        self.worker.finished.connect(self.on_update_finished)
         self.worker.start()
 
     def dragEnterEvent(self, event):
@@ -757,123 +867,264 @@ class SteamManifestApp(QWidget):
                 self.start_auto_update_flow()
 
     def update_progress(self, current, total):
-        self.progress_bar.setValue(int((current / total) * 100))
+        if total > 0:
+            self.progress_bar.setValue(int((current / total) * 100))
 
-    def populate_table(self, results):
+    def format_source_text(self, local, cloud):
+        if local and cloud: return "本+雲"
+        if local: return "本地✅"
+        if cloud: return "雲端✅"
+        if self.cloud_pending: return "查詢中"
+        return "無數據"
+
+    def animate_loading_dots(self):
+        if not hasattr(self, 'items_map') or not self.items_map:
+            return
+        self.loading_dots_count = (self.loading_dots_count + 1) % 4
+        dots = "." * self.loading_dots_count
+        loading_text = f"查詢中{dots}"
+        
+        # Animate date column for games still checking
+        for appid in list(self.checking_appids):
+            child = self.items_map.get(appid)
+            if child:
+                child.setText(2, loading_text)
+                child.sort_data[2] = loading_text
+                
+        # Animate sources columns if cloud cache is still fetching
+        if self.cloud_pending:
+            for appid, child in self.items_map.items():
+                if child.text(4).startswith("查詢中"):
+                    child.setText(4, loading_text)
+                    child.sort_data[4] = loading_text
+                if child.text(5).startswith("查詢中"):
+                    child.setText(5, loading_text)
+                    child.sort_data[5] = loading_text
+
+    def refresh_sources_column(self):
+        from PySide6.QtGui import QColor, QBrush
+        self.cloud_pending = False
+        if not hasattr(self, 'items_map') or not self.items_map:
+            return
+        target_apps = {str(r.get("appid", "")): str(r.get("game_name", "")) for r in getattr(self, 'last_results', []) if r.get("game_name") and r.get("game_name") != "未知遊戲"}
+        sources = onlinefix_manager.get_patch_sources(target_apps=target_apps, allow_network=False)
+        for appid, child in self.items_map.items():
+            app_src = sources.get(appid, {})
+            child.setText(4, self.format_source_text(app_src.get('local_lua'), app_src.get('cloud_lua')))
+            child.setText(5, self.format_source_text(app_src.get('local_rar'), app_src.get('cloud_rar')))
+            child.setForeground(4, QBrush(QColor(get_state_color("success") if "✅" in child.text(4) or "+" in child.text(4) else get_state_color("text_muted"))))
+            child.setForeground(5, QBrush(QColor(get_state_color("success") if "✅" in child.text(5) or "+" in child.text(5) else get_state_color("text_muted"))))
+            child.sort_data[4] = child.text(4)
+            child.sort_data[5] = child.text(5)
+            
+        if len(self.checking_appids) == 0:
+            self.loading_timer.stop()
+
+    def populate_initial_table(self, items):
         from PySide6.QtGui import QColor, QBrush
         from PySide6.QtCore import Qt
-        from datetime import datetime
         
-        self.last_results = results
-        self.btn_update.setEnabled(True)
-        self.progress_bar.hide()
-        self.lbl_status.setText(f"✅ 更新完成！共處理 {len(results)} 個遊戲。")
-        
+        self.last_results = items
         self.tree.clear()
         
         # Category Folders (Order is guaranteed because SortingEnabled is False)
-        node_updated = CustomTreeWidgetItem(self.tree, is_category=True, category_priority=0)
-        node_updated.setText(0, "📁 本次啟動被修正的 Lua")
-        node_updated.setFirstColumnSpanned(True)
-        node_updated.setExpanded(True)
-        node_updated.setForeground(0, QBrush(QColor(get_state_color("success"))))
+        self.node_updated = CustomTreeWidgetItem(self.tree, is_category=True, category_priority=0)
+        self.node_updated.setText(0, "📁 本次啟動被修正的 Lua")
+        self.node_updated.setFirstColumnSpanned(True)
+        self.node_updated.setExpanded(True)
+        self.node_updated.setForeground(0, QBrush(QColor(get_state_color("success"))))
 
-        node_normal = CustomTreeWidgetItem(self.tree, is_category=True, category_priority=1)
-        node_normal.setText(0, "📁 維持現狀 (已經是最新的)")
-        node_normal.setFirstColumnSpanned(True)
-        node_normal.setExpanded(True)
-        node_normal.setForeground(0, QBrush(QColor(get_state_color("text"))))
+        self.node_normal = CustomTreeWidgetItem(self.tree, is_category=True, category_priority=1)
+        self.node_normal.setText(0, "📁 維持現狀 (已經是最新的)")
+        self.node_normal.setFirstColumnSpanned(True)
+        self.node_normal.setExpanded(True)
+        self.node_normal.setForeground(0, QBrush(QColor(get_state_color("text"))))
 
-        node_error = CustomTreeWidgetItem(self.tree, is_category=True, category_priority=2)
-        node_error.setText(0, "📁 讀取失敗 / 無法更新")
-        node_error.setFirstColumnSpanned(True)
-        node_error.setExpanded(True)
-        node_error.setForeground(0, QBrush(QColor(get_state_color("error"))))
+        self.node_error = CustomTreeWidgetItem(self.tree, is_category=True, category_priority=2)
+        self.node_error.setText(0, "📁 讀取失敗 / 無法更新")
+        self.node_error.setFirstColumnSpanned(True)
+        self.node_error.setExpanded(True)
+        self.node_error.setForeground(0, QBrush(QColor(get_state_color("error"))))
         
-        # Sort results by update date descending by default
-        def get_ts(r):
-            if r["update_date"] == "未知": return 0
-            try: return datetime.strptime(r["update_date"], "%Y-%m-%d %H:%M:%S").timestamp()
-            except: return 0
-        results.sort(key=get_ts, reverse=True)
-        
-        # Zebra striping PER GAME
+        self.items_map = {}
         bg_colors = [get_state_color("bg_stripe_1"), get_state_color("bg_stripe_2")]
         color_idx = 0
         
-        # Fetch sources once per refresh
-        sources = onlinefix_manager.get_patch_sources()
+        target_apps = {str(r.get("appid", "")): str(r.get("game_name", "")) for r in items if r.get("game_name") and r.get("game_name") != "未知遊戲"}
+        sources = onlinefix_manager.get_patch_sources(target_apps=target_apps, allow_network=False)
         
-        def _fmt_source(local, cloud):
-            if local and cloud: return "本+雲"
-            if local: return "本地✅"
-            if cloud: return "雲端✅"
-            return "無數據"
-            
-        color_idx = 0
-        for r in results:
-            if r["status"] == "updated":
-                parent = node_updated
-                fg_color = get_state_color("success")
-            elif r["status"] == "normal":
-                parent = node_normal
-                fg_color = get_state_color("text")
-            else:
-                parent = node_error
-                fg_color = get_state_color("error")
+        for r in items:
+            parent = self.node_normal
+            fg_color = get_state_color("text")
                 
             bg_brush = QBrush(QColor(bg_colors[color_idx % 2]))
             color_idx += 1
             
             appid = str(r.get("appid", ""))
             game_name = str(r.get("game_name", ""))
-            update_date = str(r.get("update_date", ""))
+            update_date = str(r.get("update_date", "查詢中"))
+            
+            sort_data = {
+                0: appid, 1: game_name, 2: update_date, 3: "", 4: "", 5: "", "idx": 0
+            }
+            child = CustomTreeWidgetItem(parent, sort_data=sort_data)
+            child.setText(0, appid)
+            child.setText(1, game_name)
+            child.setText(2, update_date)
                 
-            if r["status"] == "error":
-                sort_data = {
-                    0: appid, 1: game_name, 2: update_date, 3: "", 4: "", 5: "", "idx": 0
-                }
-                child = CustomTreeWidgetItem(parent, sort_data=sort_data)
-                child.setText(0, appid)
-                child.setText(1, f"讀取失敗: {r.get('error_msg', '未知錯誤')}")
-                child.setForeground(0, QBrush(QColor(fg_color)))
-                child.setForeground(1, QBrush(QColor(fg_color)))
-                child.setBackground(0, bg_brush)
-                child.setBackground(1, bg_brush)
-                for i in range(6):
-                    child.setTextAlignment(i, Qt.AlignVCenter | Qt.AlignLeft)
+            child.setForeground(0, QBrush(QColor(fg_color)))
+            child.setForeground(1, QBrush(QColor(fg_color)))
+            child.setForeground(2, QBrush(QColor(get_state_color("warning"))))
+            for i in range(6):
+                child.setBackground(i, bg_brush)
+                child.setTextAlignment(i, Qt.AlignVCenter | Qt.AlignLeft)
+                
+            of_status = onlinefix_manager.get_fix_status(appid)
+            child.setText(3, of_status)
+            
+            app_src = sources.get(appid, {})
+            child.setText(4, self.format_source_text(app_src.get('local_lua'), app_src.get('cloud_lua')))
+            child.setText(5, self.format_source_text(app_src.get('local_rar'), app_src.get('cloud_rar')))
+            if "⚠️" in of_status:
+                child.setForeground(3, QBrush(QColor(get_state_color("error"))))
+            elif "✅" in of_status:
+                child.setForeground(3, QBrush(QColor(get_state_color("success"))))
             else:
-                sort_data = {
-                    0: appid, 1: game_name, 2: update_date, 3: "", 4: "", 5: "", "idx": 0
-                }
-                child = CustomTreeWidgetItem(parent, sort_data=sort_data)
-                child.setText(0, appid)
-                child.setText(1, game_name)
-                child.setText(2, update_date)
+                child.setForeground(3, QBrush(QColor(fg_color)))
                 
-                of_status = onlinefix_manager.get_fix_status(appid)
-                child.setText(3, of_status)
+            if "查詢中" in child.text(4):
+                child.setForeground(4, QBrush(QColor(get_state_color("warning"))))
+            elif "✅" in child.text(4) or "+" in child.text(4):
+                child.setForeground(4, QBrush(QColor(get_state_color("success"))))
+            else:
+                child.setForeground(4, QBrush(QColor(get_state_color("text_muted"))))
                 
-                # Set Lua and Patch sources
-                app_src = sources.get(appid, {})
-                child.setText(4, _fmt_source(app_src.get('local_lua'), app_src.get('cloud_lua')))
-                child.setText(5, _fmt_source(app_src.get('local_rar'), app_src.get('cloud_rar')))
+            if "查詢中" in child.text(5):
+                child.setForeground(5, QBrush(QColor(get_state_color("warning"))))
+            elif "✅" in child.text(5) or "+" in child.text(5):
+                child.setForeground(5, QBrush(QColor(get_state_color("success"))))
+            else:
+                child.setForeground(5, QBrush(QColor(get_state_color("text_muted"))))
                 
-                for col_idx in range(6):
-                    child.setBackground(col_idx, bg_brush)
-                    if col_idx == 3:
-                        if "⚠️" in of_status:
-                            child.setForeground(col_idx, QBrush(QColor(get_state_color("error"))))
-                        elif "✅" in of_status:
-                            child.setForeground(col_idx, QBrush(QColor(get_state_color("success"))))
-                        else:
-                            child.setForeground(col_idx, QBrush(QColor(fg_color)))
-                    elif col_idx in (4, 5):
-                        # Make the source columns easily visible
-                        child.setForeground(col_idx, QBrush(QColor(get_state_color("success") if "✅" in child.text(col_idx) or "+" in child.text(col_idx) else get_state_color("text_muted"))))
-                    else:
-                        child.setForeground(col_idx, QBrush(QColor(fg_color)))
-                    child.setTextAlignment(col_idx, Qt.AlignVCenter | Qt.AlignLeft)
+            self.items_map[appid] = child
+            
+        self.tree.expandAll()
+
+    def populate_table(self, results):
+        self.populate_initial_table(results)
+
+    def on_item_checked(self, r):
+        appid = str(r.get("appid", ""))
+        self.checking_appids.discard(appid)
+        child = getattr(self, 'items_map', {}).get(appid)
+        if not child: return
+        
+        from PySide6.QtGui import QColor, QBrush
+        from PySide6.QtCore import Qt
+        
+        if hasattr(self, 'last_results'):
+            for i, res in enumerate(self.last_results):
+                if str(res.get("appid")) == appid:
+                    self.last_results[i] = r
+                    break
+                
+        status = r.get("status", "normal")
+        game_name = r.get("game_name", child.text(1))
+        update_date = str(r.get("update_date", "未知"))
+        
+        # Reparent if status changed
+        current_parent = child.parent()
+        target_parent = self.node_normal
+        fg_color = get_state_color("text")
+        
+        if status == "updated":
+            target_parent = self.node_updated
+            fg_color = get_state_color("success")
+        elif status == "error":
+            target_parent = self.node_error
+            fg_color = get_state_color("error")
+            
+        if current_parent != target_parent:
+            if current_parent:
+                current_parent.removeChild(child)
+            target_parent.insertChild(0, child)
+            target_parent.setExpanded(True)
+            
+        # Update text across all columns
+        child.setText(0, appid)
+        child.setText(1, game_name if status != "error" else f"讀取失敗: {r.get('error_msg', '未知錯誤')}")
+        child.setText(2, update_date)
+        
+        of_status = onlinefix_manager.get_fix_status(appid)
+        child.setText(3, of_status)
+        
+        sources = onlinefix_manager.get_patch_sources(target_apps={appid: game_name}, allow_network=False)
+        app_src = sources.get(appid, {})
+        child.setText(4, self.format_source_text(app_src.get('local_lua'), app_src.get('cloud_lua')))
+        child.setText(5, self.format_source_text(app_src.get('local_rar'), app_src.get('cloud_rar')))
+
+        # Update foreground colors
+        child.setForeground(0, QBrush(QColor(fg_color)))
+        child.setForeground(1, QBrush(QColor(fg_color)))
+        child.setForeground(2, QBrush(QColor(fg_color)))
+        
+        if "⚠️" in of_status:
+            child.setForeground(3, QBrush(QColor(get_state_color("error"))))
+        elif "✅" in of_status:
+            child.setForeground(3, QBrush(QColor(get_state_color("success"))))
+        else:
+            child.setForeground(3, QBrush(QColor(fg_color)))
+            
+        if "查詢中" in child.text(4):
+            child.setForeground(4, QBrush(QColor(get_state_color("warning"))))
+        elif "✅" in child.text(4) or "+" in child.text(4):
+            child.setForeground(4, QBrush(QColor(get_state_color("success"))))
+        else:
+            child.setForeground(4, QBrush(QColor(get_state_color("text_muted"))))
+            
+        if "查詢中" in child.text(5):
+            child.setForeground(5, QBrush(QColor(get_state_color("warning"))))
+        elif "✅" in child.text(5) or "+" in child.text(5):
+            child.setForeground(5, QBrush(QColor(get_state_color("success"))))
+        else:
+            child.setForeground(5, QBrush(QColor(get_state_color("text_muted"))))
+
+        for col_idx in range(6):
+            child.sort_data[col_idx] = child.text(col_idx)
+
+    def on_update_finished(self):
+        from PySide6.QtGui import QColor, QBrush
+        self.btn_update.setEnabled(True)
+        self.progress_bar.hide()
+        self.checking_appids.clear()
+        if not self.cloud_pending:
+            self.loading_timer.stop()
+            
+        total_count = len(getattr(self, 'last_results', []))
+        self.lbl_status.setText(f"✅ 更新完成！共處理 {total_count} 個遊戲。")
+        
+        # Batch refresh all sources in case cloud cache finished in background
+        target_apps = {str(r.get("appid", "")): str(r.get("game_name", "")) for r in getattr(self, 'last_results', []) if r.get("game_name") and r.get("game_name") != "未知遊戲"}
+        sources = onlinefix_manager.get_patch_sources(target_apps=target_apps, allow_network=False)
+        for appid, child in getattr(self, 'items_map', {}).items():
+            app_src = sources.get(appid, {})
+            child.setText(4, self.format_source_text(app_src.get('local_lua'), app_src.get('cloud_lua')))
+            child.setText(5, self.format_source_text(app_src.get('local_rar'), app_src.get('cloud_rar')))
+            if "查詢中" in child.text(4):
+                child.setForeground(4, QBrush(QColor(get_state_color("warning"))))
+            elif "✅" in child.text(4) or "+" in child.text(4):
+                child.setForeground(4, QBrush(QColor(get_state_color("success"))))
+            else:
+                child.setForeground(4, QBrush(QColor(get_state_color("text_muted"))))
+                
+            if "查詢中" in child.text(5):
+                child.setForeground(5, QBrush(QColor(get_state_color("warning"))))
+            elif "✅" in child.text(5) or "+" in child.text(5):
+                child.setForeground(5, QBrush(QColor(get_state_color("success"))))
+            else:
+                child.setForeground(5, QBrush(QColor(get_state_color("text_muted"))))
+        
+        self.tree.expandAll()
 
     def closeEvent(self, event):
         try:

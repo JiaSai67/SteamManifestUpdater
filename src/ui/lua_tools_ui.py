@@ -276,10 +276,21 @@ class LuaToolsDownloaderWidget(QWidget):
         self.of_open_drive_btn.clicked.connect(self._open_gdrive_folder)
         action_layout.addWidget(self.of_open_drive_btn)
         
-        self.of_open_web_btn = PushButton("🌐 在 Online-Fix 網頁上搜尋此遊戲", self)
-        self.of_open_web_btn.setEnabled(False)
-        self.of_open_web_btn.clicked.connect(self._open_onlinefix_webpage)
-        action_layout.addWidget(self.of_open_web_btn)
+        # Web Patch Sources
+        web_source_card = CardWidget(self)
+        web_source_layout = QVBoxLayout(web_source_card)
+        web_source_title = StrongBodyLabel("🌐 外部補丁網頁檢查", self)
+        web_source_layout.addWidget(web_source_title)
+        
+        self.of_web_btn = PushButton("🌐 Online-Fix.me: 尚未檢查", self)
+        self.of_web_btn.setEnabled(False)
+        web_source_layout.addWidget(self.of_web_btn)
+        
+        self.zg_web_btn = PushButton("🌐 ZeiGames.com: 尚未檢查", self)
+        self.zg_web_btn.setEnabled(False)
+        web_source_layout.addWidget(self.zg_web_btn)
+        
+        action_layout.addWidget(web_source_card)
         
         of_page_layout.addWidget(action_card)
         of_page_layout.addStretch(1)
@@ -301,26 +312,57 @@ class LuaToolsDownloaderWidget(QWidget):
     def on_game_info_ready(self, game_name):
         self.current_game_name = game_name
         if game_name:
-            self.of_open_web_btn.setEnabled(True)
+            self.of_web_btn.setText("🌐 Online-Fix.me: ⏳ 搜尋中...")
+            self.of_web_btn.setEnabled(False)
+            self.zg_web_btn.setText("🌐 ZeiGames.com: ⏳ 搜尋中...")
+            self.zg_web_btn.setEnabled(False)
+            
+            if hasattr(self, 'web_patch_thread') and self.web_patch_thread and self.web_patch_thread.isRunning():
+                self.web_patch_thread.terminate()
+            from api.web_patch_checker import WebPatchCheckThread
+            self.web_patch_thread = WebPatchCheckThread(game_name, self)
+            self.web_patch_thread.results_ready.connect(self._on_web_patch_results)
+            self.web_patch_thread.start()
         else:
-            self.of_open_web_btn.setEnabled(False)
+            self.of_web_btn.setText("🌐 Online-Fix.me: ❌ 無遊戲名稱")
+            self.of_web_btn.setEnabled(False)
+            self.zg_web_btn.setText("🌐 ZeiGames.com: ❌ 無遊戲名稱")
+            self.zg_web_btn.setEnabled(False)
+
+    def _on_web_patch_results(self, res):
+        import webbrowser
+        of_url = res.get("onlinefix_url")
+        zg_url = res.get("zeigames_url")
+        
+        try:
+            self.of_web_btn.clicked.disconnect()
+        except Exception:
+            pass
+        try:
+            self.zg_web_btn.clicked.disconnect()
+        except Exception:
+            pass
+            
+        if of_url:
+            self.of_web_btn.setText("🌐 Online-Fix.me: ✅ 有補丁 (點擊前往)")
+            self.of_web_btn.setEnabled(True)
+            self.of_web_btn.clicked.connect(lambda: webbrowser.open(of_url))
+        else:
+            self.of_web_btn.setText("🌐 Online-Fix.me: ❌ 無對應網頁")
+            self.of_web_btn.setEnabled(False)
+            
+        if zg_url:
+            self.zg_web_btn.setText("🌐 ZeiGames.com: ✅ 有補丁 (點擊前往)")
+            self.zg_web_btn.setEnabled(True)
+            self.zg_web_btn.clicked.connect(lambda: webbrowser.open(zg_url))
+        else:
+            self.zg_web_btn.setText("🌐 ZeiGames.com: ❌ 無對應網頁")
+            self.zg_web_btn.setEnabled(False)
 
     def _open_gdrive_folder(self):
         from managers import onlinefix_manager
         import webbrowser
         webbrowser.open(onlinefix_manager.GDRIVE_FOLDER_URL)
-
-    def _open_onlinefix_webpage(self):
-        import urllib.parse
-        import webbrowser
-        import re
-        if getattr(self, 'current_game_name', None):
-            # Clean up game name (remove trademarks)
-            clean_name = re.sub(r'[^a-zA-Z0-9\s-]', '', self.current_game_name).strip()
-            if not clean_name: clean_name = self.current_game_name
-            query = urllib.parse.quote(clean_name)
-            url = f"https://online-fix.me/index.php?do=search&subaction=search&story={query}"
-            webbrowser.open(url)
 
     def on_image_downloaded(self, data):
         if data:
@@ -370,29 +412,40 @@ class LuaToolsDownloaderWidget(QWidget):
 
     def do_search(self):
         import re
-        appid_text = self.search_input.text().strip()
-        if not appid_text:
+        query = self.search_input.text().strip()
+        if not query:
             return
             
-        # Extract AppID from URL or raw numbers
-        match = re.search(r'(?:app/|appid=)(\d+)', appid_text.lower())
-        if match:
-            appid_text = match.group(1)
-        else:
-            match = re.search(r'\d+', appid_text)
-            if match:
-                appid_text = match.group(0)
-            
-        try:
-            appid = int(appid_text)
-            # update input field to show clean appid
-            self.search_input.setText(str(appid))
-        except ValueError:
-            InfoBar.error("錯誤", "無法從輸入中解析出 AppID", parent=self)
-            return
-
         self.search_btn.setEnabled(False)
         self.search_btn.setText("搜尋中...")
+        
+        match = re.search(r'(?:app/|appid=)(\d+)', query.lower())
+        appid = None
+        if match:
+            appid = match.group(1)
+        elif query.isdigit():
+            appid = query
+            
+        from ui.one_click_install_ui import SteamSearchThread
+        if appid:
+            self.steam_search_thread = SteamSearchThread(appid=appid)
+        else:
+            self.steam_search_thread = SteamSearchThread(query=query)
+            
+        self.steam_search_thread.result_ready.connect(self._on_steam_search_result)
+        self.steam_search_thread.start()
+
+    def _on_steam_search_result(self, result):
+        if not result:
+            self.search_btn.setEnabled(True)
+            self.search_btn.setText("搜尋 Manifest")
+            from qfluentwidgets import InfoBar
+            InfoBar.error("錯誤", "找不到該遊戲名稱或 AppID", parent=self)
+            return
+            
+        appid = int(result['id'])
+        self.current_game_name = result.get('name', '')
+        self.search_input.setText(str(appid))
         
         self.of_status_lbl.setText(f"檢查補丁來源中 (AppID: {appid})...")
         self.of_install_btn.setEnabled(False)
@@ -407,7 +460,7 @@ class LuaToolsDownloaderWidget(QWidget):
 
     def _check_of_sources(self, appid):
         from managers import onlinefix_manager
-        sources = onlinefix_manager.get_patch_sources()
+        sources = onlinefix_manager.get_patch_sources(target_app_id=appid, target_app_name=self.current_game_name)
         source = sources.get(str(appid))
         
         # Check game installation
@@ -494,7 +547,7 @@ class LuaToolsDownloaderWidget(QWidget):
         from PySide6.QtWidgets import QApplication
         from managers import onlinefix_manager
         
-        sources = onlinefix_manager.get_patch_sources()
+        sources = onlinefix_manager.get_patch_sources(target_app_id=self.current_appid, target_app_name=getattr(self, 'current_game_name', ''))
         source = sources.get(str(self.current_appid))
         if not source:
             InfoBar.error("錯誤", "找不到此遊戲的 Online-Fix 補丁來源！", parent=self)
@@ -508,7 +561,7 @@ class LuaToolsDownloaderWidget(QWidget):
             if not os.path.exists(rar_path):
                 self.of_status_lbl.setText("⏳ 正在從 Google Drive 下載補丁...")
                 QApplication.processEvents()
-                dl_path = onlinefix_manager.download_cloud_patch(source['cloud_rar'])
+                dl_path = onlinefix_manager.download_cloud_patch(self.current_appid, getattr(self, 'current_game_name', ''), source['cloud_rar'])
                 if not dl_path:
                     InfoBar.error("下載失敗", "無法從 Google Drive 取得補丁", parent=self)
                     self._check_of_sources(self.current_appid) # Reset status
