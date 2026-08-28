@@ -143,7 +143,11 @@ def _load_record(app_id):
     if game_record_path and game_record_path.exists():
         try:
             with open(game_record_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, dict):
+                    if "game_dir" not in data or not data["game_dir"]:
+                        data["game_dir"] = str(game_record_path.parent)
+                    return data
         except Exception:
             pass
             
@@ -153,7 +157,13 @@ def _load_record(app_id):
     if json_path.exists():
         try:
             with open(json_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, dict):
+                    if "game_dir" not in data or not data["game_dir"]:
+                        game_dir = _find_steam_game_dir(app_id)
+                        if game_dir:
+                            data["game_dir"] = str(game_dir)
+                    return data
         except Exception:
             pass
             
@@ -607,7 +617,17 @@ def uninstall_fix(app_id, forced_rar_path=None):
             return True, "強制移除完成，已清理補丁檔案"
         return False, "此遊戲沒有安裝紀錄，且無可用比對檔案"
         
-    game_dir = Path(record["game_dir"])
+    game_dir_str = record.get("game_dir")
+    if not game_dir_str:
+        game_dir = _find_steam_game_dir(app_id)
+        if not game_dir:
+            return False, "找不到遊戲目錄，無法執行移除"
+    else:
+        game_dir = Path(game_dir_str)
+        
+    if not game_dir.exists():
+        return False, "遊戲目錄不存在"
+        
     installed = record.get("installed_files", [])
     backed_up = record.get("backed_up_files", [])
     
@@ -654,21 +674,31 @@ def uninstall_fix(app_id, forced_rar_path=None):
 
 def get_fix_status(app_id):
     app_id = str(app_id)
-    record = _load_record(app_id)
-    
-    if not record:
-        return "未安裝"
+    try:
+        record = _load_record(app_id)
         
-    game_dir = Path(record["game_dir"])
-    if not game_dir.exists():
-        return "⚠️ 遊戲目錄遺失"
-        
-    if record.get("is_signature"):
-        return "✅ 已安裝"
-        
-    installed = record.get("installed_files", [])
-    for f in installed:
-        if not (game_dir / f).exists():
-            return "⚠️ 部分補丁檔案遺失 (可能被防毒刪除)"
+        if not record:
+            return "未安裝"
             
-    return "✅ 已安裝"
+        game_dir_str = record.get("game_dir")
+        if not game_dir_str:
+            return "未安裝"
+            
+        game_dir = Path(game_dir_str)
+        if not game_dir.exists():
+            return "⚠️ 遊戲目錄遺失"
+            
+        if record.get("is_signature"):
+            return "✅ 已安裝"
+            
+        installed = record.get("installed_files", [])
+        if not installed:
+            return "✅ 已安裝"
+            
+        for f in installed:
+            if not (game_dir / f).exists():
+                return "⚠️ 部分補丁檔案遺失 (可能被防毒刪除)"
+                
+        return "✅ 已安裝"
+    except Exception:
+        return "未安裝"
