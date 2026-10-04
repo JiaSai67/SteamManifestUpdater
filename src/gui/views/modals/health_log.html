@@ -1,0 +1,24 @@
+<div id="health-log-modal" class="detail-modal-overlay" onclick="closeHealthLogModal(event)" style="z-index:100070">
+  <div class="detail-modal-box log-modal-box" onclick="event.stopPropagation()">
+    <div class="detail-modal-header">
+      <div class="detail-modal-title" style="display:flex;align-items:center;gap:8px;">
+        <span>🩺 系統健康體檢報告詳情</span>
+        <span id="health-log-score-badge" class="chip green" style="font-size:11px;padding:2px 8px">100分</span>
+      </div>
+      <button class="detail-close-btn" onclick="closeHealthLogModal()">✕</button>
+    </div>
+    <div class="log-modal-toolbar">
+      <div class="log-modal-meta">
+        <span id="health-log-meta-file">日誌檔案: -</span>
+        <span id="health-log-meta-time" style="color:var(--gray);margin-left:8px;">時間: -</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-s" onclick="copyHealthLogMarkdown()" style="background:rgba(255,183,197,.2);border:1px solid rgba(255,183,197,.4);font-size:11px;padding:3px 10px;cursor:pointer" title="複製 Markdown 報告">📋 複製報告</button>
+        <button class="btn btn-s" onclick="triggerSystemHealthCheck()" style="background:linear-gradient(135deg,#FF6699,#FF8FA7);color:#fff;border:none;font-weight:700;font-size:11px;padding:3px 12px;cursor:pointer" title="重新執行體檢">⚡ 重新體檢</button>
+      </div>
+    </div>
+    <div class="log-modal-body" id="health-log-modal-content" style="padding:16px 20px;max-height:65vh;overflow-y:auto">
+      <!-- 渲染 Markdown 或日誌內容 -->
+    </div>
+  </div>
+</div>

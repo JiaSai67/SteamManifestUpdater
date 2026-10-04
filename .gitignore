@@ -20,7 +20,9 @@ venv/
 # 使用者數據與日誌 (避免把測試資料上傳)
 data/
 logs/
+temp/
 src/cache/
+src/gui/theme_cache.js
 *.log
 debug_*.json
 .scratch/

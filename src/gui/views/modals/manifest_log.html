@@ -1,0 +1,29 @@
+<div id="manifest-log-modal" class="detail-modal-overlay" onclick="closeManifestLogModal(event)">
+  <div class="detail-modal-box log-modal-box" onclick="event.stopPropagation()">
+    <div class="detail-modal-header">
+      <div class="detail-modal-title" style="display:flex;align-items:center;gap:8px;">
+        <span>📄 Manifest 更新全鏈路診斷報告</span>
+        <span id="log-status-badge" class="chip green" style="font-size:11px;padding:2px 8px">成功</span>
+      </div>
+      <button class="detail-close-btn" onclick="closeManifestLogModal()">✕</button>
+    </div>
+    <div class="log-modal-toolbar">
+      <div class="log-modal-meta">
+        <span id="log-meta-game">目標遊戲: -</span>
+        <span id="log-meta-time" style="color:var(--gray);margin-left:8px;">耗時: -</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-s" onclick="copyManifestLogText()" style="background:rgba(255,183,197,.2);border:1px solid rgba(255,183,197,.4);font-size:11px;padding:3px 10px;cursor:pointer" title="複製 Markdown 報告">📋 複製報告</button>
+        <button class="btn btn-s" onclick="openManifestLogInEditor()" style="background:rgba(255,183,197,.2);border:1px solid rgba(255,183,197,.4);font-size:11px;padding:3px 10px;cursor:pointer" title="在 Windows 記事本開啟">📝 記事本開啟</button>
+        <button class="btn btn-s" onclick="openManifestLogsDirectory()" style="background:rgba(255,183,197,.2);border:1px solid rgba(255,183,197,.4);font-size:11px;padding:3px 10px;cursor:pointer" title="開啟存放資料夾">📁 Log 目錄</button>
+      </div>
+    </div>
+    <div class="log-modal-body" id="log-modal-content">
+      <!-- 渲染 Markdown 或日誌內容 -->
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     Steam 下載中斷與異常排障報告視窗 (櫻花暗黑玻璃 Modal)
+     ═══════════════════════════════════════════════════════ -->

@@ -1,0 +1,168 @@
+<div class="page" id="p-settings">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+  <h2 style="margin:0">⚙️ 設置</h2>
+  <!-- 母分類頁籤切換 -->
+  <div class="settings-tab-bar">
+    <button type="button" class="settings-tab-btn btn btn-p btn-s" id="btn-stab-ui" onclick="switchSettingsTab('ui')">🎨 介面</button>
+    <button type="button" class="settings-tab-btn btn btn-o btn-s" id="btn-stab-adv" onclick="switchSettingsTab('adv')">⚡ 進階</button>
+    <button type="button" class="settings-tab-btn btn btn-o btn-s" id="btn-stab-sys" onclick="switchSettingsTab('sys')">💻 系統</button>
+  </div>
+</div>
+
+<!-- ── 母分類：介面 ── -->
+<div id="settings-tab-ui" class="settings-tab-pane">
+  <div class="section">📁 Steam 安裝路徑</div>
+  <div class="path-row">
+  <input id="sp2" type="text" placeholder="Steam 根目錄路徑…">
+  <button class="btn btn-o btn-s" onclick="bf()">變更</button>
+  <button class="btn btn-o btn-s" onclick="ad()">自動偵測</button>
+  </div>
+  <div class="shortcut-btn-row" style="margin-top:8px;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-p btn-s" onclick="checkStartupPrerequisites(true)" style="font-weight:700">
+      🚀 必備環境檢查 (SteamTools / Discord 憑證)
+    </button>
+    <button class="btn btn-o btn-s" onclick="wizardInstallSteamTools()">
+      🛠️ 一鍵注入 SteamTools 內核
+    </button>
+  </div>
+  <div class="section">🎨 個性化</div>
+  <div class="toggle" style="padding:9px 0">
+    <span class="l">🔤 介面文字大小 <small style="color:var(--gray)">（切換全域文字與字級清晰度）</small></span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button type="button" id="btn-font-small" class="btn btn-p btn-xs" onclick="setFontSize('small')">小 (預設)</button>
+      <button type="button" id="btn-font-normal" class="btn btn-o btn-xs" onclick="setFontSize('normal')">正常</button>
+    </div>
+  </div>
+  <div class="toggle"><span class="l">🌙 深色模式</span><label class="switch"><input type="checkbox" id="t-dark" onchange="ts('dark')"><span></span></label></div>
+  <div class="section">🖼️ 自訂背景桌布 (支援 GIF 動圖)</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="bg-g">
+  <div style="width:64px;cursor:pointer;text-align:center;font-size:9px;color:var(--gray);border:2px solid var(--pink-deep);border-radius:6px;padding:3px" data-bg="" onclick="swBg('')"><div style="width:56px;height:36px;border-radius:3px;background:linear-gradient(135deg,#FFE2E7,#FFD8DF);margin-bottom:2px"></div>預設</div>
+  <div style="width:64px;cursor:pointer;text-align:center;font-size:9px;color:var(--gray);border:2px dashed var(--pink-light);border-radius:6px;padding:3px;display:flex;align-items:center;justify-content:center;height:56px" onclick="addBg()" title="選取圖片或GIF添加自訂桌布"><span style="font-size:22px">➕</span></div>
+  </div>
+
+  <div class="setting-slider-row">
+    <div class="setting-slider-header">
+      <span class="l">🌫️ 背景磨砂模糊度 <small class="pref-desc" style="color:var(--gray)">（毛玻璃磨砂程度，0 為清晰原圖）</small></span>
+      <span class="val" id="val-bg-blur">0 px</span>
+    </div>
+    <input type="range" min="0" max="40" value="0" id="slider-bg-blur" oninput="onBgBlurChange(this.value)">
+  </div>
+
+  <div class="setting-slider-row">
+    <div class="setting-slider-header">
+      <span class="l">✨ 背景圖片顯色濃度 <small class="pref-desc" style="color:var(--gray)">（調節桌布顯色濃淡飽和度）</small></span>
+      <span class="val" id="val-bg-opacity">80%</span>
+    </div>
+    <input type="range" min="10" max="100" value="80" id="slider-bg-opacity" oninput="onBgOpacityChange(this.value)">
+  </div>
+
+  <div class="setting-slider-row">
+    <div class="setting-slider-header">
+      <span class="l">🪟 視窗整體透明度 <small class="pref-desc" style="color:var(--gray)">（調節視窗邊框與材質透光率）</small></span>
+      <span class="val" id="val-win-opacity">100%</span>
+    </div>
+    <input type="range" min="30" max="100" value="100" id="slider-win-opacity" oninput="onWinOpacityChange(this.value)">
+  </div>
+
+  <div class="setting-slider-row">
+    <div class="setting-slider-header">
+      <span class="l">🏷️ 遊戲卡片文字底色濃度 <small class="pref-desc" style="color:var(--gray)">（卡片標題與 AppID 黑色底色不透明度）</small></span>
+      <span class="val" id="val-text-bg-opacity">65%</span>
+    </div>
+    <input type="range" min="0" max="100" value="65" id="slider-text-bg-opacity" oninput="onTextBgOpacityChange(this.value)">
+  </div>
+
+  <button class="btn btn-o btn-s" onclick="restoreDefaultBgs()" style="margin-top:8px">🔄 恢復預設背景</button>
+  <div class="section">🎲 遊戲瀏覽</div>
+  <div class="toggle"><span class="l">🔀 隨機排列<small class="pref-desc" style="color:var(--gray)">（首頁自動載入遊戲時採隨機順序）</small></span><label class="switch"><input type="checkbox" id="t-random" onchange="ts('random_browse')"><span></span></label></div>
+</div>
+
+<!-- ── 母分類：進階 ── -->
+<div id="settings-tab-adv" class="settings-tab-pane" style="display:none">
+  <!-- GDrive 說明卡片 (1.0 傳承) -->
+  <div class="gdrive-guide-card" style="padding:12px 14px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleGDriveGuide()">
+      <div style="font-weight:700;font-size:13px;color:#00bcd4;display:flex;align-items:center;gap:6px">
+        <span>📖 網盤新增與補丁放置說明</span>
+      </div>
+      <button type="button" class="btn btn-o btn-xs" id="btn-toggle-gdrive-guide">收合說明</button>
+    </div>
+    <div id="gdrive-guide-body" style="margin-top:10px;line-height:1.6;font-size:12px;color:var(--gray)">
+      <div style="margin-bottom:6px">
+        <b style="color:#00bcd4">1. 網盤連結：</b>在 Google 雲端硬碟建立資料夾，設定共用權限為<span style="color:#4caf50;font-weight:700">「知道連結的使用者皆可查看」</span>，複製資料夾網址並貼入下方網址欄。
+      </div>
+      <div>
+        <b style="color:#00bcd4">2. 放置補丁：</b>直接將下載的補丁壓縮檔（.rar / .zip）丟進該雲端資料夾即可，軟體會自動分析遊戲名稱並進行匹配。
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="display:flex;align-items:center;justify-content:space-between;margin-top:0">
+    <span>🌐 Google Drive 聯機補丁網盤</span>
+    <span style="font-size:11px;font-weight:normal;color:var(--gray)">排序由上至下即為搜尋與解析優先級</span>
+  </div>
+
+  <div id="gdrive-list-container" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+    <!-- 網盤項目由 JS 動態渲染 -->
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:4px">
+    <button type="button" class="btn btn-o btn-s" onclick="addGDriveRow()">➕ 新增 Google Drive 網盤</button>
+    <button type="button" class="btn btn-p btn-s" id="btn-save-gdrive" onclick="saveGDriveRows()">💾 儲存網盤設定</button>
+  </div>
+</div>
+
+<!-- ── 母分類：系統 (Health Check 系統健康體檢) ── -->
+<div id="settings-tab-sys" class="settings-tab-pane" style="display:none">
+  <!-- 🌟 系統健康儀表板主卡片 -->
+  <div class="health-dash-card" style="margin-bottom:16px;padding:16px 18px;border-radius:14px;background:var(--bg-card);border:1.5px solid rgba(255,102,153,.22);box-shadow:0 4px 18px rgba(0,0,0,.06)">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div id="health-score-circle" style="width:62px;height:62px;border-radius:50%;background:rgba(76,175,80,0.12);border:3px solid #4CAF50;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <span id="health-score-val" style="font-size:22px;font-weight:900;color:#4CAF50;line-height:1">100</span>
+          <span style="font-size:9px;color:var(--gray);transform:scale(0.85)">健康分</span>
+        </div>
+        <div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <h3 style="margin:0;font-size:15px;color:var(--fg)">🩺 系統健康體檢診斷</h3>
+            <span id="health-status-badge" class="badge" style="background:#4CAF50;color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700">狀態極佳</span>
+          </div>
+          <div id="health-status-desc" style="font-size:11.5px;color:var(--gray);margin-top:4px">
+            Steam 運行環境、多源平台連線、Discord 憑證與雲端存檔皆就緒
+          </div>
+          <div id="health-last-time" style="font-size:10.5px;color:var(--gray);margin-top:2px;opacity:0.8">
+            最後體檢時間：尚未執行
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="btn btn-p btn-s" id="btn-run-health-check" onclick="triggerSystemHealthCheck()" style="font-weight:700;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(255,102,153,.3)">
+          <span>⚡</span><span>開始全面體檢</span>
+        </button>
+        <button type="button" class="btn btn-o btn-s" onclick="openLatestHealthLogModal()" style="display:flex;align-items:center;gap:6px">
+          <span>📄</span><span>查看最新日誌</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 四大檢測維度細節格線 -->
+  <div id="health-details-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px;margin-bottom:16px">
+    <!-- 由 JS 渲染四大維度 -->
+  </div>
+
+  <!-- 📜 歷史體檢日誌 (至多 5 份自動滾動) -->
+  <div class="section" style="display:flex;align-items:center;justify-content:space-between;margin-top:20px">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span>📜 體檢日誌記錄</span>
+      <span style="font-size:11px;font-weight:normal;color:var(--gray)">(至多自動保留最近 5 次記錄，超過自動刪除舊檔)</span>
+    </div>
+    <button type="button" class="btn btn-o btn-xs" onclick="loadHealthHistoryList()">🔄 重新整理清單</button>
+  </div>
+  <div id="health-history-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+    <div style="text-align:center;padding:16px;color:var(--gray);font-size:12px">點擊上方「開始全面體檢」以產生日誌</div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ 關於 ═══ -->

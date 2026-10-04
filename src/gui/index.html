@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+
+<meta charset="UTF-8">
+<script src="theme_cache.js"></script>
+<script>
+(function(){
+  try {
+    var s = localStorage.getItem('ui_font_size') || 'small';
+    if(s === 'normal') {
+      document.documentElement.classList.add('font-normal');
+    } else {
+      document.documentElement.classList.add('font-small');
+    }
+    // 🌟 首要關鍵：網頁解析第 0 毫秒由 theme_cache.js 立即讀取使用者設定檔之深色模式，杜絕啟動白閃
+    var initDark = (window.__INITIAL_CONFIG__ && window.__INITIAL_CONFIG__.dark_mode !== undefined) ? window.__INITIAL_CONFIG__.dark_mode : null;
+    var isDark = initDark !== null ? !!initDark : (localStorage.getItem('dark_mode') === '1' || document.documentElement.classList.contains('dark'));
+    if(isDark){
+      document.documentElement.classList.add('dark');
+      try { localStorage.setItem('dark_mode', '1'); } catch(e){}
+    } else {
+      document.documentElement.classList.remove('dark');
+      try { localStorage.removeItem('dark_mode'); } catch(e){}
+    }
+  } catch(e){}
+})();
+</script>
+<link rel="stylesheet" href="css/app.css">
+
+</head>
+<body>
+
+<div class="app" id="app">
+<script>if(document.documentElement.classList.contains('dark')) document.getElementById('app').classList.add('dark');</script>
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- 全新櫻花流光 系統啟動載入全屏遮罩 (Splash Loading Screen) -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="splash-overlay" class="splash-overlay">
+<script>if(document.documentElement.classList.contains('dark')) document.getElementById('splash-overlay').classList.add('dark');</script>
+  <div class="splash-bg-decorations">
+    <div class="splash-glow splash-glow-1"></div>
+    <div class="splash-glow splash-glow-2"></div>
+    <div class="splash-glow splash-glow-3"></div>
+  </div>
+  
+  <div class="splash-titlebar">
+    <span class="splash-titlebar-text">🌸 Steam 入庫與清單更新工具</span>
+    <div class="splash-titlebar-btns no-drag">
+      <button class="no-drag" onclick="pywebview.api.minimize()" title="最小化">─</button>
+      <button class="no-drag" onclick="pywebview.api.maximize()" title="最大化">□</button>
+      <button class="bc no-drag" onclick="pywebview.api.close()" title="關閉">✕</button>
+    </div>
+  </div>
+
+  <div class="splash-container">
+    <div class="splash-card">
+      <div class="splash-header">
+        <div class="splash-logo-wrap">
+          <div class="splash-logo-pulse"></div>
+          <div class="splash-logo-icon">🌸</div>
+        </div>
+        <div class="splash-app-title">Steam 入庫與清單更新工具</div>
+        <div class="splash-app-subtitle">多源極速版 · 系統初始化就緒檢測</div>
+      </div>
+
+      <div class="splash-ring-wrap">
+        <svg class="splash-ring-svg" viewBox="0 0 140 140">
+          <defs>
+            <linearGradient id="splashGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#FF8FA7" />
+              <stop offset="50%" stop-color="#FFB7C5" />
+              <stop offset="100%" stop-color="#FFA8BA" />
+            </linearGradient>
+          </defs>
+          <circle class="splash-ring-bg" cx="70" cy="70" r="58" />
+          <circle class="splash-ring-bar" id="splash-ring-bar" cx="70" cy="70" r="58" />
+        </svg>
+        <div class="splash-ring-content">
+          <span class="splash-percent-num" id="splash-percent-num">0</span>
+          <span class="splash-percent-sym">%</span>
+        </div>
+      </div>
+
+      <div class="splash-task-info">
+        <div class="splash-task-title" id="splash-task-title">載入使用者設定與視窗個人化...</div>
+        <div class="splash-task-desc" id="splash-task-desc">讀取本機偏好設置、主題色調與視窗幾何尺寸</div>
+      </div>
+
+      <div class="splash-steps-strip" id="splash-steps-strip">
+        <div class="splash-step-dot active" data-step="1" title="設定檔"></div>
+        <div class="splash-step-dot" data-step="2" title="Steam 環境"></div>
+        <div class="splash-step-dot" data-step="3" title="視覺主題"></div>
+        <div class="splash-step-dot" data-step="4" title="內核自檢"></div>
+        <div class="splash-step-dot" data-step="5" title="平台憑證"></div>
+        <div class="splash-step-dot" data-step="6" title="雲端網盤"></div>
+        <div class="splash-step-dot" data-step="7" title="入庫掃描"></div>
+        <div class="splash-step-dot" data-step="8" title="完成就緒"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="app-bg-layer" id="app-bg-layer"><div class="app-bg-img" id="app-bg-img"></div><div class="app-bg-overlay" id="app-bg-overlay"></div></div>
+<div class="rsz" id="rsz"><i class="rn" data-side="n"></i><i class="rs" data-side="s"></i><i class="re" data-side="e"></i><i class="rw" data-side="w"></i><i class="rne" data-side="ne"></i><i class="rnw" data-side="nw"></i><i class="rse" data-side="se"></i><i class="rsw" data-side="sw"></i></div>
+<div class="titlebar" id="titlebar"><span class="tt" id="ttl">Steam 入庫與清單更新工具 (多源極速版) v2.0.3 極速版</span><div class="btns no-drag"><button class="no-drag" onclick="pywebview.api.minimize()">─</button><button class="no-drag" onclick="pywebview.api.maximize()">□</button><button class="bc no-drag" onclick="pywebview.api.close()">✕</button></div></div>
+<div class="body-row">
+
+<div class="sidebar">
+<button class="active" data-p="search" onclick="switchPage('search')" title="遊戲入庫">🔍</button>
+<button data-p="manage" onclick="switchPage('manage')" title="管理入庫">📋</button>
+<button data-p="credentials" onclick="switchPage('credentials')" title="憑證管理">🪪</button>
+<button data-p="settings" onclick="switchPage('settings')" title="設置">⚙</button>
+</div>
+
+<div class="main">
+<div class="pages">
+
+<!-- 📄 View: search.html -->
+<div class="page active" id="p-search">
+<h2>🌸 遊戲入庫</h2>
+<div class="search-row">
+<input id="q" type="text" placeholder="輸入遊戲中文、英文或 AppID 搜尋…">
+<button class="btn btn-p" id="btn-q" onclick="s()">搜尋</button>
+</div>
+<div id="browse-info" style="display:none;font-size:11px;color:var(--gray);margin:0 2px 8px"></div>
+<div id="results"><div class="empty"><div class="icon">🎮</div><p>搜尋 Steam 遊戲，一鍵入庫</p></div></div>
+<div id="load-more-wrap" style="text-align:center;margin:12px 0">
+<button class="btn btn-o" id="btn-load-more" onclick="loadMore()" style="display:none">⬇ 載入更多</button>
+</div>
+</div>
+
+<!-- ═══ 管理 ═══ -->
+
+
+<!-- 📄 View: manage.html -->
+<div class="page" id="p-manage">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+  <h2 style="margin:0">📋 管理入庫</h2>
+  <span id="mc" style="font-size:12px;color:var(--gray)"></span>
+  <div id="manage-quota-box" class="manage-quota-strip" style="display:inline-flex;align-items:center;gap:6px"></div>
+  <div style="display:inline-flex;align-items:center;gap:6px">
+    <select id="manage-sort-mode" onchange="changeManageSort()">
+      <option value="default">🔽 預設排序 (可更新優先)</option>
+      <option value="onlinefix">🎮 聯機優先 (支援聯機置頂)</option>
+      <option value="deployed">✅ 部署優先 (已部署置頂)</option>
+    </select>
+    <select id="view-mode" onchange="toggleView()"><option value="grid">田 網格</option><option value="list">📄 列表</option></select>
+  </div>
+  <div style="margin-left:auto;display:inline-flex;align-items:center;gap:8px">
+    <button class="btn btn-s btn-manifest-diag" onclick="openManifestLogModal()" title="檢視最近一次 Manifest 更新的全鏈路診斷報告">📄 診斷日誌</button>
+    <button class="btn btn-p btn-s" onclick="rg(true);" title="重新載入入庫清單並強制主動比對 SteamDB 最新 Manifest">🔄 檢查更新</button>
+  </div>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;min-height:30px">
+  <div style="display:flex;align-items:center">
+    <button class="btn batch-up-btn btn-s" id="btn-batch-update" style="display:none" onclick="autoUpdateAll()">⚡ 批次自動更新</button>
+  </div>
+  <div>
+    <input id="mf" type="text" placeholder="🔍 搜尋已入庫遊戲…" style="width:200px;padding:6px 10px;border:1px solid var(--pink-light);border-radius:10px;font-size:11px;outline:none;background:var(--card);color:var(--text)" oninput="rgDebounce()">
+  </div>
+</div>
+<div id="glist"><div class="empty"><div class="icon">📭</div><p>暫無入庫記錄</p></div></div>
+</div>
+
+<!-- ═══ 憑證管理 ═══ -->
+
+
+<!-- 📄 View: credentials.html -->
+<div class="page" id="p-credentials">
+  <!-- 頂部標題與核心操作列 -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+    <div>
+      <h2 style="margin:0;display:flex;align-items:center;gap:8px">
+        <span>🪪</span><span>跨平台帳號與憑證配額管理</span>
+      </h2>
+      <div style="font-size:11.5px;color:var(--gray);margin-top:3px">
+        跨平台 (Ryuu, HubcapDB, Lua.tools) 帳號綁定、即時配額矩陣監控與跨平台授權狀態
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-p btn-s" onclick="startDualPlatformSandboxLogin()" style="font-weight:700;display:flex;align-items:center;gap:6px;box-shadow:0 3px 12px rgba(255,102,153,.35)">
+        <span>🔑</span><span>登入 / 綁定 Discord</span>
+      </button>
+      <button class="btn btn-o btn-s" onclick="syncRyuuAllQuotas()" style="display:flex;align-items:center;gap:6px" title="從 Ryuu 官方伺服器同步即時配額">
+        <span>🔄</span><span>同步配額</span>
+      </button>
+      <button class="btn btn-o btn-s" onclick="clearInvalidCreds()" style="display:flex;align-items:center;gap:6px" title="清理過期與無效之憑證記錄">
+        <span>🧹</span><span>清理過期</span>
+      </button>
+      <button class="btn btn-o btn-s" onclick="loadCredentialsStatus(true)" title="重新整理所有帳號與即時配額狀態">
+        <span>⚡</span><span>重新整理</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 🌟 現代化跨平台配額順位矩陣卡片 -->
+  <div class="cred-matrix-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div class="matrix-card-title">
+        <span>📊</span><span>帳號配額矩陣 (多平台狀態總覽)</span>
+      </div>
+      <div class="matrix-card-hints">
+        <span style="display:flex;align-items:center;gap:4px"><span style="color:#2E7D32">●</span> 配額正常</span>
+        <span style="display:flex;align-items:center;gap:4px"><span style="color:#FF6699">🖐️</span> 可拖曳表頭欄位自訂檢視排版</span>
+      </div>
+    </div>
+    <div id="cred-matrix-table-wrap">
+      <div style="text-align:center;padding:36px 0;color:var(--gray);font-size:12.5px">⏳ 正在載入帳號與配額矩陣…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 4. 設置 ═══ -->
+
+
+<!-- 📄 View: settings.html -->
+<div class="page" id="p-settings">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+  <h2 style="margin:0">⚙️ 設置</h2>
+  <!-- 母分類頁籤切換 -->
+  <div class="settings-tab-bar">
+    <button type="button" class="settings-tab-btn btn btn-p btn-s" id="btn-stab-ui" onclick="switchSettingsTab('ui')">🎨 介面</button>
+    <button type="button" class="settings-tab-btn btn btn-o btn-s" id="btn-stab-adv" onclick="switchSettingsTab('adv')">⚡ 進階</button>
+    <button type="button" class="settings-tab-btn btn btn-o btn-s" id="btn-stab-sys" onclick="switchSettingsTab('sys')">💻 系統</button>
+  </div>
+</div>
+
+<!-- ── 母分類：介面 ── -->
+<div id="settings-tab-ui" class="settings-tab-pane">
+  <div class="section">📁 Steam 安裝路徑</div>
+  <div class="path-row">
+  <input id="sp2" type="text" placeholder="Steam 根目錄路徑…">
+  <button class="btn btn-o btn-s" onclick="bf()">變更</button>
+  <button class="btn btn-o btn-s" onclick="ad()">自動偵測</button>
+  </div>
+  <div class="shortcut-btn-row" style="margin-top:8px;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-p btn-s" onclick="checkStartupPrerequisites(true)" style="font-weight:700">
+      🚀 必備環境檢查 (SteamTools / Discord 憑證)
+    </button>
+    <button class="btn btn-o btn-s" onclick="wizardInstallSteamTools()">
+      🛠️ 一鍵注入 SteamTools 內核
+    </button>
+  </div>
+  <div class="section">🎨 個性化</div>
+  <div class="toggle" style="padding:9px 0">
+    <span class="l">🔤 介面文字大小 <small style="color:var(--gray)">（切換全域文字與字級清晰度）</small></span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button type="button" id="btn-font-small" class="btn btn-p btn-xs" onclick="setFontSize('small')">小 (預設)</button>
+      <button type="button" id="btn-font-normal" class="btn btn-o btn-xs" onclick="setFontSize('normal')">正常</button>
+    </div>
+  </div>
+  <div class="toggle"><span class="l">🌙 深色模式</span><label class="switch"><input type="checkbox" id="t-dark" onchange="ts('dark')"><span></span></label></div>
+  <div class="section">🖼️ 自訂背景桌布 (支援 GIF 動圖)</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="bg-g">
+  <div style="width:64px;cursor:pointer;text-align:center;font-size:9px;color:var(--gray);border:2px solid var(--pink-deep);border-radius:6px;padding:3px" data-bg="" onclick="swBg('')"><div style="width:56px;height:36px;border-radius:3px;background:linear-gradient(135deg,#FFE2E7,#FFD8DF);margin-bottom:2px"></div>預設</div>
+  <div style="width:64px;cursor:pointer;text-align:center;font-size:9px;color:var(--gray);border:2px dashed var(--pink-light);border-radius:6px;padding:3px;display:flex;align-items:center;justify-content:center;height:56px" onclick="addBg()" title="選取圖片或GIF添加自訂桌布"><span style="font-size:22px">➕</span></div>
+  </div>
+
+  <div class="setting-slider-row">
+    <div class="setting-slider-header">
+      <span class="l">🌫️ 背景磨砂模糊度 <small class="pref-desc" style="color:var(--gray)">（毛玻璃磨砂程度，0 為清晰原圖）</small></span>
+      <span class="val" id="val-bg-blur">0 px</span>
+    </div>
+    <input type="range" min="0" max="40" value="0" id="slider-bg-blur" oninput="onBgBlurChange(this.value)">
+  </div>
+
+  <div class="setting-slider-row">
+    <div class="setting-slider-header">
+      <span class="l">✨ 背景圖片顯色濃度 <small class="pref-desc" style="color:var(--gray)">（調節桌布顯色濃淡飽和度）</small></span>
+      <span class="val" id="val-bg-opacity">80%</span>
+    </div>
+    <input type="range" min="10" max="100" value="80" id="slider-bg-opacity" oninput="onBgOpacityChange(this.value)">
+  </div>
+
+  <div class="setting-slider-row">
+    <div class="setting-slider-header">
+      <span class="l">🪟 視窗整體透明度 <small class="pref-desc" style="color:var(--gray)">（調節視窗邊框與材質透光率）</small></span>
+      <span class="val" id="val-win-opacity">100%</span>
+    </div>
+    <input type="range" min="30" max="100" value="100" id="slider-win-opacity" oninput="onWinOpacityChange(this.value)">
+  </div>
+
+  <div class="setting-slider-row">
+    <div class="setting-slider-header">
+      <span class="l">🏷️ 遊戲卡片文字底色濃度 <small class="pref-desc" style="color:var(--gray)">（卡片標題與 AppID 黑色底色不透明度）</small></span>
+      <span class="val" id="val-text-bg-opacity">65%</span>
+    </div>
+    <input type="range" min="0" max="100" value="65" id="slider-text-bg-opacity" oninput="onTextBgOpacityChange(this.value)">
+  </div>
+
+  <button class="btn btn-o btn-s" onclick="restoreDefaultBgs()" style="margin-top:8px">🔄 恢復預設背景</button>
+  <div class="section">🎲 遊戲瀏覽</div>
+  <div class="toggle"><span class="l">🔀 隨機排列<small class="pref-desc" style="color:var(--gray)">（首頁自動載入遊戲時採隨機順序）</small></span><label class="switch"><input type="checkbox" id="t-random" onchange="ts('random_browse')"><span></span></label></div>
+</div>
+
+<!-- ── 母分類：進階 ── -->
+<div id="settings-tab-adv" class="settings-tab-pane" style="display:none">
+  <!-- GDrive 說明卡片 (1.0 傳承) -->
+  <div class="gdrive-guide-card" style="padding:12px 14px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleGDriveGuide()">
+      <div style="font-weight:700;font-size:13px;color:#00bcd4;display:flex;align-items:center;gap:6px">
+        <span>📖 網盤新增與補丁放置說明</span>
+      </div>
+      <button type="button" class="btn btn-o btn-xs" id="btn-toggle-gdrive-guide">收合說明</button>
+    </div>
+    <div id="gdrive-guide-body" style="margin-top:10px;line-height:1.6;font-size:12px;color:var(--gray)">
+      <div style="margin-bottom:6px">
+        <b style="color:#00bcd4">1. 網盤連結：</b>在 Google 雲端硬碟建立資料夾，設定共用權限為<span style="color:#4caf50;font-weight:700">「知道連結的使用者皆可查看」</span>，複製資料夾網址並貼入下方網址欄。
+      </div>
+      <div>
+        <b style="color:#00bcd4">2. 放置補丁：</b>直接將下載的補丁壓縮檔（.rar / .zip）丟進該雲端資料夾即可，軟體會自動分析遊戲名稱並進行匹配。
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="display:flex;align-items:center;justify-content:space-between;margin-top:0">
+    <span>🌐 Google Drive 聯機補丁網盤</span>
+    <span style="font-size:11px;font-weight:normal;color:var(--gray)">排序由上至下即為搜尋與解析優先級</span>
+  </div>
+
+  <div id="gdrive-list-container" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+    <!-- 網盤項目由 JS 動態渲染 -->
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:4px">
+    <button type="button" class="btn btn-o btn-s" onclick="addGDriveRow()">➕ 新增 Google Drive 網盤</button>
+    <button type="button" class="btn btn-p btn-s" id="btn-save-gdrive" onclick="saveGDriveRows()">💾 儲存網盤設定</button>
+  </div>
+</div>
+
+<!-- ── 母分類：系統 (Health Check 系統健康體檢) ── -->
+<div id="settings-tab-sys" class="settings-tab-pane" style="display:none">
+  <!-- 🌟 系統健康儀表板主卡片 -->
+  <div class="health-dash-card" style="margin-bottom:16px;padding:16px 18px;border-radius:14px;background:var(--bg-card);border:1.5px solid rgba(255,102,153,.22);box-shadow:0 4px 18px rgba(0,0,0,.06)">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div id="health-score-circle" style="width:62px;height:62px;border-radius:50%;background:rgba(76,175,80,0.12);border:3px solid #4CAF50;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <span id="health-score-val" style="font-size:22px;font-weight:900;color:#4CAF50;line-height:1">100</span>
+          <span style="font-size:9px;color:var(--gray);transform:scale(0.85)">健康分</span>
+        </div>
+        <div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <h3 style="margin:0;font-size:15px;color:var(--fg)">🩺 系統健康體檢診斷</h3>
+            <span id="health-status-badge" class="badge" style="background:#4CAF50;color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700">狀態極佳</span>
+          </div>
+          <div id="health-status-desc" style="font-size:11.5px;color:var(--gray);margin-top:4px">
+            Steam 運行環境、多源平台連線、Discord 憑證與雲端存檔皆就緒
+          </div>
+          <div id="health-last-time" style="font-size:10.5px;color:var(--gray);margin-top:2px;opacity:0.8">
+            最後體檢時間：尚未執行
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="btn btn-p btn-s" id="btn-run-health-check" onclick="triggerSystemHealthCheck()" style="font-weight:700;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(255,102,153,.3)">
+          <span>⚡</span><span>開始全面體檢</span>
+        </button>
+        <button type="button" class="btn btn-o btn-s" onclick="openLatestHealthLogModal()" style="display:flex;align-items:center;gap:6px">
+          <span>📄</span><span>查看最新日誌</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 四大檢測維度細節格線 -->
+  <div id="health-details-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px;margin-bottom:16px">
+    <!-- 由 JS 渲染四大維度 -->
+  </div>
+
+  <!-- 📜 歷史體檢日誌 (至多 5 份自動滾動) -->
+  <div class="section" style="display:flex;align-items:center;justify-content:space-between;margin-top:20px">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span>📜 體檢日誌記錄</span>
+      <span style="font-size:11px;font-weight:normal;color:var(--gray)">(至多自動保留最近 5 次記錄，超過自動刪除舊檔)</span>
+    </div>
+    <button type="button" class="btn btn-o btn-xs" onclick="loadHealthHistoryList()">🔄 重新整理清單</button>
+  </div>
+  <div id="health-history-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+    <div style="text-align:center;padding:16px;color:var(--gray);font-size:12px">點擊上方「開始全面體檢」以產生日誌</div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ═══ 關於 ═══ -->
+
+
+<!-- 📄 View: about.html -->
+<div class="page" id="p-about">
+<h2>🌸 Steam 入庫與清單更新工具 (多源極速版)</h2>
+<div style="font-size:12px;font-weight:600;color:var(--pink-deep);margin-bottom:2px" id="ver">v2.0.3 極速版</div>
+<div class="about-card"><h4 style="color:var(--err)">⚠️ 注意事項</h4><p>D加密遊戲需要 D 加密授權<br>一般不支援聯網驗證的線上遊戲<br>一般不支援第三方平台驗證的遊戲（如 EA / Origin、Ubisoft Connect 等）</p></div>
+<div class="about-card"><h4>🔐 D加密 解決方法</h4><p>大部分 D 加密遊戲：正版帳號打開一次遊戲（購買後退款亦可）<br>虛擬機或使用專屬相容補丁（遊戲版本號需一致）</p></div>
+<div class="about-card"><h4>🖥️ 支援平台</h4><p>Windows 10 / Windows 11 (64-bit)</p></div>
+</div>
+
+<!-- ═══ 更多工具 ═══ -->
+
+
+<!-- 📄 View: more.html -->
+<div class="page" id="p-more">
+<h2>🧩 更多工具</h2>
+
+<!-- 480 联機：steam://run/<appid>//-480 → 內核按 when_cmdline="-480" 把 OnlineFix.dll 注入遊戲進程，借 Spacewar(AppID 480) 联機。注：本塊常開不折叠（no-toggle），頭部不可點收起 -->
+<div class="tool-block open no-toggle" id="tb-onlinefix">
+<div class="tb-head">
+<span class="tb-name">🎮 联機</span>
+<span class="tb-desc" id="of-summary">檢测已下載遊戲…</span>
+</div>
+<div class="tb-body">
+<div class="of-desc">🎮 支持一部分联機遊戲；如果不行，點右邊「联機補丁」進 online-fix.me，搜遊戲英文名找该作的联機補丁。</div>
+<div class="of-bar">
+<span class="of-chip warn" id="of-spacewar-chip">檢测 Spacewar…</span>
+<button class="btn btn-o btn-s" onclick="ofRefresh()">🔄 刷新</button>
+<button class="btn btn-o btn-s" onclick="ofInstallSpacewar()">⬇ 裝 Spacewar(480)</button>
+<button class="btn btn-o btn-s" onclick="ofPatch()">联機補丁</button>
+</div>
+<div class="of-grid" id="of-grid"></div>
+<div class="of-empty hidden" id="of-empty"></div>
+</div>
+</div>
+<!-- 工具区：以後要加新工具，整塊復制 .tool-block 加到这裡 -->
+
+</div>
+
+
+</div><!-- /pages -->
+</div><!-- /main -->
+
+<div class="toast" id="toast"></div>
+
+
+<!-- Lua 編辑彈窗 -->
+<div class="modal hidden" id="lua-m">
+<div style="max-width:600px;width:90%"><h3>📝 編辑Lua</h3><p id="lua-appid" style="font-size:10px"></p>
+<textarea id="lua-text" style="width:100%;height:300px;font-family:Consolas,monospace;font-size:11px;padding:10px;border:1px solid var(--border);border-radius:8px;resize:vertical;background:#fafafa;color:var(--dark);user-select:text;-webkit-app-region:no-drag"></textarea>
+<div class="btns"><button class="btn btn-p btn-s" id="btn-lua-save">💾 保存</button><button class="btn btn-o btn-s" id="btn-lua-close">關閉</button></div></div></div>
+
+<!-- 進度彈窗 -->
+<div class="modal hidden" id="prog-m">
+<div class="prog-box"><h3 id="prog-title">處理中…</h3><p id="prog-text"></p>
+<progress id="prog-bar" value="0" max="100"></progress>
+<p id="prog-step"></p></div>
+</div>
+
+<!-- D加密提醒彈窗 -->
+<div class="modal hidden" id="denuvo-m">
+<div><h3>⚠️ D加密（Denuvo）</h3>
+<p style="margin-bottom:6px">不過D加密的話下了也没法玩</p>
+<p style="font-size:11px;color:var(--gray);margin-bottom:12px">解決方法：正版账號打開一次遊戲（可退款）/ 虛擬機 / 打voices38的D加密補丁（版本號要一致）</p>
+<button class="btn btn-o btn-s" onclick="document.getElementById('denuvo-m').classList.add('hidden')">知道了</button>
+</div></div>
+
+<!-- 更新彈窗 -->
+<div class="modal hidden" id="update-m">
+<div><h3>🔔 發現新版本 <span id="update-ver"></span></h3><p id="update-pwd-row" style="font-size:11px;color:var(--gray);margin-bottom:4px">解壓密碼：<b id="update-pwd" style="color:var(--pink-deep)"></b></p><p id="update-hint" style="font-size:11px;color:var(--gray);margin-bottom:12px">是否跳轉到下載頁面？</p>
+<div class="btns">
+<button class="btn btn-p btn-s" onclick="goUpdate()">🔗 跳轉下載</button>
+<button class="btn btn-o btn-s" onclick="closeUpdate()">取消</button>
+</div></div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+<!-- 通用 HTML 富文本確認彈窗（支持紅字/加粗等提示） -->
+<div class="modal hidden" id="cf-m">
+<div style="max-width:400px;width:90%">
+<h3 id="cf-title"></h3>
+<p id="cf-body" style="font-size:12px;line-height:1.9;margin-bottom:14px"></p>
+<div class="btns" id="cf-btns"></div>
+</div></div>
+
+<!-- ═══════════════════════════════════════════════════════
+     遊戲詳細資料視窗 (櫻花漸顯雙欄 Modal)
+     ═══════════════════════════════════════════════════════ -->
+<div id="game-detail-modal" class="detail-modal-overlay" onclick="closeGameDetail(event)">
+  <div class="detail-modal-box" onclick="event.stopPropagation()">
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- 🌟 小卡專屬：資料檢驗與版本對齊 0~100% 載入動效遮罩 -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div id="detail-verify-overlay" class="detail-verify-overlay hidden-overlay">
+      <div class="detail-verify-card">
+        <div class="detail-verify-ring-wrap">
+          <svg class="detail-verify-ring-svg" viewBox="0 0 120 120">
+            <defs>
+              <linearGradient id="detailVerifyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#FF8FA7" />
+                <stop offset="50%" stop-color="#FFB7C5" />
+                <stop offset="100%" stop-color="#FFA8BA" />
+              </linearGradient>
+            </defs>
+            <circle class="detail-verify-ring-bg" cx="60" cy="60" r="50" />
+            <circle class="detail-verify-ring-bar" id="dt-verify-ring-bar" cx="60" cy="60" r="50" />
+          </svg>
+          <div class="detail-verify-ring-content">
+            <span class="detail-verify-percent-num" id="dt-verify-percent-num">0</span>
+            <span class="detail-verify-percent-sym">%</span>
+          </div>
+        </div>
+
+        <div class="detail-verify-task-info">
+          <div class="detail-verify-task-title" id="dt-verify-task-title">正在驗證官方與本地數據...</div>
+          <div class="detail-verify-task-desc" id="dt-verify-task-desc">連接 SteamCMD 官方協議 · 獲取最新 Public GID</div>
+        </div>
+
+        <div class="detail-verify-steps-strip" id="dt-verify-steps-strip">
+          <div class="detail-verify-step-dot active" data-step="1" title="SteamCMD 官方協議探測"></div>
+          <div class="detail-verify-step-dot" data-step="2" title="本地實體 ACF 校驗"></div>
+          <div class="detail-verify-step-dot" data-step="3" title="SteamDB 版本鏈對齊"></div>
+          <div class="detail-verify-step-dot" data-step="4" title="Ryuu 平台庫存檢測"></div>
+          <div class="detail-verify-step-dot" data-step="5" title="Google Drive 網盤校驗"></div>
+          <div class="detail-verify-step-dot" data-step="6" title="Online-Fix 聯機補丁檢測"></div>
+          <div class="detail-verify-step-dot" data-step="7" title="ZeiGames 專用補丁檢測"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-modal-header">
+      <div class="detail-modal-title">🎮 遊戲詳細資訊</div>
+      <button class="detail-close-btn" onclick="closeGameDetail()">✕</button>
+    </div>
+    <div class="detail-modal-body">
+      <!-- 左側欄：遊戲名、AppID、圖片、快捷操作 -->
+      <div class="detail-left-col">
+        <div class="detail-img-box">
+          <img id="dt-img" src="" alt="cover" onerror="imgFb(this, _curDetailAppid)">
+        </div>
+        <div class="detail-name" id="dt-name">遊戲名稱</div>
+        <div class="detail-aid-badge" onclick="copyDetailAppid()" title="點擊複製 AppID">
+          <span>AppID:</span> <b id="dt-aid">000000</b>
+          <span style="font-size:12px;margin-left:2px">📋</span>
+        </div>
+
+        <!-- 🌟 狀態檢查面板 (Ryuu + Google Drive + Online-Fix + ZeiGames 4 域即時確認) -->
+        <div class="detail-sources-box" id="dt-sources-box">
+          <div class="dt-sources-hdr">
+            <span>🌐 狀態檢查</span>
+          </div>
+          <!-- a. Ryuu 平台 -->
+          <div class="dt-source-row" id="dt-ryuu-row">
+            <div class="dt-source-row-top">
+              <span class="dt-source-name">🐉 Ryuu 平台</span>
+              <span id="dt-ryuu-status" class="chip gray" style="font-size:10px;padding:1px 6px">檢測中</span>
+            </div>
+            <div class="dt-source-gid-box">
+              <div class="dt-source-gid-lbl">版本:</div>
+              <div class="dt-source-gid-val" id="dt-ryuu-gid">查詢中…</div>
+            </div>
+          </div>
+          <!-- b. Google Drive 補丁庫 -->
+          <div class="dt-source-row" id="dt-gdrive-row">
+            <div class="dt-source-row-top">
+              <span class="dt-source-name">📁 網盤補丁庫 (GDrive)</span>
+              <span id="dt-gdrive-status" class="chip gray" style="font-size:10px;padding:1px 6px">檢測中</span>
+            </div>
+            <div class="dt-source-gid-box">
+              <div class="dt-source-gid-lbl">補丁狀態:</div>
+              <div class="dt-source-gid-val" id="dt-gdrive-val">查詢中…</div>
+            </div>
+          </div>
+          <!-- c. Online-Fix -->
+          <div class="dt-source-row" id="dt-of-row">
+            <div class="dt-source-row-top">
+              <span class="dt-source-name">⚡ Online-Fix</span>
+              <span id="dt-of-status" class="chip gray" style="font-size:10px;padding:1px 6px">檢測中</span>
+            </div>
+            <div class="dt-source-gid-box">
+              <div class="dt-source-gid-lbl">網站補丁:</div>
+              <div class="dt-source-gid-val" id="dt-of-val">查詢中…</div>
+            </div>
+          </div>
+          <!-- d. ZeiGames -->
+          <div class="dt-source-row" id="dt-zg-row">
+            <div class="dt-source-row-top">
+              <span class="dt-source-name">🎮 ZeiGames</span>
+              <span id="dt-zg-status" class="chip gray" style="font-size:10px;padding:1px 6px">檢測中</span>
+            </div>
+            <div class="dt-source-gid-box">
+              <div class="dt-source-gid-lbl">網站補丁:</div>
+              <div class="dt-source-gid-val" id="dt-zg-val">查詢中…</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-actions">
+          <button class="btn btn-p btn-s" id="dt-btn-action" onclick="detailAction()">一鍵操作</button>
+          <button class="btn btn-o btn-s" onclick="inspectDriveStatus(_curDetailAppid, _curDetailName)" style="color:#00bcd4;border-color:rgba(0,188,212,0.4)">🌐 檢視網盤狀況</button>
+          <button class="btn btn-o btn-s" id="dt-btn-steam" onclick="openSteam(_curDetailAppid)">在 Steam 查看 ▶</button>
+          <button class="btn btn-o btn-s" id="dt-btn-steamdb" onclick="openSteamDB(_curDetailAppid)">🌐 在 SteamDB 查看 ▶</button>
+          <button class="btn btn-o btn-s" onclick="openManifestLogModal()" style="color:#FFAEC0;border-color:rgba(255,183,197,0.5);font-size:11px" title="檢視此遊戲最後一次更新的診斷日誌">📄 查看診斷 Log 報告</button>
+        </div>
+      </div>
+      <!-- 右側欄：近期 10 個 Manifest 版本列表 -->
+      <div class="detail-right-col">
+        <div class="detail-right-header">
+          <div class="detail-section-title">📋 Manifest 版本狀態 (對齊 SteamDB 官方數據)</div>
+          <div class="detail-section-sub">點擊版本可複製 Manifest ID · 頂部為官方最新 · 藍色為本地當前 · 黃色為可更新 · 來源標註為 (SteamCMD) 或 (SteamDB)</div>
+        </div>
+        <!-- 圖三需求：Depot 子分類導航切換鈕 (多 DLC/Depot 分流) -->
+        <div class="detail-depot-tabs" id="dt-depot-tabs"></div>
+        <div class="detail-manifest-list" id="dt-manifest-list">
+          <div class="dt-loading-skeleton">
+            <div class="card-spinner"></div>
+            <div>正在依據 SteamDB 官方數據庫檢索版本鏈…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     Manifest 更新全鏈路診斷日誌視窗 (櫻花暗黑流光風格 Modal)
+     ═══════════════════════════════════════════════════════ -->
+<div id="manifest-log-modal" class="detail-modal-overlay" onclick="closeManifestLogModal(event)">
+  <div class="detail-modal-box log-modal-box" onclick="event.stopPropagation()">
+    <div class="detail-modal-header">
+      <div class="detail-modal-title" style="display:flex;align-items:center;gap:8px;">
+        <span>📄 Manifest 更新全鏈路診斷報告</span>
+        <span id="log-status-badge" class="chip green" style="font-size:11px;padding:2px 8px">成功</span>
+      </div>
+      <button class="detail-close-btn" onclick="closeManifestLogModal()">✕</button>
+    </div>
+    <div class="log-modal-toolbar">
+      <div class="log-modal-meta">
+        <span id="log-meta-game">目標遊戲: -</span>
+        <span id="log-meta-time" style="color:var(--gray);margin-left:8px;">耗時: -</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-s" onclick="copyManifestLogText()" style="background:rgba(255,183,197,.2);border:1px solid rgba(255,183,197,.4);font-size:11px;padding:3px 10px;cursor:pointer" title="複製 Markdown 報告">📋 複製報告</button>
+        <button class="btn btn-s" onclick="openManifestLogInEditor()" style="background:rgba(255,183,197,.2);border:1px solid rgba(255,183,197,.4);font-size:11px;padding:3px 10px;cursor:pointer" title="在 Windows 記事本開啟">📝 記事本開啟</button>
+        <button class="btn btn-s" onclick="openManifestLogsDirectory()" style="background:rgba(255,183,197,.2);border:1px solid rgba(255,183,197,.4);font-size:11px;padding:3px 10px;cursor:pointer" title="開啟存放資料夾">📁 Log 目錄</button>
+      </div>
+    </div>
+    <div class="log-modal-body" id="log-modal-content">
+      <!-- 渲染 Markdown 或日誌內容 -->
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     🩺 系統健康體檢報告詳情視窗 (櫻花暗黑玻璃 Modal)
+     ═══════════════════════════════════════════════════════ -->
+<div id="health-log-modal" class="detail-modal-overlay" onclick="closeHealthLogModal(event)" style="z-index:100070">
+  <div class="detail-modal-box log-modal-box" onclick="event.stopPropagation()">
+    <div class="detail-modal-header">
+      <div class="detail-modal-title" style="display:flex;align-items:center;gap:8px;">
+        <span>🩺 系統健康體檢報告詳情</span>
+        <span id="health-log-score-badge" class="chip green" style="font-size:11px;padding:2px 8px">100分</span>
+      </div>
+      <button class="detail-close-btn" onclick="closeHealthLogModal()">✕</button>
+    </div>
+    <div class="log-modal-toolbar">
+      <div class="log-modal-meta">
+        <span id="health-log-meta-file">日誌檔案: -</span>
+        <span id="health-log-meta-time" style="color:var(--gray);margin-left:8px;">時間: -</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-s" onclick="copyHealthLogMarkdown()" style="background:rgba(255,183,197,.2);border:1px solid rgba(255,183,197,.4);font-size:11px;padding:3px 10px;cursor:pointer" title="複製 Markdown 報告">📋 複製報告</button>
+        <button class="btn btn-s" onclick="triggerSystemHealthCheck()" style="background:linear-gradient(135deg,#FF6699,#FF8FA7);color:#fff;border:none;font-weight:700;font-size:11px;padding:3px 12px;cursor:pointer" title="重新執行體檢">⚡ 重新體檢</button>
+      </div>
+    </div>
+    <div class="log-modal-body" id="health-log-modal-content" style="padding:16px 20px;max-height:65vh;overflow-y:auto">
+      <!-- 渲染 Markdown 或日誌內容 -->
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     Steam 下載中斷與異常排障報告視窗 (櫻花暗黑玻璃 Modal)
+     ═══════════════════════════════════════════════════════ -->
+<div id="modal-download-diag" class="detail-modal-overlay" style="z-index:100060" onclick="closeDownloadDiagnosticModal(event)">
+  <div class="detail-modal-box log-modal-box" onclick="event.stopPropagation()" style="border:1.5px solid rgba(255,107,107,0.5);box-shadow:0 12px 48px rgba(255,50,50,0.25)">
+    <div class="detail-modal-header" style="background:linear-gradient(135deg,rgba(255,75,75,0.15),rgba(255,150,150,0.05))">
+      <div class="detail-modal-title" style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:16px;">🚨 Steam 下載中斷排障報告</span>
+        <span id="diag-status-badge" class="chip red" style="font-size:11px;padding:2px 8px">診斷中</span>
+      </div>
+      <button class="detail-close-btn" onclick="closeDownloadDiagnosticModal()">✕</button>
+    </div>
+    <div class="log-modal-toolbar" style="background:rgba(0,0,0,0.03);border-bottom:1px solid rgba(0,0,0,0.08);padding:8px 16px">
+      <div class="log-modal-meta">
+        <span id="diag-meta-game" style="font-weight:bold;color:var(--text)">目標遊戲: -</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-s" onclick="copyDownloadDiagText()" style="background:rgba(255,183,197,.2);border:1px solid rgba(255,183,197,.4);font-size:11px;padding:4px 10px;cursor:pointer" title="複製排障報告">📋 複製報告</button>
+        <button class="btn btn-s" id="diag-btn-heal" onclick="healDownloadDiagnosticError()" style="background:linear-gradient(135deg,#FF5252,#FF1744);color:#fff;border:none;font-weight:bold;font-size:11.5px;padding:4px 14px;box-shadow:0 2px 8px rgba(255,23,68,0.35);cursor:pointer">🛠️ 一鍵自動自癒修復並重試</button>
+      </div>
+    </div>
+    <div class="log-modal-body" id="diag-modal-content" style="padding:16px 20px;max-height:65vh;overflow-y:auto">
+      <!-- 渲染 Markdown 深度排障內容 -->
+    </div>
+  </div>
+</div>
+
+
+
+<!-- 重啟方式選擇彈窗：無账號登錄 / 選某账號再選 在線·離線 -->
+<div class="modal hidden" id="rs-m">
+<div style="max-width:420px;width:90%">
+<h3>🔄 重啟 Steam</h3>
+<div id="rs-loading" style="font-size:12px;color:var(--gray);padding:14px 0">加載中…</div>
+<div id="rs-list" style="max-height:52vh;overflow-y:auto;margin-bottom:6px"></div>
+<div class="btns"><button class="btn btn-o btn-s" onclick="closeRs()">取消</button></div>
+</div></div>
+
+<!-- 重啟二選彈窗：點了某账號後彈「在線 / 離線」行選擇（账號同款行樣式，點行直接执行不彈確認） -->
+<div class="modal hidden" id="rs2-m">
+<div style="max-width:420px;width:90%">
+<h3 id="rs2-title">🔄 重啟 Steam</h3>
+<div id="rs2-info" style="font-size:12px;color:var(--gray);margin:0 0 12px"></div>
+<div id="rs2-list"></div>
+<div class="btns" style="margin-top:14px"><button class="btn btn-o btn-s" onclick="closeRs2()">返回</button></div>
+</div></div>
+
+<!-- 體檢結果彈窗：入庫後遊戲不顯示 → 一鍵自查，逐項 ok/warn/bad + 建議 + 復制診斷報告 -->
+<div class="modal hidden" id="dg-m">
+<div style="max-width:620px;width:94%">
+<h3>🔍 體檢報告</h3>
+<div class="dg-head" id="dg-head"></div>
+<div class="dg-count" id="dg-count"></div>
+<div class="dg-wrap" id="dg-res"></div>
+<div class="dg-sug hidden" id="dg-sug"></div>
+<div class="btns">
+<button class="btn btn-p btn-s" onclick="dgRun()">🔄 重新體檢</button>
+<button class="btn btn-o btn-s" onclick="dgCopy()">📋 復制診斷報告</button>
+<button class="btn btn-o btn-s" onclick="document.getElementById('dg-m').classList.add('hidden')">關閉</button>
+</div>
+</div></div>
+
+
+
+</div></div>
+<!-- Hubcap API Key 輸入彈窗 (Modal) -->
+<div class="modal hidden" id="modal-hubcap-key" style="z-index:100060;background:rgba(0,0,0,0.52);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)" onclick="if(event.target===this)closeHubcapKeyModal()">
+  <div class="modal-box" style="max-width:480px;width:92%;padding:22px;border-radius:18px;box-shadow:0 16px 48px rgba(0,0,0,0.25)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:38px;height:38px;border-radius:10px;background:rgba(0,188,212,0.15);display:flex;align-items:center;justify-content:center;font-size:20px;border:1px solid rgba(0,188,212,0.3);flex-shrink:0">
+          🧢
+        </div>
+        <div>
+          <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--fg)">設定 HubcapDB API Key</h3>
+          <div id="modal-hubcap-subtitle" style="font-size:11.5px;color:var(--gray);margin-top:2px">請至 hubcapmanifest.com/user 複製您的個人 API 金鑰</div>
+        </div>
+      </div>
+      <button class="btn btn-o btn-xs" onclick="closeHubcapKeyModal()" style="border-radius:50%;width:30px;height:30px;padding:0;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer">✕</button>
+    </div>
+
+    <!-- 🌟 快捷沙盒登入推薦橫幅 -->
+    <div style="background:linear-gradient(135deg,rgba(0,188,212,0.1),rgba(0,150,136,0.06));border:1.5px dashed rgba(0,188,212,0.4);border-radius:12px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div>
+        <div style="font-size:12.5px;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:6px">
+          <span>⚡</span> <span>推薦：無痕沙盒自動登入</span>
+        </div>
+        <div style="font-size:11px;color:var(--gray);margin-top:2px;line-height:1.4">
+          自動開獨立無痕視窗、預填已記憶帳密、自動捕獲並綁定 API Key
+        </div>
+      </div>
+      <button type="button" class="btn btn-p btn-s" onclick="startHubcapSandboxLogin()" style="background:linear-gradient(135deg,#00bcd4,#0097a7);box-shadow:0 3px 12px rgba(0,188,212,0.35);flex-shrink:0;font-weight:700">
+        🔑 立即快捷登入
+      </button>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="height:1px;flex:1;background:rgba(0,0,0,0.08)"></div>
+      <span style="font-size:11px;color:var(--gray);font-weight:600">或 手動輸入 API 金鑰</span>
+      <div style="height:1px;flex:1;background:rgba(0,0,0,0.08)"></div>
+    </div>
+
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px;color:var(--fg)">API 金鑰 (Bearer Token)：</label>
+      <input type="password" id="input-hubcap-api-key" placeholder="在此貼上您的 Hubcap API 金鑰…" style="width:100%;padding:10px 12px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;font-family:Consolas,monospace;outline:none;background:var(--bg);color:var(--fg);box-sizing:border-box">
+      <div style="font-size:11px;color:var(--gray);margin-top:6px;line-height:1.5">
+        💡 留空並點擊「儲存」可清除現有金鑰。系統會於儲存時自動進行即時連線驗證。
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.06)">
+      <button type="button" class="btn btn-o btn-s" onclick="pywebview.api.open_url('https://hubcapmanifest.com/user')">
+        🔗 前往官網後台
+      </button>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="btn btn-o btn-s" onclick="closeHubcapKeyModal()">取消</button>
+        <button type="button" class="btn btn-p btn-s" onclick="submitHubcapApiKey()">儲存並驗證</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- 模組化 JavaScript (按架構職責分層載入) -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<script src="js/core/utils.js"></script>
+<script src="js/core/state.js"></script>
+<script src="js/core/downloader.js"></script>
+<script src="js/modules/search.js"></script>
+<script src="js/modules/game_detail.js"></script>
+<script src="js/modules/manage.js"></script>
+<script src="js/modules/credentials.js"></script>
+<script src="js/modules/startup_wizard.js"></script>
+<script src="js/modules/download_diag.js"></script>
+<script src="js/modules/more.js"></script>
+<script src="js/modules/settings.js"></script>
+<script src="js/modules/health_check.js"></script>
+<script src="js/modules/gdrive_status.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

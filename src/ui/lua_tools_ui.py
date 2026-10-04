@@ -1,6 +1,7 @@
 from ui.theme_utils import get_state_color
 import os
 import json
+import stat
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal, QUrl, QTimer, QObject, QThread
@@ -15,7 +16,7 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkRe
 
 from qfluentwidgets import (
     PushButton, PrimaryPushButton, LineEdit, StrongBodyLabel, BodyLabel,
-    InfoBar, InfoBarPosition, CardWidget, SubtitleLabel, ImageLabel, SegmentedWidget
+    InfoBar, InfoBarPosition, CardWidget, SubtitleLabel, ImageLabel, SegmentedWidget, CaptionLabel
 )
 
 
@@ -74,15 +75,56 @@ class LuaToolsLoginDialog(QDialog):
             self.accept()
 
 
-            return
+class RyuuLoginDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("登入 Ryuu Manifests (generator.ryuu.lol)")
+        self.resize(850, 650)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
         
-        results = api.search_game(name)
-        if not results:
-            self.result_ready.emit({"error": f"在 Online-Fix 找不到 {name}"})
-            return
-            
-        links = api.get_download_links(results[0]['url'])
-        self.result_ready.emit({"links": links, "name": name, "game_url": results[0]['url']})
+        try:
+            from qfluentwidgets import isDarkTheme
+            import ctypes
+            hwnd = int(self.winId())
+            value = ctypes.c_int(1 if isDarkTheme() else 0)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(value), ctypes.sizeof(value))
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 19, ctypes.byref(value), ctypes.sizeof(value))
+        except Exception:
+            pass
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.view = QWebEngineView(self)
+        from managers.ryuu_manager import get_ryuu_profile
+        profile = get_ryuu_profile()
+        page = QWebEnginePage(profile, self.view)
+        self.view.setPage(page)
+        layout.addWidget(self.view)
+        
+        self.view.load(QUrl("https://generator.ryuu.lol/"))
+        self.view.loadFinished.connect(self.check_login)
+        
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.check_login)
+        self.timer.start(2000)
+
+    def check_login(self):
+        js = """
+        (function() {
+            var hasLogin = document.querySelector('a[href="/login"]') !== null;
+            var hasDownloadsLeft = document.getElementById('downloads-left') !== null;
+            var hasLogout = document.querySelector('a[href="/logout"]') !== null;
+            var hasSessionCookie = document.cookie.indexOf('session=') !== -1 || document.cookie.indexOf('auth=') !== -1;
+            return (!hasLogin && (hasDownloadsLeft || hasLogout || hasSessionCookie)) || hasDownloadsLeft || hasLogout;
+        })();
+        """
+        self.view.page().runJavaScript(js, 0, self._handle_check)
+
+    def _handle_check(self, has_auth):
+        if has_auth:
+            self.timer.stop()
+            self.accept()
 
 class ImageLoadThread(QThread):
     image_ready = Signal(object) # None if failed, bytes if success
@@ -129,33 +171,44 @@ class LuaToolsDownloaderWidget(QWidget):
         super().__init__(parent)
         self.lua_dir = lua_dir
         
+        from managers import ryuu_manager
+        self.ryuu_client = ryuu_manager.get_shared_ryuu_client(self.parent())
+        self.ryuu_client.ready.connect(self.on_ryuu_ready)
+        self.ryuu_client.not_logged_in.connect(self.on_ryuu_not_logged_in)
+        
         self.client = lua_tools_manager.get_shared_client(self.parent())
         self.client.ready.connect(self.on_client_ready)
         self.client.not_logged_in.connect(self.on_client_not_logged_in)
+
+        self.of_thread = None
         
+        self.initUI()
+        
+        if self.ryuu_client.has_checked:
+            if self.ryuu_client.is_logged_in:
+                self.on_ryuu_ready()
+            else:
+                self.on_ryuu_not_logged_in()
+                
         if self.client.has_checked:
             if self.client.is_logged_in:
                 self.on_client_ready()
             else:
                 self.on_client_not_logged_in()
-
-        self.of_thread = None
-        
-        self.initUI()
         
     def initUI(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(15)
 
-        # Top Area (7:3 ratio)
+        # Top Area (5:5 ratio)
         top_layout = QHBoxLayout()
         top_layout.setSpacing(15)
 
-        # Left side: Search (70%)
+        # Left side: Search (50%)
         search_card = CardWidget(self)
         search_layout = QHBoxLayout(search_card)
-        search_layout.setContentsMargins(15, 10, 15, 10)
+        search_layout.setContentsMargins(15, 12, 15, 12)
         
         self.search_input = LineEdit(self)
         self.search_input.setPlaceholderText("輸入 AppID 或商店網址...")
@@ -166,27 +219,62 @@ class LuaToolsDownloaderWidget(QWidget):
         
         search_layout.addWidget(self.search_input, 1)
         search_layout.addWidget(self.search_btn)
-        top_layout.addWidget(search_card, 7)
+        top_layout.addWidget(search_card, 5)
 
-        # Right side: Login Status (30%)
-        status_card = CardWidget(self)
-        status_layout = QHBoxLayout(status_card)
-        status_layout.setContentsMargins(15, 10, 15, 10)
+        # Right side: Dual-Platform Login Status (50%)
+        auth_card = CardWidget(self)
+        auth_layout = QVBoxLayout(auth_card)
+        auth_layout.setContentsMargins(14, 10, 14, 10)
+        auth_layout.setSpacing(6)
         
-        self.status_label = BodyLabel("檢查登入中...", self)
+        # Row 1: Ryuu
+        r_layout = QHBoxLayout()
+        r_layout.setContentsMargins(0, 0, 0, 0)
+        r_title = StrongBodyLabel("1. Ryuu (generator.ryuu.lol):", self)
+        self.ryuu_status_label = BodyLabel("檢查中...", self)
+        self.ryuu_login_btn = PrimaryPushButton("登入 Ryuu", self)
+        self.ryuu_login_btn.hide()
+        self.ryuu_login_btn.clicked.connect(self.open_ryuu_login)
+        self.ryuu_relogin_btn = PushButton("重登", self)
+        self.ryuu_relogin_btn.hide()
+        self.ryuu_relogin_btn.clicked.connect(self.open_ryuu_login)
         
-        self.login_btn = PrimaryPushButton("登入帳號", self)
+        r_layout.addWidget(r_title)
+        r_layout.addWidget(self.ryuu_status_label, 1)
+        r_layout.addWidget(self.ryuu_login_btn)
+        r_layout.addWidget(self.ryuu_relogin_btn)
+        auth_layout.addLayout(r_layout)
+        
+        # Row 2: Lua.tools
+        lt_layout = QHBoxLayout()
+        lt_layout.setContentsMargins(0, 0, 0, 0)
+        lt_title = StrongBodyLabel("2. Lua.tools (lua.tools 聚合):", self)
+        self.status_label = BodyLabel("檢查中...", self)
+        self.login_btn = PrimaryPushButton("登入 Lua.tools", self)
         self.login_btn.hide()
         self.login_btn.clicked.connect(self.open_login)
-        
-        self.relogin_btn = PushButton("重新登入", self)
+        self.relogin_btn = PushButton("重登", self)
         self.relogin_btn.hide()
         self.relogin_btn.clicked.connect(self.open_login)
         
-        status_layout.addWidget(self.status_label, 1)
-        status_layout.addWidget(self.login_btn)
-        status_layout.addWidget(self.relogin_btn)
-        top_layout.addWidget(status_card, 3)
+        lt_layout.addWidget(lt_title)
+        lt_layout.addWidget(self.status_label, 1)
+        lt_layout.addWidget(self.login_btn)
+        lt_layout.addWidget(self.relogin_btn)
+        auth_layout.addLayout(lt_layout)
+
+        # Row 3: Multi-Account & Quota
+        acc_layout = QHBoxLayout()
+        acc_layout.setContentsMargins(0, 0, 0, 0)
+        self.lbl_acc_summary = CaptionLabel("多帳號配額 (Quota): 支援自動輪替", self)
+        self.btn_acc_mgr = PushButton("👥 帳號管理 (Quota)", self)
+        self.btn_acc_mgr.setFixedHeight(26)
+        self.btn_acc_mgr.clicked.connect(self.open_account_manager)
+        acc_layout.addWidget(self.lbl_acc_summary, 1)
+        acc_layout.addWidget(self.btn_acc_mgr)
+        auth_layout.addLayout(acc_layout)
+        
+        top_layout.addWidget(auth_card, 5)
 
         layout.addLayout(top_layout)
         
@@ -221,9 +309,9 @@ class LuaToolsDownloaderWidget(QWidget):
         lua_page_layout.setContentsMargins(0, 10, 0, 0)
         lua_page_layout.setSpacing(10)
         
-        # 3 Cards for Luie, Ryuu, Sushi
+        # Cards for Ryuu, Assiw, Luie, Sushi
         self.sources = {}
-        for s in ["Luie", "Ryuu", "Sushi"]:
+        for s in ["Ryuu", "Assiw", "Luie", "Sushi"]:
             card = CardWidget(self)
             c_layout = QHBoxLayout(card)
             
@@ -231,9 +319,13 @@ class LuaToolsDownloaderWidget(QWidget):
             name_lbl = StrongBodyLabel(s, self)
             c_layout.addWidget(name_lbl)
             
-            if s == "Luie":
+            if s == "Ryuu":
                 rec_lbl = BodyLabel("RECOMMENDED", self)
                 rec_lbl.setStyleSheet(f"color: {get_state_color('accent')}; border: 1px solid {get_state_color('accent')}; border-radius: 4px; padding: 2px 4px; font-size: 10px;")
+                c_layout.addWidget(rec_lbl)
+            elif s == "Assiw":
+                rec_lbl = BodyLabel("FALLBACK (備用)", self)
+                rec_lbl.setStyleSheet(f"color: {get_state_color('warning')}; border: 1px solid {get_state_color('warning')}; border-radius: 4px; padding: 2px 4px; font-size: 10px;")
                 c_layout.addWidget(rec_lbl)
                 
             c_layout.addStretch(1)
@@ -246,11 +338,27 @@ class LuaToolsDownloaderWidget(QWidget):
             # Download Btn
             dl_btn = PrimaryPushButton("Download", self)
             dl_btn.setEnabled(False)
+            dl_btn.clicked.connect(lambda checked=False, src=s: self._on_download_source_clicked(src))
             c_layout.addWidget(dl_btn)
             
             self.sources[s] = {"status": status_lbl, "btn": dl_btn}
             lua_page_layout.addWidget(card)
-            
+
+        # Lock Action Card in Lua Downloader page (防 401 封鎖)
+        lock_card = CardWidget(self)
+        lock_layout = QHBoxLayout(lock_card)
+        lock_layout.setContentsMargins(12, 10, 12, 10)
+        
+        self.lbl_lock_notice = StrongBodyLabel("🛡️ 版本鎖定防護 (防 401 封鎖):", self)
+        self.btn_toggle_lock = PushButton("請先搜尋遊戲", self)
+        self.btn_toggle_lock.setEnabled(False)
+        self.btn_toggle_lock.clicked.connect(self._toggle_current_lock)
+        
+        lock_layout.addWidget(self.lbl_lock_notice)
+        lock_layout.addStretch(1)
+        lock_layout.addWidget(self.btn_toggle_lock)
+        lua_page_layout.addWidget(lock_card)
+
         lua_page_layout.addStretch(1)
         self.source_stack.addWidget(self.lua_page)
         
@@ -282,12 +390,16 @@ class LuaToolsDownloaderWidget(QWidget):
         web_source_title = StrongBodyLabel("🌐 外部補丁網頁檢查", self)
         web_source_layout.addWidget(web_source_title)
         
+        self._of_url = None
+        self._zg_url = None
         self.of_web_btn = PushButton("🌐 Online-Fix.me: 尚未檢查", self)
         self.of_web_btn.setEnabled(False)
+        self.of_web_btn.clicked.connect(self._open_of_url)
         web_source_layout.addWidget(self.of_web_btn)
         
         self.zg_web_btn = PushButton("🌐 ZeiGames.com: 尚未檢查", self)
         self.zg_web_btn.setEnabled(False)
+        self.zg_web_btn.clicked.connect(self._open_zg_url)
         web_source_layout.addWidget(self.zg_web_btn)
         
         action_layout.addWidget(web_source_card)
@@ -329,32 +441,30 @@ class LuaToolsDownloaderWidget(QWidget):
             self.zg_web_btn.setText("🌐 ZeiGames.com: ❌ 無遊戲名稱")
             self.zg_web_btn.setEnabled(False)
 
+    def _open_of_url(self):
+        if self._of_url:
+            import webbrowser
+            webbrowser.open(self._of_url)
+
+    def _open_zg_url(self):
+        if self._zg_url:
+            import webbrowser
+            webbrowser.open(self._zg_url)
+
     def _on_web_patch_results(self, res):
-        import webbrowser
-        of_url = res.get("onlinefix_url")
-        zg_url = res.get("zeigames_url")
-        
-        try:
-            self.of_web_btn.clicked.disconnect()
-        except Exception:
-            pass
-        try:
-            self.zg_web_btn.clicked.disconnect()
-        except Exception:
-            pass
+        self._of_url = res.get("onlinefix_url")
+        self._zg_url = res.get("zeigames_url")
             
-        if of_url:
+        if self._of_url:
             self.of_web_btn.setText("🌐 Online-Fix.me: ✅ 有補丁 (點擊前往)")
             self.of_web_btn.setEnabled(True)
-            self.of_web_btn.clicked.connect(lambda: webbrowser.open(of_url))
         else:
             self.of_web_btn.setText("🌐 Online-Fix.me: ❌ 無對應網頁")
             self.of_web_btn.setEnabled(False)
             
-        if zg_url:
+        if self._zg_url:
             self.zg_web_btn.setText("🌐 ZeiGames.com: ✅ 有補丁 (點擊前往)")
             self.zg_web_btn.setEnabled(True)
-            self.zg_web_btn.clicked.connect(lambda: webbrowser.open(zg_url))
         else:
             self.zg_web_btn.setText("🌐 ZeiGames.com: ❌ 無對應網頁")
             self.zg_web_btn.setEnabled(False)
@@ -375,27 +485,54 @@ class LuaToolsDownloaderWidget(QWidget):
         # If error or failed to load, hide the image label
         self.image_label.hide()
         
+    def on_ryuu_ready(self):
+        self.ryuu_status_label.setText("已登入 ✅")
+        self.ryuu_status_label.setStyleSheet(f"color: {get_state_color('success')}; font-weight: bold;")
+        self.ryuu_login_btn.hide()
+        self.ryuu_relogin_btn.show()
+        self._update_search_state()
+
+    def on_ryuu_not_logged_in(self):
+        self.ryuu_status_label.setText("未登入 ❌")
+        self.ryuu_status_label.setStyleSheet(f"color: {get_state_color('error')}; font-weight: bold;")
+        self.ryuu_login_btn.show()
+        self.ryuu_relogin_btn.hide()
+        self._update_search_state()
+
     def on_client_ready(self):
-        self.status_label.setText("連線狀態：已登入 (準備就緒)")
-        self.status_label.setStyleSheet(f"color: {get_state_color('success')};")
+        self.status_label.setText("已登入 ✅")
+        self.status_label.setStyleSheet(f"color: {get_state_color('success')}; font-weight: bold;")
         self.login_btn.hide()
         self.relogin_btn.show()
-        self.search_input.setEnabled(True)
-        self.search_btn.setEnabled(True)
-        
+        self._update_search_state()
+
     def on_client_not_logged_in(self):
-        self.status_label.setText("連線狀態：憑證無效或未登入")
-        self.status_label.setStyleSheet(f"color: {get_state_color('error')};")
+        self.status_label.setText("未登入 ❌")
+        self.status_label.setStyleSheet(f"color: {get_state_color('error')}; font-weight: bold;")
         self.login_btn.show()
         self.relogin_btn.hide()
-        self.search_input.setEnabled(False)
-        self.search_btn.setEnabled(False)
-        
+        self._update_search_state()
+
+    def _update_search_state(self):
+        has_any = (hasattr(self, 'ryuu_client') and self.ryuu_client.is_logged_in) or \
+                  (hasattr(self, 'client') and self.client.is_logged_in)
+        self.search_input.setEnabled(has_any)
+        self.search_btn.setEnabled(has_any)
+
+    def open_account_manager(self):
+        from ui.account_manager_ui import MultiAccountManagerDialog
+        dlg = MultiAccountManagerDialog(self)
+        dlg.exec()
+        if hasattr(self, 'client'):
+            self.client.check_login_now()
+        if hasattr(self, 'ryuu_client'):
+            self.ryuu_client.check_login_now()
+
+    def open_ryuu_login(self):
+        self.open_account_manager()
+
     def open_login(self):
-        dlg = LuaToolsLoginDialog(self)
-        if dlg.exec():
-            self.client.view.reload()
-            self.status_label.setText("連線狀態：重新連線中...")
+        self.open_account_manager()
             
     def _extract_appid(self, text):
         import re
@@ -455,8 +592,79 @@ class LuaToolsDownloaderWidget(QWidget):
         
         self.client.search_manifest(appid, self.on_search_result)
         
+        # Trigger background check for Ryuu Generator direct source
+        self._check_ryuu_source(appid)
+
+        # Trigger background check for Assiw downstream source
+        self._check_assiw_source(appid)
+        
         # Trigger background check for OF patch
         self._check_of_sources(appid)
+
+        # Refresh Version Lock button
+        self._refresh_lock_button()
+
+    def _check_ryuu_source(self, appid):
+        if "Ryuu" in self.sources:
+            self.sources["Ryuu"]["status"].setText("檢查中...")
+            self.sources["Ryuu"]["status"].setStyleSheet(f"color: {get_state_color('muted')};")
+            self.sources["Ryuu"]["btn"].setEnabled(False)
+
+        if hasattr(self, 'ryuu_check_thread') and self.ryuu_check_thread and self.ryuu_check_thread.isRunning():
+            self.ryuu_check_thread.terminate()
+
+        from managers.ryuu_manager import RyuuCheckThread
+        self.ryuu_check_thread = RyuuCheckThread(appid, self)
+
+        def _on_ryuu_done(res_appid, found, info):
+            if self.current_appid != res_appid:
+                return
+            if "Ryuu" in self.sources:
+                if found:
+                    self.current_ryuu_info = info
+                    f_count = len(info.get("files", []))
+                    self.sources["Ryuu"]["status"].setText(f"AVAILABLE (Ryuu 官方 {f_count} 檔)")
+                    self.sources["Ryuu"]["status"].setStyleSheet(f"color: {get_state_color('success')}; font-weight: bold;")
+                    self.sources["Ryuu"]["btn"].setEnabled(True)
+                else:
+                    self.current_ryuu_info = None
+                    curr_text = self.sources["Ryuu"]["status"].text()
+                    if "AVAILABLE" not in curr_text:
+                        self.sources["Ryuu"]["status"].setText("N/A")
+                        self.sources["Ryuu"]["status"].setStyleSheet(f"color: {get_state_color('muted')};")
+                        self.sources["Ryuu"]["btn"].setEnabled(False)
+
+        self.ryuu_check_thread.result_ready.connect(_on_ryuu_done)
+        self.ryuu_check_thread.start()
+
+    def _check_assiw_source(self, appid):
+        if "Assiw" in self.sources:
+            self.sources["Assiw"]["status"].setText("檢查中...")
+            self.sources["Assiw"]["status"].setStyleSheet(f"color: {get_state_color('muted')};")
+            self.sources["Assiw"]["btn"].setEnabled(False)
+
+        if hasattr(self, 'assiw_check_thread') and self.assiw_check_thread and self.assiw_check_thread.isRunning():
+            self.assiw_check_thread.terminate()
+
+        from managers.assiw_manager import AssiwCheckThread
+        self.assiw_check_thread = AssiwCheckThread(appid, self)
+
+        def _on_assiw_done(res_appid, supported):
+            if self.current_appid != res_appid:
+                return
+            if "Assiw" in self.sources:
+                if supported:
+                    self.sources["Assiw"]["status"].setText("AVAILABLE")
+                    self.sources["Assiw"]["status"].setStyleSheet(f"color: {get_state_color('success')}; font-weight: bold;")
+                    self.sources["Assiw"]["btn"].setEnabled(True)
+                else:
+                    self.sources["Assiw"]["status"].setText("N/A")
+                    self.sources["Assiw"]["status"].setStyleSheet(f"color: {get_state_color('muted')};")
+                    self.sources["Assiw"]["btn"].setEnabled(False)
+
+        self.assiw_check_thread.result_ready.connect(_on_assiw_done)
+        self.assiw_check_thread.start()
+
 
     def _check_of_sources(self, appid):
         from managers import onlinefix_manager
@@ -643,26 +851,88 @@ class LuaToolsDownloaderWidget(QWidget):
         else:
             InfoBar.error("Online-Fix 安裝失敗", msg, parent=self)
         
+    def _on_download_source_clicked(self, src):
+        if not self.current_appid:
+            return
+
+        if src == "Assiw":
+            if not self.lua_dir or not os.path.isdir(self.lua_dir):
+                InfoBar.error("錯誤", "找不到 Lua 儲存目錄", parent=self)
+                return
+            self.sources["Assiw"]["btn"].setEnabled(False)
+            self.sources["Assiw"]["btn"].setText("下載中...")
+
+            from managers.assiw_manager import AssiwDownloadThread
+            self.assiw_dl_thread = AssiwDownloadThread(self.current_appid, self.lua_dir, self)
+
+            def _on_assiw_dl_done(ok, msg):
+                if "Assiw" in self.sources:
+                    self.sources["Assiw"]["btn"].setEnabled(True)
+                    self.sources["Assiw"]["btn"].setText("Download")
+                if ok:
+                    from managers import steam_manager
+                    steam_dir = Path(self.lua_dir).parent.parent if self.lua_dir else None
+                    clean_name = getattr(self, 'current_game_name', f"App_{self.current_appid}")
+                    steam_manager.lock_game_version(self.current_appid, steam_dir, set_readonly=True, game_name=clean_name)
+                    self._refresh_lock_button()
+                    InfoBar.success("下載成功", f"已成功從下級來源 Assiw 儲存至 {self.current_appid}.lua，並自動啟用版本鎖定防護 🔒！", parent=self, position=InfoBarPosition.TOP)
+                    self.download_successful.emit()
+                else:
+                    InfoBar.error("下載失敗", f"Assiw 下載失敗: {msg}", parent=self, position=InfoBarPosition.TOP)
+
+            self.assiw_dl_thread.finished.connect(_on_assiw_dl_done)
+            self.assiw_dl_thread.start()
+            return
+
+        if src == "Ryuu":
+            from managers import ryuu_manager, account_manager
+            acc_mgr = account_manager.get_account_manager()
+            ryuu_has_quota = (self.ryuu_client.is_logged_in or ryuu_manager.has_saved_ryuu_credentials()) and acc_mgr.has_available_quota("ryuu")
+
+            if ryuu_has_quota:
+                self.sources["Ryuu"]["btn"].setEnabled(False)
+                self.sources["Ryuu"]["btn"].setText("下載中...")
+                info = getattr(self, 'current_ryuu_info', None)
+                if not info:
+                    info = ryuu_manager.fetch_ryuu_manifest_info(self.current_appid)
+                default_branch = info.get("default_branch", "public") if info else "public"
+
+                def on_ryuu_dl(res):
+                    if "Ryuu" in self.sources:
+                        self.sources["Ryuu"]["btn"].setEnabled(True)
+                        self.sources["Ryuu"]["btn"].setText("Download")
+
+                    if not res or (isinstance(res, dict) and res.get("error")):
+                        print(f"[lua_tools_ui] Ryuu direct download failed, fallback to lua.tools...")
+                        self.client.download_manifest(
+                            self.current_appid, "Ryuu", f"Game_{self.current_appid}",
+                            lambda lt_res: self.on_download_result(self.current_appid, lt_res)
+                        )
+                        return
+
+                    self.on_download_result(self.current_appid, res)
+
+                self.ryuu_client.download_manifest(self.current_appid, default_branch, on_ryuu_dl)
+                return
+
+        self.client.download_manifest(
+            self.current_appid, src, f"Game_{self.current_appid}",
+            lambda res: self.on_download_result(self.current_appid, res)
+        )
+
     def on_search_result(self, data):
         self.search_btn.setEnabled(True)
         self.search_btn.setText("搜尋 Manifest")
-        
-        import json
-        try:
-            with open("debug_search_data.json", "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        except:
-            pass
 
-        # Reset all sources
+        # Reset lua.tools sources (exclude Assiw as it is handled by AssiwCheckThread)
         for s in self.sources:
+            if s == "Assiw":
+                continue
+            if s == "Ryuu" and getattr(self, 'current_ryuu_info', None):
+                continue
             self.sources[s]["status"].setText("N/A")
             self.sources[s]["status"].setStyleSheet(f"color: {get_state_color('muted')};")
             self.sources[s]["btn"].setEnabled(False)
-            try:
-                self.sources[s]["btn"].clicked.disconnect()
-            except Exception:
-                pass
 
         if isinstance(data, dict) and "error" in data:
             if not (data.get("error") == "Unauthorized" or data.get("error", "").startswith("401")):
@@ -689,30 +959,50 @@ class LuaToolsDownloaderWidget(QWidget):
                 if isinstance(v, str):
                     parsed_sources[k.lower()] = {"name": k, "available": (v.lower() == "available" or v.lower() == "true")}
 
-        # Update UI
+        # Update UI for lua.tools sources
         for s in self.sources:
+            if s == "Assiw":
+                continue
+            if s == "Ryuu" and getattr(self, 'current_ryuu_info', None):
+                continue
             s_lower = s.lower()
             if s_lower in parsed_sources:
                 if parsed_sources[s_lower]["available"]:
                     self.sources[s]["status"].setText("AVAILABLE")
                     self.sources[s]["status"].setStyleSheet(f"color: {get_state_color('success')}; font-weight: bold;")
                     self.sources[s]["btn"].setEnabled(True)
-                    # Connect the button directly to download
-                    self.sources[s]["btn"].clicked.connect(
-                        lambda checked=False, src=s: self.client.download_manifest(
-                            self.current_appid, src, f"Game_{self.current_appid}", 
-                            lambda res: self.on_download_result(self.current_appid, res)
-                        )
-                    )
                 else:
                     self.sources[s]["status"].setText("N/A")
                     self.sources[s]["status"].setStyleSheet(f"color: {get_state_color('muted')};")
 
-    def on_download_result(self, appid, text):
-        if text.startswith("ERROR:") or "error" in text.lower() or not text.strip():
-            if not text.strip():
-                text = "Empty response"
-            InfoBar.error("下載失敗", f"API 回傳錯誤或無內容:\n{text[:100]}", parent=self, position=InfoBarPosition.TOP)
+
+    def on_download_result(self, appid, res):
+        if isinstance(res, dict) and res.get("error"):
+            err_msg = res.get("error")
+            InfoBar.error("下載失敗", f"API 回傳錯誤:\n{err_msg[:100]}", parent=self, position=InfoBarPosition.TOP)
+            return
+
+        lua_text = ""
+        manifests = {}
+        if isinstance(res, dict):
+            lua_text = res.get("lua_content", res.get("data", ""))
+            manifests = res.get("manifests", {})
+        elif isinstance(res, str):
+            lua_text = res
+
+        if not lua_text or not lua_text.strip():
+            InfoBar.error("下載失敗", "回傳內容為空或無有效腳本", parent=self, position=InfoBarPosition.TOP)
+            return
+
+        # 核心防護規範：沒有 manifest 的檔案直接認定為殘缺檔案，不支援安裝
+        if not manifests:
+            InfoBar.error(
+                "拒絕安裝 (殘缺檔案)",
+                "此來源未提供二進位 .manifest 清單檔！\n依照最新防護規範，缺少 Manifest 的 Lua 檔直接判定為殘缺檔案，系統不支援安裝。",
+                parent=self,
+                duration=6500,
+                position=InfoBarPosition.TOP
+            )
             return
 
         # Save to file
@@ -722,9 +1012,89 @@ class LuaToolsDownloaderWidget(QWidget):
 
         filepath = os.path.join(self.lua_dir, f"{appid}.lua")
         try:
+            # 若檔案已存在且唯讀，先解除唯讀以寫入
+            if os.path.exists(filepath):
+                os.chmod(filepath, stat.S_IWRITE | stat.S_IREAD)
             with open(filepath, "w", encoding="utf-8") as f:
-                f.write(text)
-            InfoBar.success("下載成功", f"已成功儲存至 {appid}.lua", parent=self, position=InfoBarPosition.TOP)
+                f.write(lua_text)
+
+            from managers import steam_manager
+            steam_dir = Path(self.lua_dir).parent.parent if self.lua_dir else None
+            if not steam_dir or not steam_dir.exists():
+                steam_dir = steam_manager.find_steam_path()
+
+            # 確保同時將官方 lua 寫入 Steam 的 config/lua 目錄
+            if steam_dir:
+                steam_lua_file = Path(steam_dir) / "config" / "lua" / f"{appid}.lua"
+                if steam_lua_file.resolve() != Path(filepath).resolve():
+                    steam_lua_file.parent.mkdir(parents=True, exist_ok=True)
+                    if steam_lua_file.exists():
+                        os.chmod(steam_lua_file, stat.S_IWRITE | stat.S_IREAD)
+                    steam_lua_file.write_text(lua_text, encoding="utf-8")
+
+            # 1. 部署所有下載之二進位 Manifest 至 depotcache 與 lua 目錄
+            if manifests:
+                steam_manager.deploy_manifests_to_depotcache(manifests, steam_dir, self.lua_dir)
+                steam_manager.sync_lua_with_deployed_manifests(appid, manifests, self.lua_dir)
+                if steam_dir:
+                    steam_manager.sync_lua_with_deployed_manifests(appid, manifests, Path(steam_dir) / "config" / "lua")
+                steam_manager.sanitize_lua_manifests(appid, steam_dir, self.lua_dir)
+                if steam_dir:
+                    steam_manager.sanitize_lua_manifests(appid, steam_dir, Path(steam_dir) / "config" / "lua")
+
+            # 2. 自動鎖定版本與防封鎖 (防 Valve 2026-09 401 斷線)
+            game_name = getattr(self, 'current_game_name', f"App_{appid}")
+            lock_ok, lock_msg = steam_manager.lock_game_version(appid, steam_dir, set_readonly=True, game_name=game_name)
+
+            self._refresh_lock_button()
+
+            m_count = len(manifests)
+            suffix = f" (含 {m_count} 個清單檔)" if m_count > 0 else ""
+            lock_suffix = "，已自動啟用版本鎖定防護 🔒！" if lock_ok else "！"
+            InfoBar.success("下載與部署成功", f"已成功儲存至 {appid}.lua{suffix}{lock_suffix}", parent=self, position=InfoBarPosition.TOP)
             self.download_successful.emit()
         except Exception as e:
             InfoBar.error("儲存失敗", str(e), parent=self)
+
+    def _refresh_lock_button(self):
+        if not hasattr(self, 'btn_toggle_lock'):
+            return
+        if not self.current_appid:
+            self.btn_toggle_lock.setEnabled(False)
+            self.btn_toggle_lock.setText("請先搜尋遊戲")
+            return
+            
+        from managers import steam_manager
+        steam_dir = Path(self.lua_dir).parent.parent if self.lua_dir else None
+        lock_info = steam_manager.get_game_manifest_lock_info(self.current_appid, steam_dir)
+        self.btn_toggle_lock.setEnabled(True)
+        if lock_info.get("is_locked"):
+            self.btn_toggle_lock.setText("🔓 解除版本鎖定 (目前已受保護 🔒)")
+            self.btn_toggle_lock.setToolTip(f"當前狀態: {lock_info['status_text']}\n點擊可解除唯讀與 AutoUpdateBehavior 鎖定")
+        else:
+            self.btn_toggle_lock.setText("🔒 一鍵鎖定版本防封鎖 (停用自動更新)")
+            self.btn_toggle_lock.setToolTip("強烈推薦！鎖定後 Steam 下載將直接使用本地 Manifest，不會向 Valve 查詢導致 401 斷線！")
+
+    def _toggle_current_lock(self):
+        if not self.current_appid:
+            return
+        from managers import steam_manager
+        steam_dir = Path(self.lua_dir).parent.parent if self.lua_dir else None
+        lock_info = steam_manager.get_game_manifest_lock_info(self.current_appid, steam_dir)
+        game_name = getattr(self, 'current_game_name', f"App_{self.current_appid}")
+        
+        if lock_info.get("is_locked"):
+            ok, msg = steam_manager.unlock_game_version(self.current_appid, steam_dir)
+            if ok:
+                InfoBar.info("已解除鎖定", f"「{game_name}」{msg}", parent=self, position=InfoBarPosition.TOP)
+            else:
+                InfoBar.error("解除鎖定失敗", msg, parent=self, position=InfoBarPosition.TOP)
+        else:
+            ok, msg = steam_manager.lock_game_version(self.current_appid, steam_dir, set_readonly=True, game_name=game_name)
+            if ok:
+                InfoBar.success("版本鎖定成功", f"「{game_name}」{msg}", parent=self, position=InfoBarPosition.TOP)
+            else:
+                InfoBar.error("鎖定失敗", msg, parent=self, position=InfoBarPosition.TOP)
+                
+        self._refresh_lock_button()
+        self.download_successful.emit()

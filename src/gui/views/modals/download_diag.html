@@ -1,0 +1,58 @@
+<div id="modal-download-diag" class="detail-modal-overlay" style="z-index:100060" onclick="closeDownloadDiagnosticModal(event)">
+  <div class="detail-modal-box log-modal-box" onclick="event.stopPropagation()" style="border:1.5px solid rgba(255,107,107,0.5);box-shadow:0 12px 48px rgba(255,50,50,0.25)">
+    <div class="detail-modal-header" style="background:linear-gradient(135deg,rgba(255,75,75,0.15),rgba(255,150,150,0.05))">
+      <div class="detail-modal-title" style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:16px;">🚨 Steam 下載中斷排障報告</span>
+        <span id="diag-status-badge" class="chip red" style="font-size:11px;padding:2px 8px">診斷中</span>
+      </div>
+      <button class="detail-close-btn" onclick="closeDownloadDiagnosticModal()">✕</button>
+    </div>
+    <div class="log-modal-toolbar" style="background:rgba(0,0,0,0.03);border-bottom:1px solid rgba(0,0,0,0.08);padding:8px 16px">
+      <div class="log-modal-meta">
+        <span id="diag-meta-game" style="font-weight:bold;color:var(--text)">目標遊戲: -</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-s" onclick="copyDownloadDiagText()" style="background:rgba(255,183,197,.2);border:1px solid rgba(255,183,197,.4);font-size:11px;padding:4px 10px;cursor:pointer" title="複製排障報告">📋 複製報告</button>
+        <button class="btn btn-s" id="diag-btn-heal" onclick="healDownloadDiagnosticError()" style="background:linear-gradient(135deg,#FF5252,#FF1744);color:#fff;border:none;font-weight:bold;font-size:11.5px;padding:4px 14px;box-shadow:0 2px 8px rgba(255,23,68,0.35);cursor:pointer">🛠️ 一鍵自動自癒修復並重試</button>
+      </div>
+    </div>
+    <div class="log-modal-body" id="diag-modal-content" style="padding:16px 20px;max-height:65vh;overflow-y:auto">
+      <!-- 渲染 Markdown 深度排障內容 -->
+    </div>
+  </div>
+</div>
+
+
+
+<!-- 重啟方式選擇彈窗：無账號登錄 / 選某账號再選 在線·離線 -->
+<div class="modal hidden" id="rs-m">
+<div style="max-width:420px;width:90%">
+<h3>🔄 重啟 Steam</h3>
+<div id="rs-loading" style="font-size:12px;color:var(--gray);padding:14px 0">加載中…</div>
+<div id="rs-list" style="max-height:52vh;overflow-y:auto;margin-bottom:6px"></div>
+<div class="btns"><button class="btn btn-o btn-s" onclick="closeRs()">取消</button></div>
+</div></div>
+
+<!-- 重啟二選彈窗：點了某账號後彈「在線 / 離線」行選擇（账號同款行樣式，點行直接执行不彈確認） -->
+<div class="modal hidden" id="rs2-m">
+<div style="max-width:420px;width:90%">
+<h3 id="rs2-title">🔄 重啟 Steam</h3>
+<div id="rs2-info" style="font-size:12px;color:var(--gray);margin:0 0 12px"></div>
+<div id="rs2-list"></div>
+<div class="btns" style="margin-top:14px"><button class="btn btn-o btn-s" onclick="closeRs2()">返回</button></div>
+</div></div>
+
+<!-- 體檢結果彈窗：入庫後遊戲不顯示 → 一鍵自查，逐項 ok/warn/bad + 建議 + 復制診斷報告 -->
+<div class="modal hidden" id="dg-m">
+<div style="max-width:620px;width:94%">
+<h3>🔍 體檢報告</h3>
+<div class="dg-head" id="dg-head"></div>
+<div class="dg-count" id="dg-count"></div>
+<div class="dg-wrap" id="dg-res"></div>
+<div class="dg-sug hidden" id="dg-sug"></div>
+<div class="btns">
+<button class="btn btn-p btn-s" onclick="dgRun()">🔄 重新體檢</button>
+<button class="btn btn-o btn-s" onclick="dgCopy()">📋 復制診斷報告</button>
+<button class="btn btn-o btn-s" onclick="document.getElementById('dg-m').classList.add('hidden')">關閉</button>
+</div>
+</div></div>

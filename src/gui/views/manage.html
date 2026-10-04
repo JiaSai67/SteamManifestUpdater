@@ -1,0 +1,30 @@
+<div class="page" id="p-manage">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+  <h2 style="margin:0">📋 管理入庫</h2>
+  <span id="mc" style="font-size:12px;color:var(--gray)"></span>
+  <div id="manage-quota-box" class="manage-quota-strip" style="display:inline-flex;align-items:center;gap:6px"></div>
+  <div style="display:inline-flex;align-items:center;gap:6px">
+    <select id="manage-sort-mode" onchange="changeManageSort()">
+      <option value="default">🔽 預設排序 (可更新優先)</option>
+      <option value="onlinefix">🎮 聯機優先 (支援聯機置頂)</option>
+      <option value="deployed">✅ 部署優先 (已部署置頂)</option>
+    </select>
+    <select id="view-mode" onchange="toggleView()"><option value="grid">田 網格</option><option value="list">📄 列表</option></select>
+  </div>
+  <div style="margin-left:auto;display:inline-flex;align-items:center;gap:8px">
+    <button class="btn btn-s btn-manifest-diag" onclick="openManifestLogModal()" title="檢視最近一次 Manifest 更新的全鏈路診斷報告">📄 診斷日誌</button>
+    <button class="btn btn-p btn-s" onclick="rg(true);" title="重新載入入庫清單並強制主動比對 SteamDB 最新 Manifest">🔄 檢查更新</button>
+  </div>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;min-height:30px">
+  <div style="display:flex;align-items:center">
+    <button class="btn batch-up-btn btn-s" id="btn-batch-update" style="display:none" onclick="autoUpdateAll()">⚡ 批次自動更新</button>
+  </div>
+  <div>
+    <input id="mf" type="text" placeholder="🔍 搜尋已入庫遊戲…" style="width:200px;padding:6px 10px;border:1px solid var(--pink-light);border-radius:10px;font-size:11px;outline:none;background:var(--card);color:var(--text)" oninput="rgDebounce()">
+  </div>
+</div>
+<div id="glist"><div class="empty"><div class="icon">📭</div><p>暫無入庫記錄</p></div></div>
+</div>
+
+<!-- ═══ 3. 雲存檔 ═══ -->

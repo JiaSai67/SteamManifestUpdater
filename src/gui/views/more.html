@@ -1,0 +1,24 @@
+<div class="page" id="p-more">
+<h2>🧩 更多工具</h2>
+
+<!-- 480 联機：steam://run/<appid>//-480 → 內核按 when_cmdline="-480" 把 OnlineFix.dll 注入遊戲進程，借 Spacewar(AppID 480) 联機。注：本塊常開不折叠（no-toggle），頭部不可點收起 -->
+<div class="tool-block open no-toggle" id="tb-onlinefix">
+<div class="tb-head">
+<span class="tb-name">🎮 联機</span>
+<span class="tb-desc" id="of-summary">檢测已下載遊戲…</span>
+</div>
+<div class="tb-body">
+<div class="of-desc">🎮 支持一部分联機遊戲；如果不行，點右邊「联機補丁」進 online-fix.me，搜遊戲英文名找该作的联機補丁。</div>
+<div class="of-bar">
+<span class="of-chip warn" id="of-spacewar-chip">檢测 Spacewar…</span>
+<button class="btn btn-o btn-s" onclick="ofRefresh()">🔄 刷新</button>
+<button class="btn btn-o btn-s" onclick="ofInstallSpacewar()">⬇ 裝 Spacewar(480)</button>
+<button class="btn btn-o btn-s" onclick="ofPatch()">联機補丁</button>
+</div>
+<div class="of-grid" id="of-grid"></div>
+<div class="of-empty hidden" id="of-empty"></div>
+</div>
+</div>
+<!-- 工具区：以後要加新工具，整塊復制 .tool-block 加到这裡 -->
+
+</div>
