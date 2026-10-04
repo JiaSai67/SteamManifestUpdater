@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="dark">
 <head>
 
 <meta charset="UTF-8">
@@ -13,9 +13,9 @@
     } else {
       document.documentElement.classList.add('font-small');
     }
-    // 🌟 首要關鍵：網頁解析第 0 毫秒由 theme_cache.js 立即讀取使用者設定檔之深色模式，杜絕啟動白閃
+    // 🌟 首要關鍵：網頁解析第 0 毫秒由 theme_cache.js 立即讀取使用者設定檔之深色模式，預設為深色模式 (true)
     var initDark = (window.__INITIAL_CONFIG__ && window.__INITIAL_CONFIG__.dark_mode !== undefined) ? window.__INITIAL_CONFIG__.dark_mode : null;
-    var isDark = initDark !== null ? !!initDark : (localStorage.getItem('dark_mode') === '1' || document.documentElement.classList.contains('dark'));
+    var isDark = initDark !== null ? !!initDark : (localStorage.getItem('dark_mode') !== null ? localStorage.getItem('dark_mode') === '1' : true);
     if(isDark){
       document.documentElement.classList.add('dark');
       try { localStorage.setItem('dark_mode', '1'); } catch(e){}
@@ -31,12 +31,12 @@
 </head>
 <body>
 
-<div class="app" id="app">
+<div class="app dark" id="app">
 <script>if(document.documentElement.classList.contains('dark')) document.getElementById('app').classList.add('dark');</script>
 <!-- ═══════════════════════════════════════════════════════ -->
 <!-- 全新櫻花流光 系統啟動載入全屏遮罩 (Splash Loading Screen) -->
 <!-- ═══════════════════════════════════════════════════════ -->
-<div id="splash-overlay" class="splash-overlay">
+<div id="splash-overlay" class="splash-overlay dark">
 <script>if(document.documentElement.classList.contains('dark')) document.getElementById('splash-overlay').classList.add('dark');</script>
   <div class="splash-bg-decorations">
     <div class="splash-glow splash-glow-1"></div>

@@ -264,7 +264,7 @@ async function init(){
     console.log('[INIT] Starting Step 1 - get_config');
     var config = await pywebview.api.get_config();
     setPath(config.steam_path||'');
-    var isDark = !!(config.dark_mode || config.dark);
+    var isDark = config.dark_mode !== undefined ? !!config.dark_mode : (config.dark !== undefined ? !!config.dark : true);
     var tDark = document.getElementById('t-dark');
     if(tDark) tDark.checked = isDark;
     if(isDark){

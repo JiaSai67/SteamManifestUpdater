@@ -113,6 +113,8 @@ def get_config():
     
     # UI settings
     _config.setdefault("ui_font_size", "small")
+    _config.setdefault("dark_mode", True)
+    _config.setdefault("dark", True)
     
     return _config
 

@@ -33,7 +33,8 @@
       <button type="button" id="btn-font-normal" class="btn btn-o btn-xs" onclick="setFontSize('normal')">正常</button>
     </div>
   </div>
-  <div class="toggle"><span class="l">🌙 深色模式</span><label class="switch"><input type="checkbox" id="t-dark" onchange="ts('dark')"><span></span></label></div>
+  <!-- 🌙 深色模式開關（預設為深色模式，淺色樣式保留，此處設定開關已隱藏） -->
+  <div class="toggle" style="display:none !important;"><span class="l">🌙 深色模式</span><label class="switch"><input type="checkbox" id="t-dark" checked onchange="ts('dark')"><span></span></label></div>
   <div class="section">🖼️ 自訂背景桌布 (支援 GIF 動圖)</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="bg-g">
   <div style="width:64px;cursor:pointer;text-align:center;font-size:9px;color:var(--gray);border:2px solid var(--pink-deep);border-radius:6px;padding:3px" data-bg="" onclick="swBg('')"><div style="width:56px;height:36px;border-radius:3px;background:linear-gradient(135deg,#FFE2E7,#FFD8DF);margin-bottom:2px"></div>預設</div>

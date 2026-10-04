@@ -33,9 +33,9 @@ def launch_modern_gui():
     width = max(int(cfg.get("window_width", 1180)), MIN_WIDTH)
     height = max(int(cfg.get("window_height", 760)), MIN_HEIGHT)
 
-    # 🌟 首要關鍵：啟動時第一時間讀取深色模式設定，動態設定視窗底色，徹底消除閃白
+    # 🌟 首要關鍵：啟動時第一時間讀取深色模式設定（預設為深色模式 True），動態設定視窗底色，徹底消除閃白
     # 同步寫入 theme_cache.js，使 HTML 在解析第 0 毫秒即直接套用深色模式，杜絕載入時閃白
-    is_dark = bool(cfg.get("dark_mode", False) or cfg.get("dark", False))
+    is_dark = bool(cfg.get("dark_mode", True) if "dark_mode" in cfg else cfg.get("dark", True))
     bg_color = "#231C1E" if is_dark else "#FFE2E7"
     target_url = html_path.as_uri()
 
