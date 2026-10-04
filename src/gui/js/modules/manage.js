@@ -215,8 +215,9 @@ async function rg(force){
   var filter = (document.getElementById('mf').value||'').trim().toLowerCase();
   var c = document.getElementById('glist');
 
-  // 1. 非強制刷新（如切換頁面或背景調用）：若已有快取且 DOM 已經掛載，直接秒開返回；若 DOM 未掛載則渲染一次
-  if(!force && _pre._rendered && _pre._games && _pre._games.length > 0){
+  // 1. 非強制刷新（如切換頁面或背景調用）：若已有快取且 DOM 已經掛載，且無 App_xxx 殘留名稱，直接秒開返回；若 DOM 未掛載則渲染一次
+  var hasUnresolvedName = _pre._games && _pre._games.some(function(g){ return !g.name || g.name.startsWith('App_'); });
+  if(!force && !hasUnresolvedName && _pre._rendered && _pre._games && _pre._games.length > 0){
     if(!c || !c.querySelector('.card')){
       renderGames(_pre._games, filter);
     }
@@ -230,7 +231,7 @@ async function rg(force){
 
   try {
     // 3. 本地極速獲取最新入庫遊戲清單（~10ms），完成後只進行一次精準渲染（杜絕雙重渲染動畫）
-    var games = await pywebview.api.list_games();
+    var games = await pywebview.api.list_games(!!hasUnresolvedName || !!force);
     _pre._games = games || [];
     _pre._rendered = true;
     renderGames(_pre._games, filter);
@@ -255,6 +256,19 @@ function applyAsyncUpdates(updates){
 
         // 局部修補「管理入庫」卡片
         var mCard = document.querySelector('#glist .card[data-appid="'+aid+'"]');
+
+        // 🌟 即時平滑替換卡片標題為官方真實遊戲名稱 (消除 App_xxx 殘留)
+        if(u.name && !u.name.startsWith('App_')){
+          g.name = u.name;
+          if(mCard){
+            var nameEl = mCard.querySelector('.name');
+            if(nameEl && nameEl.textContent.trim().startsWith('App_')){
+              nameEl.textContent = u.name;
+              nameEl.setAttribute('title', u.name);
+            }
+          }
+        }
+
         if(mCard){
           var cornerBox = mCard.querySelector('.card-corner-tags');
           if(!cornerBox){

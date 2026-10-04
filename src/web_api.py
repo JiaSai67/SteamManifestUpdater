@@ -2030,8 +2030,9 @@ class WebApi:
             lua_files = [f for f in lua_dir.glob("*.lua") if f.name != "manifest.lua"]
             pattern = re.compile(r'^[ \t]*(?:--[^\n\r]*?)?set[M|m]anifest[i|I]d\s*\(\s*(\d+)\s*,\s*"(\d+)"', re.MULTILINE)
 
-            # 🌟 批次快速索引所有 Steam 庫的 ACF 檔案，消除對每個遊戲重複磁碟掃描的巨大耗時
+            # 🌟 批次快速索引所有 Steam 庫的 ACF 檔案，同時即時提取本地官方真實遊戲名稱 (0 延遲秒開)
             acf_map = {}
+            acf_names = {}
             try:
                 libs = steam_manager.get_steam_libraries(sp)
                 for lib in libs:
@@ -2040,13 +2041,22 @@ class WebApi:
                         for acf in sa.glob("appmanifest_*.acf"):
                             parts = acf.stem.split("_")
                             if len(parts) > 1 and parts[1].isdigit():
-                                acf_map[parts[1]] = acf
+                                aid = parts[1]
+                                acf_map[aid] = acf
+                                try:
+                                    txt = acf.read_text(encoding="utf-8", errors="ignore")
+                                    m_nm = re.search(r'"name"\s+"([^"]+)"', txt)
+                                    if m_nm:
+                                        acf_names[aid] = m_nm.group(1).strip()
+                                except Exception:
+                                    pass
             except Exception:
                 pass
 
             # 讀取本地遊戲快取（官方 Store 封面與名稱）
             cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
             game_cache = {}
+            cache_dirty = False
             if cache_file.exists():
                 try:
                     game_cache = json.loads(cache_file.read_text(encoding="utf-8"))
@@ -2080,19 +2090,45 @@ class WebApi:
                 c_info = game_cache.get(appid, {})
                 game_name = c_info.get("name", "")
 
-                if not game_name or game_name == "未知遊戲":
+                # 多層級名稱探測：1. 官方 ACF 檔 -> 2. Lua 頂部註解 -> 3. 本地 SteamDB 快取
+                if not game_name or game_name == "未知遊戲" or game_name.startswith("App_"):
+                    if appid in acf_names and acf_names[appid]:
+                        game_name = acf_names[appid]
+
+                if not game_name or game_name == "未知遊戲" or game_name.startswith("App_"):
                     name_m = re.search(r'--\s*\d+\s*-\s*(.+)', content)
                     game_name = name_m.group(1).strip() if name_m else ""
+
+                if not game_name or game_name == "未知遊戲" or game_name.startswith("App_"):
+                    sdb_file = Path(__file__).parent.parent / "data" / "steamdb_cache" / f"{appid}.json"
+                    if sdb_file.exists():
+                        try:
+                            sdb_data = json.loads(sdb_file.read_text(encoding="utf-8"))
+                            sdb_name = sdb_data.get("name") or sdb_data.get("data", {}).get("name")
+                            if sdb_name:
+                                game_name = sdb_name.strip()
+                        except Exception:
+                            pass
+
                 if not game_name or game_name == "未知遊戲":
                     game_name = f"App_{appid}"
 
                 from utils.tw_converter import sanitize_game_name
                 game_name = sanitize_game_name(game_name, appid)
-                english_name = c_info.get("english_name", "") or c_info.get("name_en", "") or ""
+                english_name = c_info.get("english_name", "") or c_info.get("name_en", "") or acf_names.get(appid, "")
 
                 header_img = c_info.get("header_image", "")
                 if not header_img:
                     header_img = f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{appid}/header.jpg"
+
+                # 若成功補全新名稱，自動更新至本地快取
+                if not game_name.startswith("App_") and (not c_info.get("name") or c_info.get("name").startswith("App_")):
+                    c_info["name"] = game_name
+                    c_info["english_name"] = english_name or game_name
+                    c_info["name_en"] = english_name or game_name
+                    c_info["header_image"] = header_img
+                    game_cache[appid] = c_info
+                    cache_dirty = True
 
                 matches = pattern.findall(content)
                 current_mid = matches[0][1] if matches else ""
@@ -2151,6 +2187,11 @@ class WebApi:
 
             # 排序：有更新者（黃色需更新項）置頂排列
             games.sort(key=lambda x: (0 if x["has_update"] else 1, x["name"].lower()))
+            if cache_dirty:
+                try:
+                    cache_file.write_text(json.dumps(game_cache, ensure_ascii=False, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
             self._cached_games = games
             return list(self._cached_games)
 
@@ -2264,6 +2305,7 @@ class WebApi:
 
                 u_item = {
                     "appid": appid,
+                    "name": cur_c.get("name") or (game_cache.get(appid, {}).get("name") if appid in game_cache else ""),
                     "has_update": has_up,
                     "version_status": raw_v,
                     "latest_date": diff_info.get("latest_date", "未知"),
@@ -2337,6 +2379,10 @@ class WebApi:
                             "header_image": img
                         }
                         game_cache[appid] = meta_updates[appid]
+                        if appid in updates:
+                            updates[appid]["name"] = best_n
+                        else:
+                            updates[appid] = {"appid": appid, "name": best_n}
                 except Exception:
                     pass
 
