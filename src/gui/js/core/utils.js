@@ -29,7 +29,7 @@ function getDynamicCoverSvg(title){
     '<path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>' +
     '</g>' +
     '<text x="230" y="145" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="15" fill="#fbcfe8" font-weight="bold" text-anchor="middle">' + name + '</text>' +
-    '<text x="230" y="170" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="10.5" fill="rgba(255,183,197,0.6)" font-weight="600" text-anchor="middle">STEAM CLOUD SAVE</text>' +
+    '<text x="230" y="170" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="10.5" fill="rgba(255,183,197,0.7)" font-weight="600" text-anchor="middle">🌸 STEAM GAME</text>' +
     '</svg>'
   );
 }
@@ -222,15 +222,25 @@ async function dismissSplashScreen(){
 
 // ── 進度與提示輔助 ──
 
+// ── 入庫遊戲解析進度監聽（Splash 畫面即時反饋）──
+window.on_game_resolved_progress = function(data){
+  if(!data) return;
+  var cur = data.current || 0;
+  var tot = data.total || 0;
+  var nm = data.name || ('App_' + data.appid);
+  var pct = 85 + Math.round((cur / Math.max(1, tot)) * 10);
+  setSplashProgress(pct, '正在確認入庫遊戲資訊與官方封面 (' + cur + '/' + tot + ')...', nm, 6);
+};
+
 async function init(){
   var splashDismissed = false;
-  // 安全超時保護（最多等待 5.5 秒，保證使用者 100% 順利進入主介面，絕不無限卡死）
+  // 安全超時保護（延長至 35 秒極端保底，確保名稱與封面確認完成前絕不搶著進系統）
   var safetyTimer = setTimeout(function(){
     if(!splashDismissed){
       splashDismissed = true;
       dismissSplashScreen();
     }
-  }, 5500);
+  }, 35000);
 
   try {
     // ══════════════════════════════════════════════════
@@ -364,14 +374,24 @@ async function init(){
     }
 
     // ══════════════════════════════════════════════════
-    // Step 6 (88%): 🌟 真實預載入已入庫遊戲清單並預先渲染
+    // Step 6 (88%): 🌟 深度確認入庫遊戲真實名稱與高畫質封面（絕不搶著進系統）
     // ══════════════════════════════════════════════════
-    console.log('[INIT] Starting Step 6 - Real Games Preload');
-    setSplashProgress(88, '預載入本機已入庫遊戲庫與狀態...', '對齊本地 Manifest 庫存，預先生成管理視圖', 6);
+    console.log('[INIT] Starting Step 6 - Ensure Installed Games Resolved');
+    setSplashProgress(85, '校驗本機已入庫遊戲與官方封面...', '對齊本機遊戲清單，確保繁中名稱與高畫質圖片就緒', 6);
     await yieldToUI(80);
 
     try {
-      var games = await pGames;
+      var games = [];
+      if (window.pywebview && pywebview.api && pywebview.api.ensure_installed_games_resolved) {
+        var resResolve = await pywebview.api.ensure_installed_games_resolved();
+        if (resResolve && resResolve.games && resResolve.games.length) {
+          games = resResolve.games;
+        } else {
+          games = await pGames;
+        }
+      } else {
+        games = await pGames;
+      }
       _pre._games = games || [];
       if(typeof renderGames === 'function'){
         var filter = (document.getElementById('mf') ? document.getElementById('mf').value : '').trim().toLowerCase();
@@ -379,7 +399,15 @@ async function init(){
         _pre._rendered = true;
       }
     } catch(e){
-      console.warn('[INIT] Step 6 games render error:', e);
+      console.warn('[INIT] Step 6 games resolve error:', e);
+      try {
+        var gamesFallback = await pGames;
+        _pre._games = gamesFallback || [];
+        if (typeof renderGames === 'function') {
+          renderGames(_pre._games, '');
+          _pre._rendered = true;
+        }
+      } catch(_) {}
     }
 
     // ══════════════════════════════════════════════════
@@ -644,7 +672,7 @@ function closeUpdate(){
 
 // ── 全域字體大小切換（小 / 正常）──
 function setFontSize(size, isInitial){
-  size = (size === 'normal') ? 'normal' : 'small';
+  size = (size === 'small') ? 'small' : 'normal';
   var html = document.documentElement;
   var body = document.body;
   if(size === 'normal'){
@@ -676,7 +704,7 @@ function setFontSize(size, isInitial){
   try { localStorage.setItem('ui_font_size', size); } catch(e){}
   if(!isInitial){
     try { pywebview.api.set_config('ui_font_size', size); } catch(e){}
-    tt('介面文字大小已設定為：' + (size === 'normal' ? '正常 (清晰放大)' : '小 (精簡預設)'), 'ok');
+    tt('介面大小已設定為：' + (size === 'normal' ? '正常 (清晰標準)' : '小 (微縮緊湊)'), 'ok');
   }
 }
 
@@ -722,7 +750,7 @@ function initVisualSettings(cfg){
   if(!cfg) return;
   var fontSize = (cfg && cfg.ui_font_size) || '';
   if(!fontSize){
-    try { fontSize = localStorage.getItem('ui_font_size') || 'small'; } catch(e){ fontSize = 'small'; }
+    try { fontSize = localStorage.getItem('ui_font_size') || 'normal'; } catch(e){ fontSize = 'normal'; }
   }
   setFontSize(fontSize, true);
   var blur = (cfg.bg_blur !== undefined) ? parseInt(cfg.bg_blur, 10) : 0;

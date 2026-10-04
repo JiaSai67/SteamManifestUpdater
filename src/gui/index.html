@@ -7,11 +7,11 @@
 <script>
 (function(){
   try {
-    var s = localStorage.getItem('ui_font_size') || 'small';
-    if(s === 'normal') {
-      document.documentElement.classList.add('font-normal');
-    } else {
+    var s = localStorage.getItem('ui_font_size') || 'normal';
+    if(s === 'small') {
       document.documentElement.classList.add('font-small');
+    } else {
+      document.documentElement.classList.add('font-normal');
     }
     // 🌟 首要關鍵：網頁解析第 0 毫秒由 theme_cache.js 立即讀取使用者設定檔之深色模式，預設為深色模式 (true)
     var initDark = (window.__INITIAL_CONFIG__ && window.__INITIAL_CONFIG__.dark_mode !== undefined) ? window.__INITIAL_CONFIG__.dark_mode : null;
@@ -29,7 +29,7 @@
 <link rel="stylesheet" href="css/app.css">
 
 </head>
-<body>
+<body class="font-normal">
 
 <div class="app dark" id="app">
 <script>if(document.documentElement.classList.contains('dark')) document.getElementById('app').classList.add('dark');</script>

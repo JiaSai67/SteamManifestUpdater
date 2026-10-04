@@ -112,7 +112,9 @@ def get_config():
     _config.setdefault("cloud_drives", [])
     
     # UI settings
-    _config.setdefault("ui_font_size", "small")
+    _config.setdefault("ui_font_size", "normal")
+    _config.setdefault("window_width", 1100)
+    _config.setdefault("window_height", 700)
     _config.setdefault("dark_mode", True)
     _config.setdefault("dark", True)
     

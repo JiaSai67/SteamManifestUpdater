@@ -2053,13 +2053,19 @@ class WebApi:
             except Exception:
                 pass
 
-            # 讀取本地遊戲快取（官方 Store 封面與名稱）
+            # 讀取遊戲快取（優先載入倉庫內建快取，確保初次抓取 0 延遲秒開）
+            builtin_cache_file = Path(__file__).parent / "resources" / "builtin_game_cache.json"
             cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
             game_cache = {}
             cache_dirty = False
+            if builtin_cache_file.exists():
+                try:
+                    game_cache.update(json.loads(builtin_cache_file.read_text(encoding="utf-8")))
+                except Exception:
+                    pass
             if cache_file.exists():
                 try:
-                    game_cache = json.loads(cache_file.read_text(encoding="utf-8"))
+                    game_cache.update(json.loads(cache_file.read_text(encoding="utf-8")))
                 except Exception:
                     pass
 
@@ -2194,6 +2200,122 @@ class WebApi:
                     pass
             self._cached_games = games
             return list(self._cached_games)
+
+    def ensure_installed_games_resolved(self) -> Dict[str, Any]:
+        """
+        🌟 初始化階段專屬核心 API：強制校驗並補全所有已入庫遊戲的官方真實繁中名稱與高畫質封面圖片。
+        若偵測到缺失名稱或使用預設佔位圖片的遊戲，立即透過多執行緒並行向 Steam 官方 Store API 抓取。
+        絕不搶著進系統，向前端即時回報進度，直到所有入庫遊戲確認就緒。
+        """
+        sp = self._steam_path or steam_manager.find_steam_path()
+        if not sp:
+            return {"ok": False, "msg": "未找到 Steam 安裝目錄", "games": []}
+
+        lua_dir = Path(sp) / "config" / "lua"
+        if not lua_dir.exists():
+            return {"ok": True, "count": 0, "games": []}
+
+        lua_files = [f for f in lua_dir.glob("*.lua") if f.name != "manifest.lua" and f.stem.isdigit()]
+        all_appids = [f.stem for f in lua_files]
+        if not all_appids:
+            return {"ok": True, "count": 0, "games": []}
+
+        # 1. 載入當前快取（內建快取 + data/game_cache.json）
+        builtin_cache_file = Path(__file__).parent / "resources" / "builtin_game_cache.json"
+        cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
+        game_cache = {}
+        if builtin_cache_file.exists():
+            try:
+                game_cache.update(json.loads(builtin_cache_file.read_text(encoding="utf-8")))
+            except Exception:
+                pass
+        if cache_file.exists():
+            try:
+                game_cache.update(json.loads(cache_file.read_text(encoding="utf-8")))
+            except Exception:
+                pass
+
+        # 2. 檢測哪些 AppID 缺乏有效名稱或有效商店封面
+        to_fetch = []
+        for aid in all_appids:
+            info = game_cache.get(aid, {})
+            name = info.get("name", "")
+            img = info.get("header_image", "")
+            needs_resolve = False
+            if not name or name == "未知遊戲" or name.startswith("App_"):
+                needs_resolve = True
+            elif not img or img.endswith(f"/apps/{aid}/header.jpg"):
+                if "header_alt_assets" not in img and "t=" not in img:
+                    needs_resolve = True
+            if needs_resolve:
+                to_fetch.append(aid)
+
+        # 3. 如果需要並行抓取，使用 ThreadPoolExecutor 併發抓取 Steam 官方 Store API
+        resolved_count = 0
+        total_fetch = len(to_fetch)
+        if total_fetch > 0:
+            import urllib.request
+            import ssl
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from utils.tw_converter import sanitize_game_name
+
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
+            def _fetch_single(aid):
+                url = f"https://store.steampowered.com/api/appdetails?appids={aid}&l=tchinese"
+                try:
+                    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                    with urllib.request.urlopen(req, timeout=6, context=ctx) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        if data and str(aid) in data and data[str(aid)].get("success"):
+                            d = data[str(aid)]["data"]
+                            raw_name = d.get("name") or f"App_{aid}"
+                            s_name = sanitize_game_name(raw_name, aid)
+                            hdr = d.get("header_image") or ""
+                            return aid, s_name, raw_name, hdr
+                except Exception:
+                    pass
+                return aid, None, None, None
+
+            with ThreadPoolExecutor(max_workers=min(12, total_fetch)) as executor:
+                futures = {executor.submit(_fetch_single, aid): aid for aid in to_fetch}
+                for fut in as_completed(futures):
+                    aid, s_name, raw_name, hdr = fut.result()
+                    resolved_count += 1
+                    if s_name:
+                        c_info = game_cache.get(aid, {})
+                        c_info["name"] = s_name
+                        c_info["english_name"] = raw_name or s_name
+                        c_info["name_en"] = raw_name or s_name
+                        if hdr:
+                            c_info["header_image"] = hdr
+                        game_cache[aid] = c_info
+                    
+                    disp_name = s_name or f"App_{aid}"
+                    self._push_js_event("on_game_resolved_progress", {
+                        "current": resolved_count,
+                        "total": total_fetch,
+                        "appid": aid,
+                        "name": disp_name
+                    })
+
+            try:
+                cache_file.parent.mkdir(parents=True, exist_ok=True)
+                cache_file.write_text(json.dumps(game_cache, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+
+        # 4. 強制刷新 list_games 記憶體快取
+        games = self.list_games(force_refresh=True)
+        return {
+            "ok": True,
+            "count": len(games),
+            "total_checked": len(all_appids),
+            "resolved_count": resolved_count,
+            "games": games
+        }
 
     def _push_js_event(self, func_name: str, data: Any):
         """主動向前端安全推播事件 (非阻塞，多執行緒安全)"""

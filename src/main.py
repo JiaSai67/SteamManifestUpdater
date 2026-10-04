@@ -30,8 +30,20 @@ def launch_modern_gui():
     MIN_WIDTH = 880
     MIN_HEIGHT = 580
     cfg = api.get_config()
-    width = max(int(cfg.get("window_width", 1180)), MIN_WIDTH)
-    height = max(int(cfg.get("window_height", 760)), MIN_HEIGHT)
+    width = max(int(cfg.get("window_width", 1100)), MIN_WIDTH)
+    height = max(int(cfg.get("window_height", 700)), MIN_HEIGHT)
+
+    # 🌟 螢幕自適應保護：確保預設尺寸在標準浮動視窗比例內，絕不撐破螢幕或強制最大化
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        sw = user32.GetSystemMetrics(0)
+        sh = user32.GetSystemMetrics(1)
+        if sw > 0 and sh > 0:
+            width = min(width, int(sw * 0.88))
+            height = min(height, int(sh * 0.88))
+    except Exception:
+        pass
 
     # 🌟 首要關鍵：啟動時第一時間讀取深色模式設定（預設為深色模式 True），動態設定視窗底色，徹底消除閃白
     # 同步寫入 theme_cache.js，使 HTML 在解析第 0 毫秒即直接套用深色模式，杜絕載入時閃白
