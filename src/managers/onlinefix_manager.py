@@ -1045,8 +1045,6 @@ def get_fix_status(app_id):
     app_id = str(app_id)
     try:
         record = _load_record(app_id)
-        
-<<<<<<< Updated upstream
         if not record:
             return "未安裝"
             
@@ -1065,38 +1063,17 @@ def get_fix_status(app_id):
         if not installed:
             return "✅ 已安裝"
             
-        for f in installed:
+        # 優先精準校驗關鍵二進位/設定檔 (涵蓋 Online-Fix 與 ZeiGames 補丁特徵)
+        key_files = [f for f in installed if is_known_crack_file(f) or f.lower().endswith(('.dll', '.ini', '.exe', '.url'))]
+        check_list = key_files if key_files else installed[:10]
+        
+        for f in check_list:
             if not (game_dir / f).exists():
                 return "⚠️ 部分補丁檔案遺失 (可能被防毒刪除)"
                 
         return "✅ 已安裝"
     except Exception:
         return "未安裝"
-=======
-    game_dir_str = record.get("game_dir")
-    if not game_dir_str:
-        return "未安裝"
-        
-    game_dir = Path(game_dir_str)
-    if not game_dir.exists():
-        return "⚠️ 遊戲目錄遺失"
-        
-    if record.get("is_signature"):
-        return "✅ 已安裝"
-        
-    installed = record.get("installed_files", [])
-    if not installed:
-        return "✅ 已安裝"
-        
-    # 優先精準校驗關鍵二進位/設定檔 (涵蓋 Online-Fix 與 ZeiGames 補丁特徵)
-    key_files = [f for f in installed if is_known_crack_file(f) or f.lower().endswith(('.dll', '.ini', '.exe', '.url'))]
-    check_list = key_files if key_files else installed[:10]
-    
-    for f in check_list:
-        if not (game_dir / f).exists():
-            return "⚠️ 部分補丁檔案遺失 (可能被防毒刪除)"
-            
-    return "✅ 已安裝"
 
 def is_patch_deployed_locally(app_id: str) -> bool:
     """識別本地 Steam 遊戲目錄下是否已實際部署/套用聯機或專用補丁"""
@@ -1539,5 +1516,3 @@ class SteamDeployWatcher:
 
 _deploy_watcher = SteamDeployWatcher()
 
-
->>>>>>> Stashed changes
