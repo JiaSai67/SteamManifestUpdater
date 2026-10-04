@@ -43,7 +43,7 @@ h2{font-size:20px;font-weight:700;margin-bottom:12px}
 #glist{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:12px}
 #glist .card{flex-direction:column;align-items:stretch;text-align:center;padding:0;overflow:visible!important;border-radius:14px;min-height:auto;position:relative;gap:0}
 #glist .card img{width:100%;height:85px;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.08);border-top-left-radius:13px;border-top-right-radius:13px;display:block}
-#glist .card .name{font-size:12px;font-weight:600;padding:7px 10px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;background:var(--card-text-bg, rgba(0,0,0,.65));color:#fff;transition:background .15s}
+#glist .card .name{font-size:12px;font-weight:600;padding:7px 10px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;background:var(--card-text-bg, rgba(0,0,0,.65));color:#fff;border-top-left-radius:13px;border-top-right-radius:13px;transition:background .15s}
 #glist .card .aid{font-size:11px;color:#ddd;padding:3px 32px 5px 10px;margin:0;font-variant-numeric:tabular-nums;background:var(--card-text-bg, rgba(0,0,0,.65));border-bottom-left-radius:13px;border-bottom-right-radius:13px;transition:background .15s;display:flex;align-items:center;justify-content:center;min-height:24px;box-sizing:border-box;position:relative}
 
 #glist .card .aid .aid-num{font-size:11px;color:#ddd;font-variant-numeric:tabular-nums;letter-spacing:0.2px}
@@ -63,8 +63,18 @@ h2{font-size:20px;font-weight:700;margin-bottom:12px}
 #results.browse-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:14px}
 #results.browse-grid .card{flex-direction:column;align-items:stretch;text-align:center;padding:0;overflow:visible!important;border-radius:14px;min-height:auto;position:relative;gap:0;height:auto}
 #results.browse-grid .card img{width:100%;height:105px;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.08);border-top-left-radius:13px;border-top-right-radius:13px;display:block}
-#results.browse-grid .card .name{font-size:12.5px;font-weight:600;padding:7px 10px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;background:var(--card-text-bg, rgba(0,0,0,.65));color:#fff;transition:background .15s}
+#results.browse-grid .card .name{font-size:12.5px;font-weight:600;padding:7px 10px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;background:var(--card-text-bg, rgba(0,0,0,.65));color:#fff;border-top-left-radius:13px;border-top-right-radius:13px;transition:background .15s}
 #results.browse-grid .card .aid{font-size:11px;color:#ddd;padding:3px 32px 5px 10px;margin:0;font-variant-numeric:tabular-nums;background:var(--card-text-bg, rgba(0,0,0,.65));border-bottom-left-radius:13px;border-bottom-right-radius:13px;transition:background .15s;display:flex;align-items:center;justify-content:center;min-height:24px;box-sizing:border-box;position:relative}
+
+/* 🌟 全域防護：頂部遊戲名稱與卡片頂部圓角 100% 貼合，消除任何直角底色溢出 */
+.card .name:first-child,
+.card-corner-tags + .name,
+#glist .card .name,
+#results.browse-grid .card .name,
+#glist .card.dlc-card .name {
+  border-top-left-radius: 13px !important;
+  border-top-right-radius: 13px !important;
+}
 
 #results.browse-grid .card .aid .aid-num{font-size:11px;color:#ddd;font-variant-numeric:tabular-nums;letter-spacing:0.2px}
 #results.browse-grid .card.needs-update .aid .aid-num{color:#FFE066 !important;font-weight:700}
