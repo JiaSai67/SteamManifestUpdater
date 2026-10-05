@@ -1218,26 +1218,18 @@ function renderRoomView(room) {
 
   // 1. 如果本機狀態已經是就緒，那麼就不需要同步環境，就不用顯示按鈕
 
+  // 1. 隊員端：未就緒時顯示「🚀 一鍵安裝」，點擊即可全自動完成整合包下載、入庫與線上補丁套用
+  var showInstallBtn = !isMyReady && !isHost;
   if (syncBtnWrap) {
-
-    syncBtnWrap.style.display = isMyReady ? 'none' : 'block';
-
+    syncBtnWrap.style.display = showInstallBtn ? 'block' : 'none';
   } else if (syncBtn) {
-
-    syncBtn.style.display = isMyReady ? 'none' : 'inline-flex';
-
+    syncBtn.style.display = showInstallBtn ? 'inline-flex' : 'none';
   }
 
-  // 2. 房主若有分享 Google Drive 整合包，隊員端顯示專屬下載按鈕
-
+  // 2. 徹底移除/隱藏額外手動下載整合包按鈕 (完全由一鍵安裝代勞)
   var pkgWrap = document.getElementById('party-gdrive-pkg-wrap');
-
   if (pkgWrap) {
-
-    var hasGdrive = !!(room.gdrive_url || room.download_url);
-
-    pkgWrap.style.display = (hasGdrive && !isHost) ? 'block' : 'none';
-
+    pkgWrap.style.display = 'none';
   }
 
   var html = '';
