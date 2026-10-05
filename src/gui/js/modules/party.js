@@ -1537,16 +1537,8 @@ function saveInlineNickname() {
 // ═══════════════════════════════════════════════════════
 
 function toggleDiscordCustomSection(e) {
+  // 相容保留函式，自訂 Webhook 欄位已常駐顯示
   if (e) { e.preventDefault(); e.stopPropagation(); }
-  var wrap = document.getElementById('party-discord-config-wrap');
-  var btn = document.getElementById('btn-toggle-discord-custom');
-  if (!wrap) return;
-  var isHidden = (wrap.style.display === 'none' || !wrap.style.display);
-  wrap.style.display = isHidden ? 'block' : 'none';
-  if (btn) {
-    btn.style.color = isHidden ? '#5865F2' : 'var(--gray)';
-    btn.textContent = isHidden ? '✖️ 關閉自訂' : '⚙️ 自訂 Webhook';
-  }
 }
 
 function testDiscordWebhookConnection() {
@@ -1560,7 +1552,8 @@ function testDiscordWebhookConnection() {
   if (window.pywebview && window.pywebview.api && window.pywebview.api.test_discord_webhook) {
     pywebview.api.test_discord_webhook(url).then(function(res) {
       if (res && res.ok) {
-        tt('✅ Discord Webhook 連線測試成功！已發送測試訊息至頻道', 'ok');
+        tt('✅ Discord Webhook 連線測試成功！已自動保存設定', 'ok');
+        try { localStorage.setItem('smu_party_discord_webhook', url); } catch (e) {}
       } else {
         tt('連線失敗: ' + (res ? res.msg : '未知錯誤'), 'err');
       }
@@ -1573,6 +1566,9 @@ function testDiscordWebhookConnection() {
 function savePartyDiscordWebhook() {
   var input = document.getElementById('input-party-discord-webhook');
   var url = input ? input.value.trim() : '';
+  if (url) {
+    try { localStorage.setItem('smu_party_discord_webhook', url); } catch (e) {}
+  }
   if (window.pywebview && window.pywebview.api && window.pywebview.api.save_discord_webhook) {
     pywebview.api.save_discord_webhook(url);
   }
@@ -1626,21 +1622,27 @@ function openCreateRoomModal() {
   // 載入本地已入庫遊戲下拉選單
   loadInstalledGamesDropdown();
 
-  // 自訂 Webhook 預設折疊，優先展示極速通道
-  var wrap = document.getElementById('party-discord-config-wrap');
-  var btnToggle = document.getElementById('btn-toggle-discord-custom');
-  if (wrap) wrap.style.display = 'none';
-  if (btnToggle) { btnToggle.style.color = 'var(--gray)'; btnToggle.textContent = '⚙️ 自訂 Webhook'; }
-
   var chk = document.getElementById('check-party-auto-upload');
   if (chk) chk.checked = true;
 
-  // 載入已保存之 Discord Webhook 網址
+  // 自動回填已記憶之 Discord Webhook 網址 (優先讀取 localStorage 快取)
+  var input = document.getElementById('input-party-discord-webhook');
+  try {
+    var cached = localStorage.getItem('smu_party_discord_webhook');
+    if (cached && input && !input.value) {
+      input.value = cached;
+    }
+  } catch (e) {}
+
+  // 向後端持久化獲取已保存之 Webhook
   if (window.pywebview && window.pywebview.api && window.pywebview.api.get_discord_webhook) {
     pywebview.api.get_discord_webhook().then(function(res) {
       if (res && res.ok && res.webhook_url) {
-        var input = document.getElementById('input-party-discord-webhook');
-        if (input) input.value = res.webhook_url;
+        var inp = document.getElementById('input-party-discord-webhook');
+        if (inp) {
+          inp.value = res.webhook_url;
+          try { localStorage.setItem('smu_party_discord_webhook', res.webhook_url); } catch (e) {}
+        }
       }
     });
   }
@@ -2125,6 +2127,13 @@ function submitCreatePartyRoom() {
         if (flowSpinner) flowSpinner.textContent = '✨';
 
         tt(res.msg || '成功建立房間！已成功附加雲端下載網址！', 'ok');
+
+        if (discordWebhook) {
+          try { localStorage.setItem('smu_party_discord_webhook', discordWebhook); } catch (e) {}
+          if (window.pywebview && window.pywebview.api && window.pywebview.api.save_discord_webhook) {
+            pywebview.api.save_discord_webhook(discordWebhook);
+          }
+        }
 
         setTimeout(function() {
 

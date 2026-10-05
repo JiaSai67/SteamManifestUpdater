@@ -50,18 +50,24 @@ class DiscordStorage:
         return True
 
     def test_webhook(self, webhook_url: str) -> Dict[str, Any]:
-        """測試 Webhook 有效性"""
+        """測試 Webhook 有效性並自動記憶"""
         url = str(webhook_url).strip()
-        if not url or not url.startswith("https://discord.com/api/webhooks/"):
-            return {"ok": False, "msg": "無效的 Discord Webhook 網址 (格式應為 https://discord.com/api/webhooks/...)"}
+        if not url or "/api/webhooks/" not in url or not (url.startswith("http://") or url.startswith("https://")):
+            return {"ok": False, "msg": "無效的 Discord Webhook 網址 (格式應為 https://discord.com/api/webhooks/... 或 ptb/canary 域名)"}
         try:
             payload = {
                 "username": "SMU 雲端助理",
-                "content": "✨ **SteamManifestUpdater 連線測試成功！** 本頻道已就緒作為組隊聯機整合包託管通道。"
+                "embeds": [{
+                    "title": "✨ SteamManifestUpdater 連線測試成功！",
+                    "description": "本頻道已就緒作為組隊聯機整合包託管通道。\n開房時整合包將透過此處上傳至 Discord 專用 CDN，隊友可享受無限下載頻寬！",
+                    "color": 5814783
+                }]
             }
             resp = requests.post(url, json=payload, timeout=8)
             if resp.status_code in (200, 204):
-                return {"ok": True, "msg": "✅ Discord Webhook 連線測試成功！"}
+                # 測試成功，自動記憶保存到本機設定
+                self.set_custom_webhook_url(url)
+                return {"ok": True, "msg": "✅ Discord Webhook 連線測試成功！已自動保存設定"}
             else:
                 return {"ok": False, "msg": f"Discord 回應錯誤: HTTP {resp.status_code}"}
         except Exception as e:
@@ -120,6 +126,7 @@ class DiscordStorage:
                     if attachments and attachments[0].get("url"):
                         download_url = attachments[0]["url"]
                         file_id = f"discord:{message_id}:{target_webhook}"
+                        self.set_custom_webhook_url(target_webhook)
                         logger.info(f"[Discord] 上傳成功！下載直鏈: {download_url} (MsgID: {message_id})")
                         return {
                             "ok": True,
@@ -203,6 +210,7 @@ class DiscordStorage:
             # 3. 封裝多卷複合式資訊
             composite_url = f"multipart:{'|||'.join(download_urls)}"
             composite_file_id = f"discord_parts:{','.join(message_ids)}:{target_webhook}"
+            self.set_custom_webhook_url(target_webhook)
 
             logger.info(f"[Discord] 恭喜！{total_parts} 個分卷全部上傳完畢！")
             return {

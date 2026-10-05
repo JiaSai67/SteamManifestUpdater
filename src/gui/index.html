@@ -1034,50 +1034,30 @@
             <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2EA043;box-shadow:0 0 6px #2EA043"></span> 常駐開啟
           </span>
         </div>
-        <div style="display:flex;gap:6px;align-items:center">
-          <button type="button" class="btn btn-o btn-xs" id="btn-toggle-discord-custom" onclick="toggleDiscordCustomSection(event)" style="font-size:11px;padding:2px 8px;border-radius:12px;color:var(--gray)">⚙️ 自訂 Webhook</button>
-        </div>
       </div>
 
       <!-- 三檔檢測狀態條 -->
-      <div id="party-resources-inspect-box" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:11px">
+      <div id="party-resources-inspect-box" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;font-size:11px">
         <span id="inspect-manifest" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">📄 Manifest: 檢測中</span>
         <span id="inspect-lua" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">📜 Lua 腳本: 檢測中</span>
         <span id="inspect-patch" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">🎮 線上補丁: 檢測中</span>
       </div>
 
-      <!-- 🎮 Discord CDN 極速同步 (預設無限流量通道) -->
-      <div id="party-fast-cloud-banner" style="display:flex;align-items:center;justify-content:space-between;background:rgba(88,101,242,0.12);border:1px solid rgba(88,101,242,0.35);padding:10px 12px;border-radius:10px;margin-top:8px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:24px">🎮</span>
-          <div>
-            <div style="font-size:12px;font-weight:700;color:#5865F2;display:flex;align-items:center;gap:6px">
-              <span>Discord CDN 極速雲端已就緒</span>
-              <span style="font-size:10px;font-weight:700;color:#5865F2;background:rgba(88,101,242,0.18);padding:1px 6px;border-radius:6px">無限下載流量</span>
-            </div>
-            <div style="font-size:11px;color:var(--gray);margin-top:2px">
-              免登入、0 設定！整合包透過 Discord 專用 CDN 託管，隊友秒下載，房間解散自動銷毀。
-            </div>
-          </div>
+      <!-- Discord Webhook 設定區塊 (常駐顯示並自動記憶) -->
+      <div id="party-discord-config-wrap" style="margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label style="font-size:12px;font-weight:700;color:var(--fg);display:inline-flex;align-items:center;gap:5px">
+            <span>🎮</span> Discord Webhook 網址 (整合包託管通道)：
+          </label>
         </div>
-        <span style="font-size:11px;font-weight:800;color:#5865F2;background:rgba(88,101,242,0.22);padding:4px 10px;border-radius:12px;white-space:nowrap">✨ 推薦使用</span>
-      </div>
-
-      <!-- Discord Webhook 設定區塊 (折疊式進階自訂) -->
-      <div id="party-discord-config-wrap" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-size:12px;font-weight:700;color:var(--fg);display:inline-flex;align-items:center;gap:4px">
-            <span>⚙️</span> 自訂 Discord 頻道 Webhook (選填)：
-          </span>
-        </div>
-        <div style="margin-bottom:8px">
+        <div style="margin-bottom:6px">
           <div style="display:flex;gap:6px">
             <input type="text" id="input-party-discord-webhook" oninput="savePartyDiscordWebhook()" placeholder="貼上專屬 Discord Webhook 網址 (https://discord.com/api/webhooks/...)" style="flex:1;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:8px;font-size:11px;background:var(--bg);color:var(--fg);outline:none">
-            <button type="button" class="btn btn-p btn-xs" id="btn-party-test-webhook" onclick="testDiscordWebhookConnection()" style="padding:0 12px;background:#5865F2;border-color:#5865F2">🔗 測試</button>
+            <button type="button" class="btn btn-p btn-xs" id="btn-party-test-webhook" onclick="testDiscordWebhookConnection()" style="padding:0 12px;background:#5865F2;border-color:#5865F2">🔗 測試連線</button>
           </div>
         </div>
         <div style="font-size:11px;color:var(--gray);line-height:1.5">
-          💡 <strong>如何獲取？</strong> 在 Discord 任何頻道右鍵 ➔ 編輯頻道 ➔ 整合 ➔ 建立 Webhook 複製貼上即可！開房時還會自動發送招募卡片。
+          💡 <strong>如何獲取？</strong> 在 Discord 任何頻道右鍵 ➔ 編輯頻道 ➔ 整合 ➔ 建立 Webhook 複製貼上即可（通過測試或開房後會自動記憶保存）。
         </div>
       </div>
     </div>
