@@ -1,1 +1,0 @@
-# SteamManifestUpdater Source Module

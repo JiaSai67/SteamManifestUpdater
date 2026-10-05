@@ -5,7 +5,19 @@ build/
 *.exe
 *.spec
 SteamManifestUpdater.exe
+
+# 壓縮包與大型包 (避免上傳非代碼補丁)
 *.zip
+*.rar
+*.7z
+*.tar.gz
+
+# C/C++ 編譯產物與中間庫 (運行時僅需 DLL)
+*.lib
+*.exp
+*.obj
+*.pdb
+*.ilk
 
 # 暫存與快取檔案
 __pycache__/
@@ -27,6 +39,14 @@ src/gui/theme_cache.js
 debug_*.json
 .scratch/
 .tmp/
+
+# 歷史與過期備份檔
+*.bak
+*.backup
+*.bak_*
+v1.0/
+dlls/
+assets/wallpapers/
 
 # IDE 相關
 .vscode/

@@ -48,9 +48,8 @@ SteamManifestUpdater/
 │   ├── web_api.py              # 前後端高效能雙向 Bridge
 │   └── main.py                 # 2.0 程式主入口
 ├── data/                       # 本地配置與快取存儲
-├── dlls/                       # 補丁依賴與解壓組件
-├── opensteamtools/             # 開源輔助套件
-├── assets/                     # 靜態圖示與流光背景
+├── opensteamtools/             # OpenSteamTools 核心注入組件 (DLL & Lua)
+├── assets/                     # 靜態圖示與流光資源
 ├── requirements.txt            # 2.0 純淨輕量依賴清單
 └── README.md                   # 本說明文件
 ```
