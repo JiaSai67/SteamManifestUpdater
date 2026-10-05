@@ -120,33 +120,42 @@ var _partyActiveNav = 'lobby';
 var _lobbyBackgroundTick = 0;
 
 /**
- * 更新左側選單欄之當前房間資訊
+ * 更新左側 MOBA 側邊欄之當前房間狀態
  */
 function updateSidebarRoomInfo(room) {
   var navRoom = document.getElementById('party-nav-my-room');
   var roomTitle = document.getElementById('party-nav-room-title');
-  var roomSubtitle = document.getElementById('party-nav-room-subtitle');
   var roomDot = document.getElementById('party-nav-room-dot');
 
   if (room && room.room_id) {
     if (navRoom) navRoom.classList.remove('disabled');
-    if (roomTitle) roomTitle.textContent = room.game_name || '當前組隊頻道';
-    var curCount = room.members ? room.members.length : (room.current_players || 1);
-    if (roomSubtitle) roomSubtitle.textContent = '#' + room.room_id + ' (' + curCount + '/' + (room.max_players || 4) + '人)';
-    if (roomDot) roomDot.style.display = 'inline-block';
+    if (roomTitle) roomTitle.textContent = '招募隊友';
+    if (roomDot) roomDot.style.display = 'block';
   } else {
     if (navRoom) {
-      navRoom.classList.add('disabled');
       navRoom.classList.remove('active');
     }
-    if (roomTitle) roomTitle.textContent = '當前組隊頻道';
-    if (roomSubtitle) roomSubtitle.textContent = '未加入任何房間';
+    if (roomTitle) roomTitle.textContent = '招募隊友';
     if (roomDot) roomDot.style.display = 'none';
   }
 }
 
 /**
- * 左側選單切換 (支援隨時切換大廳與當前頻道)
+ * MOBA 側欄收合/展開切換 (圖一小圓圈 < / >)
+ */
+function toggleMobaSidebar() {
+  var sidebar = document.getElementById('party-moba-sidebar');
+  var arrow = document.getElementById('moba-collapse-icon');
+  if (!sidebar) return;
+  var isCol = sidebar.classList.toggle('collapsed');
+  if (arrow) {
+    arrow.textContent = isCol ? '❯' : '❮';
+  }
+}
+
+/**
+ * MOBA 垂直側欄切換 (圖一風格：隊伍大廳 vs 招募隊友)
+ * 核心特性：在房間內隨時切換觀看全網大廳，背景心跳不中斷！
  */
 function switchPartyNav(target) {
   var navLobby = document.getElementById('party-nav-lobby');
@@ -156,7 +165,8 @@ function switchPartyNav(target) {
 
   if (target === 'room') {
     if (!_partyCurRoom) {
-      tt('💡 您目前尚未加入任何組隊房間，請先在大廳創建或加入', 'info');
+      tt('💡 您目前尚未在房間中，為您開啟創建房間', 'info');
+      openCreateRoomModal();
       return;
     }
     _partyActiveNav = 'room';

@@ -26,7 +26,7 @@
   } catch(e){}
 })();
 </script>
-<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/app.css?v=2.2">
 
 </head>
 <body class="font-normal">
@@ -199,44 +199,44 @@
     </div>
   </div>
 
-  <!-- 雙欄排版容器：左側頻道選單 + 右側主要內容區 -->
-  <div class="party-layout-container">
-    <!-- 左側選單欄 (Sidebar) -->
-    <div class="party-sidebar">
-      <div class="party-sidebar-top">
-        <div class="party-sidebar-section-title">頻道導覽</div>
-        
-        <!-- 選單項 1：全網大廳列表 -->
-        <div class="party-nav-item active" id="party-nav-lobby" onclick="switchPartyNav('lobby')">
-          <span class="party-nav-icon">🌐</span>
-          <div class="party-nav-text">
-            <span class="party-nav-title">全網大廳列表</span>
-            <span class="party-nav-subtitle">瀏覽與探索公開房間</span>
-          </div>
-          <span class="party-nav-badge" id="party-nav-lobby-count">0</span>
-        </div>
-
-        <!-- 選單項 2：當前組隊頻道 -->
-        <div class="party-nav-item disabled" id="party-nav-my-room" onclick="switchPartyNav('room')">
-          <span class="party-nav-icon">🎮</span>
-          <div class="party-nav-text">
-            <span class="party-nav-title" id="party-nav-room-title">當前組隊頻道</span>
-            <span class="party-nav-subtitle" id="party-nav-room-subtitle">未加入任何房間</span>
-          </div>
-          <span class="party-nav-dot" id="party-nav-room-dot" style="display:none"></span>
-        </div>
+  <!-- 雙欄排版容器：王者榮耀 / MOBA 電競風格側邊導覽欄 (如圖一) + 右側主視圖區 -->
+  <div class="party-moba-wrapper">
+    <!-- 左側王者榮耀風格垂直導覽側欄 (如使用者圖一) -->
+    <div class="party-moba-sidebar" id="party-moba-sidebar">
+      <!-- 頂部返回箭頭 (如圖一頂部圖標) -->
+      <div class="moba-sidebar-back-wrap" onclick="switchPartyNav('lobby')" title="返回隊伍大廳">
+        <svg class="moba-back-arrow-svg" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </svg>
       </div>
 
-      <!-- 左側底部快捷按鈕 -->
-      <div class="party-sidebar-bottom">
-        <button class="btn btn-p btn-block party-btn-sidebar-create" onclick="openCreateRoomModal()">
-          ➕ 創建新房間
-        </button>
+      <!-- 選單標籤 1：隊伍大廳 (圖一風格) -->
+      <div class="moba-tab-item active" id="party-nav-lobby" onclick="switchPartyNav('lobby')" title="隊伍大廳">
+        <div class="moba-tab-icon">🌐</div>
+        <div class="moba-tab-label">隊伍大廳</div>
+        <div class="moba-tab-badge" id="party-nav-lobby-count">0</div>
+      </div>
+
+      <!-- 選單標籤 2：招募隊友 (當前房間) (圖一風格) -->
+      <div class="moba-tab-item" id="party-nav-my-room" onclick="switchPartyNav('room')" title="招募隊友 (當前房間)">
+        <div class="moba-tab-icon">🎮</div>
+        <div class="moba-tab-label" id="party-nav-room-title">招募隊友</div>
+        <div class="moba-tab-dot" id="party-nav-room-dot" style="display:none"></div>
+      </div>
+
+      <!-- 側欄折疊/展開小箭頭 (圖一中間的小圓圈 < ) -->
+      <div class="moba-sidebar-collapse-btn" id="party-moba-collapse-btn" onclick="toggleMobaSidebar()" title="收合/展開側欄">
+        <span id="moba-collapse-icon">❮</span>
+      </div>
+
+      <!-- 底部快捷按鈕 (圖一底部的圓形功能圖標，此處做複製房號/分享) -->
+      <div class="moba-sidebar-bottom-action" onclick="copyPartyRoomCode()" title="複製房號分享">
+        <div class="moba-bottom-circle-btn">📋</div>
       </div>
     </div>
 
-    <!-- 右側主內容區 (Main Content) -->
-    <div class="party-main-content">
+    <!-- 右側主視圖區 (Main Viewport) -->
+    <div class="party-moba-viewport">
       <!-- 視圖 A：全網公開組隊大廳 (當未進入任何房間或點選大廳時顯示) -->
       <div id="party-lobby-view" class="party-subview active">
         <!-- 搜尋與快速加入條 -->
@@ -260,7 +260,7 @@
         </div>
       </div>
 
-      <!-- 視圖 B：房間內部詳細檢視 -->
+      <!-- 視圖 B：招募隊友 / 房間內部詳細檢視 -->
       <div id="party-room-view" class="party-subview" style="display:none">
         <div class="party-room-container">
           <!-- 頂部房間頭部資訊 -->
@@ -317,7 +317,7 @@
               <span class="my-status-label">我的本機狀態：</span>
               <span class="my-status-badge" id="party-my-status-badge">未下載</span>
             </div>
-            <div class="party-sync-btn-wrap" id="party-sync-btn-wrap">
+            <div class="party-sync-btn-wrap" id="party-sync-btn-wrap" style="display:none">
               <button class="btn btn-p" id="party-btn-start-sync" onclick="startSyncCurrentGameInstall()">
                 🎮 安裝遊戲
               </button>
@@ -1034,7 +1034,7 @@
 <script src="js/modules/game_detail.js"></script>
 <script src="js/modules/manage.js"></script>
 <script src="js/modules/credentials.js"></script>
-<script src="js/modules/party.js"></script>
+<script src="js/modules/party.js?v=2.2"></script>
 <script src="js/modules/startup_wizard.js"></script>
 <script src="js/modules/download_diag.js"></script>
 <script src="js/modules/more.js"></script>

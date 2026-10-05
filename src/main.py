@@ -49,7 +49,8 @@ def launch_modern_gui():
     # 同步寫入 theme_cache.js，使 HTML 在解析第 0 毫秒即直接套用深色模式，杜絕載入時閃白
     is_dark = bool(cfg.get("dark_mode", True) if "dark_mode" in cfg else cfg.get("dark", True))
     bg_color = "#231C1E" if is_dark else "#FFE2E7"
-    target_url = html_path.as_uri()
+    import time
+    target_url = f"{html_path.as_uri()}?t={int(time.time())}"
 
     try:
         import json
