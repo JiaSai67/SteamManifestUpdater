@@ -4647,6 +4647,41 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "has_contact": False, "msg": str(e)}
 
+    def open_defender_exclusion_settings(self) -> Dict[str, Any]:
+        """一鍵開啟 Windows 安全性中心之病毒與威脅防護排除項設定頁面"""
+        try:
+            import os
+            import subprocess
+            try:
+                os.startfile("windowsdefender://threatsettings")
+                return {"ok": True, "msg": "已為您開啟 Windows Defender 排除項設定頁面"}
+            except Exception:
+                subprocess.Popen(["start", "windowsdefender://threatsettings"], shell=True)
+                return {"ok": True, "msg": "已為您開啟 Windows Defender 排除項設定頁面"}
+        except Exception as e:
+            return {"ok": False, "msg": f"無法開啟 Windows 設定: {e}"}
+
+    def add_game_folder_to_defender(self, app_id: str = "") -> Dict[str, Any]:
+        """呼叫 PowerShell 將指定遊戲目錄加入 Windows Defender 白名單排除項 (自動請求管理員授權)"""
+        try:
+            import subprocess
+            from pathlib import Path
+            from managers import onlinefix_manager
+            
+            game_dir = None
+            if app_id:
+                game_dir = onlinefix_manager._find_steam_game_dir(str(app_id))
+            if not game_dir or not Path(game_dir).exists():
+                return self.open_defender_exclusion_settings()
+            
+            p = Path(game_dir).resolve()
+            ps_cmd = f"Add-MpPreference -ExclusionPath '{str(p)}'"
+            run_cmd = f"Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -Command {ps_cmd}'"
+            subprocess.Popen(["powershell", "-NoProfile", "-Command", run_cmd], shell=True)
+            return {"ok": True, "msg": f"已彈出系統管理員授權視窗，請點選「是」以將 {p.name} 資料夾新增至防毒白名單！"}
+        except Exception as e:
+            return {"ok": False, "msg": f"執行排除項失敗: {e}"}
+
     def inspect_party_resources(self, app_id: str) -> Dict[str, Any]:
         """檢測指定遊戲本地 Manifest, Lua 與線上補丁三檔就緒狀況"""
         try:

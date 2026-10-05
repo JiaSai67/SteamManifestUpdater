@@ -546,11 +546,23 @@ function schedulePartyPolling(delay) {
 
         } else {
 
-          tt(res && res.msg ? res.msg : '房間已解散或過期蒸發', 'info');
+          resetPartyReadyCountdown();
 
           _partyCurRoom = null;
 
           updateSidebarRoomInfo(null);
+
+          if (res && res.error === 'HOST_OFFLINE') {
+
+            tt('👑 房主已離線，隊伍房間已自動解散', 'warn');
+
+            tt('💡 若剛才已啟動安裝，本機程序不受影響將繼續跑完', 'info');
+
+          } else {
+
+            tt(res && res.msg ? res.msg : '房間已解散或過期蒸發', 'info');
+
+          }
 
           switchPartyNav('lobby');
 
@@ -1244,6 +1256,17 @@ function renderRoomView(room) {
       verHtml = '<span class="member-version-badge ok">' + escapeHtml(vSt) + '</span>';
     }
 
+    var isDeployFailed = (m.deploy_status === 'failed');
+    var isAvBlocked = isDeployFailed && (m.deploy_error && (m.deploy_error.indexOf('防毒') !== -1 || m.deploy_error.indexOf('Defender') !== -1));
+    var statusTextHtml = '<span class="member-status-text ' + statusClass + '">' + escapeHtml(statusDisplay) + '</span>';
+    if (isDeployFailed) {
+      if (isAvBlocked) {
+        statusTextHtml = '<span class="member-status-text status-failed" style="color:#F44336;font-weight:700">❌ 部署失敗 (防毒軟體攔截)</span>';
+      } else {
+        statusTextHtml = '<span class="member-status-text status-failed" style="color:#F44336;font-weight:700">❌ 部署失敗' + (m.deploy_error ? (': ' + escapeHtml(m.deploy_error)) : '') + '</span>';
+      }
+    }
+
     html += '<div class="party-member-card ' + (isMe ? 'is-me' : '') + '">' +
 
       '<div class="member-card-left">' +
@@ -1270,11 +1293,13 @@ function renderRoomView(room) {
 
           '</div>' +
 
-          '<!-- 第 2 行：下載狀況 (刪除周圍單引號) -->' +
+          '<!-- 第 2 行：下載狀況與防毒攔截診斷 -->' +
 
-          '<div class="member-status-row">' +
+          '<div class="member-status-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">' +
 
-            '<span class="member-status-text ' + statusClass + '">' + escapeHtml(statusDisplay) + '</span>' +
+            statusTextHtml +
+
+            (isMe && isAvBlocked ? '<button class="btn btn-o btn-xs" style="font-size:10.5px;color:#F44336;border-color:rgba(244,67,54,0.4);padding:0px 6px;height:20px;border-radius:4px;cursor:pointer" onclick="openDefenderExclusionHelper(\'' + escapeHtml(room.appid) + '\')">🛡️ 排查防毒攔截</button>' : '') +
 
           '</div>' +
 
@@ -1478,6 +1503,33 @@ function copyContactText(text) {
     });
   } else {
     prompt('請手動複製聯絡資訊：', text);
+  }
+}
+
+/**
+ * 🛡️ 排查 Windows Defender / 防毒軟體攔截 (自動請求白名單排除項或直達 Windows 設定頁)
+ */
+function openDefenderExclusionHelper(appid) {
+  if (!window.pywebview || !window.pywebview.api) return;
+  tt('🛡️ 正在排查防毒攔截並嘗試新增白名單排除項...', 'info');
+  if (pywebview.api.add_game_folder_to_defender) {
+    pywebview.api.add_game_folder_to_defender(appid || '').then(function(res) {
+      if (res && res.ok) {
+        tt(res.msg, 'ok');
+      } else {
+        if (pywebview.api.open_defender_exclusion_settings) {
+          pywebview.api.open_defender_exclusion_settings().then(function() {
+            tt('已為您開啟 Windows Defender 排除項設定頁面，請手動新增遊戲目錄', 'info');
+          });
+        }
+      }
+    }).catch(function() {
+      if (pywebview.api.open_defender_exclusion_settings) {
+        pywebview.api.open_defender_exclusion_settings();
+      }
+    });
+  } else if (pywebview.api.open_defender_exclusion_settings) {
+    pywebview.api.open_defender_exclusion_settings();
   }
 }
 

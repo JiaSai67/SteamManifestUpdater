@@ -410,6 +410,17 @@ class PartyManager:
         cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=35)
         cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+        # 🌟 自動異步清理 Supabase 中超過 45 秒無心跳之幽靈房間 (避免死房累積)
+        ghost_cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=45)
+        ghost_iso = ghost_cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+        try:
+            threading.Thread(
+                target=lambda: self.session.delete(f"{self.rest_endpoint}?updated_at=lt.{ghost_iso}", timeout=4),
+                daemon=True
+            ).start()
+        except Exception:
+            pass
+
         # 🌟 針對性投影：大廳只抓房間基本卡片欄位 (房號、遊戲、房主、人數、備註等)，嚴格不抓 gdrive_url (下載密文) 與 archive_password
         lobby_fields = "room_id,game_name,app_id,host_name,host_client_id,host_discord,max_players,is_public,status,note,members,updated_at,created_at"
         query_url = f"{self.rest_endpoint}?is_public=eq.true&updated_at=gte.{cutoff_iso}&select={lobby_fields}&order=updated_at.desc"
@@ -1070,9 +1081,27 @@ class PartyManager:
             query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select=room_id,status,members,updated_at"
             resp = self.session.get(query_url, timeout=6)
             if resp.status_code != 200 or not resp.json():
-                return {"ok": False, "error": "ROOM_NOT_FOUND", "msg": "房間已不存在"}
+                self._cleanup_local_room()
+                return {"ok": False, "error": "ROOM_NOT_FOUND", "msg": "房間已被解散或關閉"}
 
             room_row = resp.json()[0]
+            # 🌟 幽靈房間處置：隊員檢測房主心跳是否逾期 (超過 35 秒無心跳代表房主已斷線)
+            host_updated_at = room_row.get("updated_at")
+            if not self.is_host and self._is_expired(host_updated_at, max_seconds=35):
+                logger.warning(f"[PARTY] 檢測到房主心跳超時 (離線)，幽靈房間 #{rid} 自動解散")
+                # 隊員協助向雲端發送清理請求，徹底移除幽靈房間
+                try:
+                    self.session.delete(f"{self.rest_endpoint}?room_id=eq.{rid}", timeout=3)
+                except Exception:
+                    pass
+                self._cleanup_local_room()
+                return {
+                    "ok": False,
+                    "error": "HOST_OFFLINE",
+                    "msg": "👑 房主已離線，隊伍房間已自動解散",
+                    "keep_installing": True
+                }
+
             members = self._unpack_members(room_row.get("members"))
 
             if action == "leave":
@@ -1453,7 +1482,10 @@ class PartyManager:
                     self.update_member_progress("就緒", 100, steam_installed=self.my_steam_installed, deploy_status="success", deploy_error="")
                     logger.info(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署成功！")
                 else:
-                    err_detail = apply_res.get("msg") or apply_res.get("error") or "補丁套用解壓失敗"
+                    if apply_res.get("is_antivirus_blocked"):
+                        err_detail = apply_res.get("msg") or "🛡️ 防毒軟體攔截 (Windows Defender 阻止寫入，請新增排除項)"
+                    else:
+                        err_detail = apply_res.get("msg") or apply_res.get("error") or "補丁套用解壓失敗"
                     logger.error(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署失敗: {err_detail}")
                     self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=str(err_detail))
                 return
@@ -1490,7 +1522,10 @@ class PartyManager:
                         self.update_member_progress("就緒", 100, steam_installed=self.my_steam_installed, deploy_status="success", deploy_error="")
                         logger.info(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署成功！")
                     else:
-                        err_detail = apply_res.get("msg") or apply_res.get("error") or "補丁套用解壓失敗"
+                        if apply_res.get("is_antivirus_blocked"):
+                            err_detail = apply_res.get("msg") or "🛡️ 防毒軟體攔截 (Windows Defender 阻止寫入，請新增排除項)"
+                        else:
+                            err_detail = apply_res.get("msg") or apply_res.get("error") or "補丁套用解壓失敗"
                         logger.error(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署失敗: {err_detail}")
                         self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=str(err_detail))
                     return

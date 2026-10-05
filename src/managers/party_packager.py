@@ -360,10 +360,45 @@ class PartyPackager:
                         except Exception as re:
                             logger.warning(f"[Packager] 寫入部署記錄檔失敗: {re}")
 
+                        # 🌟 防毒軟體 (Windows Defender) 即時隔離/攔截抽查
+                        quarantined_files = []
+                        for rel_p in installed_rel_paths:
+                            f_path = g_path / rel_p
+                            if not f_path.exists() and any(f_path.name.lower().endswith(ext) for ext in [".dll", ".exe", ".ini"]):
+                                quarantined_files.append(f_path.name)
+                        if quarantined_files:
+                            err_msg = f"檔案遭防毒軟體 (Windows Defender) 即時隔離: {', '.join(quarantined_files[:3])}"
+                            logger.warning(f"[Packager] {err_msg}")
+                            return {
+                                "ok": False,
+                                "is_antivirus_blocked": True,
+                                "game_dir": str(g_path),
+                                "blocked_files": quarantined_files,
+                                "msg": f"防毒軟體攔截：檔案解壓後遭隔離 ({', '.join(quarantined_files[:2])})，請新增防毒排除項"
+                            }
+
             return {"ok": True, "applied": applied, "msg": "聯機整合包解壓部署成功！"}
         except Exception as e:
+            err_str = str(e)
             logger.error(f"[Packager] 解壓部署整合包失敗: {e}", exc_info=True)
-            return {"ok": False, "msg": f"套用整合包失敗: {e}"}
+            # 判斷是否為 Windows Defender WinError 225 或權限阻擋
+            is_av = False
+            gdir = str(game_dir) if ('game_dir' in locals() and game_dir) else ""
+            if "225" in err_str or "virus" in err_str.lower() or "operation did not complete successfully" in err_str.lower():
+                is_av = True
+                msg = "防毒軟體 (Windows Defender) 攔截阻止補丁寫入！請將遊戲資料夾加入白名單排除項"
+            elif isinstance(e, PermissionError) or "access is denied" in err_str.lower():
+                is_av = True
+                msg = "寫入檔案被拒 (疑似防毒軟體鎖定檔案或權限不足)，請新增防毒排除項或以管理員身分重試"
+            else:
+                msg = f"套用整合包失敗: {e}"
+
+            return {
+                "ok": False,
+                "is_antivirus_blocked": is_av,
+                "game_dir": gdir,
+                "msg": msg
+            }
 
 def get_party_packager() -> PartyPackager:
     return PartyPackager()
