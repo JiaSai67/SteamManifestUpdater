@@ -912,6 +912,12 @@ function closeCreateRoomModal() {
     modal.classList.add('hidden');
     modal.classList.remove('active');
   }
+  var flowPanel = document.getElementById('party-create-flow-status');
+  if (flowPanel) flowPanel.style.display = 'none';
+  var btnSubmit = document.getElementById('btn-submit-create-party');
+  var btnCancel = document.getElementById('btn-cancel-create-party');
+  if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = '🚀 立即開房'; }
+  if (btnCancel) { btnCancel.disabled = false; }
 }
 
 function togglePartyAutoUploadSection() {
@@ -1108,23 +1114,48 @@ function onSelectInstalledGameChange() {
   }
 }
 
+function setPartyFlowStep(stepId, state, text) {
+  var el = document.getElementById(stepId);
+  if (!el) return;
+  if (text) el.textContent = text;
+  if (state === 'active') {
+    el.style.color = '#FFD166';
+    el.style.fontWeight = '700';
+  } else if (state === 'done') {
+    el.style.color = '#2EA043';
+    el.style.fontWeight = '600';
+  } else if (state === 'error') {
+    el.style.color = '#FF4757';
+    el.style.fontWeight = '700';
+  } else {
+    el.style.color = 'var(--gray)';
+    el.style.fontWeight = '400';
+  }
+}
+
 function submitCreatePartyRoom() {
   var gnInput = document.getElementById('input-party-gamename');
   var aidInput = document.getElementById('input-party-appid');
   var maxSelect = document.getElementById('select-party-max-players');
   var pubSelect = document.getElementById('select-party-is-public');
   var noteInput = document.getElementById('input-party-note');
-  var autoChk = document.getElementById('check-party-auto-upload');
   var gasInput = document.getElementById('input-party-gas-url');
+  var btnSubmit = document.getElementById('btn-submit-create-party');
+  var btnCancel = document.getElementById('btn-cancel-create-party');
+
+  var flowPanel = document.getElementById('party-create-flow-status');
+  var flowTitle = document.getElementById('party-flow-status-title');
+  var flowSpinner = document.getElementById('party-flow-status-spinner');
+  var flowError = document.getElementById('party-flow-error-msg');
 
   var gameName = (gnInput ? gnInput.value : '').trim();
   var appid = (aidInput ? aidInput.value : '').trim();
   var maxPlayers = parseInt(maxSelect ? maxSelect.value : 4, 10);
   var isPublic = (pubSelect ? pubSelect.value : '1') === '1';
   var note = (noteInput ? noteInput.value : '').trim();
-  var autoUpload = true; // 🌟 核心常駐開啟：保證房間擁有三檔憑證與補丁，防止隊友版本或憑證不一致
   var gasUrl = (gasInput ? gasInput.value : '').trim();
 
+  // 1. 遊戲選取防呆
   if (!appid || !gameName) {
     tt('⚠️ 請先由下拉選單挑選本機已安裝且已就緒的遊戲！', 'warn');
     var select = document.getElementById('select-party-installed-games');
@@ -1136,8 +1167,9 @@ function submitCreatePartyRoom() {
     return;
   }
 
+  // 2. 嚴格檢查 GAS 設定：未完成前禁止開房！
   if (!gasUrl) {
-    tt('⚠️ 為避免隊友因「缺少登入憑證」或「版本差異」而無法連線，開房必須設置 Google Apps Script 網址以同步三檔！', 'warn');
+    tt('⚠️ 立即開房必須在 GAS 設定完成後才可開房！請先填妥 Google Apps Script 網址。', 'warn');
     if (gasInput) {
       gasInput.focus();
       gasInput.style.borderColor = '#FF4757';
@@ -1146,21 +1178,96 @@ function submitCreatePartyRoom() {
     return;
   }
 
-  tt('📦 正在打包 Manifest / Lua / 補丁三檔並同步至個人雲端，確保隊友零障礙連線…', 'info');
+  // 3. 展開流程進度面板，鎖定按鈕防止重複送出
+  if (flowPanel) flowPanel.style.display = 'block';
+  if (flowError) flowError.style.display = 'none';
+  if (flowTitle) flowTitle.textContent = '🚀 正在執行開房前置檢核與雲端同步…';
+  if (flowSpinner) flowSpinner.textContent = '⏳';
 
-  pywebview.api.create_party_room(gameName, appid, maxPlayers, isPublic, note, autoUpload, gasUrl).then(function(res) {
-    if (res && res.ok && res.room) {
-      tt(res.msg || '成功建立房間！', 'ok');
-      closeCreateRoomModal();
-      _partyCurRoom = res.room;
-      updateSidebarRoomInfo(res.room);
-      switchPartyNav('room');
-      schedulePartyPolling(3000);
-    } else {
-      tt(res && res.msg ? res.msg : '建立房間失敗', 'err');
+  setPartyFlowStep('flow-step-check', 'active', '🔍 1. 正在檢測本機 Manifest、Lua 腳本與補丁三檔…');
+  setPartyFlowStep('flow-step-pack', 'pending', '📦 2. 封裝聯機資源整合包 (ZIP 壓縮)');
+  setPartyFlowStep('flow-step-upload', 'pending', '☁️ 3. 透過 GAS 上傳整合包至個人 Google Drive');
+  setPartyFlowStep('flow-step-url', 'pending', '🔗 4. 取得並驗證 Google Drive 下載網址');
+  setPartyFlowStep('flow-step-supa', 'pending', '🌐 5. 向 Supabase 伺服器註冊房間並公開招募');
+
+  if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = '⏳ 檢核上傳中…'; }
+  if (btnCancel) { btnCancel.disabled = true; }
+
+  tt('📦 啟動開房前置流程：正在檢測本地三檔並同步至 Google Drive…', 'info');
+
+  // 4. 階段一：本地三檔檢查、打包、上傳至 Google Drive 並取得下載網址
+  pywebview.api.prepare_party_package_upload(appid, gasUrl).then(function(prepRes) {
+    if (!prepRes || !prepRes.ok || !prepRes.download_url) {
+      var errMsg = (prepRes && prepRes.msg) ? prepRes.msg : '未能成功上傳或取得下載網址';
+      setPartyFlowStep('flow-step-check', 'error', '❌ 本地資源或雲端上傳檢驗未通過');
+      setPartyFlowStep('flow-step-upload', 'error', '❌ Google Drive 上傳中斷');
+      if (flowError) {
+        flowError.style.display = 'block';
+        flowError.textContent = '⛔ 開房程序已中止：' + errMsg + '。未向伺服器建立房間，請檢查後重試。';
+      }
+      if (flowTitle) flowTitle.textContent = '❌ 開房前置檢核未通過';
+      if (flowSpinner) flowSpinner.textContent = '⚠️';
+      tt('❌ 開房中止: ' + errMsg, 'err');
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = '🚀 立即開房'; }
+      if (btnCancel) { btnCancel.disabled = false; }
+      return;
     }
-  }).catch(function(err) {
-    tt('開房出錯: ' + err, 'err');
+
+    // 階段一完全過關，確認取得下載網址！
+    var downloadUrl = prepRes.download_url;
+    var fileId = prepRes.file_id || '';
+
+    setPartyFlowStep('flow-step-check', 'done', '✅ 1. 本機 Manifest、Lua 腳本與補丁三檔檢測通過');
+    setPartyFlowStep('flow-step-pack', 'done', '✅ 2. 本地聯機資源整合包封裝完成');
+    setPartyFlowStep('flow-step-upload', 'done', '✅ 3. 已成功上傳整合包至個人 Google Drive');
+    setPartyFlowStep('flow-step-url', 'done', '✅ 4. 已成功取得並驗證下載網址！');
+    setPartyFlowStep('flow-step-supa', 'active', '🌐 5. 正在向 Supabase 伺服器發送開房要求 (包含下載網址)…');
+
+    // 5. 階段二：向 Supabase 正式發出開房要求 (攜帶下載網址)
+    pywebview.api.create_party_room(gameName, appid, maxPlayers, isPublic, note, true, gasUrl, downloadUrl, fileId).then(function(res) {
+      if (res && res.ok && res.room) {
+        setPartyFlowStep('flow-step-supa', 'done', '✅ 5. 成功於伺服器建立房間並同步發布下載鏈結！');
+        if (flowTitle) flowTitle.textContent = '🎉 開房成功！即將進入房間大廳…';
+        if (flowSpinner) flowSpinner.textContent = '✨';
+        tt(res.msg || '成功建立房間！已成功附加雲端下載網址！', 'ok');
+
+        setTimeout(function() {
+          closeCreateRoomModal();
+          _partyCurRoom = res.room;
+          updateSidebarRoomInfo(res.room);
+          switchPartyNav('room');
+          schedulePartyPolling(3000);
+        }, 600);
+      } else {
+        var createErr = (res && res.msg) ? res.msg : '伺服器建房失敗';
+        setPartyFlowStep('flow-step-supa', 'error', '❌ 5. 伺服器建房失敗: ' + createErr);
+        if (flowError) {
+          flowError.style.display = 'block';
+          flowError.textContent = '⛔ 伺服器建房失敗: ' + createErr;
+        }
+        tt(createErr, 'err');
+        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = '🚀 立即開房'; }
+        if (btnCancel) { btnCancel.disabled = false; }
+      }
+    }).catch(function(err) {
+      setPartyFlowStep('flow-step-supa', 'error', '❌ 5. 開房伺服器通訊異常: ' + err);
+      if (flowError) {
+        flowError.style.display = 'block';
+        flowError.textContent = '⛔ 連線伺服器異常: ' + err;
+      }
+      tt('向伺服器開房出錯: ' + err, 'err');
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = '🚀 立即開房'; }
+      if (btnCancel) { btnCancel.disabled = false; }
+    });
+  }).catch(function(prepErr) {
+    setPartyFlowStep('flow-step-check', 'error', '❌ 前置檢驗異常: ' + prepErr);
+    if (flowError) {
+      flowError.style.display = 'block';
+      flowError.textContent = '⛔ 檢核異常: ' + prepErr;
+    }
+    tt('前置檢驗出錯: ' + prepErr, 'err');
+    if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = '🚀 立即開房'; }
+    if (btnCancel) { btnCancel.disabled = false; }
   });
 }
 

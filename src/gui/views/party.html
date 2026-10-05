@@ -270,9 +270,25 @@
       </div>
     </div>
 
+    <!-- 🚀 開房檢核與進度狀態面板 (點擊開房後展開) -->
+    <div id="party-create-flow-status" style="display:none;margin-bottom:12px;padding:12px;background:rgba(0,0,0,0.35);border:1.5px solid var(--border);border-radius:12px">
+      <div style="font-size:12px;font-weight:700;color:#FFF;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+        <span id="party-flow-status-title">🚀 正在執行開房前置檢核與雲端同步…</span>
+        <span id="party-flow-status-spinner" style="font-size:12px">⏳</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:11.5px" id="party-flow-steps">
+        <div id="flow-step-check" style="color:var(--gray)">🔍 1. 本機 Manifest、Lua 腳本與補丁三檔完整性檢驗</div>
+        <div id="flow-step-pack" style="color:var(--gray)">📦 2. 封裝聯機資源整合包 (ZIP 壓縮)</div>
+        <div id="flow-step-upload" style="color:var(--gray)">☁️ 3. 透過 GAS 上傳整合包至個人 Google Drive</div>
+        <div id="flow-step-url" style="color:var(--gray)">🔗 4. 取得並驗證 Google Drive 下載網址</div>
+        <div id="flow-step-supa" style="color:var(--gray)">🌐 5. 向 Supabase 伺服器註冊房間並公開招募</div>
+      </div>
+      <div id="party-flow-error-msg" style="display:none;margin-top:8px;padding:8px;border-radius:8px;background:rgba(255,71,87,0.15);border:1px solid #FF4757;color:#FF6B81;font-size:11px;line-height:1.4"></div>
+    </div>
+
     <div style="display:flex;justify-content:flex-end;gap:8px">
-      <button class="btn btn-o btn-s" onclick="closeCreateRoomModal()">取消</button>
-      <button class="btn btn-party-create btn-s" onclick="submitCreatePartyRoom()">立即開房</button>
+      <button class="btn btn-o btn-s" id="btn-cancel-create-party" onclick="closeCreateRoomModal()">取消</button>
+      <button class="btn btn-party-create btn-s" id="btn-submit-create-party" onclick="submitCreatePartyRoom()">🚀 立即開房</button>
     </div>
   </div>
 </div>

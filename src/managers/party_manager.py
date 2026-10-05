@@ -353,10 +353,85 @@ class PartyManager:
     # 房主操作：創建房間、心跳維持、解散房間
     # ═════════════════════════════════════════════════════════════════════
 
+    def prepare_package_and_upload(self, app_id: str, gas_url: str = "") -> Dict[str, Any]:
+        """
+        階段一：本地三檔檢查、打包、上傳至 Google Drive 並取得下載網址
+        必須在完全成功且取得下載網址後，前端才允許進入向 Supabase 發布房間的階段二。
+        """
+        app_id = str(app_id).strip()
+        if not app_id:
+            return {"ok": False, "msg": "未指定遊戲 AppID"}
+
+        target_gas = gas_url.strip() if gas_url else ""
+        if not target_gas:
+            from managers.gas_manager import get_gas_manager
+            target_gas = get_gas_manager().get_gas_url().strip()
+        if not target_gas:
+            return {"ok": False, "msg": "未設定 Google Apps Script Web App 網址，無法進行雲端同步"}
+
+        try:
+            from managers.party_packager import get_party_packager
+            from managers.gas_manager import get_gas_manager
+
+            packager = get_party_packager()
+            
+            # 1. 嚴格檢查三檔完整性
+            inspect = packager.inspect_resources(app_id)
+            missing = []
+            if not inspect.get("manifest", {}).get("found"):
+                missing.append("Manifest 清單檔案")
+            if not inspect.get("lua", {}).get("found"):
+                missing.append("Lua 登入腳本")
+            if not inspect.get("patch", {}).get("found"):
+                missing.append("線上聯機補丁")
+            if missing:
+                return {
+                    "ok": False,
+                    "msg": f"本地三檔檢查未通過，缺少：{'、'.join(missing)}。為防隊友斷線，請補齊後再試！"
+                }
+
+            # 2. 本地封裝整合包
+            logger.info(f"[PARTY] 正在為 AppID {app_id} 封裝三檔整合包...")
+            temp_rid = f"PKG_{uuid.uuid4().hex[:6].upper()}"
+            ok, zip_path, details = packager.build_party_package(app_id, temp_rid)
+            if not ok or not zip_path:
+                return {"ok": False, "msg": f"本地資源封裝失敗: {details}"}
+
+            # 3. 透過 GAS 上傳至 Google Drive
+            gas_mgr = get_gas_manager()
+            gas_mgr.set_gas_url(target_gas)
+            logger.info(f"[PARTY] 正在透過 GAS 上傳整合包至 Google Drive...")
+            upload_res = gas_mgr.upload_archive(zip_path, gas_url=target_gas)
+
+            if not upload_res.get("ok"):
+                return {"ok": False, "msg": f"Google Drive 上傳失敗: {upload_res.get('msg', '未知錯誤')}"}
+
+            download_url = upload_res.get("download_url", "").strip()
+            if not download_url:
+                return {"ok": False, "msg": "Google Drive 上傳完成但未能取得下載網址，請檢查 GAS 權限是否設為【所有人】"}
+
+            file_id = upload_res.get("file_id")
+            logger.info(f"[PARTY] 本地檢測與雲端上傳全部過關！下載鏈結: {download_url} (File ID: {file_id})")
+
+            return {
+                "ok": True,
+                "download_url": download_url,
+                "file_id": file_id,
+                "filename": upload_res.get("filename"),
+                "size": upload_res.get("size"),
+                "msg": "✅ 本地三檔檢查與 Google Drive 上傳全數通過，已取得下載網址！"
+            }
+        except Exception as e:
+            logger.error(f"[PARTY] 打包與上傳流程出錯: {e}", exc_info=True)
+            return {"ok": False, "msg": f"打包上傳過程異常: {e}"}
+
     def create_room(self, game_name: str, app_id: str, max_players: int = 4, is_public: bool = True,
                     room_id: str = "", note: str = "", download_url: str = "", download_secret: str = "",
-                    auto_package_upload: bool = True, gas_url: str = "") -> Dict[str, Any]:
-        """房主建立組隊房間，三檔自動打包與 GAS 上傳至 Google Drive 常駐開啟，防止連線版本/憑證衝突"""
+                    auto_package_upload: bool = True, gas_url: str = "", uploaded_gas_file_id: str = "") -> Dict[str, Any]:
+        """
+        階段二：向 Supabase 伺服器正式建立組隊房間
+        嚴格要求：必須帶有經過驗證的 Google Drive 下載網址，否則拒絕向 Supabase 開房！
+        """
         # 如果已經在房間內，先退出
         self.leave_or_close()
 
@@ -367,36 +442,25 @@ class PartyManager:
         if not game_name:
             return {"ok": False, "msg": "建立房間失敗：遊戲名稱不得為空"}
 
+        # 🌟 嚴格檢驗：必須取得下載網址才能向 Supabase 發布房間！
+        download_url = download_url.strip()
+        if not download_url:
+            # 若未傳入，嘗試自動執行一次 prepare_package_and_upload
+            prep_res = self.prepare_package_and_upload(app_id, gas_url)
+            if not prep_res.get("ok"):
+                return {"ok": False, "msg": f"開房中止：{prep_res.get('msg')}"}
+            download_url = prep_res.get("download_url", "")
+            uploaded_gas_file_id = prep_res.get("file_id", "")
+
+        if not download_url:
+            return {"ok": False, "msg": "建立房間失敗：未取得有效的 Google Drive 下載網址，已中止向伺服器發布房間"}
+
         # 生成 6 位數大寫房號或使用指定
         rid = room_id.strip().upper() if room_id else f"{uuid.uuid4().hex[:6].upper()}"
 
-        # 🌟 若開啟自動三檔打包與 GAS 上傳
-        uploaded_gas_file_id = None
-        if auto_package_upload:
-            try:
-                from managers.party_packager import get_party_packager
-                from managers.gas_manager import get_gas_manager
-
-                packager = get_party_packager()
-                ok, zip_path, details = packager.build_party_package(app_id, rid, password=download_secret)
-                if ok and zip_path:
-                    gas_mgr = get_gas_manager()
-                    target_gas = (gas_url or gas_mgr.get_gas_url()).strip()
-                    if target_gas:
-                        gas_mgr.set_gas_url(target_gas)
-                        upload_res = gas_mgr.upload_archive(zip_path, gas_url=target_gas)
-                        if upload_res.get("ok"):
-                            download_url = upload_res.get("download_url", "")
-                            uploaded_gas_file_id = upload_res.get("file_id")
-                            self.current_gas_file_id = uploaded_gas_file_id
-                            self.current_gas_url = target_gas
-                            logger.info(f"三檔自動上傳成功！Google Drive 下載網址: {download_url} (File ID: {uploaded_gas_file_id})")
-                        else:
-                            logger.warning(f"GAS 上傳失敗: {upload_res.get('msg')}")
-                    else:
-                        logger.warning("未配置 GAS 網址，略過雲端上傳")
-            except Exception as e:
-                logger.error(f"三檔自動打包與上傳失敗: {e}", exc_info=True)
+        if uploaded_gas_file_id:
+            self.current_gas_file_id = uploaded_gas_file_id
+            self.current_gas_url = gas_url
 
         self.current_room_id = rid
         self.is_host = True

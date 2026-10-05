@@ -4633,9 +4633,21 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 
+    def prepare_party_package_upload(self, app_id: str, gas_url: str = "") -> Dict[str, Any]:
+        """
+        階段一：本地三檔檢查、打包並上傳至 Google Drive，確保取得下載網址
+        """
+        try:
+            return self._get_party_manager().prepare_package_and_upload(app_id=str(app_id), gas_url=gas_url)
+        except Exception as e:
+            return {"ok": False, "msg": f"本地打包與雲端上傳失敗: {e}"}
+
     def create_party_room(self, game_name: str, app_id: str, max_players: int = 4, is_public: bool = True,
-                          note: str = "", auto_package_upload: bool = True, gas_url: str = "") -> Dict[str, Any]:
-        """房主建立組隊房間 (三檔自動打包與 GAS 上傳至 Google Drive 常駐開啟，防止連線版本/憑證衝突)"""
+                          note: str = "", auto_package_upload: bool = True, gas_url: str = "",
+                          download_url: str = "", uploaded_gas_file_id: str = "") -> Dict[str, Any]:
+        """
+        階段二：向 Supabase 正式建立房間（必須含有已取得並驗證過的 Google Drive 下載網址）
+        """
         try:
             return self._get_party_manager().create_room(
                 game_name=game_name,
@@ -4644,7 +4656,9 @@ class WebApi:
                 is_public=bool(is_public),
                 note=note,
                 auto_package_upload=bool(auto_package_upload),
-                gas_url=gas_url
+                gas_url=gas_url,
+                download_url=download_url,
+                uploaded_gas_file_id=uploaded_gas_file_id
             )
         except Exception as e:
             return {"ok": False, "msg": f"創建房間失敗: {e}"}
