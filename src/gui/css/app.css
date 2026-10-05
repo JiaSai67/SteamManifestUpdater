@@ -5804,6 +5804,102 @@ body.font-normal .quota-chip {
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* 🌟 本機底部進度條容器 (填補狀態與按鈕間的長空白區域) */
+.party-my-progress-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 480px;
+  margin: 0 20px;
+  min-width: 180px;
+}
+.party-my-progress-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+.party-my-progress-stage {
+  color: var(--fg);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.party-my-progress-pct {
+  color: var(--pink-deep);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  margin-left: 8px;
+}
+.party-my-progress-bar-outer {
+  width: 100%;
+  height: 7px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.app.dark .party-my-progress-bar-outer {
+  background: rgba(255, 255, 255, 0.1);
+}
+.party-my-progress-bar-inner {
+  height: 100%;
+  background: linear-gradient(90deg, #FF6B8B 0%, #FFB6C1 50%, #FF6B8B 100%);
+  background-size: 200% 100%;
+  border-radius: 4px;
+  transition: width 0.35s ease;
+  box-shadow: 0 0 8px rgba(255, 107, 139, 0.5);
+}
+.party-my-progress-bar-inner.active {
+  animation: progressFlow 1.5s ease-in-out infinite;
+}
+.party-my-progress-bar-inner.ready {
+  background: linear-gradient(90deg, #81C784, #4CAF50);
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
+}
+
+/* 🌟 用戶底下的「下載狀況」行內同步進度條 */
+.member-inline-progress-wrap {
+  display: inline-flex;
+  align-items: center;
+  width: 110px;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 0 6px;
+  vertical-align: middle;
+}
+.app.dark .member-inline-progress-wrap {
+  background: rgba(255, 255, 255, 0.12);
+}
+.member-inline-progress-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.35s ease;
+  background: var(--gray);
+}
+.member-inline-progress-bar.downloading {
+  background: linear-gradient(90deg, #FF6B8B, #FFB6C1);
+  animation: progressFlow 1.5s ease-in-out infinite;
+  background-size: 200% 100%;
+}
+.member-inline-progress-bar.ready {
+  background: #4CAF50;
+}
+.member-inline-progress-pct {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--pink-deep);
+  font-variant-numeric: tabular-nums;
+  margin-right: 4px;
+}
+
 .party-sync-btn-wrap button {
   padding: 10px 22px;
   font-size: 13.5px;

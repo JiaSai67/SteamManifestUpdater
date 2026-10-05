@@ -1211,11 +1211,13 @@ function renderRoomView(room) {
   if (myMemberObj) {
     var myStatus = myMemberObj.status || '未下載';
     isMyReady = (myStatus === '就緒' || (myMemberObj.progress >= 100) || myMemberObj.deploy_status === 'success');
-    isMyDownloading = !isMyReady && (
+    // 🌟 嚴格排除 '未下載'，避免未安裝遊戲被誤判為下載中而鎖死按鈕與進度
+    isMyDownloading = !isMyReady && myStatus !== '未下載' && (
       myMemberObj.progress > 0 ||
       myMemberObj.deploy_status === 'downloading' ||
       myMemberObj.deploy_status === 'deploying' ||
-      myStatus.indexOf('下載') !== -1 ||
+      myStatus === '下載中' ||
+      (myStatus.indexOf('下載') !== -1 && myStatus.indexOf('未下載') === -1) ||
       myStatus.indexOf('部署') !== -1 ||
       myStatus.indexOf('Steam') !== -1
     );
@@ -1223,6 +1225,39 @@ function renderRoomView(room) {
     if (myStatusBadge) {
       myStatusBadge.textContent = myStatus;
       myStatusBadge.className = 'my-status-badge ' + (isMyReady ? 'ready' : (isMyDownloading ? 'downloading' : 'not_downloaded'));
+    }
+
+    // 🌟 更新「我的本機狀態」右側進度條 (填補很長的空白區域)
+    var myProgContainer = document.getElementById('party-my-progress-container');
+    var myProgStage = document.getElementById('party-my-progress-stage');
+    var myProgPct = document.getElementById('party-my-progress-pct');
+    var myProgBarInner = document.getElementById('party-my-progress-bar-inner');
+    if (myProgContainer && myProgStage && myProgPct && myProgBarInner) {
+      if (isMyReady) {
+        myProgStage.innerHTML = '<span style="color:#4CAF50">✅ 遊戲與聯機環境已完全就緒</span>';
+        myProgPct.textContent = '100%';
+        myProgBarInner.style.width = '100%';
+        myProgBarInner.className = 'party-my-progress-bar-inner ready';
+      } else if (isMyDownloading) {
+        var pctVal = Math.max(0, Math.min(99, myMemberObj.progress || 0));
+        var stageDesc = myStatus;
+        if (stageDesc === '下載中') stageDesc = '正在下載與部署資源…';
+        myProgStage.innerHTML = '<span class="spinner" style="width:11px;height:11px;margin-right:4px"></span> <span>' + escapeHtml(stageDesc) + '</span>';
+        myProgPct.textContent = pctVal + '%';
+        myProgBarInner.style.width = pctVal + '%';
+        myProgBarInner.className = 'party-my-progress-bar-inner active';
+      } else if (myMemberObj.deploy_status === 'failed') {
+        var errShort = myMemberObj.deploy_error ? (' (' + myMemberObj.deploy_error.slice(0, 30) + ')') : '';
+        myProgStage.innerHTML = '<span style="color:#F44336">❌ 部署失敗' + escapeHtml(errShort) + '</span>';
+        myProgPct.textContent = '0%';
+        myProgBarInner.style.width = '0%';
+        myProgBarInner.className = 'party-my-progress-bar-inner';
+      } else {
+        myProgStage.innerHTML = '<span style="color:var(--gray)">未安裝，請點擊右側按鈕開始一鍵安裝</span>';
+        myProgPct.textContent = '0%';
+        myProgBarInner.style.width = '0%';
+        myProgBarInner.className = 'party-my-progress-bar-inner';
+      }
     }
   }
 
@@ -1238,7 +1273,7 @@ function renderRoomView(room) {
     if (isMyDownloading) {
       syncBtn.disabled = true;
       syncBtn.innerHTML = '<span class="spinner"></span> 正在一鍵安裝中…';
-    } else if (!syncBtn.disabled || syncBtn.innerHTML.indexOf('一鍵安裝中') === -1) {
+    } else {
       syncBtn.disabled = false;
       syncBtn.innerHTML = '🚀 一鍵安裝';
     }
@@ -1260,12 +1295,12 @@ function renderRoomView(room) {
 
     // 格式化下載狀況文字與進度狀態
     var isReady = (status === '就緒' || progress >= 100 || m.deploy_status === 'success');
-    var isDownloading = !isReady && (
+    var isDownloading = !isReady && status !== '未下載' && (
       status === '下載中' ||
       progress > 0 ||
       m.deploy_status === 'downloading' ||
       m.deploy_status === 'deploying' ||
-      status.indexOf('下載') !== -1 ||
+      (status.indexOf('下載') !== -1 && status.indexOf('未下載') === -1) ||
       status.indexOf('部署') !== -1 ||
       status.indexOf('Steam') !== -1
     );
@@ -1277,13 +1312,27 @@ function renderRoomView(room) {
       if (status && status !== '未下載' && status !== '下載中') {
         statusDisplay = '下載狀況(' + status + ')';
       } else {
-        statusDisplay = '下載狀況(下載中： ' + progress + '%)';
+        statusDisplay = '下載狀況(下載中: ' + progress + '%)';
       }
     } else {
       statusDisplay = '下載狀況(未下載)';
     }
 
     var statusClass = isReady ? 'status-ready' : (isDownloading ? 'status-downloading' : 'status-not-downloaded');
+
+    // 🌟 在隊員名下「下載狀況」加入行內同步進度條
+    var inlineBarHtml = '';
+    if (isDownloading) {
+      inlineBarHtml = '<div class="member-inline-progress-wrap" title="即時安裝進度: ' + progress + '%">' +
+        '<div class="member-inline-progress-bar downloading" style="width:' + progress + '%"></div>' +
+        '</div>' +
+        '<span class="member-inline-progress-pct">' + progress + '%</span>';
+    } else if (isReady) {
+      inlineBarHtml = '<div class="member-inline-progress-wrap" title="已就緒 100%">' +
+        '<div class="member-inline-progress-bar ready" style="width:100%"></div>' +
+        '</div>' +
+        '<span class="member-inline-progress-pct" style="color:#4CAF50">100%</span>';
+    }
 
     // 🌟 遊戲版本狀態 (最新 / 舊 x 版 / 未安裝)
     var verHtml = '';
@@ -1327,12 +1376,13 @@ function renderRoomView(room) {
           '<!-- 第 2 行：下載狀況與防毒攔截診斷 -->' +
           '<div class="member-status-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">' +
             statusTextHtml +
+            inlineBarHtml +
             (isMe && isAvBlocked ? '<button class="btn btn-o btn-xs" style="font-size:10.5px;color:#F44336;border-color:rgba(244,67,54,0.4);padding:0px 6px;height:20px;border-radius:4px;cursor:pointer" onclick="openDefenderExclusionHelper(\'' + escapeHtml(room.appid) + '\')">🛡️ 排查防毒攔截</button>' : '') +
           '</div>' +
         '</div>' +
       '</div>' +
       '<div class="member-card-right">' +
-        '<div class="member-progress-outer">' +
+        '<div class="member-progress-outer" title="安裝進度: ' + (isReady ? 100 : progress) + '%">' +
           '<div class="member-progress-bar ' + barClass + '" style="width:' + (isReady ? 100 : progress) + '%"></div>' +
         '</div>' +
       '</div>' +
@@ -1584,9 +1634,20 @@ function startSyncCurrentGameInstall() {
   var appid = _partyCurRoom.appid;
   var syncBtn = document.getElementById('party-btn-start-sync');
 
+  var myProgStage = document.getElementById('party-my-progress-stage');
+  var myProgPct = document.getElementById('party-my-progress-pct');
+  var myProgBarInner = document.getElementById('party-my-progress-bar-inner');
+
   if (syncBtn) {
     syncBtn.disabled = true;
     syncBtn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px"></span> 正在一鍵安裝中…';
+  }
+
+  if (myProgStage && myProgPct && myProgBarInner) {
+    myProgStage.innerHTML = '<span class="spinner" style="width:11px;height:11px;margin-right:4px"></span> <span>正在啟動一鍵安裝程序…</span>';
+    myProgPct.textContent = '5%';
+    myProgBarInner.style.width = '5%';
+    myProgBarInner.className = 'party-my-progress-bar-inner active';
   }
 
   tt('🚀 已啟動一鍵安裝：正在取得房主整合包並自動部署入庫與套用補丁…', 'info');
@@ -1600,12 +1661,24 @@ function startSyncCurrentGameInstall() {
         syncBtn.disabled = false;
         syncBtn.innerHTML = '🚀 一鍵安裝';
       }
+      if (myProgStage && myProgPct && myProgBarInner) {
+        myProgStage.innerHTML = '<span style="color:#F44336">❌ 啟動失敗</span>';
+        myProgPct.textContent = '0%';
+        myProgBarInner.style.width = '0%';
+        myProgBarInner.className = 'party-my-progress-bar-inner';
+      }
     }
   }).catch(function(err) {
     tt('啟動一鍵安裝出錯: ' + err, 'err');
     if (syncBtn) {
       syncBtn.disabled = false;
       syncBtn.innerHTML = '🚀 一鍵安裝';
+    }
+    if (myProgStage && myProgPct && myProgBarInner) {
+      myProgStage.innerHTML = '<span style="color:#F44336">❌ 啟動異常</span>';
+      myProgPct.textContent = '0%';
+      myProgBarInner.style.width = '0%';
+      myProgBarInner.className = 'party-my-progress-bar-inner';
     }
   });
 }
