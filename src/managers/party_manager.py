@@ -371,52 +371,56 @@ class PartyManager:
 
             packager = get_party_packager()
             discord_mgr = get_discord_storage()
+            from managers.discord_storage import is_valid_webhook_url
             
-            # 1. 嚴格檢查三檔完整性
+            # 1. 嚴格檢查三檔完整性 (Manifest、Lua、線上補丁缺一不可，任何一個異常即不支援開房)
             inspect = packager.inspect_resources(app_id)
             missing = []
-            if not inspect.get("manifest", {}).get("found") and not inspect.get("manifest", {}).get("ready"):
+            if not inspect.get("manifest", {}).get("ready"):
                 missing.append("Manifest 清單檔案")
-            if not inspect.get("lua", {}).get("found") and not inspect.get("lua", {}).get("ready"):
+            if not inspect.get("lua", {}).get("ready"):
                 missing.append("Lua 登入腳本")
-            if not inspect.get("patch", {}).get("found") and not inspect.get("patch", {}).get("ready"):
+            if not inspect.get("patch", {}).get("ready"):
                 missing.append("線上聯機補丁")
-            if missing:
+            if missing or not inspect.get("all_ready"):
                 return {
                     "ok": False,
-                    "msg": f"本地三檔檢查未通過，缺少：{'、'.join(missing)}。為防隊友斷線，請補齊後再試！"
+                    "msg": f"本地三檔檢查未通過，缺少：{'、'.join(missing)}。任何一個異常均不支援開房！"
                 }
 
-            # 2. 本地封裝整合包
+            # 2. 嚴格檢查 Discord Webhook 網址與格式 (鎖定遊戲、三檔檢查、Webhook 缺一不可)
+            webhook_target = discord_webhook.strip() or discord_mgr.get_custom_webhook_url()
+            if not webhook_target:
+                return {
+                    "ok": False,
+                    "msg": "開房失敗：未設定 Discord Webhook 網址！鎖定遊戲、三檔檢查、Webhook 網址缺一不可。"
+                }
+            if not is_valid_webhook_url(webhook_target):
+                return {
+                    "ok": False,
+                    "msg": "開房失敗：Discord Webhook 網址格式無效，請確認是否為 https://discord.com/api/webhooks/... 官方格式！"
+                }
+
+            # 3. 本地封裝整合包
             logger.info(f"[PARTY] 正在為 AppID {app_id} 封裝三檔整合包...")
             temp_rid = f"PKG_{uuid.uuid4().hex[:6].upper()}"
             ok, zip_path, details = packager.build_party_package(app_id, temp_rid)
             if not ok or not zip_path:
                 return {"ok": False, "msg": f"本地資源封裝失敗: {details}"}
 
-            # 3. 雲端上傳 (優先嘗試 Discord Webhook)
-            webhook_target = discord_webhook.strip() or discord_mgr.get_custom_webhook_url()
-            upload_res = None
-            if webhook_target:
-                logger.info(f"[PARTY] 正在透過 Discord Webhook 上傳整合包至 Discord CDN...")
-                upload_res = discord_mgr.upload_package(
-                    file_path=zip_path,
-                    room_code=temp_rid,
-                    webhook_url=webhook_target,
-                    game_name=game_name,
-                    host_name=self.nickname
-                )
+            # 4. 透過 Discord Webhook 上傳至專屬 CDN
+            logger.info(f"[PARTY] 正在透過 Discord Webhook 上傳整合包至 Discord CDN...")
+            upload_res = discord_mgr.upload_package(
+                file_path=zip_path,
+                room_code=temp_rid,
+                webhook_url=webhook_target,
+                game_name=game_name,
+                host_name=self.nickname
+            )
 
-            # 若未設定 Webhook 或 Discord 上傳未成功，無縫降級至 FastCloudStorage 專屬通道
             if not upload_res or not upload_res.get("ok"):
-                if webhook_target and upload_res:
-                    logger.warning(f"Discord 上傳未成功 ({upload_res.get('msg')})，正在切換至極速備援通道...")
-                logger.info(f"[PARTY] 正在透過專屬免登入極速通道上傳整合包...")
-                fast_storage = get_fast_cloud_storage()
-                upload_res = fast_storage.upload_package(zip_path, temp_rid)
-
-            if not upload_res.get("ok"):
-                return {"ok": False, "msg": f"雲端上傳失敗: {upload_res.get('msg', '未知錯誤')}"}
+                err_msg = upload_res.get("msg", "未知錯誤") if upload_res else "上傳中斷"
+                return {"ok": False, "msg": f"Discord CDN 整合包上傳失敗: {err_msg}"}
 
             download_url = upload_res.get("download_url", "").strip()
             file_id = upload_res.get("file_id")

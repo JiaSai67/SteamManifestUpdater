@@ -10,6 +10,7 @@ DiscordStorage - SMU Discord Webhook 雲端傳輸引擎
 import os
 import json
 import logging
+import re
 import requests
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -17,6 +18,17 @@ from typing import Dict, Any, Optional
 from managers import config_manager
 
 logger = logging.getLogger("discord_storage")
+
+DISCORD_WEBHOOK_PATTERN = re.compile(
+    r"^https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9_-]+$",
+    re.IGNORECASE
+)
+
+def is_valid_webhook_url(url: str) -> bool:
+    """嚴格校驗 Discord Webhook 網址格式 (包含正常、PTB 與 Canary 官方域名)"""
+    if not url or not isinstance(url, str):
+        return False
+    return bool(DISCORD_WEBHOOK_PATTERN.match(url.strip()))
 
 class DiscordStorage:
     def __init__(self):
@@ -52,8 +64,8 @@ class DiscordStorage:
     def test_webhook(self, webhook_url: str) -> Dict[str, Any]:
         """測試 Webhook 有效性並自動記憶"""
         url = str(webhook_url).strip()
-        if not url or "/api/webhooks/" not in url or not (url.startswith("http://") or url.startswith("https://")):
-            return {"ok": False, "msg": "無效的 Discord Webhook 網址 (格式應為 https://discord.com/api/webhooks/... 或 ptb/canary 域名)"}
+        if not is_valid_webhook_url(url):
+            return {"ok": False, "msg": "無效的 Discord Webhook 網址 (格式應為 https://discord.com/api/webhooks/... 或 ptb/canary 官方格式)"}
         try:
             payload = {
                 "username": "SMU 雲端助理",
@@ -92,6 +104,8 @@ class DiscordStorage:
         target_webhook = webhook_url.strip() or self.get_custom_webhook_url()
         if not target_webhook:
             return {"ok": False, "msg": "未設定 Discord Webhook 網址"}
+        if not is_valid_webhook_url(target_webhook):
+            return {"ok": False, "msg": "無效的 Discord Webhook 網址格式 (必須為 https://discord.com/api/webhooks/... 或 ptb/canary 官方格式)"}
 
         sep = "&" if "?" in target_webhook else "?"
         post_url = f"{target_webhook}{sep}wait=true"

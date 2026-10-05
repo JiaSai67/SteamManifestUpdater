@@ -1541,11 +1541,32 @@ function toggleDiscordCustomSection(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
 }
 
+// Discord Webhook 網址嚴格正則表達式 (支援 discord.com, discordapp.com, 以及 ptb/canary 官方子域名)
+var DISCORD_WEBHOOK_REGEX = /^https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9_-]+$/i;
+
+function isValidDiscordWebhookUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  return DISCORD_WEBHOOK_REGEX.test(url.trim());
+}
+
+var _isInspectingResources = false;
+var _lastResourceInspectionResult = null;
+var _inspectingAppId = null;
+
 function testDiscordWebhookConnection() {
   var input = document.getElementById('input-party-discord-webhook');
   var url = input ? input.value.trim() : '';
   if (!url) {
-    tt('請先輸入 Discord Webhook 網址', 'warn');
+    tt('請先輸入 Discord Webhook 網址！', 'warn');
+    if (input) input.focus();
+    return;
+  }
+  if (!isValidDiscordWebhookUrl(url)) {
+    tt('Webhook 網址格式無效，請確認是否為 https://discord.com/api/webhooks/... 官方格式', 'err');
+    if (input) {
+      input.focus();
+      input.style.borderColor = '#FF4757';
+    }
     return;
   }
   tt('正在測試 Discord Webhook 連線…', 'info');
@@ -1554,11 +1575,14 @@ function testDiscordWebhookConnection() {
       if (res && res.ok) {
         tt('✅ Discord Webhook 連線測試成功！已自動保存設定', 'ok');
         try { localStorage.setItem('smu_party_discord_webhook', url); } catch (e) {}
+        updateCreateRoomBtnState();
       } else {
         tt('連線失敗: ' + (res ? res.msg : '未知錯誤'), 'err');
+        updateCreateRoomBtnState();
       }
     }).catch(function(err) {
       tt('連線異常: ' + err, 'err');
+      updateCreateRoomBtnState();
     });
   }
 }
@@ -1572,29 +1596,93 @@ function savePartyDiscordWebhook() {
   if (window.pywebview && window.pywebview.api && window.pywebview.api.save_discord_webhook) {
     pywebview.api.save_discord_webhook(url);
   }
+  updateCreateRoomBtnState();
 }
 
 function updateCreateRoomBtnState() {
   var select = document.getElementById('select-party-installed-games');
+  var aidInput = document.getElementById('input-party-appid');
+  var webhookInput = document.getElementById('input-party-discord-webhook');
   var btn = document.getElementById('btn-submit-create-party');
   if (!btn) return;
 
-  var hasGame = !!(select && select.value && select.value.trim());
+  var appid = (aidInput ? aidInput.value : (select ? select.value : '')).trim();
+  var hasGame = !!appid;
 
-  if (hasGame) {
-    if (btn.disabled || btn.classList.contains('disabled')) {
-      btn.disabled = false;
-      btn.classList.remove('disabled');
-      btn.style.animation = 'none';
-      void btn.offsetWidth;
-      btn.style.animation = '';
+  var webhookUrl = webhookInput ? webhookInput.value.trim() : '';
+  var hasWebhook = !!webhookUrl;
+  var isWebhookValid = isValidDiscordWebhookUrl(webhookUrl);
+
+  // 1. Webhook 輸入框色彩視覺即時反饋
+  if (webhookInput) {
+    if (!hasWebhook) {
+      webhookInput.style.borderColor = 'var(--pink-light)';
+    } else if (isWebhookValid) {
+      webhookInput.style.borderColor = '#2ED573';
+    } else {
+      webhookInput.style.borderColor = '#FF4757';
     }
-    btn.title = '🎮 必要資訊已就緒，可立即開房！(Discord CDN 無限流量)';
-  } else {
+  }
+
+  // 2. 嚴格檢查三大必備要件 (缺一不可)
+  // 要件一：鎖定遊戲
+  if (!hasGame) {
     btn.disabled = true;
     btn.classList.add('disabled');
-    btn.title = '⚠️ 請先由清單挑選組隊遊戲';
+    btn.title = '⛔ 開房限制：請先由清單挑選並鎖定遊戲！';
+    return;
   }
+
+  // 要件二：三檔檢查 (Manifest / Lua / Patch)
+  if (_isInspectingResources) {
+    btn.disabled = true;
+    btn.classList.add('disabled');
+    btn.title = '⏳ 開房限制：正在檢測本機 Manifest、Lua 腳本與補丁三檔，請稍候…';
+    return;
+  }
+
+  var res = _lastResourceInspectionResult;
+  if (!res) {
+    btn.disabled = true;
+    btn.classList.add('disabled');
+    btn.title = '⛔ 開房限制：本機三檔尚未完成檢測，請等待檢測完成！';
+    return;
+  }
+
+  var mReady = !!(res.manifest && res.manifest.ready);
+  var lReady = !!(res.lua && res.lua.ready);
+  var pReady = !!(res.patch && res.patch.ready);
+
+  if (!mReady || !lReady || !pReady) {
+    var missing = [];
+    if (!mReady) missing.push('Manifest 清單');
+    if (!lReady) missing.push('Lua 腳本');
+    if (!pReady) missing.push('線上補丁');
+    btn.disabled = true;
+    btn.classList.add('disabled');
+    btn.title = '⛔ 開房限制：本機三檔檢查異常 (缺少: ' + missing.join('、') + ')，任何一個有異常均不支持開房！';
+    return;
+  }
+
+  // 要件三：Webhook 網址與格式
+  if (!hasWebhook) {
+    btn.disabled = true;
+    btn.classList.add('disabled');
+    btn.title = '⛔ 開房限制：請輸入 Discord Webhook 網址 (鎖定遊戲、三檔檢查、Webhook 缺一不可)！';
+    return;
+  }
+
+  if (!isWebhookValid) {
+    btn.disabled = true;
+    btn.classList.add('disabled');
+    btn.title = '⛔ 開房限制：Discord Webhook 網址格式錯誤 (格式應為 https://discord.com/api/webhooks/...)！';
+    return;
+  }
+
+  // 三大要件全數通過！點亮立即開房按鈕
+  btn.disabled = false;
+  btn.classList.remove('disabled');
+  btn.title = '🎮 鎖定遊戲、三檔檢查、Discord Webhook 全數就緒，可立即開房！';
 }
 
 function openCreateRoomModal() {
@@ -1631,6 +1719,7 @@ function openCreateRoomModal() {
     var cached = localStorage.getItem('smu_party_discord_webhook');
     if (cached && input && !input.value) {
       input.value = cached;
+      updateCreateRoomBtnState();
     }
   } catch (e) {}
 
@@ -1642,6 +1731,7 @@ function openCreateRoomModal() {
         if (inp) {
           inp.value = res.webhook_url;
           try { localStorage.setItem('smu_party_discord_webhook', res.webhook_url); } catch (e) {}
+          updateCreateRoomBtnState();
         }
       }
     });
@@ -1689,121 +1779,102 @@ function togglePartyAutoUploadSection() {
 }
 
 function resetResourceInspectBadges() {
+  _isInspectingResources = false;
+  _lastResourceInspectionResult = null;
+  _inspectingAppId = null;
 
   var m = document.getElementById('inspect-manifest');
-
   var l = document.getElementById('inspect-lua');
-
   var p = document.getElementById('inspect-patch');
 
   if (m) { m.textContent = '📄 Manifest: 待偵測'; m.style.color = 'var(--gray)'; }
-
   if (l) { l.textContent = '📜 Lua 腳本: 待偵測'; l.style.color = 'var(--gray)'; }
-
   if (p) { p.textContent = '🎮 線上補丁: 待偵測'; p.style.color = 'var(--gray)'; }
 
+  updateCreateRoomBtnState();
 }
 
 var _inspectTimer = null;
 
 function triggerResourceInspection(appid) {
-
   if (_inspectTimer) clearTimeout(_inspectTimer);
-
   _inspectTimer = setTimeout(function() {
-
     doInspectPartyResources(appid);
-
   }, 250);
-
 }
 
 function doInspectPartyResources(appid) {
-
   if (!appid || !window.pywebview || !window.pywebview.api || !window.pywebview.api.inspect_party_resources) {
-
     resetResourceInspectBadges();
-
     return;
-
   }
 
+  _isInspectingResources = true;
+  _inspectingAppId = String(appid);
+  _lastResourceInspectionResult = null;
+  updateCreateRoomBtnState();
+
   var mEl = document.getElementById('inspect-manifest');
-
   var lEl = document.getElementById('inspect-lua');
-
   var pEl = document.getElementById('inspect-patch');
 
-  if (mEl) mEl.textContent = '📄 Manifest: 檢測中…';
-
-  if (lEl) lEl.textContent = '📜 Lua 腳本: 檢測中…';
-
-  if (pEl) pEl.textContent = '🎮 線上補丁: 檢測中…';
+  if (mEl) { mEl.textContent = '📄 Manifest: 檢測中…'; mEl.style.color = '#FFA502'; }
+  if (lEl) { lEl.textContent = '📜 Lua 腳本: 檢測中…'; lEl.style.color = '#FFA502'; }
+  if (pEl) { pEl.textContent = '🎮 線上補丁: 檢測中…'; pEl.style.color = '#FFA502'; }
 
   pywebview.api.inspect_party_resources(appid).then(function(res) {
+    // 檢查是否依然為當前選取的 appid
+    var curAidEl = document.getElementById('input-party-appid');
+    var curAid = curAidEl ? curAidEl.value.trim() : '';
+    if (curAid && curAid !== String(appid)) {
+      return;
+    }
 
-    if (!res) return;
+    _isInspectingResources = false;
+    _lastResourceInspectionResult = res || null;
+
+    if (!res) {
+      updateCreateRoomBtnState();
+      return;
+    }
 
     if (mEl) {
-
       if (res.manifest && res.manifest.ready) {
-
         var kb = Math.round((res.manifest.size || 0) / 1024);
-
         mEl.textContent = '📄 Manifest: ✅ 就緒 (' + kb + 'KB)';
-
         mEl.style.color = '#2ED573';
-
       } else {
-
         mEl.textContent = '📄 Manifest: ❌ 缺少';
-
-        mEl.style.color = '#FFA502';
-
+        mEl.style.color = '#FF4757';
       }
-
     }
 
     if (lEl) {
-
       if (res.lua && res.lua.ready) {
-
         lEl.textContent = '📜 Lua 腳本: ✅ 就緒';
-
         lEl.style.color = '#2ED573';
-
       } else {
-
         lEl.textContent = '📜 Lua 腳本: ❌ 缺少';
-
-        lEl.style.color = '#FFA502';
-
+        lEl.style.color = '#FF4757';
       }
-
     }
 
     if (pEl) {
-
       if (res.patch && res.patch.ready) {
-
         var countText = res.patch.files_count ? (' (' + res.patch.files_count + ' 個檔案)') : '';
-
         pEl.textContent = '🎮 線上補丁: ✅ 就緒' + countText;
-
         pEl.style.color = '#2ED573';
-
       } else {
-
         pEl.textContent = '🎮 線上補丁: ❌ 未檢測到';
-
         pEl.style.color = '#FF4757';
-
       }
-
     }
 
+    updateCreateRoomBtnState();
+  }).catch(function(err) {
+    _isInspectingResources = false;
+    updateCreateRoomBtnState();
   });
-
 }
 
 function copyInPageGuideScript() {
@@ -2026,31 +2097,54 @@ function submitCreatePartyRoom() {
 
   var gasUrl = (gasInput ? gasInput.value : '').trim();
 
-  // 1. 遊戲選取防呆
-
+  // 1. 遊戲選取防呆 (鎖定遊戲)
   if (!appid || !gameName) {
-
-    tt('⚠️ 請先由下拉選單挑選本機已安裝且已就緒的遊戲！', 'warn');
-
+    tt('⛔ 請先由下拉選單挑選本機已安裝且已就緒的遊戲！', 'warn');
     var select = document.getElementById('select-party-installed-games');
-
     if (select) {
-
       select.focus();
-
       select.style.borderColor = '#FF4757';
-
       setTimeout(function() { select.style.borderColor = ''; }, 3000);
-
     }
-
     return;
-
   }
 
-      // 2. 展開流程進度面板，鎖定按鈕防止重複送出
+  // 2. 本機三檔檢測防呆 (任何一個有異常均不支援開房)
+  if (_isInspectingResources) {
+    tt('⏳ 正在檢測本機 Manifest、Lua 腳本與補丁三檔，請稍候…', 'warn');
+    return;
+  }
+  var res = _lastResourceInspectionResult;
+  if (!res || !res.manifest || !res.manifest.ready || !res.lua || !res.lua.ready || !res.patch || !res.patch.ready) {
+    var missing = [];
+    if (!res || !res.manifest || !res.manifest.ready) missing.push('Manifest 清單');
+    if (!res || !res.lua || !res.lua.ready) missing.push('Lua 腳本');
+    if (!res || !res.patch || !res.patch.ready) missing.push('線上補丁');
+    tt('⛔ 本機三檔檢查未通過 (缺少: ' + (missing.length ? missing.join('、') : '未知') + ')，任何一個有異常均不支援開房！', 'err');
+    return;
+  }
+
+  // 3. Discord Webhook 網址與格式嚴格防呆 (缺一不可)
   var webhookInput = document.getElementById('input-party-discord-webhook');
   var discordWebhook = webhookInput ? webhookInput.value.trim() : '';
+  if (!discordWebhook) {
+    tt('⛔ 請先輸入 Discord Webhook 網址！鎖定遊戲、三檔檢查、Webhook 缺一不可！', 'err');
+    if (webhookInput) {
+      webhookInput.focus();
+      webhookInput.style.borderColor = '#FF4757';
+    }
+    return;
+  }
+  if (!isValidDiscordWebhookUrl(discordWebhook)) {
+    tt('⛔ Discord Webhook 網址格式錯誤，請確認是否為 https://discord.com/api/webhooks/... 官方格式！', 'err');
+    if (webhookInput) {
+      webhookInput.focus();
+      webhookInput.style.borderColor = '#FF4757';
+    }
+    return;
+  }
+
+  // 4. 展開流程進度面板，鎖定按鈕防止重複送出
 
   if (flowPanel) flowPanel.style.display = 'block';
   if (flowError) flowError.style.display = 'none';
