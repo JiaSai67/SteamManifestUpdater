@@ -4620,6 +4620,19 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "msg": f"清理空間失敗: {e}"}
 
+    def open_gas_guide_page(self) -> Dict[str, Any]:
+        """在預設瀏覽器中直接開啟 GAS 互動式一步一步引導教學網頁"""
+        try:
+            import webbrowser
+            from pathlib import Path
+            guide_file = Path(__file__).resolve().parent / "gui" / "gas_guide.html"
+            if guide_file.exists():
+                webbrowser.open(guide_file.as_uri())
+                return {"ok": True}
+            return {"ok": False, "msg": "找不到教學網頁檔案"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
     def create_party_room(self, game_name: str, app_id: str, max_players: int = 4, is_public: bool = True,
                           note: str = "", auto_package_upload: bool = False, gas_url: str = "") -> Dict[str, Any]:
         """房主建立組隊房間 (支援三檔自動打包與 GAS 上傳至 Google Drive)"""

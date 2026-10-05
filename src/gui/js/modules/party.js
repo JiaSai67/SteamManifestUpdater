@@ -999,19 +999,20 @@ function copyGasSampleScript() {
 }
 
 function openGasHelpGuide() {
-  var guideMsg = "🌸 Google Apps Script 1 分鐘極速部署教學：\n\n" +
-    "1. 點擊「複製 GAS 腳本」按鈕\n" +
-    "2. 前往 Google 雲端硬碟 (Google Drive)，點擊「+ 新增」>「更多」>「Google Apps Script」\n" +
-    "3. 將預設程式碼全部清除，貼上剛剛複製的腳本並儲存 (Ctrl+S)\n" +
-    "4. 點擊右上角藍色「部署」>「新增部署作業」\n" +
-    "   - 類型選擇：「網頁應用程式 (Web App)」\n" +
-    "   - 執行身分：「我 (您的 Google 帳號)」\n" +
-    "   - 誰可以存取：「所有人 (Anyone)」(關鍵！隊友才可下載)\n" +
-    "5. 點擊部署後複製產生的「網頁應用程式網址」，貼回此處即可！\n\n" +
-    "💡 空間自動管理：\n" +
-    "- 檔案會儲存在您自己的 Google 帳號 (SMU_Party_Packages 資料夾)\n" +
-    "- 每次打包上傳前系統皆會自動清除舊包，房間解散時也會自動銷毀，不佔空間！";
-  alert(guideMsg);
+  tt('🌸 正在為您開啟圖文引導網頁…', 'info');
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_gas_guide_page) {
+    pywebview.api.open_gas_guide_page().then(function(res) {
+      if (res && res.ok) {
+        tt('🌐 已在瀏覽器中開啟一步一步部署引導網頁', 'ok');
+      } else {
+        window.open('gas_guide.html', '_blank');
+      }
+    }).catch(function() {
+      window.open('gas_guide.html', '_blank');
+    });
+  } else {
+    window.open('gas_guide.html', '_blank');
+  }
 }
 
 function testGasUrlConnection() {
