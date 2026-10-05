@@ -4573,15 +4573,57 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 
-    def create_party_room(self, game_name: str, app_id: str, max_players: int = 4, is_public: bool = True, note: str = "") -> Dict[str, Any]:
-        """房主建立組隊房間"""
+    def inspect_party_resources(self, app_id: str) -> Dict[str, Any]:
+        """檢測指定遊戲本地 Manifest, Lua 與線上補丁三檔就緒狀況"""
+        try:
+            from managers.party_packager import get_party_packager
+            return get_party_packager().inspect_party_resources(app_id)
+        except Exception as e:
+            return {"ok": False, "error": str(e), "can_package": False}
+
+    def get_gas_config(self) -> Dict[str, Any]:
+        """取得房主 GAS 網址與範本腳本代碼"""
+        try:
+            from managers.gas_manager import get_gas_manager
+            mgr = get_gas_manager()
+            return {
+                "ok": True,
+                "gas_url": mgr.get_gas_url(),
+                "sample_script": mgr.get_sample_script()
+            }
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def set_gas_config(self, url: str) -> Dict[str, Any]:
+        """保存房主 GAS Web App 網址"""
+        try:
+            from managers.gas_manager import get_gas_manager
+            mgr = get_gas_manager()
+            mgr.set_gas_url(url)
+            return {"ok": True, "msg": "GAS 網址已保存"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def test_gas_endpoint(self, url: str = "") -> Dict[str, Any]:
+        """測試 GAS Web App 是否正常連線"""
+        try:
+            from managers.gas_manager import get_gas_manager
+            return get_gas_manager().test_gas_connection(url)
+        except Exception as e:
+            return {"ok": False, "msg": f"測試異常: {e}"}
+
+    def create_party_room(self, game_name: str, app_id: str, max_players: int = 4, is_public: bool = True,
+                          note: str = "", auto_package_upload: bool = False, gas_url: str = "") -> Dict[str, Any]:
+        """房主建立組隊房間 (支援三檔自動打包與 GAS 上傳至 Google Drive)"""
         try:
             return self._get_party_manager().create_room(
                 game_name=game_name,
                 app_id=str(app_id),
                 max_players=int(max_players),
                 is_public=bool(is_public),
-                note=note
+                note=note,
+                auto_package_upload=bool(auto_package_upload),
+                gas_url=gas_url
             )
         except Exception as e:
             return {"ok": False, "msg": f"創建房間失敗: {e}"}

@@ -67,6 +67,8 @@ class PartyManager:
         self.current_room_data: Optional[Dict[str, Any]] = None
         self.my_status: str = "未下載"  # 未下載, 下載中, 就緒
         self.my_progress: int = 0
+        self.current_gas_file_id: Optional[str] = None
+        self.current_gas_url: Optional[str] = None
 
         # 雲端呼叫與配額狀態 (Supabase 充沛 5GB 流量，可承載百萬次調用)
         self._request_count: int = 0
@@ -352,13 +354,42 @@ class PartyManager:
     # ═════════════════════════════════════════════════════════════════════
 
     def create_room(self, game_name: str, app_id: str, max_players: int = 4, is_public: bool = True,
-                    room_id: str = "", note: str = "", download_url: str = "", download_secret: str = "") -> Dict[str, Any]:
-        """房主建立組隊房間"""
+                    room_id: str = "", note: str = "", download_url: str = "", download_secret: str = "",
+                    auto_package_upload: bool = False, gas_url: str = "") -> Dict[str, Any]:
+        """房主建立組隊房間，支援三檔自動打包與 GAS 上傳至 Google Drive"""
         # 如果已經在房間內，先退出
         self.leave_or_close()
 
         # 生成 6 位數大寫房號或使用指定
         rid = room_id.strip().upper() if room_id else f"{uuid.uuid4().hex[:6].upper()}"
+
+        # 🌟 若開啟自動三檔打包與 GAS 上傳
+        uploaded_gas_file_id = None
+        if auto_package_upload:
+            try:
+                from managers.party_packager import get_party_packager
+                from managers.gas_manager import get_gas_manager
+
+                packager = get_party_packager()
+                ok, zip_path, details = packager.build_party_package(app_id, rid, password=download_secret)
+                if ok and zip_path:
+                    gas_mgr = get_gas_manager()
+                    target_gas = (gas_url or gas_mgr.get_gas_url()).strip()
+                    if target_gas:
+                        gas_mgr.set_gas_url(target_gas)
+                        upload_res = gas_mgr.upload_archive(zip_path, gas_url=target_gas)
+                        if upload_res.get("ok"):
+                            download_url = upload_res.get("download_url", "")
+                            uploaded_gas_file_id = upload_res.get("file_id")
+                            self.current_gas_file_id = uploaded_gas_file_id
+                            self.current_gas_url = target_gas
+                            logger.info(f"三檔自動上傳成功！Google Drive 下載網址: {download_url} (File ID: {uploaded_gas_file_id})")
+                        else:
+                            logger.warning(f"GAS 上傳失敗: {upload_res.get('msg')}")
+                    else:
+                        logger.warning("未配置 GAS 網址，略過雲端上傳")
+            except Exception as e:
+                logger.error(f"三檔自動打包與上傳失敗: {e}", exc_info=True)
 
         self.current_room_id = rid
         self.is_host = True
@@ -410,6 +441,8 @@ class PartyManager:
                     "msg": f"成功建立房間 #{rid}",
                     "room_id": rid,
                     "room": self.current_room_data,
+                    "download_url": download_url,
+                    "gas_file_id": uploaded_gas_file_id,
                     "quota": self.latest_quota
                 }
             else:
@@ -467,12 +500,21 @@ class PartyManager:
             return False
 
     def close_room(self) -> Dict[str, Any]:
-        """房主主動解散房間"""
+        """房主主動解散房間，並自動銷毀雲端 Google Drive 整合包"""
         if not self.current_room_id:
             return {"ok": True, "msg": "目前不在任何房間中"}
 
         rid = self.current_room_id
         if self.is_host:
+            # 🌟 銷毀關聯的 Google Drive 雲端檔案 (若有)
+            if self.current_gas_file_id:
+                try:
+                    from managers.gas_manager import get_gas_manager
+                    get_gas_manager().delete_remote_file(self.current_gas_file_id, gas_url=self.current_gas_url)
+                    logger.info(f"房間 #{rid} 解散，已自動銷毀 Google Drive 檔案 (ID: {self.current_gas_file_id})")
+                except Exception as e:
+                    logger.warning(f"自動銷毀 Google Drive 檔案異常: {e}")
+
             self._inc_quota()
             try:
                 del_url = f"{self.rest_endpoint}?room_id=eq.{rid}&host_client_id=eq.{self.client_id}"
@@ -481,7 +523,7 @@ class PartyManager:
                 logger.warning(f"解散房間刪除紀錄異常: {e}")
 
             self._cleanup_local_room()
-            return {"ok": True, "msg": f"房間 #{rid} 已成功解散", "quota": self.latest_quota}
+            return {"ok": True, "msg": f"房間 #{rid} 已成功解散，雲端資源已自動銷毀", "quota": self.latest_quota}
         else:
             return self.leave_room()
 
@@ -701,6 +743,8 @@ class PartyManager:
             self.current_room_data = None
             self.my_status = "未下載"
             self.my_progress = 0
+            self.current_gas_file_id = None
+            self.current_gas_url = None
 
     # ═════════════════════════════════════════════════════════════════════
     # 心跳維持線程 (Daemon)

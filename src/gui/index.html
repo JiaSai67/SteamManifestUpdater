@@ -311,6 +311,11 @@
               <span class="my-status-label">我的本機狀態：</span>
               <span class="my-status-badge" id="party-my-status-badge">未下載</span>
             </div>
+            <div class="party-gdrive-pkg-wrap" id="party-gdrive-pkg-wrap" style="display:none">
+              <button class="btn btn-o" id="party-btn-download-gdrive-pkg" onclick="downloadPartyGdrivePackage()" style="border-color:#58A6FF;color:#58A6FF" title="下載房主分享的 Google Drive 聯機整合包">
+                📦 下載房主聯機整合包
+              </button>
+            </div>
             <div class="party-sync-btn-wrap" id="party-sync-btn-wrap" style="display:none">
               <button class="btn btn-p" id="party-btn-start-sync" onclick="startSyncCurrentGameInstall()">
                 🎮 安裝遊戲
@@ -1004,14 +1009,51 @@
       </div>
     </div>
 
-    <div style="margin-bottom:16px">
+    <div style="margin-bottom:12px">
       <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">房間備註 / 招募宣言 (選填)：</label>
       <input type="text" id="input-party-note" placeholder="例如：新手開荒 / 語音隨意 / 缺 1 人即開" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
     </div>
 
+    <!-- 📦 聯機資源自動打包與 Google Drive 分享 (GAS) -->
+    <div class="party-package-section" style="margin-bottom:14px;padding:12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--fg);cursor:pointer">
+          <input type="checkbox" id="check-party-auto-upload" onchange="togglePartyAutoUploadSection()" style="width:15px;height:15px;accent-color:#FF4757">
+          <span>🚀 自動打包三檔並上傳至 Google Drive (房主專屬 GAS)</span>
+        </label>
+      </div>
+
+      <!-- 三檔檢測狀態條 -->
+      <div id="party-resources-inspect-box" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;font-size:11px">
+        <span id="inspect-manifest" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">📄 Manifest: 檢測中</span>
+        <span id="inspect-lua" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">📜 Lua 腳本: 檢測中</span>
+        <span id="inspect-patch" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">🎮 線上補丁: 檢測中</span>
+      </div>
+
+      <!-- GAS 設定區塊 (勾選後展開) -->
+      <div id="party-gas-config-wrap" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <label style="font-size:11.5px;color:var(--fg);font-weight:600">Google Apps Script Web App 網址：</label>
+            <div style="display:flex;gap:6px">
+              <button type="button" class="btn btn-o btn-xs" onclick="copyGasSampleScript()" title="複製 Google Apps Script 範本代碼">📋 複製 GAS 腳本</button>
+              <button type="button" class="btn btn-o btn-xs" onclick="openGasHelpGuide()" title="查看 1 分鐘快速部屬教學">❓ 部署教學</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="input-party-gas-url" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1;padding:7px 10px;border:1.5px solid var(--pink-light);border-radius:8px;font-size:11px;background:var(--bg);color:var(--fg);outline:none">
+            <button type="button" class="btn btn-p btn-xs" onclick="testGasUrlConnection()">🔗 測試</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--gray);line-height:1.5">
+          💡 整合包直接上傳至您個人的 Google Drive，<strong>房間解散時工具將自動向 GAS 發送指令銷毀檔案</strong>，不佔空間、極速且 100% 安全！
+        </div>
+      </div>
+    </div>
+
     <div style="display:flex;justify-content:flex-end;gap:8px">
       <button class="btn btn-o btn-s" onclick="closeCreateRoomModal()">取消</button>
-      <button class="btn btn-p btn-s" onclick="submitCreatePartyRoom()">立即開房</button>
+      <button class="btn btn-party-create btn-s" onclick="submitCreatePartyRoom()">立即開房</button>
     </div>
   </div>
 </div>

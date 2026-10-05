@@ -636,6 +636,13 @@ function renderRoomView(room) {
     syncBtn.style.display = isMyReady ? 'none' : 'inline-flex';
   }
 
+  // 2. 房主若有分享 Google Drive 整合包，隊員端顯示專屬下載按鈕
+  var pkgWrap = document.getElementById('party-gdrive-pkg-wrap');
+  if (pkgWrap) {
+    var hasGdrive = !!(room.gdrive_url || room.download_url);
+    pkgWrap.style.display = (hasGdrive && !isHost) ? 'block' : 'none';
+  }
+
   var html = '';
   allMembers.forEach(function(m, idx) {
     var name = m.name || '玩家';
@@ -861,8 +868,28 @@ function openCreateRoomModal() {
   if (aid) aid.value = '';
   if (note) note.value = '';
 
+  // 重置三檔指示燈
+  resetResourceInspectBadges();
+
   // 載入本地已入庫遊戲下拉選單
   loadInstalledGamesDropdown();
+
+  // 載入房主已保存之 GAS 網址設定
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.get_gas_config) {
+    pywebview.api.get_gas_config().then(function(res) {
+      if (res && res.ok) {
+        var gasInput = document.getElementById('input-party-gas-url');
+        var chk = document.getElementById('check-party-auto-upload');
+        if (gasInput && res.gas_url) {
+          gasInput.value = res.gas_url;
+          if (chk) {
+            chk.checked = true;
+            togglePartyAutoUploadSection();
+          }
+        }
+      }
+    });
+  }
 
   modal.style.display = 'flex';
   modal.classList.remove('hidden');
@@ -876,6 +903,132 @@ function closeCreateRoomModal() {
     modal.classList.add('hidden');
     modal.classList.remove('active');
   }
+}
+
+function togglePartyAutoUploadSection() {
+  var chk = document.getElementById('check-party-auto-upload');
+  var wrap = document.getElementById('party-gas-config-wrap');
+  if (wrap && chk) {
+    wrap.style.display = chk.checked ? 'block' : 'none';
+  }
+}
+
+function resetResourceInspectBadges() {
+  var m = document.getElementById('inspect-manifest');
+  var l = document.getElementById('inspect-lua');
+  var p = document.getElementById('inspect-patch');
+  if (m) { m.textContent = '📄 Manifest: 待偵測'; m.style.color = 'var(--gray)'; }
+  if (l) { l.textContent = '📜 Lua 腳本: 待偵測'; l.style.color = 'var(--gray)'; }
+  if (p) { p.textContent = '🎮 線上補丁: 待偵測'; p.style.color = 'var(--gray)'; }
+}
+
+var _inspectTimer = null;
+function triggerResourceInspection(appid) {
+  if (_inspectTimer) clearTimeout(_inspectTimer);
+  _inspectTimer = setTimeout(function() {
+    doInspectPartyResources(appid);
+  }, 250);
+}
+
+function doInspectPartyResources(appid) {
+  if (!appid || !window.pywebview || !window.pywebview.api || !window.pywebview.api.inspect_party_resources) {
+    resetResourceInspectBadges();
+    return;
+  }
+  var mEl = document.getElementById('inspect-manifest');
+  var lEl = document.getElementById('inspect-lua');
+  var pEl = document.getElementById('inspect-patch');
+
+  if (mEl) mEl.textContent = '📄 Manifest: 檢測中…';
+  if (lEl) lEl.textContent = '📜 Lua 腳本: 檢測中…';
+  if (pEl) pEl.textContent = '🎮 線上補丁: 檢測中…';
+
+  pywebview.api.inspect_party_resources(appid).then(function(res) {
+    if (!res) return;
+    if (mEl) {
+      if (res.manifest && res.manifest.ready) {
+        var kb = Math.round((res.manifest.size || 0) / 1024);
+        mEl.textContent = '📄 Manifest: ✅ 就緒 (' + kb + 'KB)';
+        mEl.style.color = '#2ED573';
+      } else {
+        mEl.textContent = '📄 Manifest: ❌ 缺少';
+        mEl.style.color = '#FFA502';
+      }
+    }
+    if (lEl) {
+      if (res.lua && res.lua.ready) {
+        lEl.textContent = '📜 Lua 腳本: ✅ 就緒';
+        lEl.style.color = '#2ED573';
+      } else {
+        lEl.textContent = '📜 Lua 腳本: ❌ 缺少';
+        lEl.style.color = '#FFA502';
+      }
+    }
+    if (pEl) {
+      if (res.patch && res.patch.ready) {
+        var countText = res.patch.files_count ? (' (' + res.patch.files_count + ' 個檔案)') : '';
+        pEl.textContent = '🎮 線上補丁: ✅ 就緒' + countText;
+        pEl.style.color = '#2ED573';
+      } else {
+        pEl.textContent = '🎮 線上補丁: ❌ 未檢測到';
+        pEl.style.color = '#FF4757';
+      }
+    }
+  });
+}
+
+function copyGasSampleScript() {
+  if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_gas_config) return;
+  pywebview.api.get_gas_config().then(function(res) {
+    if (res && res.sample_script) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(res.sample_script).then(function() {
+          tt('📋 已複製 Google Apps Script 範本腳本至剪貼簿！', 'ok');
+        }).catch(function() {
+          tt('複製腳本失敗，請手動複製', 'err');
+        });
+      } else {
+        tt('剪貼簿不支援自動寫入', 'warn');
+      }
+    }
+  });
+}
+
+function openGasHelpGuide() {
+  var guideMsg = "🌸 Google Apps Script 1 分鐘極速部署教學：\n\n" +
+    "1. 點擊「複製 GAS 腳本」按鈕\n" +
+    "2. 前往 Google 雲端硬碟 (Google Drive)，點擊「+ 新增」>「更多」>「Google Apps Script」\n" +
+    "3. 將預設程式碼全部清除，貼上剛剛複製的腳本並儲存 (Ctrl+S)\n" +
+    "4. 點擊右上角藍色「部署」>「新增部署作業」\n" +
+    "   - 類型選擇：「網頁應用程式 (Web App)」\n" +
+    "   - 執行身分：「我」\n" +
+    "   - 誰可以存取：「所有人 (Anyone)」(關鍵！)\n" +
+    "5. 點擊部署後複製產生的「網頁應用程式網址」，貼回此處即可！\n\n" +
+    "💡 房間解散時工具會自動銷毀檔案，不佔個人雲端空間！";
+  alert(guideMsg);
+}
+
+function testGasUrlConnection() {
+  var input = document.getElementById('input-party-gas-url');
+  var url = (input ? input.value : '').trim();
+  if (!url) {
+    tt('請先輸入 Google Apps Script 網址', 'warn');
+    return;
+  }
+  tt('🌸 正在測試 GAS 雲端連線…', 'info');
+  pywebview.api.test_gas_endpoint(url).then(function(res) {
+    if (res && res.ok) {
+      tt(res.msg || '✅ GAS 雲端連線測試成功！服務正常運作', 'ok');
+      // 自動記住有效網址
+      if (window.pywebview.api.set_gas_config) {
+        pywebview.api.set_gas_config(url);
+      }
+    } else {
+      tt(res && res.msg ? res.msg : 'GAS 連線失敗，請檢查網址與存取權限', 'err');
+    }
+  }).catch(function(err) {
+    tt('連線測試異常: ' + err, 'err');
+  });
 }
 
 function loadInstalledGamesDropdown() {
@@ -905,6 +1058,9 @@ function onSelectInstalledGameChange() {
   if (selectedOpt && selectedOpt.value) {
     if (aid) aid.value = selectedOpt.value;
     if (gn) gn.value = selectedOpt.getAttribute('data-name') || '';
+    triggerResourceInspection(selectedOpt.value);
+  } else {
+    resetResourceInspectBadges();
   }
 }
 
@@ -914,21 +1070,35 @@ function submitCreatePartyRoom() {
   var maxSelect = document.getElementById('select-party-max-players');
   var pubSelect = document.getElementById('select-party-is-public');
   var noteInput = document.getElementById('input-party-note');
+  var autoChk = document.getElementById('check-party-auto-upload');
+  var gasInput = document.getElementById('input-party-gas-url');
 
   var gameName = (gnInput ? gnInput.value : '').trim();
   var appid = (aidInput ? aidInput.value : '').trim();
   var maxPlayers = parseInt(maxSelect ? maxSelect.value : 4, 10);
   var isPublic = (pubSelect ? pubSelect.value : '1') === '1';
   var note = (noteInput ? noteInput.value : '').trim();
+  var autoUpload = autoChk ? autoChk.checked : false;
+  var gasUrl = (gasInput ? gasInput.value : '').trim();
 
   if (!gameName) {
     tt('請輸入遊戲名稱', 'warn');
     return;
   }
 
-  tt('🌸 正在發布組隊房間…', 'info');
+  if (autoUpload && !gasUrl) {
+    tt('您勾選了自動上傳，請填寫 Google Apps Script 網址', 'warn');
+    if (gasInput) gasInput.focus();
+    return;
+  }
 
-  pywebview.api.create_party_room(gameName, appid, maxPlayers, isPublic, note).then(function(res) {
+  if (autoUpload) {
+    tt('📦 正在打包本地三檔並透過 GAS 上傳至 Google Drive，請稍候…', 'info');
+  } else {
+    tt('🌸 正在發布組隊房間…', 'info');
+  }
+
+  pywebview.api.create_party_room(gameName, appid, maxPlayers, isPublic, note, autoUpload, gasUrl).then(function(res) {
     if (res && res.ok && res.room) {
       tt(res.msg || '成功建立房間！', 'ok');
       closeCreateRoomModal();
@@ -942,4 +1112,19 @@ function submitCreatePartyRoom() {
   }).catch(function(err) {
     tt('開房出錯: ' + err, 'err');
   });
+}
+
+function downloadPartyGdrivePackage() {
+  if (!_partyCurRoom) return;
+  var url = _partyCurRoom.gdrive_url || _partyCurRoom.download_url;
+  if (!url) {
+    tt('房主尚未提供雲端整合包', 'info');
+    return;
+  }
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_external_url) {
+    pywebview.api.open_external_url(url);
+  } else {
+    window.open(url, '_blank');
+  }
+  tt('🚀 已開啟房主 Google Drive 整合包下載鏈結！', 'ok');
 }
