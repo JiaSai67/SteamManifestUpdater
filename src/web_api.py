@@ -4882,5 +4882,33 @@ class WebApi:
             print(f"[PARTY] 取得已部署聯機遊戲失敗: {e}")
             return []
 
+    def get_cloud_metrics(self) -> Dict[str, Any]:
+        """獲取 Supabase 雲端資源與 Egress 脫敏用量 (包含雜湊壓縮密文 Token 與明文數據)"""
+        try:
+            from managers.cloud_metrics_manager import get_cloud_metrics_manager
+            return get_cloud_metrics_manager().get_public_cloud_metrics()
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def sync_cloud_metrics(self) -> Dict[str, Any]:
+        """房主端更新最新用量並雜湊壓縮加密同步至 Supabase server_metrics 表"""
+        try:
+            from managers.cloud_metrics_manager import get_cloud_metrics_manager
+            return get_cloud_metrics_manager().sync_metrics_to_supabase()
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def decrypt_cloud_metrics(self, token: str) -> Dict[str, Any]:
+        """將雜湊壓縮的密文 Token 還原解密為原始用量字典"""
+        try:
+            from managers.cloud_metrics_manager import get_cloud_metrics_manager
+            data = get_cloud_metrics_manager().decrypt_metrics_payload(token)
+            if data:
+                return {"ok": True, "data": data}
+            return {"ok": False, "msg": "解密失敗或資料格式無效"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+
 
 

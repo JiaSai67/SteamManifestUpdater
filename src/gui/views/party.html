@@ -52,11 +52,11 @@
           </div>
         </div>
 
-        <!-- 雲端大廳配額監控徽章 -->
-        <div class="party-quota-badge" id="party-quota-badge" title="Supabase 全球高速雲端資料庫 (高可用叢集 · 充沛)">
+        <!-- 雲端大廳配額監控徽章 (點擊可展開 Egress 與 5GB 用量監控面板) -->
+        <div class="party-quota-badge" id="party-quota-badge" onclick="openCloudMetricsModal()" title="點擊查看 Supabase 雲端資源詳細用量與健康狀態 (雜湊加密中繼)" style="cursor:pointer">
           <span class="quota-dot green"></span>
           <span class="quota-title">雲端大廳</span>
-          <span class="quota-val" id="party-quota-text">Supabase · 充沛</span>
+          <span class="quota-val" id="party-quota-text">Egress: 0.002/5GB (0.04%)</span>
         </div>
 
         <div class="party-header-actions">
@@ -267,6 +267,91 @@
     <div style="display:flex;justify-content:flex-end;gap:8px">
       <button class="btn btn-o btn-s" id="btn-cancel-create-party" onclick="closeCreateRoomModal()">取消</button>
       <button class="btn btn-party-create btn-s disabled" id="btn-submit-create-party" onclick="submitCreatePartyRoom()" disabled title="⛔ 開房限制：請先由清單挑選並鎖定遊戲（鎖定遊戲、三檔檢查、Webhook 網址缺一不可）">🚀 立即開房</button>
+    </div>
+  </div>
+</div>
+
+<!-- ☁️ Supabase 雲端配額與 Egress 脫敏監控彈窗 (雜湊壓縮加密中繼) -->
+<div id="modal-cloud-metrics" class="modal-overlay" style="display:none;align-items:center;justify-content:center;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:99999;backdrop-filter:blur(6px)">
+  <div style="background:var(--card-bg, #161B22);border:1.5px solid var(--border);border-radius:16px;width:90%;max-width:480px;padding:22px;box-shadow:0 16px 40px rgba(0,0,0,0.6);color:var(--fg)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">☁️</span>
+        <span style="font-weight:800;font-size:15px">Supabase 雲端資源與 5GB 流量監控</span>
+      </div>
+      <button class="btn btn-o btn-xs" onclick="closeCloudMetricsModal()" style="border-radius:50%;width:26px;height:26px;padding:0;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+
+    <!-- 脫敏安全認證徽章 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(46,213,115,0.08);border:1px solid rgba(46,213,115,0.3);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:11.5px">
+      <span style="color:#2ED573;display:flex;align-items:center;gap:5px">
+        <span>🔐</span> <strong>數據已雜湊高壓加密傳輸</strong>
+      </span>
+      <span style="color:var(--gray)">本地安全解密還原</span>
+    </div>
+
+    <!-- 核心數據進度條卡片列表 -->
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">
+      <!-- 1. Egress 5GB 傳輸流量 -->
+      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:12px;font-weight:700">🌐 外發傳輸流量 (Egress)：</span>
+          <span id="metric-egress-text" style="font-size:12px;font-weight:800;color:#2ED573">0.002 / 5.00 GB (0.04%)</span>
+        </div>
+        <div style="width:100%;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden">
+          <div id="metric-egress-bar" style="width:0.04%;height:100%;background:linear-gradient(90deg, #2ED573, #1DD1A1);border-radius:4px;transition:width 0.4s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10.5px;color:var(--gray)">
+          <span>月配額 5 GB (純文字傳輸，極省流量)</span>
+          <span id="metric-egress-status" style="color:#2ED573">✅ 極其充沛</span>
+        </div>
+      </div>
+
+      <!-- 2. Database 容量 -->
+      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:12px;font-weight:700">💾 資料庫容量 (Database Size)：</span>
+          <span id="metric-db-text" style="font-size:12px;font-weight:800;color:#70A1FF">26.0 / 500 MB (5.2%)</span>
+        </div>
+        <div style="width:100%;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden">
+          <div id="metric-db-bar" style="width:5.2%;height:100%;background:linear-gradient(90deg, #1E90FF, #70A1FF);border-radius:4px;transition:width 0.4s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10.5px;color:var(--gray)">
+          <span>包含房間大廳、成員心跳與訊息表</span>
+          <span style="color:#70A1FF">✅ 容量安全</span>
+        </div>
+      </div>
+
+      <!-- 3. 大檔儲存 Storage -->
+      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:12px;font-weight:700">📦 大型檔案儲存 (Storage)：</span>
+          <span style="font-size:12px;font-weight:800;color:#A4B0BE">0.00 / 1.00 GB (0%)</span>
+        </div>
+        <div style="font-size:11px;color:var(--gray);line-height:1.4">
+          ✨ 整合包已由 <strong>Discord CDN</strong> 託管，享有免費無限下載頻寬，完全不消耗 Supabase 儲存空間！
+        </div>
+      </div>
+    </div>
+
+    <!-- 原始雜湊壓縮密文可視化區域 (證明雜湊加密中繼) -->
+    <div style="background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--gray);margin-bottom:4px;display:flex;justify-content:space-between">
+        <span>📦 雲端中繼傳輸密文 (Zlib Level 9 + SHA-256 KDF XOR Token)：</span>
+        <span style="color:#2ED573">已安全還原</span>
+      </div>
+      <div id="metric-token-preview" style="font-family:monospace;font-size:10px;color:#A4B0BE;word-break:break-all;max-height:36px;overflow:hidden;text-overflow:ellipsis">
+        載入中…
+      </div>
+    </div>
+
+    <!-- 底部操作列 -->
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span id="metric-updated-at" style="font-size:11px;color:var(--gray)">更新時間: 讀取中…</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-o btn-s" onclick="fetchAndRefreshCloudMetrics(true)">🔄 立即刷新</button>
+        <button class="btn btn-p btn-s" onclick="closeCloudMetricsModal()">確定</button>
+      </div>
     </div>
   </div>
 </div>

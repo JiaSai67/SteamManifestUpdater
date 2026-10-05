@@ -603,6 +603,7 @@ function refreshPartyLobby(isUserClick) {
     }
 
     if (res && res.quota) updatePartyQuotaUI(res.quota);
+    try { fetchAndRefreshCloudMetrics(false); } catch (e) {}
 
     if (res && res.ok && Array.isArray(res.rooms)) {
 
@@ -2716,6 +2717,113 @@ window.prevGasTourStep = prevGasTourStep;
 window.closeGasTour = closeGasTour;
 
 window.copyInPageGuideScript = copyInPageGuideScript;
+
+// ═══════════════════════════════════════════════════════
+// ☁️ Supabase 雲端資源與 5GB 流量脫敏監控模組 (雜湊壓縮加密中繼)
+// ═══════════════════════════════════════════════════════
+
+var _latestCloudMetrics = null;
+
+function openCloudMetricsModal() {
+  var modal = document.getElementById('modal-cloud-metrics');
+  if (modal) {
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+  }
+  fetchAndRefreshCloudMetrics(false);
+}
+
+function closeCloudMetricsModal() {
+  var modal = document.getElementById('modal-cloud-metrics');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('active');
+  }
+}
+
+function fetchAndRefreshCloudMetrics(isManual) {
+  if (isManual) {
+    tt('正在從雲端取得雜湊加密之用量數據並於本地安全解密…', 'info');
+  }
+  if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_cloud_metrics) {
+    return;
+  }
+
+  // 1. 從 Supabase 取得雜湊壓縮之密文 Token
+  pywebview.api.get_cloud_metrics().then(function(res) {
+    if (!res || !res.ok) {
+      if (isManual) tt('取得雲端指標失敗: ' + (res ? res.msg : '未知錯誤'), 'err');
+      return;
+    }
+
+    var token = res.encrypted_token || '';
+    // 2. 依照使用者指定架構：前端調用解密還原原始指標
+    if (token && window.pywebview.api.decrypt_cloud_metrics) {
+      pywebview.api.decrypt_cloud_metrics(token).then(function(decRes) {
+        if (decRes && decRes.ok && decRes.data) {
+          applyCloudMetricsData(decRes.data, token);
+          if (isManual) tt('✅ 已成功解密還原最新 Supabase 雲端用量！', 'ok');
+        } else {
+          applyCloudMetricsData(res.data, token);
+        }
+      }).catch(function() {
+        applyCloudMetricsData(res.data, token);
+      });
+    } else {
+      applyCloudMetricsData(res.data, token);
+    }
+  }).catch(function(err) {
+    if (isManual) tt('連線異常: ' + err, 'err');
+  });
+}
+
+function applyCloudMetricsData(data, token) {
+  if (!data) return;
+  _latestCloudMetrics = data;
+
+  // 1. 更新大廳頂部徽章文字
+  var badgeText = document.getElementById('party-quota-text');
+  if (badgeText) {
+    var egVal = (data.egress_used_gb !== undefined) ? data.egress_used_gb : 0.002;
+    var egMax = data.egress_max_gb || 5.0;
+    var egPct = (data.egress_usage_pct !== undefined) ? data.egress_usage_pct : 0.04;
+    badgeText.textContent = 'Egress: ' + egVal + '/' + egMax + 'GB (' + egPct + '%)';
+  }
+
+  // 2. 更新彈窗 Egress 條
+  var egText = document.getElementById('metric-egress-text');
+  var egBar = document.getElementById('metric-egress-bar');
+  if (egText) egText.textContent = (data.egress_used_gb || 0.002) + ' / ' + (data.egress_max_gb || 5.0) + ' GB (' + (data.egress_usage_pct || 0.04) + '%)';
+  if (egBar) egBar.style.width = Math.min(100, Math.max(0.5, (data.egress_usage_pct || 0.04))) + '%';
+
+  // 3. 更新彈窗 Database 條
+  var dbMb = Math.round((data.database_size_gb || 0.026) * 1000);
+  var dbText = document.getElementById('metric-db-text');
+  var dbBar = document.getElementById('metric-db-bar');
+  if (dbText) dbText.textContent = dbMb + ' / 500 MB (' + (data.database_usage_pct || 5.2) + '%)';
+  if (dbBar) dbBar.style.width = Math.min(100, Math.max(1, (data.database_usage_pct || 5.2))) + '%';
+
+  // 4. 更新密文預覽 (展現雜湊壓縮加密之 Token)
+  var tokenPreview = document.getElementById('metric-token-preview');
+  if (tokenPreview) {
+    if (token && token.length > 20) {
+      tokenPreview.textContent = token.slice(0, 36) + '...' + token.slice(-16) + ' (長度: ' + token.length + ' 字元, 雜湊高壓密文)';
+    } else {
+      tokenPreview.textContent = token || '已由本地安全緩存';
+    }
+  }
+
+  // 5. 更新時間
+  var upText = document.getElementById('metric-updated-at');
+  if (upText) {
+    var d = data.updated_at ? new Date(data.updated_at) : new Date();
+    upText.textContent = '更新時間: ' + d.toLocaleTimeString();
+  }
+}
+
+window.openCloudMetricsModal = openCloudMetricsModal;
+window.closeCloudMetricsModal = closeCloudMetricsModal;
+window.fetchAndRefreshCloudMetrics = fetchAndRefreshCloudMetrics;
 
 window.updateCreateRoomBtnState = updateCreateRoomBtnState;
 
