@@ -1566,3 +1566,11 @@ class PartyManager:
         except Exception as e:
             logger.error(f"同步下載過程發生錯誤: {e}", exc_info=True)
             self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載或部署過程異常: {e}")
+
+_global_party_manager = None
+
+def get_party_manager() -> PartyManager:
+    global _global_party_manager
+    if _global_party_manager is None:
+        _global_party_manager = PartyManager()
+    return _global_party_manager
