@@ -200,7 +200,7 @@ function switchPartyNav(target) {
   var roomView = document.getElementById('party-room-view');
 
   if (target === 'room') {
-    if (!_partyCurRoom) {
+    if (!_partyCurRoom || !_partyCurRoom.room_id) {
       tt('💡 您目前尚未在房間中，為您開啟創建房間', 'info');
       openCreateRoomModal();
       return;
@@ -209,14 +209,14 @@ function switchPartyNav(target) {
     if (navLobby) navLobby.classList.remove('active');
     if (navRoom) navRoom.classList.add('active');
     if (lobbyView) { lobbyView.style.display = 'none'; lobbyView.classList.remove('active'); }
-    if (roomView) { roomView.style.display = 'block'; roomView.classList.add('active'); }
+    if (roomView) { roomView.style.display = 'flex'; roomView.classList.add('active'); }
     renderRoomView(_partyCurRoom);
   } else {
     _partyActiveNav = 'lobby';
     if (navRoom) navRoom.classList.remove('active');
     if (navLobby) navLobby.classList.add('active');
     if (roomView) { roomView.style.display = 'none'; roomView.classList.remove('active'); }
-    if (lobbyView) { lobbyView.style.display = 'block'; lobbyView.classList.add('active'); }
+    if (lobbyView) { lobbyView.style.display = 'flex'; lobbyView.classList.add('active'); }
     refreshPartyLobby(false);
   }
   updateSidebarRoomInfo(_partyCurRoom);
@@ -483,10 +483,14 @@ function joinPartyRoom(roomId) {
  * '下載狀況(未下載/下載中： xx%/就緒)'
  */
 function renderRoomView(room) {
+  if (!room || !room.room_id) {
+    switchPartyNav('lobby');
+    return;
+  }
   var lobbyView = document.getElementById('party-lobby-view');
   var roomView = document.getElementById('party-room-view');
   if (lobbyView) { lobbyView.style.display = 'none'; lobbyView.classList.remove('active'); }
-  if (roomView) { roomView.style.display = 'block'; roomView.classList.add('active'); }
+  if (roomView) { roomView.style.display = 'flex'; roomView.classList.add('active'); }
 
   var rid = room.room_id || '';
   var gameName = room.game_name || '未知遊戲';

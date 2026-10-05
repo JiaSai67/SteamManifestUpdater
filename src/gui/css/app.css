@@ -6090,8 +6090,17 @@ body.party-mode .pages,
   margin-bottom: 0 !important;
 }
 
+/* 子視圖基礎切換邏輯：未激活時強制隱藏，激活時滿版 flex 排版 */
+.party-subview {
+  display: none !important;
+}
+
+.party-subview.active {
+  display: flex !important;
+}
+
 /* 隊伍大廳子視圖：滿版 flex，自身絕不滾動 */
-#party-lobby-view.party-subview {
+#party-lobby-view.party-subview.active {
   flex: 1 1 0% !important;
   height: 100% !important;
   min-height: 0 !important;
@@ -6142,7 +6151,7 @@ body.party-mode .pages,
 }
 
 /* 房間內部檢視子視圖：滿高 flex，自身絕不滾動 */
-#party-room-view.party-subview {
+#party-room-view.party-subview.active {
   flex: 1 1 0% !important;
   height: 100% !important;
   min-height: 0 !important;
