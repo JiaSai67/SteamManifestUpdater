@@ -275,7 +275,6 @@ function renderLobbyRoomsGrid(rooms) {
     var gameName = r.game_name || '未知遊戲';
     var appid = r.appid ? String(r.appid).trim() : '';
     var hostName = r.host_name || '神祕房主';
-    var hostDc = r.host_discord ? (' (' + r.host_discord + ')') : '';
     var curPlayers = r.current_players || 1;
     var maxPlayers = r.max_players || 4;
     var isFull = curPlayers >= maxPlayers;
@@ -295,7 +294,7 @@ function renderLobbyRoomsGrid(rooms) {
         '<div class="party-card-game-title" title="' + escapeHtml(gameName) + '">' + escapeHtml(gameName) + '</div>' +
         '<div class="party-card-host-row">' +
           '<span class="host-label">房主：</span>' +
-          '<span class="host-name" title="' + escapeHtml(hostName + hostDc) + '">' + escapeHtml(hostName) + '<span class="host-dc">' + escapeHtml(hostDc) + '</span></span>' +
+          '<span class="host-name" title="' + escapeHtml(hostName) + '">' + escapeHtml(hostName) + '</span>' +
         '</div>' +
         note +
       '</div>' +
@@ -502,12 +501,11 @@ function renderRoomView(room) {
   var html = '';
   allMembers.forEach(function(m, idx) {
     var name = m.name || '玩家';
-    var discord = m.discord_name ? m.discord_name : '未綁定 Discord';
     var status = m.status || '未下載';
     var progress = m.progress || 0;
     var isMe = (m.id && myId && m.id === myId) || (m.name === myName);
 
-    // 格式化下載狀況文字 (嚴格遵從指定格式)
+    // 格式化下載狀況文字 (無單引號)
     var statusDisplay = '';
     if (status === '就緒' || progress >= 100) {
       statusDisplay = '下載狀況(就緒)';
@@ -525,16 +523,15 @@ function renderRoomView(room) {
           '<div class="member-avatar-icon">' + (m.is_host ? '👑' : '🎮') + '</div>' +
         '</div>' +
         '<div class="member-info-column">' +
-          '<!-- 第 1 行：\'name\' (\'discord name\') -->' +
+          '<!-- 第 1 行：玩家名稱 (已刪除 DC 暱稱，刪除周圍單引號) -->' +
           '<div class="member-identity-row">' +
-            '<span class="member-primary-name">\'' + escapeHtml(name) + '\'</span>' +
-            '<span class="member-discord-name">(\'' + escapeHtml(discord) + '\')</span>' +
+            '<span class="member-primary-name">' + escapeHtml(name) + '</span>' +
             (m.is_host ? '<span class="member-badge-host">房主</span>' : '') +
             (isMe ? '<span class="member-badge-me">我</span>' : '') +
           '</div>' +
-          '<!-- 第 2 行：\'下載狀況(未下載/下載中： xx%/就緒)\' -->' +
+          '<!-- 第 2 行：下載狀況 (刪除周圍單引號) -->' +
           '<div class="member-status-row">' +
-            '<span class="member-status-text ' + statusClass + '">\'' + escapeHtml(statusDisplay) + '\'</span>' +
+            '<span class="member-status-text ' + statusClass + '">' + escapeHtml(statusDisplay) + '</span>' +
           '</div>' +
         '</div>' +
       '</div>' +
