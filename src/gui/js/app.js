@@ -30,6 +30,12 @@ function switchPage(p){
   if(p==='more' && !_ofLoaded) ofLoad();
   // 憑證管理：切換時載入狀態與配額
   if(p==='credentials') loadCredentialsStatus(false);
+  // 組隊大廳：切換進入時初始化並啟動輪詢，離開時休眠
+  if(p==='party') {
+    if(typeof initPartyPage === 'function') initPartyPage();
+  } else {
+    if(typeof pausePartyPolling === 'function') pausePartyPolling();
+  }
   // 設置頁面：切換時載入 Google Drive 網盤配置
   if(p==='settings') loadGDriveSettings();
   // 清單监控台 UI 已移除，不再輪詢；_monTimer 兜底清理
@@ -56,7 +62,10 @@ function switchPage(p){
 })();
 
 function closeGameDetail(e){
-  if(e && e.target && e.target !== document.getElementById('game-detail-modal') && !e.target.closest('.detail-close-btn')) return;
+  if(e && e.target){
+    var isCloseBtn = (e.target.closest && e.target.closest('.detail-close-btn')) || (e.target.classList && e.target.classList.contains('detail-close-btn'));
+    if(!isCloseBtn && !isStrictBackdropClick(e, document.getElementById('game-detail-modal'))) return;
+  }
   _detailReqCounter++; // 立即使所有正在進行的背景非同步請求失效
   _curDetailAppid = '';
   _curDepotsData = [];

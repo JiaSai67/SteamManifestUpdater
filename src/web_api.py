@@ -4533,5 +4533,126 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 
+    # ═════════════════════════════════════════════════════════════════════
+    # 👥 SMU 無伺服器組隊大廳與聯機同步 API (Party & Lobby)
+    # ═════════════════════════════════════════════════════════════════════
+
+    def _get_party_manager(self):
+        """相容獲取 PartyManager 單例"""
+        try:
+            from managers.party_manager import PartyManager
+        except ImportError:
+            from src.managers.party_manager import PartyManager
+        return PartyManager()
+
+    def get_party_profile(self) -> Dict[str, Any]:
+        """獲取組隊大廳個人資料 (暱稱、自動讀取之 Discord 帳號、額度健康度)"""
+        try:
+            return self._get_party_manager().get_profile()
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def set_party_nickname(self, nickname: str, custom_discord: str = "") -> Dict[str, Any]:
+        """設定並保存組隊大廳自訂暱稱與 Discord 標籤"""
+        try:
+            return self._get_party_manager().set_nickname(nickname, custom_discord)
+        except Exception as e:
+            return {"ok": False, "msg": f"設定暱稱失敗: {e}"}
+
+    def get_lobby_rooms(self) -> Dict[str, Any]:
+        """獲取全網公開組隊房間列表"""
+        try:
+            return self._get_party_manager().list_rooms()
+        except Exception as e:
+            return {"ok": False, "rooms": [], "msg": f"連線雲端大廳失敗: {e}"}
+
+    def get_party_room_details(self, room_id: str = "") -> Dict[str, Any]:
+        """查詢特定房間即時狀態與隊員名單"""
+        try:
+            return self._get_party_manager().get_room_details(room_id if room_id else None)
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def create_party_room(self, game_name: str, app_id: str, max_players: int = 4, is_public: bool = True, note: str = "") -> Dict[str, Any]:
+        """房主建立組隊房間"""
+        try:
+            return self._get_party_manager().create_room(
+                game_name=game_name,
+                app_id=str(app_id),
+                max_players=int(max_players),
+                is_public=bool(is_public),
+                note=note
+            )
+        except Exception as e:
+            return {"ok": False, "msg": f"創建房間失敗: {e}"}
+
+    def join_party_room(self, room_id: str) -> Dict[str, Any]:
+        """隊員加入房間 (支援 6 碼房號)"""
+        try:
+            return self._get_party_manager().join_room(room_id)
+        except Exception as e:
+            return {"ok": False, "msg": f"加入房間失敗: {e}"}
+
+    def leave_party_room(self) -> Dict[str, Any]:
+        """隊員主動離開房間"""
+        try:
+            return self._get_party_manager().leave_room()
+        except Exception as e:
+            return {"ok": False, "msg": f"退出房間失敗: {e}"}
+
+    def close_party_room(self) -> Dict[str, Any]:
+        """房主解散房間"""
+        try:
+            return self._get_party_manager().close_room()
+        except Exception as e:
+            return {"ok": False, "msg": f"解散房間失敗: {e}"}
+
+    def update_party_progress(self, status: str, progress: int) -> Dict[str, Any]:
+        """更新隊員下載狀況 (未下載 / 下載中: xx% / 就緒)"""
+        try:
+            return self._get_party_manager().update_member_progress(status, progress)
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def start_party_sync_download(self, room_id: str, app_id: str) -> Dict[str, Any]:
+        """一鍵同步聯機資源並自動驅動進度回報"""
+        try:
+            return self._get_party_manager().start_sync_download(room_id, app_id)
+        except Exception as e:
+            return {"ok": False, "msg": f"啟動同步下載失敗: {e}"}
+
+    def get_installed_games_for_party(self) -> List[Dict[str, Any]]:
+        """
+        取得「已安裝且已部署線上補丁」之遊戲清單（供建房時下拉選單快速挑選）
+        依據使用者要求：必須同時滿足 1. 本地已安裝 2. 已部署線上聯機補丁
+        """
+        try:
+            games = self.list_games()
+            result = []
+            for g in games:
+                appid = str(g.get("appid", "")).strip()
+                if not appid:
+                    continue
+                # 檢查是否已部署聯機補丁
+                is_deployed = bool(g.get("deployed"))
+                if not is_deployed:
+                    try:
+                        from managers import onlinefix_manager
+                        is_deployed = onlinefix_manager.is_patch_deployed_locally(appid)
+                    except Exception:
+                        pass
+
+                if is_deployed:
+                    name = g.get("name") or g.get("english_name") or f"AppID {appid}"
+                    result.append({
+                        "appid": appid,
+                        "name": name,
+                        "deployed": True
+                    })
+            return result
+        except Exception as e:
+            print(f"[PARTY] 取得已部署聯機遊戲失敗: {e}")
+            return []
+
 
 

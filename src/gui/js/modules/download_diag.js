@@ -152,7 +152,10 @@ async function openManifestLogModal(logData){
 }
 
 function closeManifestLogModal(e){
-  if(e && e.target && e.target !== e.currentTarget && !e.target.classList.contains('detail-close-btn')) return;
+  if(e && e.target){
+    var isCloseBtn = (e.target.closest && e.target.closest('.detail-close-btn')) || (e.target.classList && e.target.classList.contains('detail-close-btn'));
+    if(!isCloseBtn && !isStrictBackdropClick(e, document.getElementById('manifest-log-modal'))) return;
+  }
   var modal = document.getElementById('manifest-log-modal');
   if(modal) modal.classList.remove('active');
 }
@@ -214,7 +217,10 @@ async function openDownloadDiagnosticModal(appid, gameName){
 }
 
 function closeDownloadDiagnosticModal(e){
-  if(e && e.target && e.target !== e.currentTarget && !e.target.classList.contains('detail-close-btn')) return;
+  if(e && e.target){
+    var isCloseBtn = (e.target.closest && e.target.closest('.detail-close-btn')) || (e.target.classList && e.target.classList.contains('detail-close-btn'));
+    if(!isCloseBtn && !isStrictBackdropClick(e, document.getElementById('modal-download-diag'))) return;
+  }
   var modal = document.getElementById('modal-download-diag');
   if(modal) modal.classList.remove('active');
 }

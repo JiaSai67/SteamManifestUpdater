@@ -1,5 +1,11 @@
 /* 🌟 深色模式最高優先底色宣告（防止 HTML 解析與視窗渲染時閃白） */
 html.dark, html.dark body {
+  --bg: #1E1719;
+  --fg: #F0E6E8;
+  --white: #251D20;
+  --dark: #F0E6E8;
+  --gray: #A89B9E;
+  --border: rgba(255, 183, 197, 0.25);
   background: linear-gradient(135deg, #231C1E 0%, #2A2124 35%, #1E1719 70%, #251D20 100%) !important;
   color: #D5C8CC !important;
 }
@@ -11,7 +17,7 @@ html.dark .splash-overlay {
   background: linear-gradient(135deg, #231C1E 0%, #2A2124 35%, #1E1719 70%, #251D20 100%) !important;
 }
 
-:root{--pink:#FFB7C5;--pink-deep:#FF8FA7;--pink-light:#FFD1DC;--pink-pale:#FFF0F3;--white:#FFF;--dark:#3D2C2E;--gray:#9B8E8F;--err:#FF6B6B;--succ:#6ECB63;--card:rgba(255,255,255,0.15);--border:rgba(240,224,227,0.6);--font:'Microsoft YaHei',sans-serif;--r:12px;--rs:8px}
+:root{--bg:#FFFFFF;--fg:#3D2C2E;--pink:#FFB7C5;--pink-deep:#FF8FA7;--pink-light:#FFD1DC;--pink-pale:#FFF0F3;--white:#FFF;--dark:#3D2C2E;--gray:#9B8E8F;--err:#FF6B6B;--succ:#6ECB63;--card:rgba(255,255,255,0.15);--border:rgba(240,224,227,0.6);--font:'Microsoft YaHei',sans-serif;--r:12px;--rs:8px}
 html,body{margin:0;padding:0;overflow:hidden;background:linear-gradient(135deg,#FFE2E7 0%,#FFE9ED 30%,#FFD8DF 60%,#FFE2E7 100%)}body{font-family:var(--font);color:var(--dark);user-select:none;min-width:880px;min-height:580px}.app{display:flex;flex-direction:column;height:100vh;width:100vw;min-width:880px;min-height:580px;background:linear-gradient(135deg,#FFE2E7 0%,#FFE9ED 30%,#FFD8DF 60%,#FFE2E7 100%);background-size:cover;background-position:center;transform:translateZ(0);backface-visibility:hidden}.app.has-bg{position:relative}.app.has-bg::before{content:'';position:fixed;inset:0;background:transparent;pointer-events:none;z-index:0;display:none}.app::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opacity:0}.app.has-bg .titlebar,.app.has-bg .body-row{position:relative;z-index:1}.titlebar{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 4px 0 8px;flex-shrink:0;z-index:10;background:rgba(255,255,255,.45);user-select:none;cursor:default;transform:translateZ(0)}.titlebar .tt{font-size:11px;font-weight:600;color:var(--dark);pointer-events:none}.titlebar .btns{position:relative;z-index:60;display:flex;pointer-events:auto}.titlebar .btns button{width:34px;height:24px;border:none;background:transparent;border-radius:4px;font-size:10px;cursor:pointer;color:var(--dark);pointer-events:auto}.titlebar .btns button:hover{background:rgba(0,0,0,.08)}.titlebar .btns .bc:hover{background:var(--err);color:var(--white)}.body-row{display:flex;flex:1;overflow:hidden}
 .sidebar{width:48px;position:relative;z-index:100;display:flex;flex-direction:column;align-items:center;background:rgba(255,255,255,.45);border-right:1px solid var(--border);padding:10px 0;-webkit-app-region:no-drag;pointer-events:auto}
 .sidebar button{width:36px;height:36px;position:relative;z-index:101;border:none;border-radius:10px;font-size:18px;cursor:pointer;background:transparent;margin:2px 0;color:var(--dark);-webkit-app-region:no-drag;pointer-events:auto}
@@ -173,7 +179,83 @@ h2{font-size:20px;font-weight:700;margin-bottom:12px}
 .toast.in{background:rgba(38,30,34,.92);border:1px solid rgba(255,255,255,.18)}
 .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:100050;display:flex;align-items:center;justify-content:center}
 .modal.hidden, .hidden{display:none!important}
-.modal>div{background:var(--white);border-radius:var(--r);padding:20px;min-width:300px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.15);max-height:calc(100vh - 24px);min-height:0;overflow-y:auto}
+.modal>div, .modal-box {
+  background: var(--bg, #FFFFFF);
+  color: var(--fg, #3D2C2E);
+  border: 1.5px solid rgba(255, 183, 197, 0.6);
+  border-radius: var(--r);
+  padding: 20px;
+  min-width: 300px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,.15);
+  max-height: calc(100vh - 24px);
+  min-height: 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* 🌟 全域標準化 Modal 彈窗深色模式 (暗夜微光櫻花) */
+html.dark .modal>div, html.dark .modal-box,
+.app.dark .modal>div, .app.dark .modal-box {
+  background: rgba(35, 27, 31, 0.96) !important;
+  color: #F0E6E8 !important;
+  border: 1.5px solid rgba(255, 183, 197, 0.28) !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75), 0 0 1px rgba(255, 183, 197, 0.35) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+}
+
+html.dark .modal h3, html.dark .modal-box h3,
+.app.dark .modal h3, .app.dark .modal-box h3 {
+  color: #FFFFFF !important;
+  text-shadow: 0 0 12px rgba(255, 183, 197, 0.2);
+}
+
+html.dark .modal label, html.dark .modal-box label,
+.app.dark .modal label, .app.dark .modal-box label {
+  color: #E2D5D8 !important;
+}
+
+html.dark .modal p, html.dark .modal-box p,
+.app.dark .modal p, .app.dark .modal-box p {
+  color: #A89B9E !important;
+}
+
+/* 彈窗內部輸入框、下拉選單深色模式 */
+html.dark .modal input, html.dark .modal select, html.dark .modal textarea,
+.app.dark .modal input, .app.dark .modal select, .app.dark .modal textarea {
+  background: rgba(22, 17, 19, 0.85) !important;
+  color: #F5EEF0 !important;
+  border: 1.5px solid rgba(255, 183, 197, 0.32) !important;
+  box-sizing: border-box;
+}
+
+html.dark .modal input:focus, html.dark .modal select:focus, html.dark .modal textarea:focus,
+.app.dark .modal input:focus, .app.dark .modal select:focus, .app.dark .modal textarea:focus {
+  border-color: #FF8FA7 !important;
+  box-shadow: 0 0 0 3px rgba(255, 143, 167, 0.25) !important;
+}
+
+html.dark .modal select option,
+.app.dark .modal select option {
+  background: #231C1F !important;
+  color: #F5EEF0 !important;
+}
+
+html.dark .modal .btn-o, html.dark .modal-box .btn-o,
+.app.dark .modal .btn-o, .app.dark .modal-box .btn-o {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1.5px solid rgba(255, 183, 197, 0.3) !important;
+  color: #FFB7C5 !important;
+}
+
+html.dark .modal .btn-o:hover, html.dark .modal-box .btn-o:hover,
+.app.dark .modal .btn-o:hover, .app.dark .modal-box .btn-o:hover {
+  background: rgba(255, 183, 197, 0.18) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(255, 183, 197, 0.6) !important;
+}
+
 .modal h3{font-size:14px;margin-bottom:6px}
 .modal p{font-size:11px;color:var(--gray);margin-bottom:12px}
 .modal .btns{display:flex;gap:8px;justify-content:center}
@@ -4700,4 +4782,894 @@ body.font-normal .quota-chip {
   background: rgba(255, 102, 153, 0.2);
   border-color: rgba(255, 102, 153, 0.4);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-}
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/* 🌟 全域通用彈窗 (Modal) 與流光遮罩樣式 */
+/* ═══════════════════════════════════════════════════════ */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100080;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.modal.hidden {
+  display: none !important;
+}
+
+.modal.active {
+  display: flex !important;
+  animation: fadeInModal 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInModal {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal-box {
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  color: var(--dark);
+  box-sizing: border-box;
+}
+
+.app.dark .modal-box {
+  background: #281F22 !important;
+  border-color: rgba(255, 183, 197, 0.25) !important;
+  color: #F8EDEF !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65) !important;
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/* 🌸 SMU 無伺服器組隊大廳與聯機同步系統 (Party CSS) */
+/* ═══════════════════════════════════════════════════════ */
+
+/* 頂部個人狀態與配額列 */
+.party-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  margin-bottom: 14px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 18px rgba(61,44,46,0.06);
+}
+
+.party-profile-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.party-avatar-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255,183,197,0.4), rgba(255,143,167,0.3));
+  border: 1.5px solid var(--pink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(255,143,167,0.25);
+}
+
+.party-profile-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.party-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.party-nickname {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--dark);
+  letter-spacing: 0.3px;
+  user-select: text;
+}
+.app.dark .party-nickname {
+  color: #F0E6E8;
+}
+
+.party-btn-edit-name {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.7;
+  transition: opacity 0.2s, transform 0.15s;
+  padding: 2px 4px;
+  border-radius: 6px;
+  line-height: 1;
+}
+.party-btn-edit-name:hover {
+  opacity: 1;
+  transform: scale(1.15);
+  background: rgba(255, 143, 167, 0.15);
+}
+
+/* 行內編輯樣式 */
+.party-inline-input {
+  padding: 3px 8px;
+  border: 1.5px solid var(--pink);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+  background: var(--bg);
+  color: var(--fg);
+  width: 140px;
+  box-shadow: 0 0 0 2px rgba(255, 143, 167, 0.2);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+.party-inline-input:focus {
+  border-color: var(--pink-dark);
+  box-shadow: 0 0 0 3px rgba(255, 143, 167, 0.35);
+}
+.party-inline-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  transition: transform 0.15s, opacity 0.2s;
+  padding: 0;
+  line-height: 1;
+}
+.party-inline-btn:hover {
+  transform: scale(1.1);
+}
+.party-inline-btn.btn-save {
+  background: linear-gradient(135deg, var(--pink), var(--pink-dark));
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(255, 117, 140, 0.3);
+}
+.party-inline-btn.btn-cancel {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--gray);
+}
+.app.dark .party-inline-btn.btn-cancel {
+  background: rgba(255, 255, 255, 0.1);
+  color: #c0b0b8;
+}
+
+/* 雲端大廳配額徽章 */
+.party-quota-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: default;
+  transition: all 0.2s ease;
+}
+.app.dark .party-quota-badge {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.quota-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 6px currentColor;
+}
+.quota-dot.green {
+  background-color: #4CAF50;
+  color: #4CAF50;
+}
+.quota-dot.yellow {
+  background-color: #FFC107;
+  color: #FFC107;
+}
+.quota-dot.red {
+  background-color: #F44336;
+  color: #F44336;
+}
+
+.quota-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--dark);
+  opacity: 0.85;
+}
+.app.dark .quota-title {
+  color: #E2D9DB;
+}
+
+.quota-val {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray);
+}
+
+.party-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+#party-btn-refresh.refreshing {
+  opacity: 0.75;
+  cursor: wait;
+}
+#party-btn-refresh.refreshing span,
+#party-btn-refresh.refreshing {
+  animation: pulseColor 0.6s infinite alternate;
+}
+
+/* 工具列搜尋與快進 */
+.party-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.party-search-wrap {
+  flex: 1;
+  min-width: 240px;
+}
+.party-search-wrap input {
+  width: 100%;
+  padding: 9px 16px;
+  border: 1.5px solid var(--pink-light);
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-family: var(--font);
+  outline: none;
+  background: var(--card);
+  color: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.party-search-wrap input:focus {
+  border-color: var(--pink-deep);
+}
+
+.party-quick-join-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.party-quick-join-wrap input {
+  width: 160px;
+  padding: 9px 12px;
+  border: 1.5px solid var(--pink-light);
+  border-radius: 10px;
+  font-size: 12px;
+  font-family: Consolas, monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  outline: none;
+  background: var(--card);
+  color: inherit;
+  box-sizing: border-box;
+}
+.party-quick-join-wrap input:focus {
+  border-color: var(--pink-deep);
+}
+
+/* 大廳房間清單網格 (Lobby Grid) */
+.party-rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+  min-height: 200px;
+}
+
+.party-room-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 4px 16px rgba(61,44,46,0.06);
+}
+.party-room-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--pink);
+  box-shadow: 0 8px 24px rgba(255,143,167,0.18);
+}
+
+.party-card-cover-wrap {
+  width: 100%;
+  height: 110px;
+  position: relative;
+  background: rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.party-card-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+.party-room-card:hover .party-card-cover {
+  transform: scale(1.05);
+}
+
+.party-card-cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  background: linear-gradient(135deg, rgba(255,183,197,0.2), rgba(255,143,167,0.1));
+}
+
+.party-card-badge-id {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: Consolas, monospace;
+  letter-spacing: 0.5px;
+}
+
+.party-card-badge-players {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  color: #6ECB63;
+  font-size: 11px;
+  font-weight: 700;
+}
+.party-card-badge-players.full {
+  color: #FF6B6B;
+}
+
+.party-card-body {
+  padding: 12px 14px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.party-card-game-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app.dark .party-card-game-title {
+  color: #F2E8EB;
+}
+
+.party-card-host-row {
+  display: flex;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--gray);
+}
+.party-card-host-row .host-label {
+  font-weight: 600;
+}
+.party-card-host-row .host-name {
+  font-weight: 700;
+  color: var(--dark);
+  margin-left: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app.dark .party-card-host-row .host-name {
+  color: #E2D9DB;
+}
+.party-card-host-row .host-dc {
+  font-weight: 500;
+  color: #7289da;
+  font-size: 10.5px;
+  margin-left: 2px;
+}
+
+.party-room-card-note {
+  font-size: 11px;
+  color: var(--gray);
+  line-height: 1.35;
+  background: rgba(0, 0, 0, 0.03);
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.app.dark .party-room-card-note {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.party-card-footer {
+  padding: 8px 14px 12px;
+}
+
+.party-join-btn {
+  width: 100%;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.party-join-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(80%);
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/* 房間內部詳細檢視 (Party Room View) */
+/* ═══════════════════════════════════════════════════════ */
+.party-room-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.party-room-header-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 18px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(61,44,46,0.06);
+}
+
+.party-room-banner {
+  width: 140px;
+  height: 65px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.1);
+}
+.party-room-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.party-room-banner-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+.party-room-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.party-room-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.party-room-game-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--dark);
+}
+.app.dark .party-room-game-title {
+  color: #F8EDEF;
+}
+
+.party-room-appid-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--gray);
+  font-family: Consolas, monospace;
+}
+.app.dark .party-room-appid-badge {
+  background: rgba(255, 255, 255, 0.08);
+  color: #B2A6A9;
+}
+
+.party-room-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.party-room-code-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255,183,197,0.3), rgba(255,143,167,0.25));
+  border: 1px solid var(--pink);
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s;
+}
+.party-room-code-pill:hover {
+  transform: scale(1.04);
+  background: linear-gradient(135deg, rgba(255,183,197,0.45), rgba(255,143,167,0.4));
+}
+.party-room-code-pill .code-label {
+  font-size: 11px;
+  color: var(--dark);
+  font-weight: 600;
+}
+.party-room-code-pill .code-val {
+  font-size: 12px;
+  font-weight: 800;
+  font-family: Consolas, monospace;
+  color: var(--pink-deep);
+  letter-spacing: 1px;
+}
+.party-room-code-pill .copy-icon {
+  font-size: 11px;
+  margin-left: 2px;
+}
+
+.party-room-players-badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--dark);
+}
+.app.dark .party-room-players-badge {
+  color: #E2D9DB;
+}
+
+.party-room-role-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.party-room-role-badge.host {
+  background: rgba(255, 193, 7, 0.2);
+  color: #FFA000;
+  border: 1px solid rgba(255, 193, 7, 0.4);
+}
+.party-room-role-badge.member {
+  background: rgba(0, 188, 212, 0.18);
+  color: #0097A7;
+  border: 1px solid rgba(0, 188, 212, 0.35);
+}
+
+.party-room-note {
+  font-size: 11.5px;
+  color: var(--gray);
+  margin-top: 4px;
+}
+
+/* 全員就緒祝賀橫幅 */
+.party-all-ready-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(110,203,99,0.18), rgba(76,175,80,0.12));
+  border: 1.5px solid rgba(110,203,99,0.45);
+  box-shadow: 0 4px 16px rgba(110,203,99,0.15);
+  animation: pulseGreen 2.5s infinite;
+}
+@keyframes pulseGreen {
+  0%, 100% { box-shadow: 0 4px 16px rgba(110,203,99,0.15); }
+  50% { box-shadow: 0 4px 24px rgba(110,203,99,0.35); }
+}
+.party-all-ready-banner .banner-icon {
+  font-size: 26px;
+}
+.party-all-ready-banner .banner-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #2E7D32;
+}
+.app.dark .party-all-ready-banner .banner-title {
+  color: #81C784;
+}
+.party-all-ready-banner .banner-desc {
+  font-size: 11.5px;
+  color: var(--gray);
+  margin-top: 2px;
+}
+
+/* 成員清單區塊 */
+.party-members-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section-title-bar h3 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--dark);
+}
+.app.dark .section-title-bar h3 {
+  color: #EDE2E5;
+}
+.section-title-bar .section-subtext {
+  font-size: 11px;
+  color: var(--gray);
+}
+
+.party-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 成員卡片 (精準呈現指定格式) */
+.party-member-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+.party-member-card.is-me {
+  border-color: var(--pink-deep);
+  background: linear-gradient(135deg, rgba(255,183,197,0.15), rgba(255,255,255,0.05));
+  box-shadow: 0 2px 12px rgba(255,143,167,0.15);
+}
+
+.member-card-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+}
+
+.member-avatar-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.app.dark .member-avatar-wrap {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.member-info-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 第 1 行：'name' ('discord name') */
+.member-identity-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.member-primary-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--dark);
+}
+.app.dark .member-primary-name {
+  color: #F8EDEF;
+}
+
+.member-discord-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7289da;
+}
+
+.member-badge-host {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 193, 7, 0.2);
+  color: #FFA000;
+}
+
+.member-badge-me {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--pink-deep);
+  color: #fff;
+}
+
+/* 第 2 行：'下載狀況(未下載/下載中： xx%/就緒)' */
+.member-status-row {
+  display: flex;
+  align-items: center;
+}
+
+.member-status-text {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.member-status-text.status-ready {
+  color: #4CAF50;
+}
+.member-status-text.status-downloading {
+  color: var(--pink-deep);
+  animation: pulseColor 1.5s infinite;
+}
+.member-status-text.status-not-downloaded {
+  color: var(--gray);
+}
+@keyframes pulseColor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.member-card-right {
+  display: flex;
+  align-items: center;
+  min-width: 140px;
+}
+
+.member-progress-outer {
+  width: 100%;
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  position: relative;
+}
+.app.dark .member-progress-outer {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.member-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--pink), var(--pink-deep));
+  border-radius: 99px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 8px rgba(255,143,167,0.5);
+}
+.member-progress-bar.ready {
+  background: linear-gradient(90deg, #81C784, #4CAF50);
+  box-shadow: 0 0 8px rgba(76,175,80,0.5);
+}
+
+/* 底部操作條 */
+.party-bottom-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+  margin-top: 4px;
+}
+
+.party-my-sync-status-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.my-status-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray);
+}
+
+.my-status-badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+.my-status-badge.ready {
+  background: rgba(76, 175, 80, 0.18);
+  color: #388E3C;
+}
+.app.dark .my-status-badge.ready {
+  color: #81C784;
+}
+.my-status-badge.downloading {
+  background: rgba(255, 143, 167, 0.2);
+  color: var(--pink-deep);
+}
+.my-status-badge.not_downloaded {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--gray);
+}
+.app.dark .my-status-badge.not_downloaded {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.party-sync-btn-wrap button {
+  padding: 10px 22px;
+  font-size: 13.5px;
+  font-weight: 700;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(255,102,153,0.3);
+}
+

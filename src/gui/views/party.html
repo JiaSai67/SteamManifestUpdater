@@ -1,0 +1,188 @@
+<!-- 📄 View: party.html - 🌸 SMU 無伺服器邊緣組隊大廳與聯機同步 -->
+<div class="page" id="p-party">
+  <!-- 頂部個人狀態與雲端配額橫幅 -->
+  <div class="party-header-bar">
+    <div class="party-profile-pill">
+      <div class="party-avatar-icon">🎮</div>
+      <div class="party-profile-info">
+        <!-- 顯示模式 -->
+        <div class="party-name-row" id="party-name-display-wrap">
+          <span class="party-nickname" id="party-my-name">載入中…</span>
+          <button class="party-btn-edit-name" id="party-btn-edit-name" onclick="startInlineEditName()" title="點擊直接修改暱稱">✏️</button>
+        </div>
+        <!-- 行內編輯模式 (預設隱藏) -->
+        <div class="party-name-row" id="party-name-edit-wrap" style="display:none">
+          <input type="text" id="input-inline-nickname" class="party-inline-input" maxlength="24" placeholder="輸入組隊暱稱…" onkeydown="handleInlineNicknameKey(event)">
+          <button class="party-inline-btn btn-save" onclick="saveInlineNickname()" title="儲存 (Enter)">✓</button>
+          <button class="party-inline-btn btn-cancel" onclick="cancelInlineEditName()" title="取消 (Esc)">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 雲端大廳配額監控徽章 -->
+    <div class="party-quota-badge" id="party-quota-badge" title="Supabase 全球高速雲端資料庫 (高可用叢集 · 充沛)">
+      <span class="quota-dot green"></span>
+      <span class="quota-title">雲端大廳</span>
+      <span class="quota-val" id="party-quota-text">Supabase · 充沛</span>
+    </div>
+
+    <div class="party-header-actions">
+      <button class="btn btn-p btn-s" onclick="openCreateRoomModal()">➕ 創建房間</button>
+      <button class="btn btn-o btn-s" id="party-btn-refresh" onclick="refreshPartyLobby(true)" title="立即刷新大廳">🔄 刷新</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- 視圖 A：全網公開組隊大廳 (當未進入任何房間時顯示) -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="party-lobby-view" class="party-subview active">
+    <!-- 搜尋與快速加入條 -->
+    <div class="party-toolbar-row">
+      <div class="party-search-wrap">
+        <input type="text" id="party-search-input" placeholder="🔍 搜尋遊戲名稱、房號或房主..." oninput="onPartySearchInput()">
+      </div>
+      <div class="party-quick-join-wrap">
+        <input type="text" id="party-quick-code" maxlength="8" placeholder="輸入 6 碼私密房號…" onkeyup="if(event.key==='Enter') quickJoinPartyRoom()">
+        <button class="btn btn-p btn-s" onclick="quickJoinPartyRoom()">加入房間</button>
+      </div>
+    </div>
+
+    <!-- 房間清單容器 -->
+    <div id="party-rooms-container" class="party-rooms-grid">
+      <!-- 動態填充房間卡片 -->
+      <div class="empty party-loading-empty">
+        <div class="icon">🌸</div>
+        <p>正在同步全網組隊大廳房間清單…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- 視圖 B：房間內部詳細檢視 (當已在房間內時顯示) -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="party-room-view" class="party-subview" style="display:none">
+    <div class="party-room-container">
+      <!-- 頂部房間頭部資訊 -->
+      <div class="party-room-header-card">
+        <div class="party-room-banner" id="party-room-cover-wrap">
+          <img id="party-room-cover-img" src="" alt="遊戲封面" style="display:none">
+          <div class="party-room-banner-placeholder" id="party-room-cover-placeholder">🎮</div>
+        </div>
+        <div class="party-room-info">
+          <div class="party-room-title-row">
+            <h2 id="party-room-game-title" class="party-room-game-title">雙人成行 (It Takes Two)</h2>
+            <span class="party-room-appid-badge" id="party-room-appid-badge">AppID: 1426210</span>
+          </div>
+          <div class="party-room-meta-row">
+            <div class="party-room-code-pill" onclick="copyPartyRoomCode()" title="點擊複製房號分享給隊友">
+              <span class="code-label">房號：</span>
+              <span class="code-val" id="party-room-code-val">ABC123</span>
+              <span class="copy-icon">📋</span>
+            </div>
+            <span class="party-room-players-badge" id="party-room-players-val">👥 1 / 4 人</span>
+            <span class="party-room-role-badge" id="party-room-role-val">房主</span>
+          </div>
+          <div class="party-room-note" id="party-room-note-val" style="display:none"></div>
+        </div>
+        <div class="party-room-ctrl-btns">
+          <button class="btn btn-danger btn-s" id="party-btn-leave-or-close" onclick="leaveOrCloseCurrentRoom()">🚪 退出房間</button>
+        </div>
+      </div>
+
+      <!-- 全員就緒提示橫幅 -->
+      <div id="party-all-ready-banner" class="party-all-ready-banner" style="display:none">
+        <div class="banner-icon">🎉</div>
+        <div class="banner-content">
+          <div class="banner-title">全員就緒！隨時可以開玩</div>
+          <div class="banner-desc">所有成員的遊戲與聯機環境已全部配置完成，祝連線愉快！</div>
+        </div>
+      </div>
+
+      <!-- 成員名單區塊 (嚴格遵循 'name' ('discord name') / '下載狀況(...)' 格式) -->
+      <div class="party-members-section">
+        <div class="section-title-bar">
+          <h3>👥 房間隊伍成員</h3>
+          <span class="section-subtext">成員下載狀態每 3 秒自動即時同步</span>
+        </div>
+
+        <div id="party-members-list" class="party-members-list">
+          <!-- 動態填充成員清單卡片 -->
+        </div>
+      </div>
+
+      <!-- 底部快捷動作工具列 -->
+      <div class="party-bottom-action-bar">
+        <div class="party-my-sync-status-wrap">
+          <span class="my-status-label">我的本機狀態：</span>
+          <span class="my-status-badge" id="party-my-status-badge">未下載</span>
+        </div>
+        <div class="party-sync-btn-wrap">
+          <button class="btn btn-p" id="party-btn-start-sync" onclick="startSyncCurrentGameInstall()">
+            ⚡ 一鍵同步遊戲聯機環境
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- 彈窗：創建房間 Modal -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="modal hidden" id="modal-create-party-room" onclick="if(isStrictBackdropClick(event, this))closeCreateRoomModal()">
+  <div class="modal-box" style="max-width:480px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h3 style="margin:0;font-size:15px;color:var(--fg)">➕ 創建組隊房間</h3>
+      <button class="btn btn-o btn-xs" onclick="closeCreateRoomModal()" style="border-radius:50%;width:28px;height:28px;padding:0">✕</button>
+    </div>
+    
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px;color:var(--fg)">快速挑選已入庫遊戲：</label>
+      <select id="select-party-installed-games" onchange="onSelectInstalledGameChange()" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);outline:none">
+        <option value="">-- 手動輸入遊戲名稱與 AppID --</option>
+      </select>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <div style="flex:2">
+        <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">遊戲名稱：</label>
+        <input type="text" id="input-party-gamename" placeholder="例如：雙人成行 (It Takes Two)" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
+      </div>
+      <div style="flex:1">
+        <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">AppID：</label>
+        <input type="text" id="input-party-appid" placeholder="例如：1426210" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <div style="flex:1">
+        <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">人數上限：</label>
+        <select id="select-party-max-players" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);outline:none">
+          <option value="2">2 人房 (雙人成行/雙人探險)</option>
+          <option value="4" selected>4 人房 (經典四人派對)</option>
+          <option value="6">6 人房</option>
+          <option value="8">8 人房 (大型組隊)</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">大廳能見度：</label>
+        <select id="select-party-is-public" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);outline:none">
+          <option value="1" selected>🌐 公開 (顯示於全網大廳)</option>
+          <option value="0">🔒 私密 (僅限 6 碼房號加入)</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">房間備註 / 招募宣言 (選填)：</label>
+      <input type="text" id="input-party-note" placeholder="例如：新手開荒 / 語音隨意 / 缺 1 人即開" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-o btn-s" onclick="closeCreateRoomModal()">取消</button>
+      <button class="btn btn-p btn-s" onclick="submitCreatePartyRoom()">立即開房</button>
+    </div>
+  </div>
+</div>

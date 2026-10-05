@@ -856,4 +856,60 @@ async function prefetch(p){
   }
 }
 
+// ═══════════════════════════════════════════════════════
+// 全域彈窗背景點擊防誤觸安全機制 (按下 and 彈起均在背景空白處才關閉)
+// 徹底防止反白拖曳選取文字時，滑鼠移至小卡外放開導致視窗誤關閉
+// ═══════════════════════════════════════════════════════
+var _lastMouseDownTarget = null;
+document.addEventListener('mousedown', function(e) {
+  _lastMouseDownTarget = e.target;
+}, true);
+
+/**
+ * 判定是否為合格且完整的「空白背景點擊」關閉事件
+ * 嚴格校驗：滑鼠按下 (mousedown) 與 彈起 (mouseup/click) 必須均在背景容器元素本身上！
+ * 若是在小卡、輸入框等子元素內按下，拖曳至小卡外放開，則絕對不予觸發關閉！
+ *
+ * @param {Event} e - 點擊事件對象 (click event)
+ * @param {HTMLElement} [container] - 預期的背景容器元素 (若不傳則預設為 e.currentTarget 或 e.target)
+ * @returns {boolean} 是否為完整合法的背景點擊
+ */
+function isStrictBackdropClick(e, container) {
+  if (!e) return false;
+  var modal = container || e.currentTarget || e.target;
+  if (!modal) return false;
+  var isClickOnModal = (e.target === modal);
+  var isMouseDownOnModal = (_lastMouseDownTarget === modal);
+  return isClickOnModal && isMouseDownOnModal;
+}
+
+/**
+ * 為指定的彈窗元素綁定嚴格背景點擊關閉事件
+ * @param {HTMLElement|string} modalOrId 
+ * @param {Function} closeFn 
+ */
+function bindBackdropClickClose(modalOrId, closeFn) {
+  var modal = typeof modalOrId === 'string' ? document.getElementById(modalOrId) : modalOrId;
+  if (!modal || typeof closeFn !== 'function') return;
+
+  var isPressingBackdrop = false;
+  modal.addEventListener('mousedown', function(e) {
+    isPressingBackdrop = (e.target === modal);
+  });
+
+  modal.addEventListener('mouseup', function(e) {
+    if (!isPressingBackdrop || e.target !== modal) {
+      isPressingBackdrop = false;
+    }
+  });
+
+  modal.addEventListener('click', function(e) {
+    if (isPressingBackdrop && e.target === modal && _lastMouseDownTarget === modal) {
+      closeFn(e);
+    }
+    isPressingBackdrop = false;
+  });
+}
+
+
 

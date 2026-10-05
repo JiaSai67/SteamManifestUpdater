@@ -264,8 +264,9 @@ async function openHealthLogModal(filename){
  * 關閉日誌彈窗
  */
 function closeHealthLogModal(e){
-  if(e && e.target && !e.target.classList.contains('detail-modal-overlay') && !e.target.classList.contains('detail-close-btn')){
-    return;
+  if(e && e.target){
+    var isCloseBtn = (e.target.closest && e.target.closest('.detail-close-btn')) || (e.target.classList && e.target.classList.contains('detail-close-btn'));
+    if(!isCloseBtn && !isStrictBackdropClick(e, document.getElementById('health-log-modal'))) return;
   }
   var modal = document.getElementById('health-log-modal');
   if(modal) modal.classList.remove('active');
