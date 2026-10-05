@@ -62,6 +62,9 @@ function imgFb(img, appid, title){
 function tt(msg, type, duration){
   var e=document.getElementById('toast');
   if(!e) return;
+  if(e.parentNode !== document.body || document.body.lastElementChild !== e){
+    try { document.body.appendChild(e); } catch(err){}
+  }
   e.textContent=msg;
   e.className='toast '+(type||'in')+' show';
   clearTimeout(e._t);

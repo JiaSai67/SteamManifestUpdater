@@ -171,7 +171,7 @@ h2{font-size:20px;font-weight:700;margin-bottom:12px}
 .about-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 15px;margin-bottom:10px}
 .about-card h4{font-size:13px;font-weight:700;margin-bottom:4px}
 .about-card p{font-size:11px;color:var(--gray);line-height:1.6}
-.toast{position:fixed;bottom:24px;right:24px;left:auto;top:auto;padding:11px 20px;border-radius:12px;font-size:12px;font-weight:600;color:var(--white);z-index:200000;opacity:0;pointer-events:none;transform:translateY(16px) scale(0.95);transition:all .28s cubic-bezier(0.16,1,0.3,1);max-width:380px;text-align:left;box-shadow:0 8px 28px rgba(0,0,0,.35);line-height:1.5;word-break:break-word;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.toast{position:fixed;bottom:24px;right:24px;left:auto;top:auto;padding:11px 20px;border-radius:12px;font-size:12px;font-weight:600;color:var(--white);z-index:9999999!important;opacity:0;pointer-events:none;transform:translateY(16px) scale(0.95);transition:all .28s cubic-bezier(0.16,1,0.3,1);max-width:380px;text-align:left;box-shadow:0 8px 28px rgba(0,0,0,.35);line-height:1.5;word-break:break-word;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .toast.show{opacity:1;pointer-events:auto;transform:translateY(0) scale(1)}
 .toast.ok{background:rgba(46,125,50,.92);border:1px solid rgba(129,199,132,.4)}
 .toast.er{background:rgba(198,40,40,.92);border:1px solid rgba(239,154,154,.4)}

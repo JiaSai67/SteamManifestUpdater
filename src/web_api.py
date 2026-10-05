@@ -4633,6 +4633,90 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 
+    def launch_chrome_with_gas_extension(self) -> Dict[str, Any]:
+        """
+        自動啟動 Chrome 瀏覽器並加載專屬 GAS 動態高亮導引擴充套件，直接進入 script.google.com/home
+        """
+        try:
+            import os
+            import subprocess
+            import shutil
+            import winreg
+            import webbrowser
+            import psutil
+            from pathlib import Path
+
+            # 1. 檢查 Chrome 目前是否已在運行
+            chrome_running = False
+            try:
+                chrome_running = any(p.name().lower() == "chrome.exe" for p in psutil.process_iter(['name']))
+            except Exception:
+                pass
+
+            # 2. 自動探測 Windows Chrome 執行檔路徑
+            chrome_candidates = [
+                os.path.join(os.environ.get("ProgramFiles", ""), "Google", "Chrome", "Application", "chrome.exe"),
+                os.path.join(os.environ.get("ProgramFiles(x86)", ""), "Google", "Chrome", "Application", "chrome.exe"),
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "Google", "Chrome", "Application", "chrome.exe"),
+            ]
+            
+            try:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe") as key:
+                    reg_val, _ = winreg.QueryValueEx(key, "")
+                    if reg_val and os.path.exists(reg_val):
+                        chrome_candidates.insert(0, reg_val)
+            except Exception:
+                pass
+
+            chrome_path = None
+            for p in chrome_candidates:
+                if p and os.path.exists(p):
+                    chrome_path = p
+                    break
+
+            if not chrome_path:
+                chrome_path = shutil.which("chrome") or shutil.which("google-chrome")
+
+            # 3. 定位擴充套件資料夾 (絕對路徑)
+            ext_dir = Path(__file__).resolve().parent / "browser_extension"
+            target_url = "https://script.google.com/home"
+
+            # 4. 自動預先複製 GAS 範本腳本至剪貼簿
+            try:
+                from managers.gas_manager import get_gas_manager
+                sample_code = get_gas_manager().get_sample_script()
+                if sample_code:
+                    self.copy_text(sample_code)
+            except Exception:
+                pass
+
+            # 5. 啟動瀏覽器
+            if chrome_path and ext_dir.exists():
+                cmd = [
+                    chrome_path,
+                    f"--load-extension={str(ext_dir.resolve())}",
+                    target_url
+                ]
+                subprocess.Popen(cmd)
+                return {
+                    "ok": True,
+                    "browser": "chrome",
+                    "path": chrome_path,
+                    "ext_dir": str(ext_dir.resolve()),
+                    "chrome_running": chrome_running,
+                    "msg": "已為您啟動 Chrome 並載入高亮導引精靈！"
+                }
+            else:
+                webbrowser.open(target_url)
+                return {
+                    "ok": True,
+                    "browser": "default",
+                    "chrome_running": chrome_running,
+                    "msg": "未檢測到 Chrome，已使用系統預設瀏覽器開啟 Google Apps Script 首頁"
+                }
+        except Exception as e:
+            return {"ok": False, "msg": f"啟動瀏覽器失敗: {e}"}
+
     def prepare_party_package_upload(self, app_id: str, gas_url: str = "") -> Dict[str, Any]:
         """
         階段一：本地三檔檢查、打包並上傳至 Google Drive，確保取得下載網址

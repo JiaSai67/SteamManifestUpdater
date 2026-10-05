@@ -1058,6 +1058,28 @@ function openGasHelpGuide() {
   }
 }
 
+function launchChromeInPageGuide() {
+  tt('🌸 正在為您啟動 Chrome 瀏覽器並載入高亮導引…', 'info', 3500);
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.launch_chrome_with_gas_extension) {
+    pywebview.api.launch_chrome_with_gas_extension().then(function(res) {
+      if (res && res.ok) {
+        if (res.chrome_running) {
+          tt('🌟 已在 Chrome 中為您開啟 Google Apps Script！範本腳本已為您自動複製，抵達編輯器直接 Ctrl+V 貼上即可！', 'ok', 7000);
+        } else {
+          tt('🌟 Chrome 已啟動並載入導引精靈！請查看網頁中紅色動態高亮閃爍的「➕ 新專案」！', 'ok', 7000);
+        }
+      } else {
+        tt(res && res.msg ? res.msg : '啟動失敗，請確認是否安裝 Chrome 瀏覽器', 'err');
+      }
+    }).catch(function(err) {
+      tt('啟動請求異常: ' + err, 'err');
+    });
+  } else {
+    window.open('https://script.google.com/home', '_blank');
+    tt('🌐 已為您開啟 Google Apps Script 首頁', 'ok');
+  }
+}
+
 function copyInPageGuideScript() {
   var inlineCode = `(function(){` +
     `var newProj=Array.from(document.querySelectorAll('button, div[role="button"], a')).find(function(el){var t=(el.innerText||el.textContent||'').trim();return(t.indexOf('新專案')!==-1||t.indexOf('New project')!==-1||t.indexOf('建立 APPS SCRIPT')!==-1)&&el.offsetParent!==null;});` +
