@@ -4633,6 +4633,20 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 
+    def send_party_contact_info(self, room_id: str, contact_info: str) -> Dict[str, Any]:
+        """房主發布組隊完成聯絡資訊 (如 Discord 房號)，並排程 30 秒後銷毀房間"""
+        try:
+            return self._get_party_manager().send_room_contact_info(room_id, contact_info)
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def get_party_contact_info(self, room_id: str = "") -> Dict[str, Any]:
+        """隊員獲取房主發布的房間聯絡資訊 (極輕量輪詢)"""
+        try:
+            return self._get_party_manager().get_room_contact_info(room_id)
+        except Exception as e:
+            return {"ok": False, "has_contact": False, "msg": str(e)}
+
     def inspect_party_resources(self, app_id: str) -> Dict[str, Any]:
         """檢測指定遊戲本地 Manifest, Lua 與線上補丁三檔就緒狀況"""
         try:

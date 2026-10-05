@@ -74,6 +74,8 @@ class PartyManager:
         self.my_steam_installed: bool = False  # Steam 本體安裝狀態
         self.my_deploy_status: str = "pending"  # pending / downloading / deploying / success / failed
         self.my_deploy_error: str = ""  # 部署失敗異常細節
+        self.my_version_status: str = "最新"  # 遊戲 Manifest 版本狀態 (最新 / 舊 1 版 / 未安裝)
+        self._auto_close_timer: Optional[threading.Timer] = None
         self.current_gas_file_id: Optional[str] = None
         self.current_gas_url: Optional[str] = None
 
@@ -285,7 +287,8 @@ class PartyManager:
                     str(m.get("updated_at", "")),
                     1 if m.get("steam_installed", False) else 0,  # 🌟 欄位 7: Steam 遊戲本體安裝狀態
                     str(m.get("deploy_status", "pending")),       # 🌟 欄位 8: 最終部署狀態 (pending/deploying/success/failed)
-                    str(m.get("deploy_error", ""))                # 🌟 欄位 9: 部署異常原因或報錯細節
+                    str(m.get("deploy_error", "")),               # 🌟 欄位 9: 部署異常原因或報錯細節
+                    str(m.get("version_status", "最新"))          # 🌟 欄位 10: Manifest 版本一致性狀態 (最新 / 舊 1 版 / 未安裝)
                 ])
             token = compress_and_encrypt(compact_list, secret=_PARTY_COMPACT_SECRET)
             if token:
@@ -319,7 +322,8 @@ class PartyManager:
                                 "updated_at": str(item[6]) if len(item) > 6 else "",
                                 "steam_installed": bool(item[7]) if len(item) > 7 else False,
                                 "deploy_status": str(item[8]) if len(item) > 8 else ("success" if str(item[2]) == "就緒" else "pending"),
-                                "deploy_error": str(item[9]) if len(item) > 9 else ""
+                                "deploy_error": str(item[9]) if len(item) > 9 else "",
+                                "version_status": str(item[10]) if len(item) > 10 else "最新"
                             })
                         elif isinstance(item, dict):
                             expanded.append(item)
@@ -682,6 +686,9 @@ class PartyManager:
         self.my_progress = 100
 
         now_str = self._now_iso()
+        host_v_status = self._detect_game_version_status(app_id)
+        self.my_version_status = host_v_status
+
         host_member = {
             "id": self.client_id,
             "name": self.nickname,
@@ -692,6 +699,7 @@ class PartyManager:
             "steam_installed": True,
             "deploy_status": "success",
             "deploy_error": "",
+            "version_status": host_v_status,
             "updated_at": now_str
         }
 
@@ -790,6 +798,7 @@ class PartyManager:
                 m["steam_installed"] = True
                 m["deploy_status"] = "success"
                 m["deploy_error"] = ""
+                m["version_status"] = self.my_version_status
                 fresh_members.append(m)
             elif not self._is_expired(m.get("updated_at"), max_seconds=35):
                 # 隊員在 35 秒內有呼吸心跳，完整保留其即時回報的下載狀態與部署結果
@@ -909,18 +918,53 @@ class PartyManager:
         except Exception as e:
             return {"ok": False, "msg": f"加入房間連線失敗: {e}"}
 
+    def _detect_game_version_status(self, appid: Optional[str]) -> str:
+        """
+        探測本地某遊戲的 Manifest 版本狀態：
+        1. 優先從 data/manifest_updates.json 讀取快取 (0ms 延遲)
+        2. 若無快取，透過 version_resolver 進行極速比對
+        3. 回傳 '最新'、'舊 1 版'、'舊 2 版'，若未安裝回傳 '未安裝'
+        """
+        if not appid:
+            return "未知"
+        appid_str = str(appid).strip()
+        try:
+            updates_file = os.path.join(self.root_dir, "data", "manifest_updates.json")
+            if os.path.exists(updates_file):
+                try:
+                    with open(updates_file, "r", encoding="utf-8") as f:
+                        cached = json.load(f)
+                        if appid_str in cached and cached[appid_str].get("version_status"):
+                            return cached[appid_str].get("version_status")
+                except Exception:
+                    pass
+
+            # 備援：透過 version_resolver 進行極速比對
+            try:
+                from managers import version_resolver
+                diff_res = version_resolver.resolve_manifest_version_diff(appid_str, timeout=3)
+                if diff_res and diff_res.get("version_status"):
+                    return diff_res.get("version_status")
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug(f"[PARTY] 探測遊戲版本異常: {e}")
+        return "最新"
+
     def _detect_initial_status(self, appid: Optional[str]):
         """
         深度檢測本地遊戲狀態：
         1. steam_installed: Steam 遊戲本體是否已安裝或已就緒
         2. deploy_status: 線上聯機補丁是否已部署 (pending / downloading / success / failed)
         3. deploy_error: 部署失敗原因
+        4. version_status: 遊戲 Manifest 版本狀態 (最新 / 舊 x 版 / 未安裝)
         """
         self.my_status = "未下載"
         self.my_progress = 0
         self.my_steam_installed = False
         self.my_deploy_status = "pending"
         self.my_deploy_error = ""
+        self.my_version_status = "未安裝"
         if not appid:
             return
 
@@ -956,9 +1000,14 @@ class PartyManager:
                     self.my_deploy_error = ""
                     self.my_status = "就緒"
                     self.my_progress = 100
-                    return
             except Exception:
                 pass
+
+            # 3. 探測 Manifest 版本一致性狀態
+            if self.my_steam_installed:
+                self.my_version_status = self._detect_game_version_status(appid_str)
+            else:
+                self.my_version_status = "未安裝"
 
         except Exception as e:
             logger.warning(f"檢測本地遊戲狀態出錯: {e}")
@@ -969,7 +1018,8 @@ class PartyManager:
         progress: int,
         steam_installed: Optional[bool] = None,
         deploy_status: Optional[str] = None,
-        deploy_error: Optional[str] = None
+        deploy_error: Optional[str] = None,
+        version_status: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         隊員更新下載與部署狀態：
@@ -977,6 +1027,7 @@ class PartyManager:
         - steam_installed: Steam 遊戲本體是否已安裝
         - deploy_status: 'pending' | 'downloading' | 'deploying' | 'success' | 'failed'
         - deploy_error: 若部署失敗，記錄具體異常原因
+        - version_status: 遊戲版本狀態 (最新 / 舊 x 版 / 未安裝)
         """
         if steam_installed is not None:
             self.my_steam_installed = steam_installed
@@ -984,6 +1035,8 @@ class PartyManager:
             self.my_deploy_status = deploy_status
         if deploy_error is not None:
             self.my_deploy_error = deploy_error
+        if version_status is not None:
+            self.my_version_status = version_status
 
         if status in ["ready", "就緒"]:
             self.my_status = "就緒"
@@ -1004,7 +1057,7 @@ class PartyManager:
         return self._send_member_sync(action="update")
 
     def _send_member_sync(self, action: str = "update") -> Dict[str, Any]:
-        """向 Supabase 同步隊員狀態、心跳或離開 (包含 steam_installed 與 deploy_status)"""
+        """向 Supabase 同步隊員狀態、心跳或離開 (包含 steam_installed, deploy_status, version_status)"""
         if not self.current_room_id:
             return {"ok": False, "msg": "不在房間中"}
 
@@ -1037,6 +1090,7 @@ class PartyManager:
                         m["steam_installed"] = self.my_steam_installed
                         m["deploy_status"] = self.my_deploy_status
                         m["deploy_error"] = self.my_deploy_error
+                        m["version_status"] = self.my_version_status
                         m["updated_at"] = now_str
                         found = True
                         break
@@ -1050,6 +1104,7 @@ class PartyManager:
                         "steam_installed": self.my_steam_installed,
                         "deploy_status": self.my_deploy_status,
                         "deploy_error": self.my_deploy_error,
+                        "version_status": self.my_version_status,
                         "is_host": self.is_host,
                         "updated_at": now_str
                     })
@@ -1098,6 +1153,12 @@ class PartyManager:
         """清理本地房間標識並停止背景線程"""
         with self._heartbeat_lock:
             self._stop_heartbeat_event.set()
+            if self._auto_close_timer:
+                try:
+                    self._auto_close_timer.cancel()
+                except Exception:
+                    pass
+                self._auto_close_timer = None
             self.current_room_id = None
             self.is_host = False
             self.current_room_data = None
@@ -1106,8 +1167,111 @@ class PartyManager:
             self.my_steam_installed = False
             self.my_deploy_status = "pending"
             self.my_deploy_error = ""
+            self.my_version_status = "最新"
             self.current_gas_file_id = None
             self.current_gas_url = None
+
+    def send_room_contact_info(self, room_id: str, contact_info: str) -> Dict[str, Any]:
+        """
+        房主提交房間聯絡資訊 (如 Discord 頻道、房號等)：
+        1. 將聯絡資訊寫入房間 note 欄位 (前綴 [CONTACT]:)
+        2. 將房間 status 更新為 'completed' (已完成組隊)
+        3. 啟動 30 秒自動銷毀計時器，30 秒後自動解散房間並清理雲端檔案
+        """
+        rid = room_id or self.current_room_id
+        if not self.current_room_id or self.current_room_id != rid:
+            return {"ok": False, "msg": "不在該房間中"}
+        if not self.is_host:
+            return {"ok": False, "msg": "僅房主可提供聯絡資訊"}
+
+        contact_text = str(contact_info or "").strip()
+        if not contact_text:
+            contact_text = f"+dc: {self.get_current_discord_name() or self.nickname}"
+
+        now_str = self._now_iso()
+        note_content = f"[CONTACT]:{contact_text}"
+
+        self._inc_quota()
+        try:
+            patch_url = f"{self.rest_endpoint}?room_id=eq.{rid}"
+            resp = self.session.patch(patch_url, json={
+                "status": "completed",
+                "note": note_content,
+                "updated_at": now_str
+            }, timeout=6)
+            if resp.status_code == 200:
+                logger.info(f"[PARTY] 房主已發布房間 #{rid} 聯絡資訊: {contact_text}，將於 30 秒後自動解散房間")
+
+                # 啟動 30 秒後自動解散房間排程
+                if self._auto_close_timer:
+                    self._auto_close_timer.cancel()
+                self._auto_close_timer = threading.Timer(30.0, self._auto_close_room_after_contact, args=[rid])
+                self._auto_close_timer.daemon = True
+                self._auto_close_timer.start()
+
+                return {
+                    "ok": True,
+                    "msg": "聯絡資訊已發布，房間將於 30 秒後自動關閉",
+                    "contact_info": contact_text,
+                    "expire_in": 30
+                }
+            else:
+                return {"ok": False, "msg": f"發送失敗: HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"ok": False, "msg": f"連線異常: {e}"}
+
+    def _auto_close_room_after_contact(self, room_id: str):
+        """30 秒保存期滿，自動銷毀房間"""
+        try:
+            if self.current_room_id == room_id and self.is_host:
+                logger.info(f"[PARTY] 房間 #{room_id} 聯絡資訊已保存 30 秒，自動解散並銷毀雲端紀錄")
+                self.close_room()
+        except Exception as e:
+            logger.warning(f"自動解散房間異常: {e}")
+
+    def get_room_contact_info(self, room_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        隊員獲取房主發布的聯絡資訊 (極輕量查詢 select=room_id,status,note,updated_at)
+        """
+        rid = room_id or self.current_room_id
+        if not rid:
+            return {"ok": False, "has_contact": False, "msg": "無房號"}
+
+        try:
+            query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select=room_id,status,note,updated_at"
+            resp = self.session.get(query_url, timeout=4)
+            if resp.status_code == 200:
+                rows = resp.json()
+                if not rows:
+                    return {"ok": False, "has_contact": False, "is_closed": True, "msg": "房間已關閉"}
+                r = rows[0]
+                note = str(r.get("note") or "")
+                status = str(r.get("status") or "")
+
+                if note.startswith("[CONTACT]:"):
+                    contact = note[len("[CONTACT]:"):].strip()
+                    return {
+                        "ok": True,
+                        "has_contact": True,
+                        "contact_info": contact,
+                        "status": status
+                    }
+                elif status == "completed" and note:
+                    return {
+                        "ok": True,
+                        "has_contact": True,
+                        "contact_info": note,
+                        "status": status
+                    }
+                return {
+                    "ok": True,
+                    "has_contact": False,
+                    "status": status
+                }
+            else:
+                return {"ok": False, "has_contact": False, "msg": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"ok": False, "has_contact": False, "msg": str(e)}
 
     # ═════════════════════════════════════════════════════════════════════
     # 心跳維持線程 (Daemon)

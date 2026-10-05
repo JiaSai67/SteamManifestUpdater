@@ -19,7 +19,33 @@ var _partyPollTimer = null;
 var _isPartyActive = false;
 
 var _partySearchKeyword = '';
+var _partyCountdownTimer = null;
+var _partyCountdownSeconds = 30;
+var _partyContactSubmitted = false;
+var _partyContactPollingTimer = null;
+var _partyReceivedContact = '';
+var _partyPostDestructTimer = null;
+var _partyDestructSeconds = 30;
+var _partyContactInputText = '';
 
+function resetPartyReadyCountdown() {
+  if (_partyCountdownTimer) {
+    clearInterval(_partyCountdownTimer);
+    _partyCountdownTimer = null;
+  }
+  if (_partyContactPollingTimer) {
+    clearInterval(_partyContactPollingTimer);
+    _partyContactPollingTimer = null;
+  }
+  if (_partyPostDestructTimer) {
+    clearInterval(_partyPostDestructTimer);
+    _partyPostDestructTimer = null;
+  }
+  _partyCountdownSeconds = 30;
+  _partyDestructSeconds = 30;
+  _partyContactSubmitted = false;
+  _partyReceivedContact = '';
+}
 /**
 
  * 安全 HTML 轉義函式 (防止 XSS 與缺少定義之 ReferenceError)
@@ -1061,7 +1087,15 @@ function renderRoomView(room) {
 
         progress: m.progress !== undefined ? m.progress : 0,
 
-        is_host: isHostMember
+        is_host: isHostMember,
+
+        steam_installed: !!m.steam_installed,
+
+        deploy_status: m.deploy_status || 'pending',
+
+        deploy_error: m.deploy_error || '',
+
+        version_status: m.version_status || '最新'
 
       });
 
@@ -1085,19 +1119,25 @@ function renderRoomView(room) {
 
   if (playersVal) playersVal.textContent = '👥 ' + allMembers.length + ' / ' + maxPlayers + ' 人';
 
-  // 檢查是否全員就緒
+  // 檢查是否全員就緒 (房間人數 >= 2 且全部成員進度 100% 且部署成功)
 
-  var isAllReady = allMembers.every(function(m) {
+  var isAllReady = (allMembers.length >= 2) && allMembers.every(function(m) {
 
-    return m.status === '就緒' || m.progress >= 100;
+    return (m.status === '就緒' || m.progress >= 100) && (m.deploy_status === 'success' || !m.deploy_status);
 
   });
 
-  var allReadyBanner = document.getElementById('party-all-ready-banner');
+  if (isAllReady) {
 
-  if (allReadyBanner) {
+    updateAllReadyBannerUI(isHost, rid, hostDiscord);
 
-    allReadyBanner.style.display = isAllReady ? 'flex' : 'none';
+  } else {
+
+    resetPartyReadyCountdown();
+
+    var allReadyBanner = document.getElementById('party-all-ready-banner');
+
+    if (allReadyBanner) allReadyBanner.style.display = 'none';
 
   }
 
@@ -1191,6 +1231,19 @@ function renderRoomView(room) {
 
     var statusClass = (status === '就緒' || progress >= 100) ? 'status-ready' : (status === '下載中' ? 'status-downloading' : 'status-not-downloaded');
 
+    // 🌟 遊戲版本狀態 (最新 / 舊 x 版 / 未安裝)
+    var verHtml = '';
+    var vSt = m.version_status || '最新';
+    if (vSt === '最新') {
+      verHtml = '<span class="member-version-badge ok">最新 ✅</span>';
+    } else if (vSt.indexOf('舊') !== -1) {
+      verHtml = '<span class="member-version-badge warn">⚠️ ' + escapeHtml(vSt) + '</span>';
+    } else if (vSt === '未安裝') {
+      verHtml = '<span class="member-version-badge gray">未安裝</span>';
+    } else {
+      verHtml = '<span class="member-version-badge ok">' + escapeHtml(vSt) + '</span>';
+    }
+
     html += '<div class="party-member-card ' + (isMe ? 'is-me' : '') + '">' +
 
       '<div class="member-card-left">' +
@@ -1203,11 +1256,13 @@ function renderRoomView(room) {
 
         '<div class="member-info-column">' +
 
-          '<!-- 第 1 行：玩家名稱 (已刪除 DC 暱稱，刪除周圍單引號) -->' +
+          '<!-- 第 1 行：玩家名稱 與 版本一致性徽章 -->' +
 
           '<div class="member-identity-row">' +
 
             '<span class="member-primary-name">' + escapeHtml(name) + '</span>' +
+
+            verHtml +
 
             (m.is_host ? '<span class="member-badge-host">房主</span>' : '') +
 
@@ -1243,6 +1298,187 @@ function renderRoomView(room) {
 
   listContainer.innerHTML = html;
 
+}
+
+/**
+ * 🌟 全員就緒 30 秒倒數與提示橫幅控制
+ */
+function updateAllReadyBannerUI(isHost, rid, hostDiscord) {
+  var allReadyBanner = document.getElementById('party-all-ready-banner');
+  if (!allReadyBanner) return;
+
+  allReadyBanner.style.display = 'flex';
+
+  // 1. 若倒數未啟動，啟動 30 秒倒數
+  if (!_partyCountdownTimer && !_partyContactSubmitted) {
+    _partyCountdownSeconds = 30;
+    _partyCountdownTimer = setInterval(function() {
+      _partyCountdownSeconds--;
+      var cdSecEl = document.getElementById('party-cd-sec');
+      if (cdSecEl) cdSecEl.textContent = _partyCountdownSeconds;
+
+      if (_partyCountdownSeconds <= 0) {
+        clearInterval(_partyCountdownTimer);
+        _partyCountdownTimer = null;
+        if (isHost && !_partyContactSubmitted) {
+          // 30 秒一到，自動取得輸入內容並上傳至伺服器
+          submitPartyContactInfo();
+        }
+      }
+    }, 1000);
+
+    // 隊員端啟動高頻輪詢 (0.5 秒一次輕量請求，直到取得房主資訊)
+    if (!isHost) {
+      startMemberContactPolling(rid);
+    }
+  }
+
+  // 2. 構建指定文案的三行 UI 結構
+  var bannerContentEl = allReadyBanner.querySelector('.banner-content');
+  if (!bannerContentEl) return;
+
+  var contentHtml = '';
+  if (isHost) {
+    if (_partyContactSubmitted) {
+      // 聯絡資訊發送後，進入再保存 30 秒後自毀階段
+      contentHtml = 
+        '<div class="banner-title">🎉 聯絡資訊已成功發布！隊伍房間將於 <span id="party-cd-destruct-sec" class="banner-cd-sec">' + _partyDestructSeconds + '</span> 秒後自動解散自毀</div>' +
+        '<div class="banner-desc">已向全體隊員發布：<span class="contact-val" style="color:#1976D2;font-weight:800;font-size:13.5px">' + escapeHtml(_partyContactInputText) + '</span></div>' +
+        '<div style="font-size:11.5px;color:var(--gray)">💡 房間現保留 30 秒供隊員抄寫與複製，隨後系統將徹底刪除雲端紀錄。</div>';
+    } else {
+      // 第一行: 恭喜您完成組隊，隊伍房間將於30秒後關閉
+      // 第二行: 您可以提供聯絡資訊於下方
+      // 第三行: 輸入行，尚未填寫字元時呈現提示"+dc: qwe123"
+      contentHtml = 
+        '<div class="banner-title">恭喜您完成組隊，隊伍房間將於 <span id="party-cd-sec" class="banner-cd-sec">' + _partyCountdownSeconds + '</span> 秒後關閉</div>' +
+        '<div class="banner-desc">您可以提供聯絡資訊於下方</div>' +
+        '<div class="banner-contact-row">' +
+          '<input type="text" id="party-contact-input" class="party-contact-input" placeholder="+dc: qwe123" value="' + escapeHtml(_partyContactInputText) + '" oninput="_partyContactInputText=this.value" />' +
+          '<button class="btn btn-p btn-s" id="party-btn-send-contact" onclick="submitPartyContactInfo()">🚀 發送聯絡資訊</button>' +
+        '</div>';
+    }
+  } else {
+    // 隊員端 UI
+    if (_partyReceivedContact) {
+      contentHtml = 
+        '<div class="banner-title">恭喜您完成組隊，隊伍房間將於 <span id="party-cd-sec" class="banner-cd-sec">' + _partyCountdownSeconds + '</span> 秒後關閉</div>' +
+        '<div class="banner-desc" style="display:flex;align-items:center;gap:8px;margin-top:4px">' +
+          '<span>房主聯絡資訊：</span>' +
+          '<span class="contact-val" style="font-size:14px;font-weight:800;color:#1976D2">' + escapeHtml(_partyReceivedContact) + '</span>' +
+          '<button class="btn btn-o btn-xs" onclick="copyContactText(\'' + escapeHtml(_partyReceivedContact) + '\')">📋 一鍵複製</button>' +
+        '</div>' +
+        '<div style="font-size:11.5px;color:var(--gray);margin-top:4px">💡 房間將於保存期滿後自動關閉，請盡快加入好友或連線！</div>';
+    } else {
+      // 第一行: 恭喜您完成組隊，隊伍房間將於30秒後關閉
+      // 第二行: 請等待房主發送聯絡資訊
+      contentHtml = 
+        '<div class="banner-title">恭喜您完成組隊，隊伍房間將於 <span id="party-cd-sec" class="banner-cd-sec">' + _partyCountdownSeconds + '</span> 秒後關閉</div>' +
+        '<div class="banner-desc" id="party-wait-contact-text">請等待房主發送聯絡資訊</div>';
+    }
+  }
+
+  bannerContentEl.innerHTML = contentHtml;
+}
+
+/**
+ * 房主發布聯絡資訊 (手動或 30 秒倒數計時結束自動觸發)
+ */
+function submitPartyContactInfo() {
+  if (!_partyCurRoom || _partyContactSubmitted) return;
+  var rid = _partyCurRoom.room_id;
+  var inputEl = document.getElementById('party-contact-input');
+  var text = (inputEl ? inputEl.value : _partyContactInputText) || '';
+  if (!text.trim()) {
+    var dc = (_partyProfile && _partyProfile.discord) || (_partyCurRoom.host_discord) || '';
+    text = dc ? ('+dc: ' + dc) : ('+dc: ' + ((_partyProfile && _partyProfile.nickname) || '房主'));
+  }
+  _partyContactInputText = text.trim();
+  _partyContactSubmitted = true;
+
+  if (_partyCountdownTimer) {
+    clearInterval(_partyCountdownTimer);
+    _partyCountdownTimer = null;
+  }
+
+  var btn = document.getElementById('party-btn-send-contact');
+  if (btn) { btn.disabled = true; btn.textContent = '發送中...'; }
+
+  pywebview.api.send_party_contact_info(rid, _partyContactInputText).then(function(res) {
+    if (res && res.ok) {
+      tt('🎉 聯絡資訊已發布！房間保留 30 秒後自動解散自毀', 'ok');
+      // 啟動自毀 30 秒倒數計時
+      _partyDestructSeconds = 30;
+      if (_partyPostDestructTimer) clearInterval(_partyPostDestructTimer);
+      _partyPostDestructTimer = setInterval(function() {
+        _partyDestructSeconds--;
+        var secEl = document.getElementById('party-cd-destruct-sec');
+        if (secEl) secEl.textContent = _partyDestructSeconds;
+        if (_partyDestructSeconds <= 0) {
+          clearInterval(_partyPostDestructTimer);
+          _partyPostDestructTimer = null;
+          tt('房間保存期滿，已自動解散', 'info');
+          leaveOrCloseCurrentRoom();
+        }
+      }, 1000);
+      if (_partyCurRoom) renderRoomView(_partyCurRoom);
+    } else {
+      tt('發送失敗: ' + ((res && res.msg) || '未知錯誤'), 'er');
+      _partyContactSubmitted = false;
+    }
+  }).catch(function(err) {
+    tt('連線出錯: ' + err, 'er');
+    _partyContactSubmitted = false;
+  });
+}
+
+/**
+ * 隊員端極輕量輪詢獲取房主資訊 (每 0.5 秒發一次請求，直到取得為止)
+ */
+function startMemberContactPolling(rid) {
+  if (_partyContactPollingTimer) return;
+  _partyContactPollingTimer = setInterval(function() {
+    if (!_partyCurRoom || _partyCurRoom.room_id !== rid) {
+      clearInterval(_partyContactPollingTimer);
+      _partyContactPollingTimer = null;
+      return;
+    }
+    pywebview.api.get_party_contact_info(rid).then(function(res) {
+      if (res && res.has_contact && res.contact_info) {
+        clearInterval(_partyContactPollingTimer);
+        _partyContactPollingTimer = null;
+        _partyReceivedContact = res.contact_info;
+        tt('🎉 已收到房主發送的聯絡資訊！', 'ok');
+        if (_partyCurRoom) renderRoomView(_partyCurRoom);
+      } else if (res && res.is_closed) {
+        clearInterval(_partyContactPollingTimer);
+        _partyContactPollingTimer = null;
+        tt('房間已被房主關閉', 'info');
+        leaveOrCloseCurrentRoom();
+      }
+    }).catch(function() {});
+  }, 500); // 0.5 秒一次極輕量查詢 (select=room_id,status,note,updated_at)
+}
+
+/**
+ * 一鍵複製聯絡資訊
+ */
+function copyContactText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      tt('📋 聯絡資訊已成功複製到剪貼簿！', 'ok');
+    }).catch(function() {
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.copy_text) {
+        window.pywebview.api.copy_text(text);
+        tt('📋 聯絡資訊已成功複製到剪貼簿！', 'ok');
+      }
+    });
+  } else if (window.pywebview && window.pywebview.api && window.pywebview.api.copy_text) {
+    window.pywebview.api.copy_text(text).then(function() {
+      tt('📋 聯絡資訊已成功複製到剪貼簿！', 'ok');
+    });
+  } else {
+    prompt('請手動複製聯絡資訊：', text);
+  }
 }
 
 /**
@@ -1346,6 +1582,8 @@ function copyPartyRoomCode() {
  */
 
 function leaveOrCloseCurrentRoom() {
+
+  resetPartyReadyCountdown();
 
   if (!_partyCurRoom) return;
 
