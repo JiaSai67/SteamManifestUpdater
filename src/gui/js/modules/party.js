@@ -1199,31 +1199,42 @@ function renderRoomView(room) {
   var syncBtn = document.getElementById('party-btn-start-sync');
 
   var isMyReady = false;
+  var isMyDownloading = false;
 
   if (myMemberObj) {
-
     var myStatus = myMemberObj.status || '未下載';
-
-    isMyReady = (myStatus === '就緒' || (myMemberObj.progress >= 100));
+    isMyReady = (myStatus === '就緒' || (myMemberObj.progress >= 100) || myMemberObj.deploy_status === 'success');
+    isMyDownloading = !isMyReady && (
+      myMemberObj.progress > 0 ||
+      myMemberObj.deploy_status === 'downloading' ||
+      myMemberObj.deploy_status === 'deploying' ||
+      myStatus.indexOf('下載') !== -1 ||
+      myStatus.indexOf('部署') !== -1 ||
+      myStatus.indexOf('Steam') !== -1
+    );
 
     if (myStatusBadge) {
-
       myStatusBadge.textContent = myStatus;
-
-      myStatusBadge.className = 'my-status-badge ' + (isMyReady ? 'ready' : (myStatus === '下載中' ? 'downloading' : 'not_downloaded'));
-
+      myStatusBadge.className = 'my-status-badge ' + (isMyReady ? 'ready' : (isMyDownloading ? 'downloading' : 'not_downloaded'));
     }
-
   }
 
-  // 1. 如果本機狀態已經是就緒，那麼就不需要同步環境，就不用顯示按鈕
-
-  // 1. 隊員端：未就緒時顯示「🚀 一鍵安裝」，點擊即可全自動完成整合包下載、入庫與線上補丁套用
+  // 1. 隊員端：未就緒時顯示「🚀 一鍵安裝」，若正在安裝中則顯示 spinner 旋轉動畫並鎖定
   var showInstallBtn = !isMyReady && !isHost;
   if (syncBtnWrap) {
     syncBtnWrap.style.display = showInstallBtn ? 'block' : 'none';
   } else if (syncBtn) {
     syncBtn.style.display = showInstallBtn ? 'inline-flex' : 'none';
+  }
+
+  if (syncBtn) {
+    if (isMyDownloading) {
+      syncBtn.disabled = true;
+      syncBtn.innerHTML = '<span class="spinner"></span> 正在一鍵安裝中…';
+    } else if (!syncBtn.disabled || syncBtn.innerHTML.indexOf('一鍵安裝中') === -1) {
+      syncBtn.disabled = false;
+      syncBtn.innerHTML = '🚀 一鍵安裝';
+    }
   }
 
   // 2. 徹底移除/隱藏額外手動下載整合包按鈕 (完全由一鍵安裝代勞)
@@ -1235,34 +1246,37 @@ function renderRoomView(room) {
   var html = '';
 
   allMembers.forEach(function(m, idx) {
-
     var name = m.name || '玩家';
-
     var status = m.status || '未下載';
-
     var progress = m.progress || 0;
-
     var isMe = (m.id && myId && m.id === myId) || (m.name === myName);
 
-    // 格式化下載狀況文字 (無單引號)
+    // 格式化下載狀況文字與進度狀態
+    var isReady = (status === '就緒' || progress >= 100 || m.deploy_status === 'success');
+    var isDownloading = !isReady && (
+      status === '下載中' ||
+      progress > 0 ||
+      m.deploy_status === 'downloading' ||
+      m.deploy_status === 'deploying' ||
+      status.indexOf('下載') !== -1 ||
+      status.indexOf('部署') !== -1 ||
+      status.indexOf('Steam') !== -1
+    );
 
     var statusDisplay = '';
-
-    if (status === '就緒' || progress >= 100) {
-
+    if (isReady) {
       statusDisplay = '下載狀況(就緒)';
-
-    } else if (status === '下載中') {
-
-      statusDisplay = '下載狀況(下載中： ' + progress + '%)';
-
+    } else if (isDownloading) {
+      if (status && status !== '未下載' && status !== '下載中') {
+        statusDisplay = '下載狀況(' + status + ')';
+      } else {
+        statusDisplay = '下載狀況(下載中： ' + progress + '%)';
+      }
     } else {
-
       statusDisplay = '下載狀況(未下載)';
-
     }
 
-    var statusClass = (status === '就緒' || progress >= 100) ? 'status-ready' : (status === '下載中' ? 'status-downloading' : 'status-not-downloaded');
+    var statusClass = isReady ? 'status-ready' : (isDownloading ? 'status-downloading' : 'status-not-downloaded');
 
     // 🌟 遊戲版本狀態 (最新 / 舊 x 版 / 未安裝)
     var verHtml = '';
@@ -1288,56 +1302,33 @@ function renderRoomView(room) {
       }
     }
 
+    var barClass = isReady ? 'ready' : (isDownloading ? 'downloading' : '');
+
     html += '<div class="party-member-card ' + (isMe ? 'is-me' : '') + '">' +
-
       '<div class="member-card-left">' +
-
         '<div class="member-avatar-wrap">' +
-
           '<div class="member-avatar-icon">' + (m.is_host ? '👑' : '🎮') + '</div>' +
-
         '</div>' +
-
         '<div class="member-info-column">' +
-
           '<!-- 第 1 行：玩家名稱 與 版本一致性徽章 -->' +
-
           '<div class="member-identity-row">' +
-
             '<span class="member-primary-name">' + escapeHtml(name) + '</span>' +
-
             verHtml +
-
             (m.is_host ? '<span class="member-badge-host">房主</span>' : '') +
-
             (isMe ? '<span class="member-badge-me">我</span>' : '') +
-
           '</div>' +
-
           '<!-- 第 2 行：下載狀況與防毒攔截診斷 -->' +
-
           '<div class="member-status-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">' +
-
             statusTextHtml +
-
             (isMe && isAvBlocked ? '<button class="btn btn-o btn-xs" style="font-size:10.5px;color:#F44336;border-color:rgba(244,67,54,0.4);padding:0px 6px;height:20px;border-radius:4px;cursor:pointer" onclick="openDefenderExclusionHelper(\'' + escapeHtml(room.appid) + '\')">🛡️ 排查防毒攔截</button>' : '') +
-
           '</div>' +
-
         '</div>' +
-
       '</div>' +
-
       '<div class="member-card-right">' +
-
         '<div class="member-progress-outer">' +
-
-          '<div class="member-progress-bar ' + (status === '就緒' ? 'ready' : '') + '" style="width:' + (status === '就緒' ? 100 : progress) + '%"></div>' +
-
+          '<div class="member-progress-bar ' + barClass + '" style="width:' + (isReady ? 100 : progress) + '%"></div>' +
         '</div>' +
-
       '</div>' +
-
     '</div>';
 
   });

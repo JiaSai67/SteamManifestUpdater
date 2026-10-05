@@ -11,6 +11,7 @@ import logging
 import threading
 import datetime
 from typing import Dict, Any, List, Optional
+from pathlib import Path
 import requests
 
 from utils.payload_crypto import compress_and_encrypt, decompress_and_decrypt
