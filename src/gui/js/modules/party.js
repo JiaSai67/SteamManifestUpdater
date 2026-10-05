@@ -1154,3 +1154,219 @@ function downloadPartyGdrivePackage() {
   }
   tt('🚀 已開啟房主 Google Drive 整合包下載鏈結！', 'ok');
 }
+
+// ═══════════════════════════════════════════════════════
+// SMU 開房彈窗聚光燈互動導覽系統 (Gas Spotlight Tour)
+// ═══════════════════════════════════════════════════════
+var _gasTourSteps = [
+  {
+    targetId: 'check-party-auto-upload',
+    badge: '步驟 1 / 5',
+    title: '第一步：啟用雲端自動發布',
+    desc: '勾選此選項，SMU 會在您發布房間時，自動將您的 Manifest、Lua 腳本與補丁打包並上傳至您自己的 Google 雲端硬碟，組隊隊友即可一鍵下載！'
+  },
+  {
+    targetId: 'btn-party-copy-gas-script',
+    badge: '步驟 2 / 5',
+    title: '第二步：複製 Google Apps Script 腳本',
+    desc: '點擊此按鈕，可直接一鍵複製預先寫好的 Apps Script 後端代碼。全自動管理空間，每次上傳前自動清理舊檔，安全又省心！'
+  },
+  {
+    targetId: 'btn-party-open-gas-guide',
+    badge: '步驟 3 / 5',
+    title: '第三步：查看視覺化動態指引',
+    desc: '點擊此處可開啟精美的動態指引網頁。網頁包含擬真 Google 介面與脈衝箭頭，引導您貼上腳本、新增部署，並設定存取權限為【所有人】。'
+  },
+  {
+    targetId: 'input-party-gas-url',
+    badge: '步驟 4 / 5',
+    title: '第四步：填入部署完成的 Web App 網址',
+    desc: '在 Google 部署成功後複製結尾為 /exec 的網址並貼入此處。SMU 會自動儲存此網址，往後開房均免重複設定！'
+  },
+  {
+    targetId: 'btn-party-test-gas',
+    badge: '步驟 5 / 5',
+    title: '第五步：驗證連線狀況',
+    desc: '點擊【測試】按鈕進行即時連線探測。若彈出綠色成功提示，代表您的雲端端點已完全就緒，可立即發布房間！'
+  }
+];
+
+var _gasTourCurrentStep = 0;
+var _gasTourOverlayEl = null;
+
+function startGasSpotlightTour(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  _gasTourCurrentStep = 0;
+  createOrShowGasTourOverlay();
+  renderGasTourStep(_gasTourCurrentStep);
+}
+
+function createOrShowGasTourOverlay() {
+  if (!_gasTourOverlayEl) {
+    _gasTourOverlayEl = document.createElement('div');
+    _gasTourOverlayEl.id = 'smu-spotlight-tour-overlay';
+    _gasTourOverlayEl.innerHTML = [
+      '<div id="smu-tour-highlight-box"></div>',
+      '<div id="smu-tour-tooltip">',
+      '  <div class="tour-tooltip-badge" id="smu-tour-badge">步驟 1 / 5</div>',
+      '  <div class="tour-tooltip-title" id="smu-tour-title"></div>',
+      '  <div class="tour-tooltip-desc" id="smu-tour-desc"></div>',
+      '  <div class="tour-tooltip-actions">',
+      '    <button type="button" class="btn btn-o btn-xs" onclick="closeGasTour()" style="font-size:11px;padding:3px 10px;border-radius:12px;color:#8B949E;border-color:rgba(139,148,158,0.4)">跳過指引</button>',
+      '    <div style="display:flex;gap:6px;">',
+      '      <button type="button" class="btn btn-o btn-xs" id="smu-tour-btn-prev" onclick="prevGasTourStep()" style="font-size:11px;padding:3px 10px;border-radius:12px;color:#C9D1D9;">上一步</button>',
+      '      <button type="button" class="btn btn-p btn-xs" id="smu-tour-btn-next" onclick="nextGasTourStep()" style="font-size:11px;padding:3px 12px;border-radius:12px;background:#FF4757;border-color:#FF4757;color:#fff;font-weight:700;">下一步 ➔</button>',
+      '    </div>',
+      '  </div>',
+      '  <div class="tour-tooltip-arrow" id="smu-tour-arrow"></div>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(_gasTourOverlayEl);
+
+    // 監聽視窗與捲動，動態更新定位
+    window.addEventListener('resize', handleGasTourReposition);
+    var modalBody = document.querySelector('#modal-create-room .modal-body');
+    if (modalBody) {
+      modalBody.addEventListener('scroll', handleGasTourReposition);
+    }
+  }
+  _gasTourOverlayEl.style.display = 'block';
+}
+
+function handleGasTourReposition() {
+  if (!_gasTourOverlayEl || _gasTourOverlayEl.style.display === 'none') return;
+  positionGasTourStep(_gasTourCurrentStep);
+}
+
+function renderGasTourStep(index) {
+  if (index < 0 || index >= _gasTourSteps.length) {
+    closeGasTour();
+    return;
+  }
+  var step = _gasTourSteps[index];
+
+  // 若在第 1 步之後，確保 auto-upload 區塊是展開的
+  if (index >= 1) {
+    var chk = document.getElementById('check-party-auto-upload');
+    if (chk && !chk.checked) {
+      chk.checked = true;
+      if (typeof togglePartyAutoUploadSection === 'function') {
+        togglePartyAutoUploadSection();
+      }
+    }
+  }
+
+  var badgeEl = document.getElementById('smu-tour-badge');
+  var titleEl = document.getElementById('smu-tour-title');
+  var descEl = document.getElementById('smu-tour-desc');
+  var btnPrev = document.getElementById('smu-tour-btn-prev');
+  var btnNext = document.getElementById('smu-tour-btn-next');
+
+  if (badgeEl) badgeEl.textContent = step.badge;
+  if (titleEl) titleEl.textContent = step.title;
+  if (descEl) descEl.textContent = step.desc;
+
+  if (btnPrev) {
+    btnPrev.style.display = index === 0 ? 'none' : 'inline-block';
+  }
+  if (btnNext) {
+    if (index === _gasTourSteps.length - 1) {
+      btnNext.textContent = '完成指引 ✨';
+      btnNext.style.background = '#2EA043';
+      btnNext.style.borderColor = '#2EA043';
+    } else {
+      btnNext.textContent = '下一步 ➔';
+      btnNext.style.background = '#FF4757';
+      btnNext.style.borderColor = '#FF4757';
+    }
+  }
+
+  // 延遲定位以等待 DOM 可能的展開催動
+  setTimeout(function() {
+    positionGasTourStep(index);
+  }, 60);
+}
+
+function positionGasTourStep(index) {
+  var step = _gasTourSteps[index];
+  if (!step) return;
+  var target = document.getElementById(step.targetId);
+  var hlBox = document.getElementById('smu-tour-highlight-box');
+  var tooltip = document.getElementById('smu-tour-tooltip');
+  var arrow = document.getElementById('smu-tour-arrow');
+
+  if (!target || !hlBox || !tooltip) return;
+
+  // 捲動目標至可視範圍
+  target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  var rect = target.getBoundingClientRect();
+  var pad = 6;
+  hlBox.style.left = Math.max(0, rect.left - pad) + 'px';
+  hlBox.style.top = Math.max(0, rect.top - pad) + 'px';
+  hlBox.style.width = (rect.width + pad * 2) + 'px';
+  hlBox.style.height = (rect.height + pad * 2) + 'px';
+
+  // Tooltip 定位
+  var tooltipWidth = tooltip.offsetWidth || 300;
+  var tooltipHeight = tooltip.offsetHeight || 160;
+
+  var ttLeft = rect.left + (rect.width / 2) - (tooltipWidth / 2);
+  ttLeft = Math.max(16, Math.min(window.innerWidth - tooltipWidth - 16, ttLeft));
+
+  var spaceBelow = window.innerHeight - rect.bottom;
+  var placeAbove = spaceBelow < tooltipHeight + 20 && rect.top > tooltipHeight + 20;
+
+  var ttTop = 0;
+  if (placeAbove) {
+    ttTop = rect.top - tooltipHeight - 12;
+    if (arrow) {
+      arrow.className = 'tour-tooltip-arrow arrow-bottom';
+      var arrowLeft = rect.left + (rect.width / 2) - ttLeft - 8;
+      arrow.style.left = Math.max(16, Math.min(tooltipWidth - 24, arrowLeft)) + 'px';
+    }
+  } else {
+    ttTop = rect.bottom + 12;
+    if (arrow) {
+      arrow.className = 'tour-tooltip-arrow arrow-top';
+      var arrowLeft = rect.left + (rect.width / 2) - ttLeft - 8;
+      arrow.style.left = Math.max(16, Math.min(tooltipWidth - 24, arrowLeft)) + 'px';
+    }
+  }
+
+  tooltip.style.left = ttLeft + 'px';
+  tooltip.style.top = ttTop + 'px';
+}
+
+function nextGasTourStep() {
+  if (_gasTourCurrentStep < _gasTourSteps.length - 1) {
+    _gasTourCurrentStep++;
+    renderGasTourStep(_gasTourCurrentStep);
+  } else {
+    closeGasTour();
+    tt('🎉 您已完成 GAS 雲端上傳指引！填妥資訊後即可直接開房！', 'ok');
+  }
+}
+
+function prevGasTourStep() {
+  if (_gasTourCurrentStep > 0) {
+    _gasTourCurrentStep--;
+    renderGasTourStep(_gasTourCurrentStep);
+  }
+}
+
+function closeGasTour() {
+  if (_gasTourOverlayEl) {
+    _gasTourOverlayEl.style.display = 'none';
+  }
+}
+
+// 註冊至全域 window，方便 HTML onclick 呼叫
+window.startGasSpotlightTour = startGasSpotlightTour;
+window.nextGasTourStep = nextGasTourStep;
+window.prevGasTourStep = prevGasTourStep;
+window.closeGasTour = closeGasTour;
+

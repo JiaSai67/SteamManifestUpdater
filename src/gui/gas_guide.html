@@ -7,12 +7,12 @@
   <style>
     :root {
       --bg-color: #0b0e14;
-      --card-bg: rgba(22, 27, 34, 0.85);
-      --card-border: rgba(255, 255, 255, 0.1);
-      --card-hover: rgba(255, 255, 255, 0.16);
+      --card-bg: rgba(22, 27, 34, 0.88);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --card-hover: rgba(255, 255, 255, 0.22);
       --primary: #FF4757;
       --primary-hover: #FF6B81;
-      --primary-glow: rgba(255, 71, 87, 0.35);
+      --primary-glow: rgba(255, 71, 87, 0.45);
       --accent-blue: #58A6FF;
       --accent-green: #3FB950;
       --accent-gold: #F1C40F;
@@ -30,9 +30,9 @@
     body {
       background-color: var(--bg-color);
       background-image: 
-        radial-gradient(circle at 15% 15%, rgba(255, 71, 87, 0.08) 0%, transparent 40%),
-        radial-gradient(circle at 85% 85%, rgba(88, 166, 255, 0.08) 0%, transparent 40%),
-        radial-gradient(circle at 50% 50%, rgba(63, 185, 80, 0.04) 0%, transparent 50%);
+        radial-gradient(circle at 15% 15%, rgba(255, 71, 87, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(88, 166, 255, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(63, 185, 80, 0.05) 0%, transparent 50%);
       color: var(--text-main);
       font-family: var(--font-family);
       line-height: 1.6;
@@ -41,7 +41,7 @@
     }
 
     .container {
-      max-width: 860px;
+      max-width: 880px;
       margin: 0 auto;
     }
 
@@ -57,12 +57,12 @@
       align-items: center;
       gap: 6px;
       padding: 6px 14px;
-      background: rgba(255, 71, 87, 0.15);
-      border: 1px solid rgba(255, 71, 87, 0.3);
+      background: rgba(255, 71, 87, 0.18);
+      border: 1px solid rgba(255, 71, 87, 0.4);
       border-radius: 99px;
       font-size: 13px;
-      color: var(--primary);
-      font-weight: 600;
+      color: #FF6B81;
+      font-weight: 700;
       margin-bottom: 16px;
       box-shadow: 0 0 16px var(--primary-glow);
     }
@@ -78,7 +78,7 @@
 
     .title .accent {
       color: #FF5E7E !important;
-      text-shadow: 0 0 20px rgba(255, 94, 126, 0.4);
+      text-shadow: 0 0 20px rgba(255, 94, 126, 0.5);
     }
 
     .subtitle {
@@ -102,12 +102,13 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 12px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 5px 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 8px;
-      font-size: 12px;
+      font-size: 12.5px;
       color: #D2A8FF;
+      font-weight: 600;
     }
 
     /* 步驟流程導航條 */
@@ -126,7 +127,7 @@
       left: 40px;
       right: 40px;
       height: 2px;
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.15);
       z-index: 1;
     }
 
@@ -138,40 +139,41 @@
       align-items: center;
       gap: 8px;
       cursor: pointer;
+      text-decoration: none;
     }
 
     .step-circle {
-      width: 40px;
-      height: 40px;
+      width: 42px;
+      height: 42px;
       border-radius: 50%;
       background: #161B22;
-      border: 2px solid rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.25);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 700;
-      font-size: 14px;
-      color: var(--text-muted);
+      font-weight: 800;
+      font-size: 15px;
+      color: #A0AEC0;
       transition: all 0.3s ease;
+    }
+
+    .step-nav-item:hover .step-circle {
+      border-color: var(--primary);
+      color: #FFF;
+      transform: scale(1.08);
     }
 
     .step-nav-item.active .step-circle {
       border-color: var(--primary);
       background: var(--primary);
       color: #FFF;
-      box-shadow: 0 0 16px var(--primary-glow);
-    }
-
-    .step-nav-item.done .step-circle {
-      border-color: var(--accent-green);
-      background: var(--accent-green);
-      color: #FFF;
+      box-shadow: 0 0 20px var(--primary-glow);
     }
 
     .step-nav-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-muted);
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #CBD5E1;
       white-space: nowrap;
     }
 
@@ -185,16 +187,17 @@
       border: 1px solid var(--card-border);
       border-radius: 20px;
       padding: 30px;
-      margin-bottom: 28px;
+      margin-bottom: 32px;
       backdrop-filter: blur(16px);
-      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
       position: relative;
-      overflow: hidden;
-      transition: border-color 0.25s;
+      overflow: visible;
+      transition: all 0.3s ease;
     }
 
-    .step-card:hover {
-      border-color: var(--card-hover);
+    .step-card.focused {
+      border-color: var(--primary);
+      box-shadow: 0 0 30px rgba(255, 71, 87, 0.25), 0 12px 36px rgba(0, 0, 0, 0.4);
     }
 
     .step-card::before {
@@ -202,9 +205,10 @@
       position: absolute;
       top: 0;
       left: 0;
-      width: 4px;
+      width: 5px;
       height: 100%;
       background: var(--primary);
+      border-radius: 20px 0 0 20px;
     }
 
     .step-header {
@@ -218,28 +222,233 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       border-radius: 10px;
       background: linear-gradient(135deg, #FF4757, #EE2A3A);
       color: #FFF;
       font-weight: 800;
-      font-size: 14px;
+      font-size: 15px;
       box-shadow: 0 4px 12px var(--primary-glow);
       flex-shrink: 0;
     }
 
     .step-title {
-      font-size: 19px;
-      font-weight: 700;
+      font-size: 20px;
+      font-weight: 800;
       color: #FFF;
     }
 
     .step-desc {
-      font-size: 14px;
-      color: #C9D1D9;
-      margin-bottom: 18px;
+      font-size: 14.5px;
+      color: #E2E8F0;
+      margin-bottom: 20px;
       line-height: 1.7;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       擬真 Google Apps Script 介面演示與動態指標箭頭
+       ═══════════════════════════════════════════════════════ */
+    .mock-google-window {
+      background: #1e1f22;
+      border: 1.5px solid rgba(255, 255, 255, 0.15);
+      border-radius: 14px;
+      overflow: hidden;
+      margin: 22px 0;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+      font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      position: relative;
+    }
+
+    .mock-google-topbar {
+      background: #2b2d30;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 13px;
+    }
+
+    .mock-google-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #E8EAED;
+      font-weight: 600;
+    }
+
+    .mock-google-icon {
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #4285F4, #34A853);
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: #FFF;
+      font-weight: 800;
+    }
+
+    .mock-google-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+    }
+
+    .mock-btn-deploy {
+      background: #1A73E8;
+      color: #FFF;
+      padding: 6px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      position: relative;
+    }
+
+    /* 🌟 高亮光圈呼吸燈 (Glow Highlight Target) */
+    .glowing-target {
+      position: relative;
+      border: 2px solid #FF4757 !important;
+      box-shadow: 0 0 16px rgba(255, 71, 87, 0.7), inset 0 0 8px rgba(255, 71, 87, 0.3) !important;
+      animation: pulse-border 1.5s infinite alternate ease-in-out;
+      border-radius: 6px;
+    }
+
+    @keyframes pulse-border {
+      from { box-shadow: 0 0 10px rgba(255, 71, 87, 0.5); }
+      to { box-shadow: 0 0 26px rgba(255, 71, 87, 0.95); }
+    }
+
+    /* 🌟 浮動指引標籤與上下/左右跳動箭頭 (Animated Arrows) */
+    .guide-pointer-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #FF4757;
+      color: #FFF;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 6px 12px;
+      border-radius: 20px;
+      box-shadow: 0 4px 18px rgba(255, 71, 87, 0.7);
+      white-space: nowrap;
+      z-index: 10;
+    }
+
+    .bounce-down {
+      animation: guide-bounce-down 1.2s infinite ease-in-out;
+    }
+
+    .bounce-left {
+      animation: guide-bounce-left 1.2s infinite ease-in-out;
+    }
+
+    .bounce-up {
+      animation: guide-bounce-up 1.2s infinite ease-in-out;
+    }
+
+    @keyframes guide-bounce-down {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    @keyframes guide-bounce-left {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(8px); }
+    }
+
+    @keyframes guide-bounce-up {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(8px); }
+    }
+
+    /* 擬真對話框 (Deployment Modal Mockup) */
+    .mock-dialog {
+      background: #28292c;
+      padding: 24px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      position: relative;
+    }
+
+    .mock-dialog-grid {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 650px) {
+      .mock-dialog-grid { grid-template-columns: 1fr; }
+    }
+
+    .mock-dialog-sidebar {
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding-right: 16px;
+    }
+
+    .mock-type-select-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #333539;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #E8EAED;
+      font-weight: 600;
+    }
+
+    .mock-dialog-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .mock-form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+    }
+
+    .mock-form-label {
+      font-size: 12px;
+      color: #9AA0A6;
+      font-weight: 600;
+    }
+
+    .mock-form-input {
+      background: #303134;
+      border: 1px solid #5F6368;
+      border-radius: 4px;
+      padding: 8px 12px;
+      color: #E8EAED;
+      font-size: 13.5px;
+    }
+
+    .mock-form-select {
+      background: #303134;
+      border: 1px solid #5F6368;
+      border-radius: 4px;
+      padding: 8px 12px;
+      color: #E8EAED;
+      font-size: 13.5px;
+      font-weight: 700;
+    }
+
+    .mock-dialog-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     /* 按鈕樣式 */
@@ -248,9 +457,9 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 10px 20px;
+      padding: 10px 22px;
       border-radius: 10px;
-      font-size: 13.5px;
+      font-size: 14px;
       font-weight: 700;
       cursor: pointer;
       text-decoration: none;
@@ -268,18 +477,18 @@
     .btn-primary:hover {
       background: linear-gradient(135deg, #FF6B81 0%, #FF4757 100%);
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(255, 71, 87, 0.5);
+      box-shadow: 0 6px 20px rgba(255, 71, 87, 0.55);
     }
 
     .btn-secondary {
       background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.16);
       color: #F0F6FC;
     }
 
     .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.14);
-      border-color: rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.28);
       transform: translateY(-1px);
     }
 
@@ -294,18 +503,28 @@
       box-shadow: 0 6px 20px rgba(31, 111, 235, 0.55);
     }
 
+    /* 步驟切換控制底欄 */
+    .step-actions-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
     /* 重點設定提示方塊 */
     .callout-box {
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 12px;
       padding: 16px 20px;
-      margin-bottom: 20px;
+      margin: 18px 0;
     }
 
     .callout-title {
-      font-size: 13px;
-      font-weight: 700;
+      font-size: 13.5px;
+      font-weight: 800;
       color: var(--accent-gold);
       display: flex;
       align-items: center;
@@ -314,59 +533,16 @@
     }
 
     .callout-content {
-      font-size: 13px;
-      color: #C9D1D9;
-      line-height: 1.6;
-    }
-
-    /* 關鍵設定清單卡 */
-    .config-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-      gap: 14px;
-      margin-bottom: 20px;
-    }
-
-    .config-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      padding: 14px 16px;
-      position: relative;
-    }
-
-    .config-card.highlight {
-      border-color: rgba(255, 71, 87, 0.5);
-      background: rgba(255, 71, 87, 0.05);
-    }
-
-    .config-label {
-      font-size: 11.5px;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-    }
-
-    .config-val {
-      font-size: 14.5px;
-      font-weight: 700;
-      color: #FFF;
-    }
-
-    .config-val.target {
-      color: var(--primary);
-    }
-
-    .config-tip {
-      font-size: 11px;
-      color: #8B949E;
-      margin-top: 4px;
+      font-size: 13.5px;
+      color: #E2E8F0;
+      line-height: 1.7;
     }
 
     /* 代碼區塊 */
     .code-box-wrap {
       position: relative;
       background: #090C10;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 12px;
       overflow: hidden;
       margin-bottom: 18px;
@@ -377,16 +553,17 @@
       justify-content: space-between;
       align-items: center;
       padding: 10px 16px;
-      background: rgba(255, 255, 255, 0.04);
+      background: rgba(255, 255, 255, 0.05);
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      font-size: 12px;
-      color: var(--text-muted);
+      font-size: 12.5px;
+      color: #CBD5E1;
+      font-weight: 600;
     }
 
     .code-content {
       padding: 16px;
-      font-family: "Cascadia Code", Consolas, Monaco, "Courier New", Courier, monospace;
-      font-size: 12px;
+      font-family: "Cascadia Code", Consolas, Monaco, monospace;
+      font-size: 12.5px;
       color: #79C0FF;
       max-height: 220px;
       overflow-y: auto;
@@ -402,11 +579,11 @@
       transform: translateX(-50%) translateY(100px);
       background: #238636;
       color: #FFF;
-      padding: 12px 24px;
+      padding: 12px 26px;
       border-radius: 99px;
-      font-size: 13.5px;
-      font-weight: 700;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      font-size: 14px;
+      font-weight: 800;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
       transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
       z-index: 9999;
       pointer-events: none;
@@ -421,17 +598,17 @@
 
     /* 常見問題 FAQ Accordion */
     .faq-item {
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 12px;
       margin-bottom: 10px;
-      background: rgba(255, 255, 255, 0.02);
+      background: rgba(255, 255, 255, 0.03);
       overflow: hidden;
     }
 
     .faq-question {
       padding: 14px 18px;
       cursor: pointer;
-      font-size: 13.5px;
+      font-size: 14px;
       font-weight: 700;
       color: #F0F6FC;
       display: flex;
@@ -441,15 +618,15 @@
     }
 
     .faq-question:hover {
-      background: rgba(255, 255, 255, 0.04);
+      background: rgba(255, 255, 255, 0.05);
     }
 
     .faq-answer {
       display: none;
       padding: 0 18px 14px;
-      font-size: 12.5px;
-      color: #8B949E;
-      line-height: 1.6;
+      font-size: 13px;
+      color: #CBD5E1;
+      line-height: 1.7;
     }
 
     .faq-item.open .faq-answer {
@@ -464,23 +641,16 @@
       transform: rotate(180deg);
     }
 
-    /* 頁尾 */
     .footer {
       text-align: center;
       margin-top: 50px;
       font-size: 12px;
-      color: var(--text-muted);
+      color: #8B949E;
     }
 
     @keyframes fadeInDown {
       from { opacity: 0; transform: translateY(-16px); }
       to { opacity: 1; transform: translateY(0); }
-    }
-
-    @media (max-width: 600px) {
-      .title { font-size: 24px; }
-      .step-card { padding: 20px; }
-      .config-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -494,7 +664,7 @@
       </div>
       <h1 class="title">Google Apps Script (GAS) <span class="accent">1 分鐘極速部署指引</span></h1>
       <p class="subtitle">
-        透過您個人 Google 帳號建立私人雲端分發節點，實現<strong>完全免費、0 伺服器依賴、全自動空間清理</strong>的遊戲整合包分發！
+        跟隨下方動態指標與高亮框線，閉著眼睛照著點，<strong>1 分鐘搞定個人 Google 雲端開房分發節點</strong>！
       </p>
       <div class="highlights-row">
         <span class="highlight-item">🛡️ 100% 個人獨立控制權</span>
@@ -504,40 +674,110 @@
       </div>
     </header>
 
+    <!-- 步驟快速跳轉導航 -->
+    <nav class="stepper-nav">
+      <a href="#step-1" class="step-nav-item active" onclick="focusStep(1)">
+        <div class="step-circle">1</div>
+        <div class="step-nav-title">1. 開啟控制台</div>
+      </a>
+      <a href="#step-2" class="step-nav-item" onclick="focusStep(2)">
+        <div class="step-circle">2</div>
+        <div class="step-nav-title">2. 貼上代碼</div>
+      </a>
+      <a href="#step-3" class="step-nav-item" onclick="focusStep(3)">
+        <div class="step-circle">3</div>
+        <div class="step-nav-title">3. 部署 Web App</div>
+      </a>
+      <a href="#step-4" class="step-nav-item" onclick="focusStep(4)">
+        <div class="step-circle">4</div>
+        <div class="step-nav-title">4. 貼回 SMU</div>
+      </a>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
     <!-- 步驟 1 -->
-    <div class="step-card" id="step-1">
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="step-card focused" id="step-1">
       <div class="step-header">
         <div class="step-badge">1</div>
         <div class="step-title">前往 Google Apps Script 建立新專案</div>
       </div>
       <div class="step-desc">
-        請使用您平常登入的 Google 帳號（個人 Gmail 帳號即可，免費擁有 15 GB 空間）。<br>
-        點擊下方按鈕將在新分頁打開 Google Apps Script 官方控制台：
+        點擊下方按鈕將在瀏覽器新分頁打開 Google Apps Script。進入後點擊左上角的「<strong>+ 新專案 (New project)</strong>」：
       </div>
+
+      <!-- 擬真 Google 控制台介面 -->
+      <div class="mock-google-window">
+        <div class="mock-google-topbar">
+          <div class="mock-google-brand">
+            <div class="mock-google-icon">📄</div>
+            <span>Google Apps Script 控制台</span>
+          </div>
+          <span style="font-size:12px;color:#9aa0a6">登入您的 Google 帳號</span>
+        </div>
+        <div style="padding:24px 20px;display:flex;align-items:center;gap:18px;background:#202124">
+          <div style="position:relative">
+            <div class="glowing-target" style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:#1a73e8;color:#FFF;border-radius:6px;font-size:14px;font-weight:700">
+              <span>➕</span>
+              <span>新專案 (New project)</span>
+            </div>
+            <!-- 跳動指示箭頭 -->
+            <div class="guide-pointer-badge bounce-down" style="position:absolute;top:-42px;left:20px">
+              ⬇️ 第一步：點擊此處建立專案
+            </div>
+          </div>
+          <span style="font-size:13px;color:#CBD5E1">點擊後 Google 將為您開立全新的腳本編輯環境</span>
+        </div>
+      </div>
+
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
         <a href="https://script.google.com/home/start" target="_blank" class="btn btn-blue" id="btn-open-gas">
           🚀 開啟 Google Apps Script 控制台 ↗
         </a>
-        <span style="font-size:12px;color:var(--text-muted)">進入後點擊左上角「<strong>+ 新專案 (New project)</strong>」</span>
+      </div>
+
+      <div class="step-actions-bar">
+        <span style="font-size:12px;color:#8B949E">完成後進行下一步 ➔</span>
+        <button class="btn btn-primary" onclick="scrollToStep(2)">下一步：貼上專用代碼 ➔</button>
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════ -->
     <!-- 步驟 2 -->
+    <!-- ═══════════════════════════════════════════════════════ -->
     <div class="step-card" id="step-2">
       <div class="step-header">
         <div class="step-badge">2</div>
-        <div class="step-title">貼上 SMU 專用雲端處理代碼</div>
+        <div class="step-title">清空預設文字並貼上 SMU 專用代碼</div>
       </div>
       <div class="step-desc">
-        1. 在新專案中，<strong>將原本編輯器內預設的 <code>function myFunction() {}</code> 全部刪除</strong>。<br>
-        2. 點擊下方按鈕一鍵複製 SMU 專用處理代碼，並貼到編輯器內。<br>
-        3. 按鍵盤 <kbd style="background:#21262d;padding:2px 6px;border-radius:4px;border:1px solid #30363d">Ctrl + S</kbd> 存檔（專案名稱可隨意命名，如 <code>SMU-Uploader</code>）。
+        1. 在新專案編輯器中，<strong>將畫面原本預設的 <code>function myFunction() {}</code> 全部刪除</strong>。<br>
+        2. 點擊下方按鈕一鍵複製 SMU 專用代碼，並貼到編輯器內。<br>
+        3. 按鍵盤 <kbd style="background:#21262d;padding:2px 8px;border-radius:4px;border:1px solid #30363d;color:#FFF;font-weight:700">Ctrl + S</kbd> 存檔（專案名稱可命名為 <code>SMU-Uploader</code>）。
+      </div>
+
+      <!-- 擬真代碼編輯器指示 -->
+      <div class="mock-google-window" style="margin-bottom:16px">
+        <div class="mock-google-topbar">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:12px;color:#9aa0a6">檔案：</span>
+            <span style="color:#FFF;font-weight:700">程式碼.gs</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="glowing-target" style="padding:2px 8px;border-radius:4px;font-size:12px;color:#FF4757;background:rgba(255,71,87,0.1)">
+              ❌ 刪除預設的 function myFunction()
+            </div>
+            <div class="guide-pointer-badge bounce-left" style="font-size:11px;padding:3px 8px">
+              ⬅️ 先全選清空
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="code-box-wrap">
         <div class="code-box-header">
-          <span>GAS 處理腳本 (JavaScript) · 內建自動垃圾桶銷毀與空間防呆清理</span>
-          <button class="btn btn-primary" style="padding:5px 12px;font-size:12px" onclick="copyGasScript()">
+          <span>GAS 處理腳本 · 內建自動垃圾桶銷毀與空間防呆清理</span>
+          <button class="btn btn-primary" style="padding:6px 14px;font-size:12.5px" onclick="copyGasScript()">
             📋 一鍵複製完整代碼
           </button>
         </div>
@@ -639,48 +879,131 @@ function doPost(e) {
   }
 }</pre>
       </div>
+
+      <div class="step-actions-bar">
+        <button class="btn btn-secondary" onclick="scrollToStep(1)">⬆️ 回上一步</button>
+        <button class="btn btn-primary" onclick="scrollToStep(3)">下一步：部署 Web 應用程式 ➔</button>
+      </div>
     </div>
 
-    <!-- 步驟 3 -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- 步驟 3 (最核心！) -->
+    <!-- ═══════════════════════════════════════════════════════ -->
     <div class="step-card" id="step-3">
       <div class="step-header">
         <div class="step-badge">3</div>
-        <div class="step-title">發布為「網頁應用程式 (Web App)」 (最重要！)</div>
+        <div class="step-title">發布為「網頁應用程式 (Web App)」 (最重要的一步！)</div>
       </div>
       <div class="step-desc">
         點擊編輯器右上角的藍色按鈕 <strong>「部署 (Deploy)」➔「新增部署作業 (New deployment)」</strong>：
       </div>
 
-      <div class="config-grid">
-        <div class="config-card">
-          <div class="config-label">1. 部署類型 (點擊齒輪 ⚙️)</div>
-          <div class="config-val">網頁應用程式 (Web app)</div>
-          <div class="config-tip">點擊「選取類型」左側齒輪切換</div>
-        </div>
-        <div class="config-card">
-          <div class="config-label">2. 執行身分 (Execute as)</div>
-          <div class="config-val">我 (您的 Google 帳號)</div>
-          <div class="config-tip">確保檔案儲存在您自己的 Google Drive</div>
-        </div>
-        <div class="config-card highlight">
-          <div class="config-label">3. 誰可以存取 (Who has access) ⚠️</div>
-          <div class="config-val target">所有人 (Anyone)</div>
-          <div class="config-tip">關鍵！讓加入房間的隊友免登入即可下載</div>
+      <!-- 擬真 Google 部署導航列 (指示點擊部署) -->
+      <div class="mock-google-window" style="margin-bottom:12px">
+        <div class="mock-google-topbar">
+          <div class="mock-google-brand">
+            <div class="mock-google-icon">⚡</div>
+            <span>專案：SMU-Uploader</span>
+          </div>
+          <div class="mock-google-actions">
+            <!-- 部署按鈕指示標籤 -->
+            <div class="guide-pointer-badge bounce-down" style="position:absolute;top:-42px;right:0">
+              ⬇️ 1. 點擊「部署」>「新增部署作業」
+            </div>
+            <div class="mock-btn-deploy glowing-target">
+              <span>部署 ▾</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="callout-box">
-        <div class="callout-title">⚠️ 若 Google 出現「需要授權 / 帳戶驗證」提示：</div>
-        <div class="callout-content">
-          這是 Google 對自建個人腳本的例行安全確認：<br>
-          1. 點擊「<strong>審查權限 (Review permissions)</strong>」並選擇您的 Google 帳號。<br>
-          2. 若畫面顯示「Google 尚未驗證這個應用程式」，請點擊左下角「<strong>進階 (Advanced)</strong>」。<br>
-          3. 點擊最下方的「<strong>前往 (專案名稱) (不安全)</strong>」➔ 點擊「<strong>允許 (Allow)</strong>」即可順利發布！
+      <!-- 擬真 Google 部署彈窗 (指示三項關鍵設定) -->
+      <div class="mock-google-window">
+        <div class="mock-google-topbar">
+          <span style="font-weight:700;color:#FFF">新增部署作業</span>
+          <span style="font-size:12px;color:#9aa0a6">設定設定檔</span>
         </div>
+        <div class="mock-dialog">
+          <div class="mock-dialog-grid">
+            <!-- 左側齒輪選單 -->
+            <div class="mock-dialog-sidebar">
+              <span class="mock-form-label" style="display:block;margin-bottom:8px">選取類型：</span>
+              <div style="position:relative">
+                <div class="mock-type-select-btn glowing-target">
+                  <span>⚙️</span>
+                  <span>網頁應用程式</span>
+                </div>
+                <div class="guide-pointer-badge bounce-down" style="position:absolute;top:-38px;left:0;font-size:11px">
+                  ⬇️ 2. 點齒輪選【網頁應用程式】
+                </div>
+              </div>
+            </div>
+
+            <!-- 右側表單配置 -->
+            <div class="mock-dialog-body">
+              <div class="mock-form-group">
+                <label class="mock-form-label">說明 (Description)：</label>
+                <input type="text" class="mock-form-input" value="SMU 雲端整合包" readonly>
+              </div>
+
+              <div class="mock-form-group">
+                <label class="mock-form-label">執行身分 (Execute as)：</label>
+                <div class="mock-form-select" style="background:#303134">我 (您的 Google 帳號)</div>
+                <span style="font-size:11px;color:#9aa0a6">確保檔案儲存在您自己的 Google 雲端硬碟</span>
+              </div>
+
+              <!-- ⚠️ 最關鍵設定：所有人 -->
+              <div class="mock-form-group" style="position:relative">
+                <label class="mock-form-label" style="color:#FF6B81;font-weight:800">
+                  誰可以存取 (Who has access) ⚠️【最關鍵設定】：
+                </label>
+                <div class="glowing-target" style="background:#3a1d24;padding:8px 12px;border-radius:6px;display:flex;align-items:center;justify-content:space-between">
+                  <span style="color:#FFF;font-weight:800;font-size:14.5px">所有人 (Anyone)</span>
+                  <span style="color:#3FB950;font-size:12px;font-weight:700">✓ 必須選此項</span>
+                </div>
+                <!-- 指向箭頭 -->
+                <div class="guide-pointer-badge bounce-left" style="position:absolute;top:28px;right:-10px">
+                  ⬅️ 3. 務必點選【所有人 (Anyone)】！
+                </div>
+                <span style="font-size:11.5px;color:#FF758C;margin-top:4px">
+                  💡 關鍵：選「所有人」隊友才能下載整合包，且隊友完全碰不到您的私密硬碟檔案！
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 底部部署按鈕 -->
+          <div class="mock-dialog-footer">
+            <div style="position:relative">
+              <div class="guide-pointer-badge bounce-up" style="position:absolute;top:-40px;right:0">
+                ⬆️ 4. 點擊「部署」
+              </div>
+              <button class="btn btn-primary" style="padding:7px 20px;font-size:13px" onclick="alert('請在真實 Google 頁面中點擊部署作業！')">部署 (Deploy)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Google 首次授權警示排除指引 -->
+      <div class="callout-box" style="border-color:rgba(241,196,15,0.4);background:rgba(241,196,15,0.06)">
+        <div class="callout-title">⚠️ 若 Google 出現「需要授權 / 帳戶驗證」提示（100% 安全）：</div>
+        <div class="callout-content">
+          這是 Google 對個人私有腳本的例行確認，請依序點擊：<br>
+          1. 點擊「<strong>審查權限 (Review permissions)</strong>」並選擇您的 Google 帳號。<br>
+          2. 若畫面出現「Google 尚未驗證這個應用程式」，請點擊左下角淺灰色字體「<strong>進階 (Advanced)</strong>」。<br>
+          3. 點擊最下方的「<strong>前往 (專案名稱) (不安全)</strong>」➔ 點擊「<strong>允許 (Allow)</strong>」即可發布完成！
+        </div>
+      </div>
+
+      <div class="step-actions-bar">
+        <button class="btn btn-secondary" onclick="scrollToStep(2)">⬆️ 回上一步</button>
+        <button class="btn btn-primary" onclick="scrollToStep(4)">下一步：複製網址貼回 SMU ➔</button>
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════ -->
     <!-- 步驟 4 -->
+    <!-- ═══════════════════════════════════════════════════════ -->
     <div class="step-card" id="step-4">
       <div class="step-header">
         <div class="step-badge">4</div>
@@ -690,22 +1013,47 @@ function doPost(e) {
         部署成功後，Google 會顯示一串以 <code>https://script.google.com/macros/s/.../exec</code> 結尾的網址：
       </div>
 
-      <div class="callout-box" style="border-color:rgba(63,185,80,0.4);background:rgba(63,185,80,0.06)">
-        <div class="callout-title" style="color:var(--accent-green)">
-          🎉 大功告成！您已永久完成部署：
+      <!-- 擬真 Google 成功畫面 -->
+      <div class="mock-google-window" style="margin-bottom:20px">
+        <div class="mock-google-topbar" style="background:#1b3a27">
+          <span style="color:#3FB950;font-weight:700">✅ 部署作業已成功建立</span>
+          <span style="font-size:12px;color:#A0AEC0">網頁應用程式</span>
         </div>
-        <div class="callout-content">
+        <div style="padding:20px;background:#202124">
+          <div class="mock-form-group">
+            <label class="mock-form-label" style="color:#CBD5E1">網頁應用程式網址 (Web app URL)：</label>
+            <div style="display:flex;gap:10px;align-items:center;position:relative">
+              <input type="text" class="mock-form-input glowing-target" value="https://script.google.com/macros/s/AKfycbx.../exec" readonly style="flex:1;color:#79C0FF">
+              <div class="guide-pointer-badge bounce-left" style="position:absolute;right:10px;top:-36px">
+                ⬇️ 複製這串網址！
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 成功總結卡片 -->
+      <div class="callout-box" style="border-color:rgba(63,185,80,0.5);background:rgba(63,185,80,0.08)">
+        <div class="callout-title" style="color:var(--accent-green);font-size:15px">
+          🎉 大功告成！永久生效流程：
+        </div>
+        <div class="callout-content" style="font-size:14px">
           1. 複製該網址，返回 SMU「<strong>創建組隊房間</strong>」彈窗。<br>
-          2. 勾選「<strong>🚀 自動打包三檔並上傳至 Google Drive</strong>」，貼上網址。<br>
-          3. 點擊「<strong>🔗 測試</strong>」按鈕，出現「✅ GAS 雲端連線測試成功」！<br>
-          4. <strong>SMU 會永久記住此網址</strong>，以後無論開哪款遊戲，開房直接一鍵全自動處理，永遠不必重複操作！
+          2. 勾選「<strong>🚀 自動打包三檔並上傳至 Google Drive</strong>」，貼上該網址。<br>
+          3. 點擊旁邊的「<strong>🔗 測試</strong>」按鈕，出現「✅ GAS 雲端連線測試成功」！<br>
+          4. <strong>SMU 會永久記住此網址</strong>，以後無論換哪款遊戲開房，系統皆會在背景全自動打包、清空歷史舊檔並發送下載連結，永遠不必重複設定！
         </div>
+      </div>
+
+      <div class="step-actions-bar">
+        <button class="btn btn-secondary" onclick="scrollToStep(3)">⬆️ 回上一步</button>
+        <span style="font-size:13px;color:var(--accent-green);font-weight:700">✨ 恭喜完成！可關閉此網頁返回 SMU 享受極速開房</span>
       </div>
     </div>
 
     <!-- 常見問題 FAQ -->
     <section style="margin-top:40px">
-      <h3 style="font-size:17px;font-weight:700;margin-bottom:16px;color:#F0F6FC">💡 常見問題與安全性說明</h3>
+      <h3 style="font-size:18px;font-weight:800;margin-bottom:16px;color:#F0F6FC">💡 常見問題與安全性說明</h3>
 
       <div class="faq-item" onclick="toggleFaq(this)">
         <div class="faq-question">
@@ -802,6 +1150,31 @@ function doPost(e) {
 
     function toggleFaq(el) {
       el.classList.toggle('open');
+    }
+
+    function scrollToStep(num) {
+      var target = document.getElementById('step-' + num);
+      if (target) {
+        // 移除所有 focused
+        document.querySelectorAll('.step-card').forEach(function(card) {
+          card.classList.remove('focused');
+        });
+        target.classList.add('focused');
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // 更新頂部導航
+        document.querySelectorAll('.step-nav-item').forEach(function(item, idx) {
+          if (idx + 1 === num) {
+            item.classList.add('active');
+          } else {
+            item.classList.remove('active');
+          }
+        });
+      }
+    }
+
+    function focusStep(num) {
+      scrollToStep(num);
     }
   </script>
 </body>

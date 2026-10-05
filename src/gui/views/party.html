@@ -220,6 +220,7 @@
           <input type="checkbox" id="check-party-auto-upload" onchange="togglePartyAutoUploadSection()" style="width:15px;height:15px;accent-color:#FF4757">
           <span>🚀 自動打包三檔並上傳至 Google Drive (房主專屬 GAS)</span>
         </label>
+        <button type="button" class="btn btn-o btn-xs" onclick="startGasSpotlightTour(event)" style="font-size:11px;padding:2px 8px;border-radius:12px;color:#FF6B81;border-color:rgba(255,71,87,0.4)" title="開啟一步一步聚光燈教學">✨ 逐步指引精靈</button>
       </div>
 
       <!-- 三檔檢測狀態條 -->
@@ -235,13 +236,13 @@
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
             <label style="font-size:11.5px;color:var(--fg);font-weight:600">Google Apps Script Web App 網址：</label>
             <div style="display:flex;gap:6px">
-              <button type="button" class="btn btn-o btn-xs" onclick="copyGasSampleScript()" title="複製 Google Apps Script 範本代碼">📋 複製 GAS 腳本</button>
-              <button type="button" class="btn btn-o btn-xs" onclick="openGasHelpGuide()" title="查看 1 分鐘快速部屬教學">❓ 部署教學</button>
+              <button type="button" class="btn btn-o btn-xs" id="btn-party-copy-gas-script" onclick="copyGasSampleScript()" title="複製 Google Apps Script 範本代碼">📋 複製 GAS 腳本</button>
+              <button type="button" class="btn btn-o btn-xs" id="btn-party-open-gas-guide" onclick="openGasHelpGuide()" title="查看 1 分鐘快速部屬教學">❓ 部署教學</button>
             </div>
           </div>
           <div style="display:flex;gap:6px">
             <input type="text" id="input-party-gas-url" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1;padding:7px 10px;border:1.5px solid var(--pink-light);border-radius:8px;font-size:11px;background:var(--bg);color:var(--fg);outline:none">
-            <button type="button" class="btn btn-p btn-xs" onclick="testGasUrlConnection()">🔗 測試</button>
+            <button type="button" class="btn btn-p btn-xs" id="btn-party-test-gas" onclick="testGasUrlConnection()">🔗 測試</button>
             <button type="button" class="btn btn-o btn-xs" onclick="cleanGasSpaceNow()" title="手動清空 Google Drive 上 SMU_Party_Packages 資料夾中的歷史舊包">🗑️ 清空舊檔</button>
           </div>
         </div>

@@ -6205,4 +6205,100 @@ body.party-mode .pages,
   margin-top: 6px !important;
 }
 
+/* ═══════════════════════════════════════════════════════
+   SMU 新手聚光燈互動引導系統 (Spotlight Tour System)
+   ═══════════════════════════════════════════════════════ */
+#smu-spotlight-tour-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 200000;
+  pointer-events: none;
+}
+
+#smu-tour-highlight-box {
+  position: fixed;
+  pointer-events: none;
+  z-index: 200001;
+  transition: all 0.28s cubic-bezier(0.2, 0, 0, 1);
+  border: 2px solid #FF4757;
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.74), 0 0 20px rgba(255, 71, 87, 0.75);
+  box-sizing: border-box;
+}
+
+#smu-tour-tooltip {
+  position: fixed;
+  z-index: 200002;
+  pointer-events: auto;
+  background: rgba(22, 27, 34, 0.96);
+  border: 1.5px solid rgba(255, 71, 87, 0.5);
+  border-radius: 14px;
+  padding: 16px 20px;
+  max-width: 320px;
+  min-width: 260px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 24px rgba(255, 71, 87, 0.25);
+  backdrop-filter: blur(16px);
+  color: #F0F6FC;
+  font-family: var(--font, sans-serif);
+  transition: all 0.28s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.tour-tooltip-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 71, 87, 0.2);
+  color: #FF6B81;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 99px;
+  margin-bottom: 8px;
+}
+
+.tour-tooltip-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin-bottom: 6px;
+}
+
+.tour-tooltip-desc {
+  font-size: 12px;
+  color: #CBD5E1;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+
+.tour-tooltip-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.tour-tooltip-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+.tour-tooltip-arrow.arrow-top {
+  top: -8px;
+  left: 24px;
+  border-width: 0 8px 8px 8px;
+  border-color: transparent transparent rgba(255, 71, 87, 0.7) transparent;
+}
+
+.tour-tooltip-arrow.arrow-bottom {
+  bottom: -8px;
+  left: 24px;
+  border-width: 8px 8px 0 8px;
+  border-color: rgba(255, 71, 87, 0.7) transparent transparent transparent;
+}
+
 
