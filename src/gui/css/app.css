@@ -5066,25 +5066,36 @@ body.font-normal .quota-chip {
 .party-quick-join-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 .party-quick-join-wrap input {
-  width: 160px;
-  padding: 9px 12px;
+  width: 130px;
+  min-width: 125px;
+  padding: 8px 12px;
   border: 1.5px solid var(--pink-light);
   border-radius: 10px;
-  font-size: 12px;
-  font-family: Consolas, monospace;
-  font-weight: 700;
+  font-size: 13px;
+  font-family: var(--font, 'Microsoft YaHei', sans-serif);
+  font-weight: 600;
   text-transform: uppercase;
   text-align: center;
+  letter-spacing: 0.5px;
   outline: none;
   background: var(--card);
   color: inherit;
   box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+.party-quick-join-wrap input::placeholder {
+  font-family: var(--font, 'Microsoft YaHei', sans-serif);
+  font-weight: 500;
+  font-size: 12.5px;
+  letter-spacing: 0.5px;
+  color: var(--gray, rgba(255, 255, 255, 0.45));
 }
 .party-quick-join-wrap input:focus {
   border-color: var(--pink-deep);
+  box-shadow: 0 0 10px rgba(255, 143, 167, 0.25);
 }
 
 /* 大廳房間清單網格 (Lobby Grid) */

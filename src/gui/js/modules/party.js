@@ -448,7 +448,7 @@ function quickJoinPartyRoom() {
   if (!input) return;
   var code = (input.value || '').trim().toUpperCase();
   if (!code) {
-    tt('請輸入 6 碼房間號碼', 'warn');
+    tt('請輸入邀請碼', 'warn');
     return;
   }
   joinPartyRoom(code);
