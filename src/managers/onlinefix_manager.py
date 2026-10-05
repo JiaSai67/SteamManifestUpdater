@@ -1071,9 +1071,19 @@ def get_fix_status(app_id):
         key_files = [f for f in installed if is_known_crack_file(f) or f.lower().endswith(('.dll', '.ini', '.exe', '.url'))]
         check_list = key_files if key_files else installed[:10]
         
+        missing_count = 0
         for f in check_list:
             if not (game_dir / f).exists():
-                return "⚠️ 部分補丁檔案遺失 (可能被防毒刪除)"
+                missing_count += 1
+                
+        # 🌟 若關鍵補丁檔案全數遺失 (例如 Steam 驗證完整性還原，或使用者手動刪除)
+        if missing_count == len(check_list) and len(check_list) > 0:
+            # 自動清理孤立失效的紀錄表，恢復乾淨狀態
+            _delete_record(app_id, game_dir)
+            return "未安裝"
+
+        if missing_count > 0:
+            return "⚠️ 部分補丁檔案遺失 (可能被防毒刪除)"
                 
         return "✅ 已安裝"
     except Exception:

@@ -454,11 +454,14 @@ async function openGameDetail(appid, name, image){
       }
     }
 
-    // 🌟 若網盤有收錄補丁、已部署或版本保護，即時將此遊戲小卡套用藍色邊框與相關標籤
-    if(gdrive.available || gdrive.is_deployed){
+    // 🌟 聯機標籤：嚴格以 Google Drive 網盤是否收錄為準，不與部署狀態綁定
+    if(gdrive.available){
       if(!_onlinefixAppids) _onlinefixAppids = new Set();
       _onlinefixAppids.add(targetAppid);
+    } else {
+      if(_onlinefixAppids) _onlinefixAppids.delete(targetAppid);
     }
+    // 🌟 部署標籤：嚴格以本地是否已套用補丁為準
     if(gdrive.is_deployed){
       if(!_deployedAppids) _deployedAppids = new Set();
       _deployedAppids.add(targetAppid);

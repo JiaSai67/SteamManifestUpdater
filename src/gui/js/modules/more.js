@@ -478,7 +478,6 @@ async function manualDeployPatch(appid, name){
         _pre._games.forEach(function(g){
           if(String(g.appid) === aidStr){
             g.deployed = true;
-            g.has_onlinefix = true;
           }
         });
         var filter = (document.getElementById('mf').value||'').trim().toLowerCase();

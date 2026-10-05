@@ -318,15 +318,47 @@ class PartyPackager:
                     game_dir = onlinefix_manager._find_steam_game_dir(app_id)
                     if game_dir and Path(game_dir).exists():
                         g_path = Path(game_dir)
+                        installed_rel_paths = []
+                        backed_up_rel_paths = []
                         for pf in patch_files:
                             rel_sub = pf.replace("patch/files/", "", 1)
                             target_pf = g_path / rel_sub
                             target_pf.parent.mkdir(parents=True, exist_ok=True)
+                            
+                            # 若目標檔案已存在且尚未建立備份，先將原檔備份為 .bak
+                            if target_pf.exists() and target_pf.is_file():
+                                bak_f = target_pf.with_suffix(target_pf.suffix + ".bak")
+                                if not bak_f.exists():
+                                    try:
+                                        shutil.copy2(target_pf, bak_f)
+                                        backed_up_rel_paths.append(rel_sub)
+                                        logger.info(f"[Packager] 已自動備份原始檔案: {bak_f.name}")
+                                    except Exception as be:
+                                        logger.warning(f"[Packager] 備份原檔異常: {be}")
+
                             with zf.open(pf) as src, open(target_pf, "wb") as dst:
                                 shutil.copyfileobj(src, dst)
+                            installed_rel_paths.append(rel_sub)
                             applied["files_count"] += 1
+
                         applied["patch"] = True
                         logger.info(f"[Packager] 已向遊戲目錄解壓套用 {applied['files_count']} 個補丁檔案: {g_path}")
+
+                        # 🌟 寫入官方 .onlinefix_record.json 與本地快取紀錄表，支援完整追蹤與乾淨移除
+                        try:
+                            record = {
+                                "appid": str(app_id),
+                                "installed_files": installed_rel_paths,
+                                "backed_up_files": backed_up_rel_paths,
+                                "manual_install": False,
+                                "source_drive": "Party Package Sync",
+                                "game_dir": str(g_path),
+                                "timestamp": int(time.time())
+                            }
+                            onlinefix_manager._save_record(app_id, record)
+                            logger.info(f"[Packager] 已成功為 AppID {app_id} 建立部署記錄檔 (.onlinefix_record.json)")
+                        except Exception as re:
+                            logger.warning(f"[Packager] 寫入部署記錄檔失敗: {re}")
 
             return {"ok": True, "applied": applied, "msg": "聯機整合包解壓部署成功！"}
         except Exception as e:

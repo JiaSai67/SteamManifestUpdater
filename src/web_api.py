@@ -2200,8 +2200,8 @@ class WebApi:
                     except Exception:
                         pass
 
-                # 🌟 支援聯機補丁特性：只要雲端網盤有收錄，或者本機目錄已實際部署，均判定為支援補丁 (藍色邊框 + 🎮 聯機)
-                has_of = bool(appid in of_appids or is_deployed)
+                # 🌟 聯機標籤 (has_onlinefix)：嚴格只檢查 Google Drive / 雲端補丁庫是否收錄該遊戲 (藍色標籤 🎮 聯機)
+                has_of = bool(appid in of_appids)
 
                 games.append({
                     "appid": appid,
