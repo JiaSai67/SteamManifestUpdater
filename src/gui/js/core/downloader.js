@@ -82,30 +82,22 @@
             throw new Error(msg);
           }
 
-          // 重新整理並確認該遊戲最新狀態
-          var refStatus = null;
-          try {
-            if(pywebview.api.refresh_single_game_status){
-              refStatus = await pywebview.api.refresh_single_game_status(aidStr);
-            }
-          } catch(e){
-            console.warn('[Downloader] refresh_single_game_status warning:', e);
-          }
-
-          var hasUp = (refStatus && refStatus.has_update !== undefined) ? refStatus.has_update : false;
-          var vStatus = (refStatus && refStatus.version_status) ? refStatus.version_status : '最新版';
-
-          // 🌟 核心廣播：即刻通知全系統所有頁面卡片與彈窗同步更新狀態為最新版
+          // 🌟 核心即時廣播 (0ms 零延遲)：部署成功瞬間立即將卡片與記憶體標記為最新，瞬間消除需更新提示與角標！
           self.notifyGameStatusChanged({
             appid: aidStr,
             name: gName,
             is_installed: true,
-            has_update: hasUp,
-            version_status: vStatus,
-            best_source: (res && res.best_source) || (refStatus && refStatus.best_source) || '官方'
+            has_update: false,
+            version_status: '最新版',
+            best_source: (res && res.best_source) || '官方'
           });
 
-          return { ok: true, data: res, status: refStatus };
+          // 後端快取同步校驗 (非阻塞異步執行，絕不阻塞前端 UI 反饋)
+          if(pywebview.api && pywebview.api.refresh_single_game_status){
+            pywebview.api.refresh_single_game_status(aidStr).catch(function(){});
+          }
+
+          return { ok: true, data: res, status: { has_update: false, version_status: '最新版' } };
         } finally {
           delete self._activeDownloads[aidStr];
         }
@@ -327,6 +319,15 @@
 
       try {
         var res = await this.downloadManifest(aidStr, gName, { isUpdate: true });
+
+        // 🌟 即刻消除卡片需更新提示與發光邊框 (0ms 反饋)
+        if(card){
+          card.classList.remove('needs-update');
+          var upTags = card.querySelectorAll('.tag-up, .corner-tag.tag-up');
+          upTags.forEach(function(t){ t.remove(); });
+        }
+        if(window.refreshUpdateCountUI) refreshUpdateCountUI();
+
         if(ov) {
           var statEl = ov.querySelector('.card-update-status');
           if(statEl) statEl.textContent = '✅ 更新校驗完成！';
@@ -336,8 +337,8 @@
         if(!options.silentBatch){
           if(window.tt) tt('🎉 「' + gName + '」Manifest 版本更新完成！', 'ok');
         }
-        // 留 400ms 讓使用者看清完成反饋
-        await new Promise(function(r){ setTimeout(r, 400); });
+        // 留 200ms 讓使用者看清完成反饋
+        await new Promise(function(r){ setTimeout(r, 200); });
         return true;
       } catch(err){
         if(ov) {
@@ -554,6 +555,7 @@
         } else {
           mCard.classList.remove('needs-update');
           if(upTag) upTag.remove();
+          mCard.querySelectorAll('.tag-up, .corner-tag.tag-up').forEach(function(el){ el.remove(); });
           if(ddEl){
             var btnAuto = ddEl.querySelector('.btn-auto-up');
             if(btnAuto) btnAuto.remove();
@@ -600,6 +602,11 @@
             actBtn.onclick = null;
           }
         }
+      }
+
+      // 🌟 核心即時同步：立即更新頂部「⚡ 批次更新 (X 款可更新)」按鈕狀態與計數 (0ms 消除提示)
+      if(typeof window.refreshUpdateCountUI === 'function'){
+        try { window.refreshUpdateCountUI(); } catch(e){}
       }
 
       // E. 向後相容既有全域回調

@@ -1848,6 +1848,24 @@ class WebApi:
         if not appid_str or not appid_str.isdigit():
             return {"ok": False, "appid": appid_str, "has_update": False, "version_status": "最新版"}
         
+        # 🌟 優先讀取剛更新之快取，若已標記為最新版則立即秒回 (0ms 反饋)
+        updates_file = Path(__file__).parent.parent / "data" / "manifest_updates.json"
+        if updates_file.exists():
+            try:
+                updates = json.loads(updates_file.read_text(encoding="utf-8"))
+                cached = updates.get(appid_str)
+                if cached and cached.get("has_update") is False:
+                    return {
+                        "ok": True,
+                        "appid": appid_str,
+                        "has_update": False,
+                        "version_status": cached.get("version_status", "最新版"),
+                        "latest_date": cached.get("latest_date", ""),
+                        "best_source": cached.get("best_source", "官方")
+                    }
+            except Exception:
+                pass
+
         sp = self._steam_path or steam_manager.find_steam_path()
         lua_dir = Path(sp) / "config" / "lua" if sp else None
         
