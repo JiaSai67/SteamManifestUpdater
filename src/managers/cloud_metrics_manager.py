@@ -10,6 +10,7 @@ CloudMetricsManager - Supabase Egress 與雲端配額脫敏管理模組
 
 import os
 import json
+import time
 import logging
 import datetime
 import requests
@@ -38,6 +39,8 @@ class CloudMetricsManager:
         self.secrets_file = self.root_dir / "data" / "secrets" / "supabase.json"
         self._cached_metrics: Optional[Dict[str, Any]] = None
         self._last_sync_time: Optional[datetime.datetime] = None
+        self._last_management_fetch_time: float = 0.0
+        self._management_interval: int = 300  # 🌟 嚴格限制：Management API 探測 5 分鐘 (300 秒) 一次
 
     def _load_supabase_config(self) -> Dict[str, Any]:
         if self.secrets_file.exists():
@@ -48,11 +51,18 @@ class CloudMetricsManager:
                 logger.warning(f"讀取 supabase.json 失敗: {e}")
         return {}
 
-    def fetch_live_metrics_from_supabase_management(self) -> Dict[str, Any]:
+    def fetch_live_metrics_from_supabase_management(self, force: bool = False) -> Dict[str, Any]:
         """
-        嘗試透過 Supabase Management API 獲取官方最真實的 Usage 數據。
-        若尚未在 secrets 配置 management_token，則依據官方基準與累計請求產生精準統計。
+        依據使用者規範：Management API 探測嚴格限制為 5 分鐘 (300 秒) 一次。
+        若在 5 分鐘內重複調用且已有本地快取，則直接回傳快取數據，徹底將每日探測流量控制在 ~0.8MB (288 次/天)。
         """
+        now = time.time()
+        if not force and self._cached_metrics is not None:
+            elapsed = now - self._last_management_fetch_time
+            if elapsed < self._management_interval:
+                logger.debug(f"[CloudMetrics] 距離上次 Management API 探測僅過 {int(elapsed)}s (<300s)，直接使用快取")
+                return self._cached_metrics
+
         cfg = self._load_supabase_config()
         project_id = cfg.get("project_id", "jjpwdfbnodhfjhljxcrl")
         management_token = cfg.get("management_token", "").strip()
@@ -77,12 +87,19 @@ class CloudMetricsManager:
                     egress_val = egress.get("usage", base_egress_gb)
                     db = data.get("db_size", {})
                     db_val = db.get("usage", base_db_gb)
-                    return self._build_metrics_dict(egress_val, db_val, base_log_gb)
+                    metrics = self._build_metrics_dict(egress_val, db_val, base_log_gb)
+                    self._cached_metrics = metrics
+                    self._last_management_fetch_time = now
+                    logger.info("[CloudMetrics] ✅ 成功透過 Supabase Management API 探測最新 Usage (5 分鐘週期)")
+                    return metrics
             except Exception as e:
                 logger.warning(f"調用 Supabase Management API 失敗: {e}")
 
-        # 無 Management Token 時使用基準估算
-        return self._build_metrics_dict(base_egress_gb, base_db_gb, base_log_gb)
+        # 無 Management Token 或調用失敗時使用基準或保留現有快取
+        if self._cached_metrics is None:
+            self._cached_metrics = self._build_metrics_dict(base_egress_gb, base_db_gb, base_log_gb)
+        self._last_management_fetch_time = now
+        return self._cached_metrics
 
     def _build_metrics_dict(self, egress_gb: float, db_gb: float, log_gb: float) -> Dict[str, Any]:
         egress_used = round(float(egress_gb), 4)
@@ -106,6 +123,8 @@ class CloudMetricsManager:
             "log_query_max_gb": 100.0,
             "storage_used_gb": 0.0,
             "storage_max_gb": 1.0,
+            "probe_interval_seconds": 300,
+            "probe_interval_desc": "5 分鐘一次",
             "status": "healthy",
             "health_text": "充沛 · 運作良好",
             "updated_at": now_iso
@@ -127,11 +146,11 @@ class CloudMetricsManager:
             return res
         return None
 
-    def sync_metrics_to_supabase(self) -> Dict[str, Any]:
+    def sync_metrics_to_supabase(self, force: bool = False) -> Dict[str, Any]:
         """
-        房主端執行：獲取用量 -> 雜湊壓縮加密 -> 寫入 Supabase server_metrics 脫敏狀態表
+        房主端執行：獲取用量 (5 分鐘探測週期保護) -> 雜湊壓縮加密 -> 寫入 Supabase server_metrics 脫敏狀態表
         """
-        metrics = self.fetch_live_metrics_from_supabase_management()
+        metrics = self.fetch_live_metrics_from_supabase_management(force=force)
         encrypted_token = self.encrypt_metrics_payload(metrics)
 
         cfg = self._load_supabase_config()

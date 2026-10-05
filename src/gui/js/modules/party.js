@@ -2741,7 +2741,17 @@ function closeCloudMetricsModal() {
   }
 }
 
+var _lastCloudMetricsFetchTime = 0;
+var CLOUD_METRICS_INTERVAL_MS = 5 * 60 * 1000; // 🌟 5 分鐘 (300 秒)
+
 function fetchAndRefreshCloudMetrics(isManual) {
+  var now = Date.now();
+  // 若為自動輪詢且距離上次獲取未滿 5 分鐘，自動略過以節省配額
+  if (!isManual && (now - _lastCloudMetricsFetchTime < CLOUD_METRICS_INTERVAL_MS)) {
+    return;
+  }
+  _lastCloudMetricsFetchTime = now;
+
   if (isManual) {
     tt('正在從雲端取得雜湊加密之用量數據並於本地安全解密…', 'info');
   }
@@ -2817,7 +2827,7 @@ function applyCloudMetricsData(data, token) {
   var upText = document.getElementById('metric-updated-at');
   if (upText) {
     var d = data.updated_at ? new Date(data.updated_at) : new Date();
-    upText.textContent = '更新時間: ' + d.toLocaleTimeString();
+    upText.textContent = '更新時間: ' + d.toLocaleTimeString() + ' (探測頻率: 5分鐘一次 · 每日 < 1MB)';
   }
 }
 
