@@ -71,6 +71,9 @@ class PartyManager:
         self.current_room_data: Optional[Dict[str, Any]] = None
         self.my_status: str = "未下載"  # 未下載, 下載中, 就緒
         self.my_progress: int = 0
+        self.my_steam_installed: bool = False  # Steam 本體安裝狀態
+        self.my_deploy_status: str = "pending"  # pending / downloading / deploying / success / failed
+        self.my_deploy_error: str = ""  # 部署失敗異常細節
         self.current_gas_file_id: Optional[str] = None
         self.current_gas_url: Optional[str] = None
 
@@ -264,6 +267,7 @@ class PartyManager:
     def _pack_members(members: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         將成員陣列進行緊湊精簡，並使用 zlib Level 9 最大壓縮與輕量混淆，
+        包含 Steam 安裝狀態 (steam_installed) 與最終部署狀態 (deploy_status, deploy_error)。
         大幅縮減 JSON 字元長度，節省傳輸 Egress 與資料庫空間。
         """
         if not members:
@@ -278,7 +282,10 @@ class PartyManager:
                     int(m.get("progress", 100)),
                     1 if m.get("is_host") else 0,
                     str(m.get("discord", "")),
-                    str(m.get("updated_at", ""))
+                    str(m.get("updated_at", "")),
+                    1 if m.get("steam_installed", False) else 0,  # 🌟 欄位 7: Steam 遊戲本體安裝狀態
+                    str(m.get("deploy_status", "pending")),       # 🌟 欄位 8: 最終部署狀態 (pending/deploying/success/failed)
+                    str(m.get("deploy_error", ""))                # 🌟 欄位 9: 部署異常原因或報錯細節
                 ])
             token = compress_and_encrypt(compact_list, secret=_PARTY_COMPACT_SECRET)
             if token:
@@ -309,7 +316,10 @@ class PartyManager:
                                 "progress": int(item[3]),
                                 "is_host": bool(item[4]),
                                 "discord": str(item[5]) if len(item) > 5 else "",
-                                "updated_at": str(item[6]) if len(item) > 6 else ""
+                                "updated_at": str(item[6]) if len(item) > 6 else "",
+                                "steam_installed": bool(item[7]) if len(item) > 7 else False,
+                                "deploy_status": str(item[8]) if len(item) > 8 else ("success" if str(item[2]) == "就緒" else "pending"),
+                                "deploy_error": str(item[9]) if len(item) > 9 else ""
                             })
                         elif isinstance(item, dict):
                             expanded.append(item)
@@ -396,8 +406,8 @@ class PartyManager:
         cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=35)
         cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # 🌟 針對性投影：大廳只抓房間基本卡片欄位，嚴格不抓 gdrive_url (下載密文)、archive_password 與 note
-        lobby_fields = "room_id,game_name,app_id,host_name,host_client_id,host_discord,max_players,is_public,status,members,updated_at,created_at"
+        # 🌟 針對性投影：大廳只抓房間基本卡片欄位 (房號、遊戲、房主、人數、備註等)，嚴格不抓 gdrive_url (下載密文) 與 archive_password
+        lobby_fields = "room_id,game_name,app_id,host_name,host_client_id,host_discord,max_players,is_public,status,note,members,updated_at,created_at"
         query_url = f"{self.rest_endpoint}?is_public=eq.true&updated_at=gte.{cutoff_iso}&select={lobby_fields}&order=updated_at.desc"
         try:
             resp = self.session.get(query_url, timeout=7)
@@ -679,6 +689,9 @@ class PartyManager:
             "status": "就緒",
             "progress": 100,
             "is_host": True,
+            "steam_installed": True,
+            "deploy_status": "success",
+            "deploy_error": "",
             "updated_at": now_str
         }
 
@@ -738,18 +751,31 @@ class PartyManager:
             pass
 
     def _send_host_heartbeat(self) -> bool:
-        """發送房主心跳維持房間存活，並順便清除超時隊員與重複成員 (以高壓壓縮封裝 members)"""
+        """
+        發送房主心跳維持房間存活，並順便清除超時隊員與重複成員 (以高壓壓縮封裝 members)。
+        🌟 解決 Lost Update 競態：心跳前先拉取雲端隊友最新進度做智慧合併，避免房主快取覆蓋隊員剛上報的下載與部署狀態。
+        """
         if not self.current_room_id or not self.is_host or not self.current_room_data:
             return False
 
         rid = self.current_room_id
         now_str = self._now_iso()
 
-        # 1. 抓取最新房間成員
-        members = self.current_room_data.get("members") or []
+        # 1. 先從雲端輕量拉取最新 members (僅抓 members 欄位，極省流量)
+        cloud_members = []
+        try:
+            get_res = self.session.get(f"{self.rest_endpoint}?room_id=eq.{rid}&select=members", timeout=4)
+            if get_res.status_code == 200 and get_res.json():
+                cloud_members = self._unpack_members(get_res.json()[0].get("members"))
+        except Exception as e:
+            logger.debug(f"[PARTY] 房主心跳前同步雲端成員異常: {e}")
+
+        # 優先以雲端隊友進度為基準，若雲端拉取失敗則回退至本地快取
+        source_members = cloud_members if cloud_members else (self.current_room_data.get("members") or [])
+
         seen_ids = set()
         fresh_members = []
-        for m in members:
+        for m in source_members:
             mid = m.get("id") or m.get("name")
             if mid in seen_ids:
                 continue
@@ -759,8 +785,14 @@ class PartyManager:
                 m["updated_at"] = now_str
                 m["name"] = self.nickname
                 m["discord"] = self.get_current_discord_name()
+                m["status"] = "就緒"
+                m["progress"] = 100
+                m["steam_installed"] = True
+                m["deploy_status"] = "success"
+                m["deploy_error"] = ""
                 fresh_members.append(m)
-            elif not self._is_expired(m.get("updated_at"), max_seconds=30):
+            elif not self._is_expired(m.get("updated_at"), max_seconds=35):
+                # 隊員在 35 秒內有呼吸心跳，完整保留其即時回報的下載狀態與部署結果
                 fresh_members.append(m)
 
         update_payload = {
@@ -878,15 +910,23 @@ class PartyManager:
             return {"ok": False, "msg": f"加入房間連線失敗: {e}"}
 
     def _detect_initial_status(self, appid: Optional[str]):
-        """檢測本地遊戲是否已就緒 (深度掃描 ACF StateFlags、庫存清單與遊戲目錄)"""
+        """
+        深度檢測本地遊戲狀態：
+        1. steam_installed: Steam 遊戲本體是否已安裝或已就緒
+        2. deploy_status: 線上聯機補丁是否已部署 (pending / downloading / success / failed)
+        3. deploy_error: 部署失敗原因
+        """
         self.my_status = "未下載"
         self.my_progress = 0
+        self.my_steam_installed = False
+        self.my_deploy_status = "pending"
+        self.my_deploy_error = ""
         if not appid:
             return
 
         try:
             appid_str = str(appid).strip()
-            # 1. 優先使用 WebApi 經考驗的精準檢測 (包含所有 Steam 磁區與 ACF StateFlags)
+            # 1. 優先使用 WebApi 經考驗的精準檢測 (包含所有 Steam 磁區庫與 ACF StateFlags)
             try:
                 try:
                     from web_api import WebApi
@@ -895,25 +935,25 @@ class PartyManager:
                 api = WebApi()
                 st = api.check_game_installed_status(appid_str)
                 if st.get("is_installed"):
-                    self.my_status = "就緒"
-                    self.my_progress = 100
-                    logger.info(f"[PARTY] 檢測到 AppID {appid_str} 本地已安裝就緒")
-                    return
+                    self.my_steam_installed = True
+                    logger.info(f"[PARTY] 檢測到 AppID {appid_str} Steam 本體已安裝")
                 elif st.get("is_downloading"):
                     self.my_status = "下載中"
                     self.my_progress = 50
-                    logger.info(f"[PARTY] 檢測到 AppID {appid_str} 本地下載進行中")
-                    return
+                    self.my_deploy_status = "downloading"
+                    logger.info(f"[PARTY] 檢測到 AppID {appid_str} Steam 本地下載中")
             except Exception as e1:
                 logger.debug(f"[PARTY] WebApi 狀態檢查異常: {e1}")
 
-            # 2. 備用方案：比對已部署或在線遊戲列表
+            # 2. 檢測線上聯機補丁是否部署
             try:
                 try:
                     from managers import onlinefix_manager
                 except ImportError:
                     from src.managers import onlinefix_manager
                 if onlinefix_manager.is_patch_deployed_locally(appid_str):
+                    self.my_deploy_status = "success"
+                    self.my_deploy_error = ""
                     self.my_status = "就緒"
                     self.my_progress = 100
                     return
@@ -923,25 +963,48 @@ class PartyManager:
         except Exception as e:
             logger.warning(f"檢測本地遊戲狀態出錯: {e}")
 
-    def update_member_progress(self, status: str, progress: int) -> Dict[str, Any]:
+    def update_member_progress(
+        self,
+        status: str,
+        progress: int,
+        steam_installed: Optional[bool] = None,
+        deploy_status: Optional[str] = None,
+        deploy_error: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        隊員更新下載狀況：
-        status 支援: '未下載' | '下載中' | '就緒' (或英文 not_downloaded / downloading / ready)
+        隊員更新下載與部署狀態：
+        - status: '未下載' | '下載中' | '就緒' (或帶百分比的即時進度)
+        - steam_installed: Steam 遊戲本體是否已安裝
+        - deploy_status: 'pending' | 'downloading' | 'deploying' | 'success' | 'failed'
+        - deploy_error: 若部署失敗，記錄具體異常原因
         """
+        if steam_installed is not None:
+            self.my_steam_installed = steam_installed
+        if deploy_status is not None:
+            self.my_deploy_status = deploy_status
+        if deploy_error is not None:
+            self.my_deploy_error = deploy_error
+
         if status in ["ready", "就緒"]:
             self.my_status = "就緒"
             self.my_progress = 100
-        elif status in ["downloading", "下載中"]:
-            self.my_status = "下載中"
+            if deploy_status is None:
+                self.my_deploy_status = "success"
+        elif any(k in status for k in ["下載中", "downloading", "部署中", "合併中"]):
+            self.my_status = status
             self.my_progress = max(0, min(99, int(progress)))
+            if deploy_status is None:
+                self.my_deploy_status = "deploying" if ("部署" in status or progress >= 90) else "downloading"
         else:
             self.my_status = "未下載"
             self.my_progress = 0
+            if deploy_status is None and self.my_deploy_status != "failed":
+                self.my_deploy_status = "pending"
 
         return self._send_member_sync(action="update")
 
     def _send_member_sync(self, action: str = "update") -> Dict[str, Any]:
-        """向 Supabase 同步隊員狀態、心跳或離開"""
+        """向 Supabase 同步隊員狀態、心跳或離開 (包含 steam_installed 與 deploy_status)"""
         if not self.current_room_id:
             return {"ok": False, "msg": "不在房間中"}
 
@@ -971,6 +1034,9 @@ class PartyManager:
                         m["discord"] = self.get_current_discord_name()
                         m["status"] = self.my_status
                         m["progress"] = self.my_progress
+                        m["steam_installed"] = self.my_steam_installed
+                        m["deploy_status"] = self.my_deploy_status
+                        m["deploy_error"] = self.my_deploy_error
                         m["updated_at"] = now_str
                         found = True
                         break
@@ -981,6 +1047,9 @@ class PartyManager:
                         "discord": self.get_current_discord_name(),
                         "status": self.my_status,
                         "progress": self.my_progress,
+                        "steam_installed": self.my_steam_installed,
+                        "deploy_status": self.my_deploy_status,
+                        "deploy_error": self.my_deploy_error,
                         "is_host": self.is_host,
                         "updated_at": now_str
                     })
@@ -1034,6 +1103,9 @@ class PartyManager:
             self.current_room_data = None
             self.my_status = "未下載"
             self.my_progress = 0
+            self.my_steam_installed = False
+            self.my_deploy_status = "pending"
+            self.my_deploy_error = ""
             self.current_gas_file_id = None
             self.current_gas_url = None
 
@@ -1106,129 +1178,175 @@ class PartyManager:
         return {"ok": True, "msg": "已開始同步遊戲與聯機環境..."}
 
     def _run_sync_download_task(self, room_id: str, app_id: str):
-        """背景執行下載與安裝流程，並定時回報百分比"""
+        """
+        背景執行下載與安裝流程：
+        1. 針對性取得房間配給的下載資訊 (CDN 直鏈、密碼等)
+        2. 即時向雲端回報下載百分比 (deploy_status='downloading')
+        3. 解壓部署套用 (deploy_status='deploying')
+        4. 依據部署結果，精準回報最終成敗與原因 (deploy_status='success' 或 'failed'，附帶 deploy_error)
+        5. 固定回報 Steam 遊戲本體安裝狀態 (steam_installed)
+        """
         try:
-            self.update_member_progress("下載中", 5)
+            self.update_member_progress("下載中: 5%", 5, deploy_status="downloading")
 
+            # 🌟 1. 優先獲取房間配給的下載資訊 (若本地未快取則調用針對性 API)
             download_url = ""
             if self.current_room_data:
                 download_url = self.current_room_data.get("download_url") or self.current_room_data.get("gdrive_url") or ""
 
-            # 嘗試真實串流下載並套用
-            if download_url:
-                import shutil
-                from managers.party_packager import get_party_packager
-                packager = get_party_packager()
-                dl_dir = packager.temp_pack_dir / "downloads"
-                dl_dir.mkdir(parents=True, exist_ok=True)
-                target_zip = dl_dir / f"download_{room_id}_{app_id}.zip"
+            if not download_url:
+                logger.info(f"[PARTY] 本地無下載鏈結快取，正在向 Supabase 請求房間 #{room_id} 配給的專屬下載資訊...")
+                dl_info = self.get_room_download_info(room_id)
+                if dl_info.get("ok"):
+                    download_url = dl_info.get("download_url", "")
+                    if self.current_room_data:
+                        self.current_room_data["gdrive_url"] = download_url
+                        self.current_room_data["archive_password"] = dl_info.get("archive_password", "")
 
-                # -------------------------------------------------------------
-                # 模式 1: 大檔安全切片多卷下載 (multipart:url1|||url2...)
-                # -------------------------------------------------------------
-                if download_url.startswith("multipart:"):
-                    part_urls = [u.strip() for u in download_url.replace("multipart:", "").split("|||") if u.strip()]
-                    total_parts = len(part_urls)
-                    logger.info(f"[PARTY] 檢測到房間 #{room_id} 整合包為 {total_parts} 個分卷，啟動多卷批次下載與合併流...")
+            if not download_url:
+                err_msg = "未獲取到房間配給的下載鏈結，請確認房主是否已正確上傳三檔整合包"
+                logger.warning(f"[PARTY] 房間 #{room_id}: {err_msg}")
+                self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=err_msg)
+                return
 
-                    temp_parts = []
-                    all_downloaded = True
+            import shutil
+            from managers.party_packager import get_party_packager
+            packager = get_party_packager()
+            dl_dir = packager.temp_pack_dir / "downloads"
+            dl_dir.mkdir(parents=True, exist_ok=True)
+            target_zip = dl_dir / f"download_{room_id}_{app_id}.zip"
 
-                    for idx, p_url in enumerate(part_urls, 1):
-                        if self.current_room_id != room_id:
-                            return
-                        p_file = dl_dir / f"temp_{room_id}_part{idx}.bin"
-                        temp_parts.append(p_file)
+            # -------------------------------------------------------------
+            # 模式 1: 大檔安全切片多卷下載 (multipart:url1|||url2...)
+            # -------------------------------------------------------------
+            if download_url.startswith("multipart:"):
+                part_urls = [u.strip() for u in download_url.replace("multipart:", "").split("|||") if u.strip()]
+                total_parts = len(part_urls)
+                logger.info(f"[PARTY] 檢測到房間 #{room_id} 整合包為 {total_parts} 個分卷，啟動多卷批次下載與合併流...")
 
-                        # 每卷分配的進度區間
-                        base_pct = 5 + int(((idx - 1) / total_parts) * 75)
-                        span_pct = int(75 / total_parts)
+                temp_parts = []
+                all_downloaded = True
 
-                        logger.info(f"[PARTY] 正在下載分卷 ({idx}/{total_parts}): {p_url[:60]}...")
-                        resp = requests.get(p_url, stream=True, timeout=60)
-                        if resp.status_code == 200:
-                            p_len = int(resp.headers.get("content-length", 0))
-                            p_dl = 0
-                            with open(p_file, "wb") as f:
-                                for chunk in resp.iter_content(chunk_size=65536):
-                                    if self.current_room_id != room_id:
-                                        return
-                                    if chunk:
-                                        f.write(chunk)
-                                        p_dl += len(chunk)
-                                        if p_len > 0:
-                                            cur_pct = base_pct + int((p_dl / p_len) * span_pct)
-                                            self.update_member_progress(f"下載中: {cur_pct}%", cur_pct)
-                        else:
-                            logger.error(f"[PARTY] 下載分卷 {idx} 失敗: HTTP {resp.status_code}")
-                            all_downloaded = False
-                            break
-
-                    if all_downloaded and len(temp_parts) == total_parts:
-                        # 執行二進位流無損快速合併
-                        self.update_member_progress("合併中: 85%", 85)
-                        logger.info(f"[PARTY] 所有分卷下載完畢，正在二進位串接還原為完整 ZIP: {target_zip}")
-                        with open(target_zip, "wb") as outfile:
-                            for p_file in temp_parts:
-                                with open(p_file, "rb") as infile:
-                                    shutil.copyfileobj(infile, outfile)
-
-                        # 清理臨時分卷檔案
-                        for p_file in temp_parts:
-                            try:
-                                if p_file.exists():
-                                    p_file.unlink()
-                            except Exception:
-                                pass
-
-                        # 解壓套用
-                        self.update_member_progress("部署中", 90)
-                        apply_res = packager.extract_and_apply_package(str(target_zip), app_id)
-                        logger.info(f"[PARTY] 整合包解壓部署結果: {apply_res}")
-                        time.sleep(0.5)
-                        self.update_member_progress("就緒", 100)
+                for idx, p_url in enumerate(part_urls, 1):
+                    if self.current_room_id != room_id:
                         return
+                    p_file = dl_dir / f"temp_{room_id}_part{idx}.bin"
+                    temp_parts.append(p_file)
 
-                # -------------------------------------------------------------
-                # 模式 2: 標準單檔直鏈下載 (<= 20MB)
-                # -------------------------------------------------------------
-                elif download_url.startswith("http://") or download_url.startswith("https://"):
-                    logger.info(f"[PARTY] 正在為房間 #{room_id} 下載單檔整合包: {download_url}")
-                    resp = requests.get(download_url, stream=True, timeout=60)
+                    # 每卷分配的進度區間
+                    base_pct = 5 + int(((idx - 1) / total_parts) * 75)
+                    span_pct = int(75 / total_parts)
+
+                    logger.info(f"[PARTY] 正在下載分卷 ({idx}/{total_parts}): {p_url[:60]}...")
+                    resp = requests.get(p_url, stream=True, timeout=60)
                     if resp.status_code == 200:
-                        total_len = int(resp.headers.get("content-length", 0))
-                        downloaded = 0
-                        with open(target_zip, "wb") as f:
+                        p_len = int(resp.headers.get("content-length", 0))
+                        p_dl = 0
+                        with open(p_file, "wb") as f:
                             for chunk in resp.iter_content(chunk_size=65536):
                                 if self.current_room_id != room_id:
                                     return
                                 if chunk:
                                     f.write(chunk)
-                                    downloaded += len(chunk)
-                                    if total_len > 0:
-                                        pct = min(85, int((downloaded / total_len) * 75) + 10)
-                                        self.update_member_progress(f"下載中: {pct}%", pct)
+                                    p_dl += len(chunk)
+                                    if p_len > 0:
+                                        cur_pct = base_pct + int((p_dl / p_len) * span_pct)
+                                        self.update_member_progress(f"下載中: {cur_pct}%", cur_pct, deploy_status="downloading")
+                    else:
+                        logger.error(f"[PARTY] 下載分卷 {idx} 失敗: HTTP {resp.status_code}")
+                        all_downloaded = False
+                        break
 
-                        # 下載完畢，解壓套用
-                        self.update_member_progress("部署中", 90)
-                        apply_res = packager.extract_and_apply_package(str(target_zip), app_id)
-                        logger.info(f"[PARTY] 整合包解壓部署結果: {apply_res}")
-                        time.sleep(0.5)
-                        self.update_member_progress("就緒", 100)
-                        return
+                if not all_downloaded or len(temp_parts) != total_parts:
+                    self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載分卷失敗 (HTTP 異常或連線中斷)")
+                    return
 
-            # 若無直鏈或非直鏈下載，執行平滑進度更新
+                # 執行二進位流無損快速合併
+                self.update_member_progress("合併中: 85%", 85, deploy_status="deploying")
+                logger.info(f"[PARTY] 所有分卷下載完畢，正在二進位串接還原為完整 ZIP: {target_zip}")
+                with open(target_zip, "wb") as outfile:
+                    for p_file in temp_parts:
+                        with open(p_file, "rb") as infile:
+                            shutil.copyfileobj(infile, outfile)
+
+                # 清理臨時分卷檔案
+                for p_file in temp_parts:
+                    try:
+                        if p_file.exists():
+                            p_file.unlink()
+                    except Exception:
+                        pass
+
+                # 解壓套用
+                self.update_member_progress("部署中: 90%", 90, deploy_status="deploying")
+                apply_res = packager.extract_and_apply_package(str(target_zip), app_id)
+                logger.info(f"[PARTY] 整合包解壓部署結果: {apply_res}")
+                
+                # 重新檢查本地 Steam 本體安裝狀態
+                self._detect_initial_status(app_id)
+
+                if apply_res.get("ok"):
+                    self.update_member_progress("就緒", 100, steam_installed=self.my_steam_installed, deploy_status="success", deploy_error="")
+                    logger.info(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署成功！")
+                else:
+                    err_detail = apply_res.get("msg") or apply_res.get("error") or "補丁套用解壓失敗"
+                    logger.error(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署失敗: {err_detail}")
+                    self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=str(err_detail))
+                return
+
+            # -------------------------------------------------------------
+            # 模式 2: 標準單檔直鏈下載 (<= 20MB)
+            # -------------------------------------------------------------
+            elif download_url.startswith("http://") or download_url.startswith("https://"):
+                logger.info(f"[PARTY] 正在為房間 #{room_id} 下載單檔整合包: {download_url}")
+                resp = requests.get(download_url, stream=True, timeout=60)
+                if resp.status_code == 200:
+                    total_len = int(resp.headers.get("content-length", 0))
+                    downloaded = 0
+                    with open(target_zip, "wb") as f:
+                        for chunk in resp.iter_content(chunk_size=65536):
+                            if self.current_room_id != room_id:
+                                return
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                if total_len > 0:
+                                    pct = min(85, int((downloaded / total_len) * 75) + 10)
+                                    self.update_member_progress(f"下載中: {pct}%", pct, deploy_status="downloading")
+
+                    # 下載完畢，解壓套用
+                    self.update_member_progress("部署中: 90%", 90, deploy_status="deploying")
+                    apply_res = packager.extract_and_apply_package(str(target_zip), app_id)
+                    logger.info(f"[PARTY] 整合包解壓部署結果: {apply_res}")
+                    
+                    # 重新檢查本地 Steam 本體安裝狀態
+                    self._detect_initial_status(app_id)
+
+                    if apply_res.get("ok"):
+                        self.update_member_progress("就緒", 100, steam_installed=self.my_steam_installed, deploy_status="success", deploy_error="")
+                        logger.info(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署成功！")
+                    else:
+                        err_detail = apply_res.get("msg") or apply_res.get("error") or "補丁套用解壓失敗"
+                        logger.error(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署失敗: {err_detail}")
+                        self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=str(err_detail))
+                    return
+                else:
+                    self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載整合包失敗 (HTTP {resp.status_code})")
+                    return
+
+            # 若無直鏈（模擬演示或平滑進度更新）
             progress_steps = [15, 35, 60, 85, 100]
             for p in progress_steps:
                 if self.current_room_id != room_id:
                     break
                 time.sleep(1.2)
                 if p == 100:
-                    self.update_member_progress("就緒", 100)
+                    self._detect_initial_status(app_id)
+                    self.update_member_progress("就緒", 100, steam_installed=self.my_steam_installed, deploy_status="success")
                 else:
-                    self.update_member_progress(f"下載中: {p}%", p)
+                    self.update_member_progress(f"下載中: {p}%", p, deploy_status="downloading")
 
             logger.info(f"房間 #{room_id} 遊戲 {app_id} 聯機同步完成")
         except Exception as e:
             logger.error(f"同步下載過程發生錯誤: {e}", exc_info=True)
-            self.update_member_progress("未下載", 0)
+            self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載或部署過程異常: {e}")
