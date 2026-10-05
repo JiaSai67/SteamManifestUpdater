@@ -167,41 +167,9 @@
 
 <!-- 📄 View: party.html -->
 <div class="page" id="p-party">
-  <!-- 頂部個人狀態與雲端配額橫幅 -->
-  <div class="party-header-bar">
-    <div class="party-profile-pill">
-      <div class="party-avatar-icon">🎮</div>
-      <div class="party-profile-info">
-        <!-- 顯示模式 -->
-        <div class="party-name-row" id="party-name-display-wrap">
-          <span class="party-nickname" id="party-my-name">載入中…</span>
-          <button class="party-btn-edit-name" id="party-btn-edit-name" onclick="startInlineEditName()" title="點擊直接修改暱稱">✏️</button>
-        </div>
-        <!-- 行內編輯模式 (預設隱藏) -->
-        <div class="party-name-row" id="party-name-edit-wrap" style="display:none">
-          <input type="text" id="input-inline-nickname" class="party-inline-input" maxlength="24" placeholder="輸入組隊暱稱…" onkeydown="handleInlineNicknameKey(event)">
-          <button class="party-inline-btn btn-save" onclick="saveInlineNickname()" title="儲存 (Enter)">✓</button>
-          <button class="party-inline-btn btn-cancel" onclick="cancelInlineEditName()" title="取消 (Esc)">✕</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 雲端大廳配額監控徽章 -->
-    <div class="party-quota-badge" id="party-quota-badge" title="Supabase 全球高速雲端資料庫 (高可用叢集 · 充沛)">
-      <span class="quota-dot green"></span>
-      <span class="quota-title">雲端大廳</span>
-      <span class="quota-val" id="party-quota-text">Supabase · 充沛</span>
-    </div>
-
-    <div class="party-header-actions">
-      <button class="btn btn-p btn-s" onclick="openCreateRoomModal()">➕ 創建房間</button>
-      <button class="btn btn-o btn-s" id="party-btn-refresh" onclick="refreshPartyLobby(true)" title="立即刷新大廳">🔄 刷新</button>
-    </div>
-  </div>
-
   <!-- 雙欄排版容器：王者榮耀 / MOBA 電競風格側邊導覽欄 (如圖一) + 右側主視圖區 -->
   <div class="party-moba-wrapper">
-    <!-- 左側王者榮耀風格垂直導覽側欄 (如使用者圖一) -->
+    <!-- 左側王者榮耀風格垂直導覽側欄 (如使用者圖一，頂天立地) -->
     <div class="party-moba-sidebar" id="party-moba-sidebar">
       <!-- 頂部返回箭頭 (如圖一頂部圖標) -->
       <div class="moba-sidebar-back-wrap" onclick="switchPartyNav('lobby')" title="返回隊伍大廳">
@@ -237,6 +205,37 @@
 
     <!-- 右側主視圖區 (Main Viewport) -->
     <div class="party-moba-viewport">
+      <!-- 頂部個人狀態與雲端配額橫幅 (固定頂部，不隨滾輪滾動) -->
+      <div class="party-header-bar">
+        <div class="party-profile-pill">
+          <div class="party-avatar-icon">🎮</div>
+          <div class="party-profile-info">
+            <!-- 顯示模式 -->
+            <div class="party-name-row" id="party-name-display-wrap">
+              <span class="party-nickname" id="party-my-name">載入中…</span>
+              <button class="party-btn-edit-name" id="party-btn-edit-name" onclick="startInlineEditName()" title="點擊直接修改暱稱">✏️</button>
+            </div>
+            <!-- 行內編輯模式 (預設隱藏) -->
+            <div class="party-name-row" id="party-name-edit-wrap" style="display:none">
+              <input type="text" id="input-inline-nickname" class="party-inline-input" maxlength="24" placeholder="輸入組隊暱稱…" onkeydown="handleInlineNicknameKey(event)">
+              <button class="party-inline-btn btn-save" onclick="saveInlineNickname()" title="儲存 (Enter)">✓</button>
+              <button class="party-inline-btn btn-cancel" onclick="cancelInlineEditName()" title="取消 (Esc)">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 雲端大廳配額監控徽章 -->
+        <div class="party-quota-badge" id="party-quota-badge" title="Supabase 全球高速雲端資料庫 (高可用叢集 · 充沛)">
+          <span class="quota-dot green"></span>
+          <span class="quota-title">雲端大廳</span>
+          <span class="quota-val" id="party-quota-text">Supabase · 充沛</span>
+        </div>
+
+        <div class="party-header-actions">
+          <button class="btn btn-p btn-s" onclick="openCreateRoomModal()">➕ 創建房間</button>
+          <button class="btn btn-o btn-s" id="party-btn-refresh" onclick="refreshPartyLobby(true)" title="立即刷新大廳">🔄 刷新</button>
+        </div>
+      </div>
       <!-- 視圖 A：全網公開組隊大廳 (當未進入任何房間或點選大廳時顯示) -->
       <div id="party-lobby-view" class="party-subview active">
         <!-- 搜尋與快速加入條 -->

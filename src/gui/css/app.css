@@ -5815,51 +5815,103 @@ body.font-normal .quota-chip {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   王者榮耀 / MOBA 電競風格組隊頻道側邊欄 (還原圖一風格)
+   王者榮耀 / MOBA 電競風格組隊頻道側邊欄 (自適應滿版無縫架構)
    ═══════════════════════════════════════════════════════════ */
-.party-moba-wrapper {
-  display: flex;
-  min-height: 580px;
-  background: rgba(12, 17, 28, 0.72);
-  border-radius: 18px;
-  border: 1px solid rgba(80, 140, 230, 0.2);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  position: relative;
-  overflow: visible;
-  margin-top: 4px;
+
+/* 當組隊頁面激活時：.main 與 .pages 容器徹底移除 padding 與外層滾動條，讓組隊大廳 100% 填滿視窗，消除被切割感 */
+body.party-mode .main,
+.main.party-mode-main {
+  padding-right: 0 !important;
 }
 
-/* 左側 MOBA 垂直側欄 */
+body.party-mode .pages,
+.pages.party-active-pages,
+.pages:has(#p-party.active) {
+  padding: 0 !important;
+  overflow: hidden !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#p-party {
+  flex: 1 1 0% !important;
+  height: 100% !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  display: none;
+  overflow: hidden !important;
+  box-sizing: border-box;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+#p-party.active {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  height: 100% !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+/* 滿版無縫容器 (自適應專案大小，零外邊框、零圓角切割感) */
+.party-moba-wrapper {
+  display: flex !important;
+  flex: 1 1 0% !important;
+  height: 100% !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  position: relative;
+}
+
+/* 左側 MOBA 垂直側欄 (頂天立地，完全貼齊左邊界) */
 .party-moba-sidebar {
-  width: 104px;
-  min-width: 104px;
-  background: linear-gradient(180deg, rgba(16, 26, 44, 0.96) 0%, rgba(10, 16, 28, 0.98) 100%);
-  border-right: 1.5px solid rgba(80, 140, 230, 0.22);
+  width: 98px;
+  min-width: 98px;
+  height: 100% !important;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, rgba(16, 26, 44, 0.98) 0%, rgba(10, 16, 28, 0.99) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16px 0 12px 0;
+  padding: 14px 0 10px 0;
   position: relative;
   user-select: none;
-  border-top-left-radius: 18px;
-  border-bottom-left-radius: 18px;
-  transition: width 0.25s cubic-bezier(0.2, 0, 0, 1), min-width 0.25s cubic-bezier(0.2, 0, 0, 1);
+  border-radius: 0 !important;
+  transition: width 0.22s cubic-bezier(0.2, 0, 0, 1), min-width 0.22s cubic-bezier(0.2, 0, 0, 1);
   z-index: 10;
+  box-sizing: border-box;
 }
 
 /* 頂部返回箭頭 (如圖一頂部圖標) */
 .moba-sidebar-back-wrap {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   color: #8EB7ED;
-  margin-bottom: 14px;
-  border-radius: 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
   transition: all 0.2s ease;
 }
 .moba-sidebar-back-wrap:hover {
@@ -5868,15 +5920,15 @@ body.font-normal .quota-chip {
   transform: scale(1.08);
 }
 .moba-back-arrow-svg {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   filter: drop-shadow(0 0 6px rgba(80, 140, 230, 0.5));
 }
 
 /* 側欄標籤項 (如圖一：隊伍大廳、招募隊友) */
 .moba-tab-item {
   width: 100%;
-  height: 72px;
+  height: 70px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -5885,9 +5937,9 @@ body.font-normal .quota-chip {
   position: relative;
   color: rgba(180, 205, 240, 0.65);
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: 13px;
   letter-spacing: 0.5px;
-  transition: all 0.22s cubic-bezier(0.2, 0, 0, 1);
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
   border-left: 3.5px solid transparent;
   box-sizing: border-box;
 }
@@ -5907,23 +5959,23 @@ body.font-normal .quota-chip {
 }
 
 .moba-tab-icon {
-  font-size: 18px;
+  font-size: 17px;
   margin-bottom: 2px;
 }
 
 .moba-tab-label {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .moba-tab-badge {
   position: absolute;
-  top: 8px;
-  right: 10px;
+  top: 7px;
+  right: 8px;
   font-size: 10px;
   font-weight: 800;
-  padding: 1px 6px;
+  padding: 1px 5px;
   border-radius: 99px;
   background: #FF4757;
   color: #FFFFFF;
@@ -5933,7 +5985,7 @@ body.font-normal .quota-chip {
 .moba-tab-dot {
   position: absolute;
   top: 10px;
-  right: 12px;
+  right: 10px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -5945,11 +5997,11 @@ body.font-normal .quota-chip {
 /* 側欄中間收折箭頭按鈕 (圖一中間的小圓圈 < ) */
 .moba-sidebar-collapse-btn {
   position: absolute;
-  right: -13px;
+  right: -12px;
   top: 48%;
   transform: translateY(-50%);
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #182236;
   border: 1.5px solid #3F5B85;
@@ -5976,15 +6028,15 @@ body.font-normal .quota-chip {
   padding-bottom: 6px;
 }
 .moba-bottom-circle-btn {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.06);
   border: 1.5px solid rgba(80, 140, 230, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 17px;
+  font-size: 15px;
   cursor: pointer;
   color: #8EB7ED;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
@@ -6013,18 +6065,131 @@ body.font-normal .quota-chip {
   right: 6px;
 }
 
-/* 右側主視圖區 */
+/* 右側主視圖區 (自身絕不滾動，獨立容納頂部橫幅與卡片列表) */
 .party-moba-viewport {
-  flex: 1;
-  min-width: 0;
-  padding: 16px 20px;
+  flex: 1 1 0% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  padding: 14px 20px 10px 20px;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  gap: 8px;
 }
-.party-moba-viewport .party-subview {
+
+/* 頂部個人狀態橫幅：固定不動 */
+.party-moba-viewport .party-header-bar {
+  flex-shrink: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* 隊伍大廳子視圖：滿版 flex，自身絕不滾動 */
+#party-lobby-view.party-subview {
+  flex: 1 1 0% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
   margin-top: 0 !important;
+}
+
+/* 搜尋與快速加入列：固定置頂不滾動 */
+.party-toolbar-row {
+  flex-shrink: 0 !important;
+  margin-bottom: 8px !important;
+}
+
+/* 🌟 核心需求：房間清單容器是全頁面唯一滾動區域！滾輪僅滾動卡片列表 */
+#party-rooms-container.party-rooms-grid {
+  flex: 1 1 0% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  align-content: flex-start;
+  padding-bottom: 24px;
+  padding-right: 8px;
+  box-sizing: border-box;
+}
+
+/* 自定義房間清單精緻滾動條 */
+#party-rooms-container::-webkit-scrollbar {
+  width: 6px;
+}
+#party-rooms-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 99px;
+}
+#party-rooms-container::-webkit-scrollbar-thumb {
+  background: rgba(88, 166, 255, 0.25);
+  border-radius: 99px;
+}
+#party-rooms-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(88, 166, 255, 0.45);
+}
+
+/* 房間內部檢視子視圖：滿高 flex，自身絕不滾動 */
+#party-room-view.party-subview {
+  flex: 1 1 0% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  margin-top: 0 !important;
+}
+
+.party-room-container {
+  flex: 1 1 0% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  gap: 12px;
+}
+
+.party-room-header-card {
+  flex-shrink: 0 !important;
+}
+
+.party-all-ready-banner {
+  flex-shrink: 0 !important;
+}
+
+.party-members-section {
+  flex: 1 1 0% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+
+/* 房間成員清單：獨立局部滾動 */
+.party-members-list {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-right: 6px;
+}
+
+.party-bottom-action-bar {
+  flex-shrink: 0 !important;
+  margin-top: 6px !important;
 }
 
 

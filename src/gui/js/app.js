@@ -30,10 +30,21 @@ function switchPage(p){
   if(p==='more' && !_ofLoaded) ofLoad();
   // 憑證管理：切換時載入狀態與配額
   if(p==='credentials') loadCredentialsStatus(false);
-  // 組隊大廳：切換進入時初始化並啟動輪詢，離開時休眠
+  // 組隊大廳：切換進入時初始化並啟動輪詢，滿版消除切割邊框與關閉外層捲動；離開時休眠與恢復
+  var mainContainer = document.querySelector('.main');
+  var pagesContainer = document.querySelector('.pages');
   if(p==='party') {
+    if(mainContainer) mainContainer.classList.add('party-mode-main');
+    if(pagesContainer) {
+      pagesContainer.classList.add('party-active-pages');
+      pagesContainer.scrollTop = 0; // 強制重置外層滾動位置
+    }
+    document.body.classList.add('party-mode');
     if(typeof initPartyPage === 'function') initPartyPage();
   } else {
+    if(mainContainer) mainContainer.classList.remove('party-mode-main');
+    if(pagesContainer) pagesContainer.classList.remove('party-active-pages');
+    document.body.classList.remove('party-mode');
     if(typeof pausePartyPolling === 'function') pausePartyPolling();
   }
   // 設置頁面：切換時載入 Google Drive 網盤配置
