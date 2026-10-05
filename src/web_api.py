@@ -2188,15 +2188,20 @@ class WebApi:
                 version_status = u_info.get("version_status", "0 版")
                 latest_date = u_info.get("latest_date", "未知")
                 best_source = u_info.get("best_source", "ryuu")
-                has_of = appid in of_appids
+                # 🌟 核心修復：本地部署狀態檢查不能受限於 of_appids (無論網盤是否收錄，只要本機已部署或手動安裝，即為已部署)
+                # 僅針對本地已安裝遊戲 (appid in acf_map) 進行極速檢查，未安裝者耗時 0ms，保證秒開！
                 is_deployed = False
                 is_protected = False
-                if has_of:
+                if appid in acf_map:
                     try:
                         is_deployed = onlinefix_manager.is_patch_deployed_locally(appid)
-                        is_protected = onlinefix_manager.is_patch_protected(appid)
+                        if is_deployed:
+                            is_protected = onlinefix_manager.is_patch_protected(appid)
                     except Exception:
                         pass
+
+                # 🌟 支援聯機補丁特性：只要雲端網盤有收錄，或者本機目錄已實際部署，均判定為支援補丁 (藍色邊框 + 🎮 聯機)
+                has_of = bool(appid in of_appids or is_deployed)
 
                 games.append({
                     "appid": appid,

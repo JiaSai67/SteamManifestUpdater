@@ -233,6 +233,15 @@ async function rg(force){
     // 3. 本地極速獲取最新入庫遊戲清單（~10ms），完成後只進行一次精準渲染（杜絕雙重渲染動畫）
     var games = await pywebview.api.list_games(!!hasUnresolvedName || !!force);
     _pre._games = games || [];
+    if(games && games.length){
+      if(!_deployedAppids) _deployedAppids = new Set();
+      if(!_onlinefixAppids) _onlinefixAppids = new Set();
+      games.forEach(function(g){
+        var a = String(g.appid);
+        if(g.deployed) _deployedAppids.add(a);
+        if(g.has_onlinefix) _onlinefixAppids.add(a);
+      });
+    }
     _pre._rendered = true;
     renderGames(_pre._games, filter);
 
