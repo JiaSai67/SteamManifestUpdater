@@ -13,7 +13,11 @@ import datetime
 from typing import Dict, Any, List, Optional
 import requests
 
+from utils.payload_crypto import compress_and_encrypt, decompress_and_decrypt
+
 logger = logging.getLogger("party_manager")
+
+_PARTY_COMPACT_SECRET = "SMU_PARTY_PAYLOAD_V1_KEY"
 
 class PartyManager:
     _instance = None
@@ -85,6 +89,19 @@ class PartyManager:
         self._heartbeat_thread: Optional[threading.Thread] = None
         self._stop_heartbeat_event = threading.Event()
         self._heartbeat_lock = threading.Lock()
+
+        # 啟動 Egress 脫敏監控 5 分鐘自動刷新排程
+        self._start_metrics_scheduler()
+
+    def _start_metrics_scheduler(self):
+        def _loop():
+            # 首次啟動延遲 3 秒執行一次，隨後每 300 秒 (5 分鐘) 定時校準
+            time.sleep(3)
+            self._sync_metrics_bg()
+            while True:
+                time.sleep(300)
+                self._sync_metrics_bg()
+        threading.Thread(target=_loop, daemon=True, name="EgressMetricsScheduler").start()
 
     def _init_supabase_config(self):
         """優先從本地 secrets 讀取，若無則降級使用內建 Publishable Key"""
@@ -243,9 +260,104 @@ class PartyManager:
         except Exception:
             return False
 
+    @staticmethod
+    def _pack_members(members: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        將成員陣列進行緊湊精簡，並使用 zlib Level 9 最大壓縮與輕量混淆，
+        大幅縮減 JSON 字元長度，節省傳輸 Egress 與資料庫空間。
+        """
+        if not members:
+            return []
+        try:
+            compact_list = []
+            for m in members:
+                compact_list.append([
+                    str(m.get("id", "")),
+                    str(m.get("name", "")),
+                    str(m.get("status", "就緒")),
+                    int(m.get("progress", 100)),
+                    1 if m.get("is_host") else 0,
+                    str(m.get("discord", "")),
+                    str(m.get("updated_at", ""))
+                ])
+            token = compress_and_encrypt(compact_list, secret=_PARTY_COMPACT_SECRET)
+            if token:
+                return [{"_z": token}]
+        except Exception as e:
+            logger.warning(f"成員數據壓縮失敗: {e}")
+        return members
+
+    @staticmethod
+    def _unpack_members(raw_members: Any) -> List[Dict[str, Any]]:
+        """
+        將壓縮密文還原解密為前端完整成員物件陣列，同時向下相容舊版明文資料。
+        """
+        if not raw_members:
+            return []
+        if isinstance(raw_members, list) and len(raw_members) == 1 and isinstance(raw_members[0], dict) and "_z" in raw_members[0]:
+            token = raw_members[0]["_z"]
+            try:
+                decompressed = decompress_and_decrypt(token, secret=_PARTY_COMPACT_SECRET)
+                if isinstance(decompressed, list):
+                    expanded = []
+                    for item in decompressed:
+                        if isinstance(item, list) and len(item) >= 5:
+                            expanded.append({
+                                "id": str(item[0]),
+                                "name": str(item[1]),
+                                "status": str(item[2]),
+                                "progress": int(item[3]),
+                                "is_host": bool(item[4]),
+                                "discord": str(item[5]) if len(item) > 5 else "",
+                                "updated_at": str(item[6]) if len(item) > 6 else ""
+                            })
+                        elif isinstance(item, dict):
+                            expanded.append(item)
+                    return expanded
+            except Exception as e:
+                logger.warning(f"成員數據解密解壓失敗: {e}")
+        if isinstance(raw_members, list):
+            return raw_members
+        return []
+
+    @staticmethod
+    def _pack_gdrive_url(url: str) -> str:
+        """將長網址 (如 Discord CDN 帶有簽名參數之長 URL) 進行高壓壓縮混淆"""
+        if not url:
+            return ""
+        try:
+            if url.startswith("enc:"):
+                return url
+            token = compress_and_encrypt(url, secret=_PARTY_COMPACT_SECRET)
+            if token:
+                return f"enc:{token}"
+        except Exception:
+            pass
+        return url
+
+    @staticmethod
+    def _unpack_gdrive_url(raw_url: str) -> str:
+        """若為 enc: 開頭則解密解壓縮還原，否則直接回傳原字串"""
+        if not raw_url:
+            return ""
+        if raw_url.startswith("enc:"):
+            token = raw_url[4:]
+            try:
+                url = decompress_and_decrypt(token, secret=_PARTY_COMPACT_SECRET)
+                if isinstance(url, str):
+                    return url
+            except Exception:
+                pass
+        return raw_url
+
     def _format_room(self, r: Dict[str, Any]) -> Dict[str, Any]:
-        """將資料庫紀錄格式化為前端 UI 期望的完整房間格式"""
-        members = r.get("members") or []
+        """將資料庫紀錄格式化為前端 UI 期望的完整房間格式 (自動解密壓縮欄位)"""
+        raw_members = r.get("members") or []
+        members = self._unpack_members(raw_members)
+
+        raw_url = str(r.get("gdrive_url") or "").strip()
+        download_url = self._unpack_gdrive_url(raw_url)
+
         appid = str(r.get("app_id") or r.get("appid") or "").strip()
         return {
             "room_id": r.get("room_id", ""),
@@ -260,7 +372,7 @@ class PartyManager:
             "is_public": bool(r.get("is_public", True)),
             "status": r.get("status", "recruiting"),
             "note": r.get("note", ""),
-            "gdrive_url": r.get("gdrive_url", ""),
+            "gdrive_url": download_url,
             "archive_password": r.get("archive_password", ""),
             "members": members,
             "created_at": r.get("created_at", ""),
@@ -506,9 +618,9 @@ class PartyManager:
             "is_public": bool(is_public),
             "status": "recruiting",
             "note": note,
-            "gdrive_url": download_url,
+            "gdrive_url": self._pack_gdrive_url(download_url),
             "archive_password": download_secret,
-            "members": [host_member],
+            "members": self._pack_members([host_member]),
             "created_at": now_str,
             "updated_at": now_str
         }
@@ -523,6 +635,9 @@ class PartyManager:
 
                 # 啟動房主背景心跳維持線程 (每 8 秒)
                 self._start_heartbeat_loop()
+
+                # 開房時順便在背景非同步更新一次 Egress 脫敏狀態表
+                threading.Thread(target=self._sync_metrics_bg, daemon=True).start()
 
                 return {
                     "ok": True,
@@ -540,8 +655,15 @@ class PartyManager:
             self._cleanup_local_room()
             return {"ok": False, "msg": f"連線至 Supabase 創建房間失敗: {e}"}
 
+    def _sync_metrics_bg(self):
+        try:
+            from managers.cloud_metrics_manager import get_cloud_metrics_manager
+            get_cloud_metrics_manager().sync_metrics_to_supabase()
+        except Exception:
+            pass
+
     def _send_host_heartbeat(self) -> bool:
-        """發送房主心跳維持房間存活，並順便清除超時隊員與重複成員"""
+        """發送房主心跳維持房間存活，並順便清除超時隊員與重複成員 (以高壓壓縮封裝 members)"""
         if not self.current_room_id or not self.is_host or not self.current_room_data:
             return False
 
@@ -568,7 +690,7 @@ class PartyManager:
 
         update_payload = {
             "updated_at": now_str,
-            "members": fresh_members
+            "members": self._pack_members(fresh_members)
         }
 
         self._inc_quota()
@@ -646,7 +768,7 @@ class PartyManager:
             if self._is_expired(room_row.get("updated_at"), max_seconds=40):
                 return {"ok": False, "msg": f"房間 #{rid} 已過期蒸發"}
 
-            members = room_row.get("members") or []
+            members = self._unpack_members(room_row.get("members"))
             max_players = int(room_row.get("max_players", 4))
 
             # 檢查是否已滿員 (且自己不是名單成員)
@@ -760,7 +882,7 @@ class PartyManager:
                 return {"ok": False, "error": "ROOM_NOT_FOUND", "msg": "房間已不存在"}
 
             room_row = resp.json()[0]
-            members = room_row.get("members") or []
+            members = self._unpack_members(room_row.get("members"))
 
             if action == "leave":
                 # 從成員名單移除自己
@@ -788,9 +910,9 @@ class PartyManager:
                         "updated_at": now_str
                     })
 
-            # 2. PATCH 回寫 members
+            # 2. PATCH 回寫 members (以高壓壓縮封裝)
             patch_url = f"{self.rest_endpoint}?room_id=eq.{rid}"
-            patch_resp = self.session.patch(patch_url, json={"members": members}, timeout=6)
+            patch_resp = self.session.patch(patch_url, json={"members": self._pack_members(members)}, timeout=6)
             if patch_resp.status_code == 200:
                 updated_rows = patch_resp.json()
                 if updated_rows and self.current_room_data:

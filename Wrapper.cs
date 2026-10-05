@@ -88,32 +88,38 @@ namespace SteamManifestUpdaterLauncher
             string venvPy = Path.Combine(appDir, ".venv", "Scripts", "python.exe");
             if (File.Exists(venvPy)) return venvPy;
 
-            // 2. 常見使用者層級 Python 安裝路徑 (免提權標配)
+            // 2. 優先透過 where 指令查詢 PATH 中的 python (與使用者 terminal / pip 依賴環境 100% 同步)
+            string wherePy = SearchCommand("where", "python");
+            if (!string.IsNullOrEmpty(wherePy) && File.Exists(wherePy))
+            {
+                string pyDir = Path.GetDirectoryName(wherePy);
+                string companionPyw = Path.Combine(pyDir, "pythonw.exe");
+                if (File.Exists(companionPyw)) return companionPyw;
+                return wherePy;
+            }
+
+            string wherePyw = SearchCommand("where", "pythonw");
+            if (!string.IsNullOrEmpty(wherePyw) && File.Exists(wherePyw)) return wherePyw;
+
+            // 3. 常見使用者層級與系統層級 Python 安裝路徑後備
             string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string[] userPyPaths = {
+                @"C:\Program Files\Python311\pythonw.exe",
+                @"C:\Program Files\Python311\python.exe",
                 Path.Combine(localApp, "Programs", "Python", "Python311", "pythonw.exe"),
                 Path.Combine(localApp, "Programs", "Python", "Python311", "python.exe"),
+                @"C:\Program Files\Python312\pythonw.exe",
+                @"C:\Program Files\Python312\python.exe",
                 Path.Combine(localApp, "Programs", "Python", "Python312", "pythonw.exe"),
                 Path.Combine(localApp, "Programs", "Python", "Python312", "python.exe"),
                 Path.Combine(localApp, "Programs", "Python", "Python310", "pythonw.exe"),
-                Path.Combine(localApp, "Programs", "Python", "Python310", "python.exe"),
-                @"C:\Program Files\Python311\pythonw.exe",
-                @"C:\Program Files\Python311\python.exe",
-                @"C:\Program Files\Python312\pythonw.exe",
-                @"C:\Program Files\Python312\python.exe"
+                Path.Combine(localApp, "Programs", "Python", "Python310", "python.exe")
             };
 
             foreach (string p in userPyPaths)
             {
                 if (File.Exists(p)) return p;
             }
-
-            // 3. 透過 where 指令查詢 PATH 中的 pythonw / python
-            string wherePyw = SearchCommand("where", "pythonw");
-            if (!string.IsNullOrEmpty(wherePyw) && File.Exists(wherePyw)) return wherePyw;
-
-            string wherePy = SearchCommand("where", "python");
-            if (!string.IsNullOrEmpty(wherePy) && File.Exists(wherePy)) return wherePy;
 
             return null;
         }

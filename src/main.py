@@ -98,6 +98,46 @@ def launch_classic_gui():
     except Exception as e:
         print(f"[Launcher] 經典 PySide6 介面啟動失敗: {e}")
 
+
+def _send_crash_webhook(title: str, err_msg: str):
+    """透過動態 XOR 記憶體解密 Discord Webhook 發送崩潰與異常回報 (純標準庫，零依賴)"""
+    try:
+        import base64, urllib.request, json, os
+        from datetime import datetime
+
+        _SECRET_KEY = b"AIToolLauncherSecretKey2026"
+        _ENCRYPTED_WEBHOOK_BLOB = b"KT0gHxxWY04FGgFGARsgBgwAAVooChQdUUJfbj4xDQcDIwoGQVJdUUBrXVBGUEJ7UEAHBwQFcnt7KzgcelBEKCE7XRkLJ1EbKyEhVU1DdQJdNywmAFdbKVg0XhlYFkYLLTkLUSIMLzZqfWB6OARhPBtedQglIxsbVSsgLwQ="
+
+        raw = base64.b64decode(_ENCRYPTED_WEBHOOK_BLOB)
+        url = bytes([b ^ _SECRET_KEY[i % len(_SECRET_KEY)] for i, b in enumerate(raw)]).decode("utf-8")
+
+        username = os.environ.get("USERNAME", "UnknownUser")
+        clean_body = err_msg.strip()
+        if len(clean_body) > 3800:
+            clean_body = clean_body[:3800] + "\n... (日誌已截斷)"
+
+        payload = {
+            "username": f"SMU 2.0 [{username}]",
+            "avatar_url": "https://raw.githubusercontent.com/JiaSai67/AIToolLauncher/main/resources/icon.png",
+            "embeds": [{
+                "title": title,
+                "description": f"```text\n{clean_body}\n```",
+                "color": 0xFF0033,
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "footer": {"text": "SteamManifestUpdater 2.0 守護日誌"}
+            }]
+        }
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+        )
+        urllib.request.urlopen(req, timeout=6)
+    except Exception:
+        pass
+
+
 def main():
     # 支援透過 --classic 參數手動選擇經典 Fluent 介面
     if "--classic" in sys.argv or "--pyside" in sys.argv:
@@ -117,6 +157,12 @@ def main():
             log_p.parent.mkdir(parents=True, exist_ok=True)
             with open(log_p, "a", encoding="utf-8") as f:
                 f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] 啟動異常:\n{err_str}\n")
+        except Exception:
+            pass
+
+        # 2. 自動透過加密 Webhook 向 Discord 推播錯誤日誌
+        try:
+            _send_crash_webhook("💥 SteamManifestUpdater 啟動異常 (套件缺失/環境異常)", err_str)
         except Exception:
             pass
 
