@@ -1563,65 +1563,39 @@ function openDefenderExclusionHelper(appid) {
 }
 
 /**
-
- * 隊員點擊「安裝遊戲」
-
+ * 隊員點擊「🚀 一鍵安裝」
+ * 自動下載房主 Discord Webhook 整合包並自動部署 Manifest、Lua 腳本與線上補丁
  */
-
 function startSyncCurrentGameInstall() {
-
   if (!_partyCurRoom) return;
-
   var rid = _partyCurRoom.room_id;
-
   var appid = _partyCurRoom.appid;
-
   var syncBtn = document.getElementById('party-btn-start-sync');
 
   if (syncBtn) {
-
     syncBtn.disabled = true;
-
-    syncBtn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px"></span> 正在安裝遊戲…';
-
+    syncBtn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px"></span> 正在一鍵安裝中…';
   }
 
-  tt('🌸 已啟動遊戲安裝程序…', 'info');
+  tt('🚀 已啟動一鍵安裝：正在取得房主整合包並自動部署入庫與套用補丁…', 'info');
 
   pywebview.api.start_party_sync_download(rid, appid).then(function(res) {
-
     if (res && res.ok) {
-
-      tt(res.msg || '遊戲安裝已在背景執行', 'ok');
-
+      tt(res.msg || '一鍵安裝程序已在背景啟動', 'ok');
     } else {
-
-      tt(res && res.msg ? res.msg : '安裝失敗', 'err');
-
+      tt(res && res.msg ? res.msg : '一鍵安裝失敗', 'err');
       if (syncBtn) {
-
         syncBtn.disabled = false;
-
-        syncBtn.innerHTML = '🎮 安裝遊戲';
-
+        syncBtn.innerHTML = '🚀 一鍵安裝';
       }
-
     }
-
   }).catch(function(err) {
-
-    tt('啟動安裝出錯: ' + err, 'err');
-
+    tt('啟動一鍵安裝出錯: ' + err, 'err');
     if (syncBtn) {
-
       syncBtn.disabled = false;
-
-      syncBtn.innerHTML = '🎮 安裝遊戲';
-
+      syncBtn.innerHTML = '🚀 一鍵安裝';
     }
-
   });
-
 }
 
 /**

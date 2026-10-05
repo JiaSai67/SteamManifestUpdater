@@ -400,6 +400,92 @@ class PartyPackager:
                 "msg": msg
             }
 
+    def apply_patch_files(self, package_zip_path: str, app_id: str) -> Dict[str, Any]:
+        """
+        專屬獨立套用線上補丁：
+        當 Steam 遊戲主程式剛下載完成或已安裝時，將整合包內的 patch/files/* 解壓套用至遊戲目錄。
+        """
+        p = Path(package_zip_path)
+        if not p.exists():
+            return {"ok": False, "msg": f"找不到整合包檔案: {package_zip_path}"}
+
+        game_dir = onlinefix_manager._find_steam_game_dir(app_id)
+        if not game_dir or not Path(game_dir).exists():
+            return {"ok": False, "msg": f"尚未找到 AppID {app_id} 的遊戲目錄，請確認 Steam 是否已下載安裝完成"}
+
+        g_path = Path(game_dir)
+        applied_count = 0
+        installed_rel_paths = []
+        backed_up_rel_paths = []
+
+        try:
+            with zipfile.ZipFile(p, "r") as zf:
+                namelist = zf.namelist()
+                patch_files = [n for n in namelist if n.startswith("patch/files/") and not n.endswith("/")]
+                if not patch_files:
+                    return {"ok": True, "msg": "整合包內無專屬線上補丁 (純 Manifest/Lua 入庫)", "files_count": 0}
+
+                for pf in patch_files:
+                    rel_sub = pf.replace("patch/files/", "", 1)
+                    target_pf = g_path / rel_sub
+                    target_pf.parent.mkdir(parents=True, exist_ok=True)
+
+                    if target_pf.exists() and target_pf.is_file():
+                        bak_f = target_pf.with_suffix(target_pf.suffix + ".bak")
+                        if not bak_f.exists():
+                            try:
+                                shutil.copy2(target_pf, bak_f)
+                                backed_up_rel_paths.append(rel_sub)
+                            except Exception as be:
+                                logger.warning(f"[Packager] 備份原檔失敗: {be}")
+
+                    with zf.open(pf) as src, open(target_pf, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                    installed_rel_paths.append(rel_sub)
+                    applied_count += 1
+
+            # 寫入部署記錄檔
+            try:
+                record = {
+                    "appid": str(app_id),
+                    "installed_files": installed_rel_paths,
+                    "backed_up_files": backed_up_rel_paths,
+                    "manual_install": False,
+                    "source_drive": "Party Package Sync",
+                    "game_dir": str(g_path),
+                    "timestamp": int(time.time())
+                }
+                onlinefix_manager._save_record(app_id, record)
+                logger.info(f"[Packager] 已成功為 AppID {app_id} 建立部署記錄檔 (.onlinefix_record.json)")
+            except Exception as re:
+                logger.warning(f"[Packager] 寫入記錄檔失敗: {re}")
+
+            # 防毒隔離抽查
+            quarantined_files = []
+            for rel_p in installed_rel_paths:
+                f_path = g_path / rel_p
+                if not f_path.exists() and any(f_path.name.lower().endswith(ext) for ext in [".dll", ".exe", ".ini"]):
+                    quarantined_files.append(f_path.name)
+            if quarantined_files:
+                return {
+                    "ok": False,
+                    "is_antivirus_blocked": True,
+                    "game_dir": str(g_path),
+                    "blocked_files": quarantined_files,
+                    "msg": f"防毒軟體攔截：補丁解壓後遭隔離 ({', '.join(quarantined_files[:2])})，請新增防毒排除項"
+                }
+
+            return {"ok": True, "files_count": applied_count, "msg": f"已成功套用 {applied_count} 個線上補丁檔案"}
+        except Exception as e:
+            err_str = str(e)
+            is_av = ("225" in err_str or "virus" in err_str.lower() or isinstance(e, PermissionError))
+            return {
+                "ok": False,
+                "is_antivirus_blocked": is_av,
+                "game_dir": str(g_path),
+                "msg": f"補丁套用失敗: {e}"
+            }
+
 def get_party_packager() -> PartyPackager:
     return PartyPackager()
 

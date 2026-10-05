@@ -1476,7 +1476,7 @@ class PartyManager:
                     return
 
                 # 執行二進位流無損快速合併
-                self.update_member_progress("合併中: 85%", 85, deploy_status="deploying")
+                self.update_member_progress("合併中: 25%", 25, deploy_status="deploying")
                 logger.info(f"[PARTY] 所有分卷下載完畢，正在二進位串接還原為完整 ZIP: {target_zip}")
                 with open(target_zip, "wb") as outfile:
                     for p_file in temp_parts:
@@ -1491,24 +1491,8 @@ class PartyManager:
                     except Exception:
                         pass
 
-                # 解壓套用
-                self.update_member_progress("部署中: 90%", 90, deploy_status="deploying")
-                apply_res = packager.extract_and_apply_package(str(target_zip), app_id)
-                logger.info(f"[PARTY] 整合包解壓部署結果: {apply_res}")
-                
-                # 重新檢查本地 Steam 本體安裝狀態
-                self._detect_initial_status(app_id)
-
-                if apply_res.get("ok"):
-                    self.update_member_progress("就緒", 100, steam_installed=self.my_steam_installed, deploy_status="success", deploy_error="")
-                    logger.info(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署成功！")
-                else:
-                    if apply_res.get("is_antivirus_blocked"):
-                        err_detail = apply_res.get("msg") or "🛡️ 防毒軟體攔截 (Windows Defender 阻止寫入，請新增排除項)"
-                    else:
-                        err_detail = apply_res.get("msg") or apply_res.get("error") or "補丁套用解壓失敗"
-                    logger.error(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署失敗: {err_detail}")
-                    self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=str(err_detail))
+                # 🚀 進入全自動一鍵安裝流程
+                self._execute_party_one_click_install(room_id, app_id, str(target_zip))
                 return
 
             # -------------------------------------------------------------
@@ -1528,27 +1512,11 @@ class PartyManager:
                                 f.write(chunk)
                                 downloaded += len(chunk)
                                 if total_len > 0:
-                                    pct = min(85, int((downloaded / total_len) * 75) + 10)
-                                    self.update_member_progress(f"下載中: {pct}%", pct, deploy_status="downloading")
+                                    pct = min(25, int((downloaded / total_len) * 20) + 5)
+                                    self.update_member_progress(f"下載整合包: {pct}%", pct, deploy_status="downloading")
 
-                    # 下載完畢，解壓套用
-                    self.update_member_progress("部署中: 90%", 90, deploy_status="deploying")
-                    apply_res = packager.extract_and_apply_package(str(target_zip), app_id)
-                    logger.info(f"[PARTY] 整合包解壓部署結果: {apply_res}")
-                    
-                    # 重新檢查本地 Steam 本體安裝狀態
-                    self._detect_initial_status(app_id)
-
-                    if apply_res.get("ok"):
-                        self.update_member_progress("就緒", 100, steam_installed=self.my_steam_installed, deploy_status="success", deploy_error="")
-                        logger.info(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署成功！")
-                    else:
-                        if apply_res.get("is_antivirus_blocked"):
-                            err_detail = apply_res.get("msg") or "🛡️ 防毒軟體攔截 (Windows Defender 阻止寫入，請新增排除項)"
-                        else:
-                            err_detail = apply_res.get("msg") or apply_res.get("error") or "補丁套用解壓失敗"
-                        logger.error(f"房間 #{room_id} 遊戲 {app_id} 聯機補丁部署失敗: {err_detail}")
-                        self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=str(err_detail))
+                    # 🚀 下載完畢，進入全自動一鍵安裝流程
+                    self._execute_party_one_click_install(room_id, app_id, str(target_zip))
                     return
                 else:
                     self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載整合包失敗 (HTTP {resp.status_code})")
@@ -1570,6 +1538,100 @@ class PartyManager:
         except Exception as e:
             logger.error(f"同步下載過程發生錯誤: {e}", exc_info=True)
             self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載或部署過程異常: {e}")
+
+    def _execute_party_one_click_install(self, room_id: str, app_id: str, target_zip_path: str):
+        """
+        🚀 隊員「一鍵安裝」核心流程（與遊戲入庫分類完全對齊）：
+        1. 部署 Manifest 清單與 Lua 腳本（三檔入庫前置，由房主 Discord Webhook 提供）
+        2. 檢查本機 Steam 遊戲主程式是否已就緒：
+           - 若未就緒：喚起 Steam 開始下載遊戲主程式，並即時輪詢回報 Steam 下載百分比至 Supabase
+           - 若已就緒：直接推進至補丁部署階段
+        3. 遊戲主程式就緒後，套用整合包內的線上補丁 (patch/files/*) 並寫入記錄檔
+        4. 最終檢查與狀態鎖定，完成就緒！
+        """
+        from managers.party_packager import get_party_packager
+        from managers import onlinefix_manager
+        packager = get_party_packager()
+
+        try:
+            # 步驟 1: 部署 Manifest 清單與 Lua 腳本
+            self.update_member_progress("部署清單與腳本中: 30%", 30, deploy_status="deploying")
+            init_res = packager.extract_and_apply_package(target_zip_path, app_id)
+            logger.info(f"[PARTY] 整合包 Manifest/Lua 部署結果: {init_res}")
+
+            # 步驟 2: 檢查本地 Steam 遊戲主程式是否已就緒
+            game_dir = onlinefix_manager._find_steam_game_dir(app_id)
+            is_installed = bool(game_dir and Path(game_dir).exists())
+
+            if not is_installed:
+                logger.info(f"[PARTY] 檢測到本地尚未安裝遊戲 {app_id} 主程式，喚起 Steam 開始下載...")
+                self.update_member_progress("正在喚起 Steam 下載遊戲...", 35, steam_installed=False, deploy_status="downloading")
+
+                # 喚起 Steam 下載安裝
+                try:
+                    import webbrowser
+                    webbrowser.open(f"steam://install/{app_id}")
+                except Exception as we:
+                    logger.warning(f"喚起 steam://install 異常: {we}")
+
+                # 輪詢監聽 Steam 下載進度
+                download_done = False
+                poll_count = 0
+                while not download_done and poll_count < 7200:
+                    if self.current_room_id != room_id:
+                        return  # 隊員已離開房間
+                    time.sleep(2.0)
+                    poll_count += 1
+
+                    rep = onlinefix_manager.get_steam_app_download_report(app_id)
+                    st = rep.get("status")
+                    pct_from_steam = float(rep.get("progress_pct", 0) or 0)
+                    speed_str = rep.get("speed_str") or ""
+
+                    if st == "COMPLETED":
+                        download_done = True
+                        logger.info(f"[PARTY] Steam 遊戲 {app_id} 主程式下載完畢！")
+                        break
+                    elif st in ("DOWNLOADING", "PAUSED"):
+                        mapped_pct = min(90, max(35, 35 + int(pct_from_steam * 0.55)))
+                        status_str = f"Steam下載中: {pct_from_steam:.1f}%"
+                        if speed_str:
+                            status_str += f" ({speed_str})"
+                        self.update_member_progress(status_str, mapped_pct, steam_installed=False, deploy_status="downloading")
+                    elif st == "ERROR":
+                        err_msg = rep.get("error_msg") or "Steam 回報下載中斷"
+                        self.update_member_progress("Steam下載錯誤", 35, steam_installed=False, deploy_status="failed", deploy_error=err_msg)
+                        return
+                    elif st == "CANCELLED":
+                        self.update_member_progress("未下載", 0, steam_installed=False, deploy_status="failed", deploy_error="Steam 下載已取消")
+                        return
+                    else:
+                        check_dir = onlinefix_manager._find_steam_game_dir(app_id)
+                        if check_dir and Path(check_dir).exists():
+                            download_done = True
+                            break
+
+            # 步驟 3: 套用整合包內的線上補丁 (此時遊戲主程式已就緒)
+            self.update_member_progress("部署線上補丁中: 92%", 92, steam_installed=True, deploy_status="deploying")
+            patch_res = packager.apply_patch_files(target_zip_path, app_id)
+            logger.info(f"[PARTY] 線上補丁套用結果: {patch_res}")
+
+            # 步驟 4: 重新檢測本地狀態與回報最終結果
+            self._detect_initial_status(app_id)
+
+            if patch_res.get("ok"):
+                self.update_member_progress("就緒", 100, steam_installed=self.my_steam_installed, deploy_status="success", deploy_error="")
+                logger.info(f"房間 #{room_id} 遊戲 {app_id} 一鍵安裝與補丁套用全流程成功！")
+            else:
+                if patch_res.get("is_antivirus_blocked"):
+                    err_detail = patch_res.get("msg") or "🛡️ 防毒軟體攔截 (Windows Defender 阻止寫入，請新增排除項)"
+                else:
+                    err_detail = patch_res.get("msg") or "線上補丁套用失敗"
+                logger.error(f"房間 #{room_id} 遊戲 {app_id} 補丁套用失敗: {err_detail}")
+                self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=str(err_detail))
+        except Exception as e:
+            logger.error(f"[PARTY] 一鍵安裝流程發生例外: {e}", exc_info=True)
+            self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=f"一鍵安裝異常: {e}")
 
 _global_party_manager = None
 
