@@ -355,8 +355,8 @@ class PartyManager:
 
     def create_room(self, game_name: str, app_id: str, max_players: int = 4, is_public: bool = True,
                     room_id: str = "", note: str = "", download_url: str = "", download_secret: str = "",
-                    auto_package_upload: bool = False, gas_url: str = "") -> Dict[str, Any]:
-        """房主建立組隊房間，支援三檔自動打包與 GAS 上傳至 Google Drive"""
+                    auto_package_upload: bool = True, gas_url: str = "") -> Dict[str, Any]:
+        """房主建立組隊房間，三檔自動打包與 GAS 上傳至 Google Drive 常駐開啟，防止連線版本/憑證衝突"""
         # 如果已經在房間內，先退出
         self.leave_or_close()
 

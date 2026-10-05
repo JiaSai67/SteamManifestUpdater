@@ -4634,8 +4634,8 @@ class WebApi:
             return {"ok": False, "msg": str(e)}
 
     def create_party_room(self, game_name: str, app_id: str, max_players: int = 4, is_public: bool = True,
-                          note: str = "", auto_package_upload: bool = False, gas_url: str = "") -> Dict[str, Any]:
-        """房主建立組隊房間 (支援三檔自動打包與 GAS 上傳至 Google Drive)"""
+                          note: str = "", auto_package_upload: bool = True, gas_url: str = "") -> Dict[str, Any]:
+        """房主建立組隊房間 (三檔自動打包與 GAS 上傳至 Google Drive 常駐開啟，防止連線版本/憑證衝突)"""
         try:
             return self._get_party_manager().create_room(
                 game_name=game_name,

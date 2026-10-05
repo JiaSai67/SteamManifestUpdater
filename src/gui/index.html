@@ -1014,25 +1014,31 @@
       <input type="text" id="input-party-note" placeholder="例如：新手開荒 / 語音隨意 / 缺 1 人即開" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
     </div>
 
-    <!-- 📦 聯機資源自動打包與 Google Drive 分享 (GAS) -->
+    <!-- 📦 聯機資源自動打包與 Google Drive 分享 (GAS 常駐啟用) -->
     <div class="party-package-section" style="margin-bottom:14px;padding:12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:12px">
+      <input type="checkbox" id="check-party-auto-upload" checked disabled style="display:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--fg);cursor:pointer">
-          <input type="checkbox" id="check-party-auto-upload" onchange="togglePartyAutoUploadSection()" style="width:15px;height:15px;accent-color:#FF4757">
-          <span>🚀 自動打包三檔並上傳至 Google Drive (房主專屬 GAS)</span>
-        </label>
+        <div id="party-package-core-badge" style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:12.5px;font-weight:700;color:var(--fg)">📦 核心三檔同步：</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;color:#2EA043;background:rgba(46,160,67,0.15);padding:2px 8px;border-radius:10px;border:1px solid rgba(46,160,67,0.3)">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2EA043;box-shadow:0 0 6px #2EA043"></span> 常駐開啟
+          </span>
+        </div>
         <button type="button" class="btn btn-o btn-xs" onclick="startGasSpotlightTour(event)" style="font-size:11px;padding:2px 8px;border-radius:12px;color:#FF6B81;border-color:rgba(255,71,87,0.4)" title="開啟一步一步聚光燈教學">✨ 逐步指引精靈</button>
+      </div>
+      <div style="font-size:11px;color:var(--gray);margin-bottom:8px;line-height:1.4">
+        🛡️ <strong>創房防呆機制</strong>：自動封裝 Manifest、Lua 腳本與線上補丁，徹底避免隊友因「缺少登入憑證」或「版本差異」而無法連線。
       </div>
 
       <!-- 三檔檢測狀態條 -->
-      <div id="party-resources-inspect-box" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;font-size:11px">
+      <div id="party-resources-inspect-box" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;font-size:11px">
         <span id="inspect-manifest" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">📄 Manifest: 檢測中</span>
         <span id="inspect-lua" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">📜 Lua 腳本: 檢測中</span>
         <span id="inspect-patch" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">🎮 線上補丁: 檢測中</span>
       </div>
 
-      <!-- GAS 設定區塊 (勾選後展開) -->
-      <div id="party-gas-config-wrap" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+      <!-- GAS 設定區塊 (常駐展開) -->
+      <div id="party-gas-config-wrap" style="display:block;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
         <div style="margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
             <label style="font-size:11.5px;color:var(--fg);font-weight:600">Google Apps Script Web App 網址：</label>

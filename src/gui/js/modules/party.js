@@ -878,18 +878,19 @@ function openCreateRoomModal() {
   // 載入本地已入庫遊戲下拉選單
   loadInstalledGamesDropdown();
 
+  // 確保三檔同步區塊常駐展開
+  var wrap = document.getElementById('party-gas-config-wrap');
+  if (wrap) wrap.style.display = 'block';
+  var chk = document.getElementById('check-party-auto-upload');
+  if (chk) chk.checked = true;
+
   // 載入房主已保存之 GAS 網址設定
   if (window.pywebview && window.pywebview.api && window.pywebview.api.get_gas_config) {
     pywebview.api.get_gas_config().then(function(res) {
       if (res && res.ok) {
         var gasInput = document.getElementById('input-party-gas-url');
-        var chk = document.getElementById('check-party-auto-upload');
         if (gasInput && res.gas_url) {
           gasInput.value = res.gas_url;
-          if (chk) {
-            chk.checked = true;
-            togglePartyAutoUploadSection();
-          }
         }
       }
     });
@@ -910,11 +911,8 @@ function closeCreateRoomModal() {
 }
 
 function togglePartyAutoUploadSection() {
-  var chk = document.getElementById('check-party-auto-upload');
   var wrap = document.getElementById('party-gas-config-wrap');
-  if (wrap && chk) {
-    wrap.style.display = chk.checked ? 'block' : 'none';
-  }
+  if (wrap) wrap.style.display = 'block';
 }
 
 function resetResourceInspectBadges() {
@@ -1104,7 +1102,7 @@ function submitCreatePartyRoom() {
   var maxPlayers = parseInt(maxSelect ? maxSelect.value : 4, 10);
   var isPublic = (pubSelect ? pubSelect.value : '1') === '1';
   var note = (noteInput ? noteInput.value : '').trim();
-  var autoUpload = autoChk ? autoChk.checked : false;
+  var autoUpload = true; // 🌟 核心常駐開啟：保證房間擁有三檔憑證與補丁，防止隊友版本或憑證不一致
   var gasUrl = (gasInput ? gasInput.value : '').trim();
 
   if (!gameName) {
@@ -1112,17 +1110,17 @@ function submitCreatePartyRoom() {
     return;
   }
 
-  if (autoUpload && !gasUrl) {
-    tt('您勾選了自動上傳，請填寫 Google Apps Script 網址', 'warn');
-    if (gasInput) gasInput.focus();
+  if (!gasUrl) {
+    tt('⚠️ 為避免隊友因「缺少登入憑證」或「版本差異」而無法連線，開房必須設置 Google Apps Script 網址以同步三檔！', 'warn');
+    if (gasInput) {
+      gasInput.focus();
+      gasInput.style.borderColor = '#FF4757';
+      setTimeout(function() { gasInput.style.borderColor = ''; }, 3000);
+    }
     return;
   }
 
-  if (autoUpload) {
-    tt('📦 正在打包本地三檔並透過 GAS 上傳至 Google Drive，請稍候…', 'info');
-  } else {
-    tt('🌸 正在發布組隊房間…', 'info');
-  }
+  tt('📦 正在打包 Manifest / Lua / 補丁三檔並同步至個人雲端，確保隊友零障礙連線…', 'info');
 
   pywebview.api.create_party_room(gameName, appid, maxPlayers, isPublic, note, autoUpload, gasUrl).then(function(res) {
     if (res && res.ok && res.room) {
@@ -1160,10 +1158,10 @@ function downloadPartyGdrivePackage() {
 // ═══════════════════════════════════════════════════════
 var _gasTourSteps = [
   {
-    targetId: 'check-party-auto-upload',
+    targetId: 'party-package-core-badge',
     badge: '步驟 1 / 5',
-    title: '第一步：啟用雲端自動發布',
-    desc: '勾選此選項，SMU 會在您發布房間時，自動將您的 Manifest、Lua 腳本與補丁打包並上傳至您自己的 Google 雲端硬碟，組隊隊友即可一鍵下載！'
+    title: '核心三檔同步機制 (常駐開啟)',
+    desc: 'SMU 創房的核心宗旨就是防止版本不同或缺少登入憑證導致連線失敗。系統常駐自動打包 Manifest、Lua 腳本與補丁三檔，隊友加入後即可一鍵自動同步！'
   },
   {
     targetId: 'btn-party-copy-gas-script',
