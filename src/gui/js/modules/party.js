@@ -435,30 +435,49 @@ function renderRoomView(room) {
     }
   }
 
-  // 渲染所有成員列表 (房主 + 所有隊員)
+  // 渲染所有成員列表 (以 members 陣列為單一真實來源，去重並置頂房主)
   var listContainer = document.getElementById('party-members-list');
   if (!listContainer) return;
 
   var allMembers = [];
-  // 房主固定置頂
-  allMembers.push({
-    name: hostName,
-    discord_name: hostDiscord,
-    status: '就緒',
-    progress: 100,
-    is_host: true
+  var seenIds = {};
+
+  if (!members || members.length === 0) {
+    allMembers.push({
+      id: room.host_id || 'host',
+      name: hostName,
+      discord_name: hostDiscord,
+      status: '就緒',
+      progress: 100,
+      is_host: true
+    });
+  } else {
+    members.forEach(function(m) {
+      var mId = m.id || m.name;
+      if (seenIds[mId]) return; // 依唯一 ID 去重，徹底杜絕重複
+      seenIds[mId] = true;
+
+      var isHostMember = (m.is_host === true) || (m.id && room.host_id && m.id === room.host_id) || (m.name === hostName);
+      allMembers.push({
+        id: m.id || '',
+        name: m.name || '玩家',
+        discord_name: m.discord || m.discord_name || (isHostMember ? hostDiscord : ''),
+        status: m.status || '未下載',
+        progress: m.progress !== undefined ? m.progress : 0,
+        is_host: isHostMember
+      });
+    });
+  }
+
+  // 確保房主置頂
+  allMembers.sort(function(a, b) {
+    if (a.is_host && !b.is_host) return -1;
+    if (!a.is_host && b.is_host) return 1;
+    return 0;
   });
 
-  // 加入其他隊員
-  members.forEach(function(m) {
-    allMembers.push({
-      name: m.name || '隊員',
-      discord_name: m.discord_name || '',
-      status: m.status || '未下載',
-      progress: m.progress !== undefined ? m.progress : 0,
-      is_host: false
-    });
-  });
+  // 更新即時人數 (準確以 allMembers 總數呈現)
+  if (playersVal) playersVal.textContent = '👥 ' + allMembers.length + ' / ' + maxPlayers + ' 人';
 
   // 檢查是否全員就緒
   var isAllReady = allMembers.every(function(m) {
@@ -470,7 +489,10 @@ function renderRoomView(room) {
   }
 
   // 取得自己的本機狀態展示
-  var myMemberObj = allMembers.find(function(m) { return m.name === myName; });
+  var myId = (_partyProfile && _partyProfile.client_id) || '';
+  var myMemberObj = allMembers.find(function(m) {
+    return (m.id && myId && m.id === myId) || (m.name === myName);
+  });
   var myStatusBadge = document.getElementById('party-my-status-badge');
   if (myStatusBadge && myMemberObj) {
     myStatusBadge.textContent = myMemberObj.status;
@@ -483,7 +505,7 @@ function renderRoomView(room) {
     var discord = m.discord_name ? m.discord_name : '未綁定 Discord';
     var status = m.status || '未下載';
     var progress = m.progress || 0;
-    var isMe = (name === myName);
+    var isMe = (m.id && myId && m.id === myId) || (m.name === myName);
 
     // 格式化下載狀況文字 (嚴格遵從指定格式)
     var statusDisplay = '';

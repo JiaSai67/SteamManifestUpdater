@@ -420,7 +420,7 @@ class PartyManager:
             return {"ok": False, "msg": f"連線至 Supabase 創建房間失敗: {e}"}
 
     def _send_host_heartbeat(self) -> bool:
-        """發送房主心跳維持房間存活，並順便清除超時隊員"""
+        """發送房主心跳維持房間存活，並順便清除超時隊員與重複成員"""
         if not self.current_room_id or not self.is_host or not self.current_room_data:
             return False
 
@@ -429,9 +429,14 @@ class PartyManager:
 
         # 1. 抓取最新房間成員
         members = self.current_room_data.get("members") or []
-        # 過濾掉超過 30 秒沒有上報心跳的非房主隊員
+        seen_ids = set()
         fresh_members = []
         for m in members:
+            mid = m.get("id") or m.get("name")
+            if mid in seen_ids:
+                continue
+            seen_ids.add(mid)
+
             if m.get("is_host") or m.get("id") == self.client_id:
                 m["updated_at"] = now_str
                 m["name"] = self.nickname
