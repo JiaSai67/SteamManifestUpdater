@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "SMU Google Apps Script 部署引導精靈",
+  "version": "1.0.0",
+  "description": "SteamManifestUpdater 專屬 Google Apps Script 真實網頁動態聚光燈與逐步箭頭指引",
+  "icons": {
+    "128": "icon.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://script.google.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

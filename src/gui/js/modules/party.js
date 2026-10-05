@@ -1023,6 +1023,31 @@ function openGasHelpGuide() {
   }
 }
 
+function copyInPageGuideScript() {
+  var inlineCode = `(function(){` +
+    `var newProj=Array.from(document.querySelectorAll('button, div[role="button"], a')).find(function(el){var t=(el.innerText||el.textContent||'').trim();return(t.indexOf('新專案')!==-1||t.indexOf('New project')!==-1||t.indexOf('建立 APPS SCRIPT')!==-1)&&el.offsetParent!==null;});` +
+    `if(newProj){` +
+      `newProj.scrollIntoView({behavior:'smooth',block:'center'});` +
+      `var box=document.createElement('div');box.style='position:fixed;z-index:2147483640;border:3px solid #FF4757;border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,0.76),0 0 24px #FF4757;pointer-events:none;transition:all .3s;';` +
+      `var rect=newProj.getBoundingClientRect();box.style.left=(rect.left-6)+'px';box.style.top=(rect.top-6)+'px';box.style.width=(rect.width+12)+'px';box.style.height=(rect.height+12)+'px';` +
+      `var tip=document.createElement('div');tip.style='position:fixed;z-index:2147483645;background:#161B22;border:2px solid #FF4757;border-radius:14px;padding:14px 18px;color:#fff;font-family:sans-serif;max-width:320px;left:'+(rect.right+16)+'px;top:'+rect.top+'px;box-shadow:0 10px 30px rgba(0,0,0,.8);';` +
+      `tip.innerHTML='<div style="color:#FF6B81;font-size:11px;font-weight:800;margin-bottom:4px;">✨ SMU 部署精靈 (第 1 步)</div><div style="font-size:15px;font-weight:800;margin-bottom:6px;">👉 點擊此處「➕ 新專案」</div><div style="font-size:12px;color:#CBD5E1;line-height:1.5;">點擊此處建立專案，進入編輯器後精靈會自動指引下一步！</div>';` +
+      `document.body.appendChild(box);document.body.appendChild(tip);` +
+      `newProj.addEventListener('click',function(){box.remove();tip.remove();},{once:true});` +
+    `}else{alert('⚠️ 未找到「新專案」按鈕，請確認目前停留在 script.google.com/home 頁面！');}` +
+  `})();`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(inlineCode).then(function() {
+      tt('✨ 已複製真實網頁高亮代碼！在 Google 頁面按 F12 ➔ 貼到 Console 並按 Enter，即可直接高亮【新專案】！', 'ok');
+    }).catch(function() {
+      tt('複製失敗，請手動複製', 'err');
+    });
+  } else {
+    tt('剪貼簿不支援自動寫入', 'warn');
+  }
+}
+
 function testGasUrlConnection() {
   var input = document.getElementById('input-party-gas-url');
   var url = (input ? input.value : '').trim();
@@ -1500,4 +1525,6 @@ window.startGasSpotlightTour = startGasSpotlightTour;
 window.nextGasTourStep = nextGasTourStep;
 window.prevGasTourStep = prevGasTourStep;
 window.closeGasTour = closeGasTour;
+window.copyInPageGuideScript = copyInPageGuideScript;
+
 
