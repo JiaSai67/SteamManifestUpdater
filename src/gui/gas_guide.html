@@ -843,21 +843,19 @@ function doPost(e) {
       }
     }
     
-    // 3. 清空專屬資料夾內的所有歷史整合包 (兼顧新名稱與歷史名稱)
+    // 3. 清空專屬資料夾內的所有歷史整合包
     if (action === "clean_all" || action === "cleanup") {
-      var targetFolderNames = ["SteamManifestUpdater建房專用", "SMU_Party_Packages"];
+      var folderName = "SteamManifestUpdater建房專用";
+      var folders = DriveApp.getFoldersByName(folderName);
       var count = 0;
-      for (var i = 0; i < targetFolderNames.length; i++) {
-        var folders = DriveApp.getFoldersByName(targetFolderNames[i]);
-        while (folders.hasNext()) {
-          var fldr = folders.next();
-          var fls = fldr.getFiles();
-          while (fls.hasNext()) {
-            try {
-              fls.next().setTrashed(true);
-              count++;
-            } catch(e) {}
-          }
+      if (folders.hasNext()) {
+        var fldr = folders.next();
+        var fls = fldr.getFiles();
+        while (fls.hasNext()) {
+          try {
+            fls.next().setTrashed(true);
+            count++;
+          } catch(e) {}
         }
       }
       return ContentService.createTextOutput(JSON.stringify({
