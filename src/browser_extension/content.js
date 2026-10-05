@@ -241,13 +241,47 @@
   // 核心步驟尋找器 (DOM Detectors)
   // ═══════════════════════════════════════════════════════
 
+  function isElementVisible(el) {
+    if (!el) return false;
+    var rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return false;
+    try {
+      var style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) {
+        return false;
+      }
+    } catch(e) {}
+    return true;
+  }
+
   function findElementByText(selectors, textPatterns) {
+    // 1. 深度遍歷所有可能節點，容錯 fixed 側邊欄與 Material Design 巢狀標籤
+    var allNodes = Array.from(document.querySelectorAll('*'));
+    var textTarget = allNodes.find(function(el) {
+      if (!isElementVisible(el)) return false;
+      if (el.children.length > 3) return false;
+      var t = (el.innerText || el.textContent || '').trim();
+      var aria = (el.getAttribute('aria-label') || el.getAttribute('title') || '').trim();
+      return textPatterns.some(function(pattern) {
+        return (t && t.indexOf(pattern) !== -1) || (aria && aria.indexOf(pattern) !== -1);
+      });
+    });
+
+    if (textTarget) {
+      var clickable = textTarget.closest('button, [role="button"], a, [role="link"], div[tabindex]');
+      if (clickable && isElementVisible(clickable)) {
+        return clickable;
+      }
+      return textTarget;
+    }
+
     var els = Array.from(document.querySelectorAll(selectors));
     return els.find(function(el) {
-      if (el.offsetParent === null) return false;
+      if (!isElementVisible(el)) return false;
       var t = (el.innerText || el.textContent || '').trim();
+      var aria = (el.getAttribute('aria-label') || el.getAttribute('title') || '').trim();
       return textPatterns.some(function(pattern) {
-        return t.indexOf(pattern) !== -1;
+        return (t && t.indexOf(pattern) !== -1) || (aria && aria.indexOf(pattern) !== -1);
       });
     });
   }
@@ -258,7 +292,10 @@
 
     // 🌟 情境 1: 首頁 (script.google.com/home) -> 尋找「新專案」
     if (url.indexOf('script.google.com/home') !== -1 && url.indexOf('/projects/') === -1) {
-      var newProjBtn = findElementByText('button, div[role="button"], a, [role="link"]', ['新專案', 'New project', '建立 APPS SCRIPT']);
+      var newProjBtn = 
+        document.querySelector('a[href*="/projects/create"]') ||
+        document.querySelector('[aria-label*="新專案"], [aria-label*="New project"]') ||
+        findElementByText('button, div[role="button"], a, [role="link"], div', ['新專案', 'New project', '建立 APPS SCRIPT']);
       if (newProjBtn) {
         highlightElement(
           newProjBtn,
@@ -357,7 +394,7 @@
       // 預設高亮頂部藍色【部署】按鈕
       var topDeployBtn = Array.from(document.querySelectorAll('button, [role="button"]')).find(function(b) {
         var t = (b.innerText || '').trim();
-        return (t === '部署' || t === 'Deploy') && b.offsetParent !== null;
+        return (t === '部署' || t === 'Deploy') && isElementVisible(b);
       });
       if (topDeployBtn) {
         highlightElement(

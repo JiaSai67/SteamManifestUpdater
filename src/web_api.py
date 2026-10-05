@@ -4681,12 +4681,17 @@ class WebApi:
             ext_dir = Path(__file__).resolve().parent / "browser_extension"
             target_url = "https://script.google.com/home"
 
-            # 4. 自動預先複製 GAS 範本腳本至剪貼簿
+            # 4. 準備剪貼簿：若 Chrome 已在運行，預先複製高亮腳本方便 F12 Console 一鍵貼上；若非運行則複製 GAS 腳本
             try:
-                from managers.gas_manager import get_gas_manager
-                sample_code = get_gas_manager().get_sample_script()
-                if sample_code:
-                    self.copy_text(sample_code)
+                if chrome_running:
+                    content_js_file = ext_dir / "content.js"
+                    if content_js_file.exists():
+                        self.copy_text(content_js_file.read_text(encoding="utf-8"))
+                else:
+                    from managers.gas_manager import get_gas_manager
+                    sample_code = get_gas_manager().get_sample_script()
+                    if sample_code:
+                        self.copy_text(sample_code)
             except Exception:
                 pass
 
@@ -4704,7 +4709,7 @@ class WebApi:
                     "path": chrome_path,
                     "ext_dir": str(ext_dir.resolve()),
                     "chrome_running": chrome_running,
-                    "msg": "已為您啟動 Chrome 並載入高亮導引精靈！"
+                    "msg": "已為您啟動 Chrome 並嘗試載入導引！"
                 }
             else:
                 webbrowser.open(target_url)
@@ -4716,6 +4721,37 @@ class WebApi:
                 }
         except Exception as e:
             return {"ok": False, "msg": f"啟動瀏覽器失敗: {e}"}
+
+    def open_extension_dir(self) -> Dict[str, Any]:
+        """在 Windows 檔案總管中開啟 Chrome 引導擴充套件目錄"""
+        try:
+            import os
+            from pathlib import Path
+            ext_dir = Path(__file__).resolve().parent / "browser_extension"
+            if ext_dir.exists():
+                os.startfile(str(ext_dir.resolve()))
+                return {"ok": True, "path": str(ext_dir.resolve())}
+            return {"ok": False, "msg": "找不到擴充套件目錄"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def open_chrome_extensions_page(self) -> Dict[str, Any]:
+        """引導使用者至 Chrome 擴充功能管理頁面"""
+        try:
+            import subprocess
+            import os
+            chrome_candidates = [
+                os.path.join(os.environ.get("ProgramFiles", ""), "Google", "Chrome", "Application", "chrome.exe"),
+                os.path.join(os.environ.get("ProgramFiles(x86)", ""), "Google", "Chrome", "Application", "chrome.exe"),
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "Google", "Chrome", "Application", "chrome.exe"),
+            ]
+            for p in chrome_candidates:
+                if p and os.path.exists(p):
+                    subprocess.Popen([p, "chrome://extensions"])
+                    return {"ok": True}
+            return {"ok": False, "msg": "未檢測到 Chrome"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
 
     def prepare_party_package_upload(self, app_id: str, gas_url: str = "") -> Dict[str, Any]:
         """
