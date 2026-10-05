@@ -4,11 +4,11 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-[assembly: System.Reflection.AssemblyTitle("Steam Manifest Updater 2.0")]
+[assembly: System.Reflection.AssemblyTitle("Steam Manifest Updater 2.0.1")]
 [assembly: System.Reflection.AssemblyProduct("Steam Manifest Updater")]
 [assembly: System.Reflection.AssemblyDescription("Steam 入庫與清單更新工具 (多源極速版)")]
-[assembly: System.Reflection.AssemblyVersion("2.0.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("2.0.0.0")]
+[assembly: System.Reflection.AssemblyVersion("2.0.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("2.0.1.0")]
 
 namespace SteamManifestUpdaterLauncher
 {
