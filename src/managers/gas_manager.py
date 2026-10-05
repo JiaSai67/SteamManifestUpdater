@@ -21,11 +21,22 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     var action = data.action;
     
-    // 1. 上傳檔案
+    // 1. 上傳檔案 (預設自動清理歷史舊包，避免房主未正常關閉房間累積舊檔)
     if (action === "upload") {
       var folderName = "SMU_Party_Packages";
       var folders = DriveApp.getFoldersByName(folderName);
       var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+      
+      // 🌟 自動清除舊檔案防呆機制：
+      // 若房主上次未正常解散房間，上傳前先把該資料夾內的歷史舊包移至垃圾桶，確保不佔用雲端空間！
+      if (data.clean_before_upload !== false) {
+        var oldFiles = folder.getFiles();
+        while (oldFiles.hasNext()) {
+          try {
+            oldFiles.next().setTrashed(true);
+          } catch(e) {}
+        }
+      }
       
       var decoded = Utilities.base64Decode(data.base64_data);
       var blob = Utilities.newBlob(decoded, data.mime_type || "application/zip", data.filename || "party_package.zip");
@@ -66,7 +77,28 @@ function doPost(e) {
       }
     }
     
-    // 3. 連線測試
+    // 3. 清空專屬資料夾內的所有歷史整合包
+    if (action === "clean_all" || action === "cleanup") {
+      var folderName = "SMU_Party_Packages";
+      var folders = DriveApp.getFoldersByName(folderName);
+      var count = 0;
+      if (folders.hasNext()) {
+        var fldr = folders.next();
+        var fls = fldr.getFiles();
+        while (fls.hasNext()) {
+          try {
+            fls.next().setTrashed(true);
+            count++;
+          } catch(e) {}
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({
+        ok: true,
+        msg: "已將 " + count + " 個歷史檔案移至垃圾桶 (空間已釋放)"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 4. 連線測試
     if (action === "ping") {
       return ContentService.createTextOutput(JSON.stringify({
         ok: true,
@@ -169,7 +201,8 @@ class GASManager:
                 "action": "upload",
                 "filename": filename,
                 "mime_type": "application/zip",
-                "base64_data": b64_content
+                "base64_data": b64_content,
+                "clean_before_upload": True
             }
 
             logger.info(f"[GAS] 正在發送 Base64 數據至 Google Apps Script...")
@@ -227,6 +260,32 @@ class GASManager:
                 return {"ok": False, "msg": f"銷毀請求失敗 HTTP {resp.status_code}"}
         except Exception as e:
             logger.warning(f"[GAS] 銷毀檔案異常: {e}")
+            return {"ok": False, "msg": str(e)}
+
+    def clean_space(self, gas_url: Optional[str] = None) -> Dict[str, Any]:
+        """
+        主動清除房主 Google Drive 上 SMU_Party_Packages 專屬資料夾內的所有歷史遺留檔案
+        """
+        target_url = (gas_url or self.get_gas_url()).strip()
+        if not target_url:
+            return {"ok": False, "msg": "未配置 GAS 網址"}
+
+        try:
+            logger.info("[GAS] 正在發送清空歷史整合包指令至 Google Apps Script...")
+            resp = self.session.post(
+                target_url,
+                json={"action": "clean_all"},
+                timeout=20,
+                allow_redirects=True
+            )
+            if resp.status_code == 200:
+                res_json = resp.json()
+                logger.info(f"[GAS] 清理空間結果: {res_json}")
+                return {"ok": True, "msg": res_json.get("msg", "歷史空間已成功清理")}
+            else:
+                return {"ok": False, "msg": f"清理請求異常 HTTP {resp.status_code}"}
+        except Exception as e:
+            logger.warning(f"[GAS] 清理空間失敗: {e}")
             return {"ok": False, "msg": str(e)}
 
 def get_gas_manager() -> GASManager:

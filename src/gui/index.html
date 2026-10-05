@@ -1043,10 +1043,11 @@
           <div style="display:flex;gap:6px">
             <input type="text" id="input-party-gas-url" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1;padding:7px 10px;border:1.5px solid var(--pink-light);border-radius:8px;font-size:11px;background:var(--bg);color:var(--fg);outline:none">
             <button type="button" class="btn btn-p btn-xs" onclick="testGasUrlConnection()">🔗 測試</button>
+            <button type="button" class="btn btn-o btn-xs" onclick="cleanGasSpaceNow()" title="手動清空 Google Drive 上 SMU_Party_Packages 資料夾中的歷史舊包">🗑️ 清空舊檔</button>
           </div>
         </div>
         <div style="font-size:11px;color:var(--gray);line-height:1.5">
-          💡 整合包直接上傳至您個人的 Google Drive，<strong>房間解散時工具將自動向 GAS 發送指令銷毀檔案</strong>，不佔空間、極速且 100% 安全！
+          💡 整合包直接上傳至您個人的 Google Drive。<strong>每次開房上傳前系統皆會自動清除舊包，房間解散時也會自動銷毀</strong>，永遠不佔空間！
         </div>
       </div>
     </div>

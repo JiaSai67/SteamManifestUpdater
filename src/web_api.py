@@ -4612,6 +4612,14 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "msg": f"測試異常: {e}"}
 
+    def clean_gas_space(self, url: str = "") -> Dict[str, Any]:
+        """清除房主 Google Drive 上的歷史整合包檔案"""
+        try:
+            from managers.gas_manager import get_gas_manager
+            return get_gas_manager().clean_space(url)
+        except Exception as e:
+            return {"ok": False, "msg": f"清理空間失敗: {e}"}
+
     def create_party_room(self, game_name: str, app_id: str, max_players: int = 4, is_public: bool = True,
                           note: str = "", auto_package_upload: bool = False, gas_url: str = "") -> Dict[str, Any]:
         """房主建立組隊房間 (支援三檔自動打包與 GAS 上傳至 Google Drive)"""

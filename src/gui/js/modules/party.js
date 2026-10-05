@@ -1005,10 +1005,12 @@ function openGasHelpGuide() {
     "3. 將預設程式碼全部清除，貼上剛剛複製的腳本並儲存 (Ctrl+S)\n" +
     "4. 點擊右上角藍色「部署」>「新增部署作業」\n" +
     "   - 類型選擇：「網頁應用程式 (Web App)」\n" +
-    "   - 執行身分：「我」\n" +
-    "   - 誰可以存取：「所有人 (Anyone)」(關鍵！)\n" +
+    "   - 執行身分：「我 (您的 Google 帳號)」\n" +
+    "   - 誰可以存取：「所有人 (Anyone)」(關鍵！隊友才可下載)\n" +
     "5. 點擊部署後複製產生的「網頁應用程式網址」，貼回此處即可！\n\n" +
-    "💡 房間解散時工具會自動銷毀檔案，不佔個人雲端空間！";
+    "💡 空間自動管理：\n" +
+    "- 檔案會儲存在您自己的 Google 帳號 (SMU_Party_Packages 資料夾)\n" +
+    "- 每次打包上傳前系統皆會自動清除舊包，房間解散時也會自動銷毀，不佔空間！";
   alert(guideMsg);
 }
 
@@ -1032,6 +1034,25 @@ function testGasUrlConnection() {
     }
   }).catch(function(err) {
     tt('連線測試異常: ' + err, 'err');
+  });
+}
+
+function cleanGasSpaceNow() {
+  var input = document.getElementById('input-party-gas-url');
+  var url = (input ? input.value : '').trim();
+  if (!url) {
+    tt('請先輸入 Google Apps Script 網址', 'warn');
+    return;
+  }
+  tt('🌸 正在向 Google Drive 發送清理指令…', 'info');
+  pywebview.api.clean_gas_space(url).then(function(res) {
+    if (res && res.ok) {
+      tt(res.msg || '✅ Google Drive 歷史整合包已全數清空', 'ok');
+    } else {
+      tt(res && res.msg ? res.msg : '清理空間失敗', 'err');
+    }
+  }).catch(function(err) {
+    tt('清理請求異常: ' + err, 'err');
   });
 }
 
