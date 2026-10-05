@@ -59,14 +59,27 @@ class PartyPackager:
                         status["manifest"]["size"] = cand.stat().st_size
                         break
 
-        # 2. 偵測 Lua 腳本
-        lua_candidates = [
+        # 2. 偵測 Lua 腳本 (全面涵蓋 SteamTools 核心目錄與自訂設定)
+        lua_candidates = []
+        if steam_path:
+            sp = Path(steam_path)
+            lua_candidates.append(sp / "config" / "lua" / f"{app_id}.lua")
+            lua_candidates.append(sp / "config" / "stplug-in" / f"{app_id}.lua")
+            lua_candidates.append(sp / "config" / "stplugins" / f"{app_id}.lua")
+            lua_candidates.append(sp / "steamapps" / "common" / "Steam.AppId" / f"{app_id}.lua")
+
+        try:
+            cfg_lua_dir = config_manager.get_config().get("lua_dir", config_manager.DEFAULT_LUA_DIR)
+            if cfg_lua_dir:
+                lua_candidates.append(Path(cfg_lua_dir) / f"{app_id}.lua")
+        except Exception:
+            pass
+
+        lua_candidates.extend([
+            self.root_dir / "lua" / f"{app_id}.lua",
             self.root_dir / "data" / "lua" / f"{app_id}.lua",
             self.root_dir / "data" / "cache" / f"{app_id}.lua"
-        ]
-        if steam_path:
-            lua_candidates.append(Path(steam_path) / "steamapps" / "common" / "Steam.AppId" / f"{app_id}.lua")
-            lua_candidates.append(Path(steam_path) / "config" / "stplugins" / f"{app_id}.lua")
+        ])
 
         # 也在 LOCAL_PATCH_DIR 找找
         if onlinefix_manager.LOCAL_PATCH_DIR.exists():
