@@ -116,6 +116,65 @@ function updatePartyQuotaUI(quota) {
   badge.title = 'Supabase 全球高速雲端資料庫\n狀態：正常運作中 (高可用無伺服器架構)\n節能機制：閒置/背景自動休眠已啟用';
 }
 
+var _partyActiveNav = 'lobby';
+var _lobbyBackgroundTick = 0;
+
+/**
+ * 更新左側選單欄之當前房間資訊
+ */
+function updateSidebarRoomInfo(room) {
+  var navRoom = document.getElementById('party-nav-my-room');
+  var roomTitle = document.getElementById('party-nav-room-title');
+  var roomSubtitle = document.getElementById('party-nav-room-subtitle');
+  var roomDot = document.getElementById('party-nav-room-dot');
+
+  if (room && room.room_id) {
+    if (navRoom) navRoom.classList.remove('disabled');
+    if (roomTitle) roomTitle.textContent = room.game_name || '當前組隊頻道';
+    var curCount = room.members ? room.members.length : (room.current_players || 1);
+    if (roomSubtitle) roomSubtitle.textContent = '#' + room.room_id + ' (' + curCount + '/' + (room.max_players || 4) + '人)';
+    if (roomDot) roomDot.style.display = 'inline-block';
+  } else {
+    if (navRoom) {
+      navRoom.classList.add('disabled');
+      navRoom.classList.remove('active');
+    }
+    if (roomTitle) roomTitle.textContent = '當前組隊頻道';
+    if (roomSubtitle) roomSubtitle.textContent = '未加入任何房間';
+    if (roomDot) roomDot.style.display = 'none';
+  }
+}
+
+/**
+ * 左側選單切換 (支援隨時切換大廳與當前頻道)
+ */
+function switchPartyNav(target) {
+  var navLobby = document.getElementById('party-nav-lobby');
+  var navRoom = document.getElementById('party-nav-my-room');
+  var lobbyView = document.getElementById('party-lobby-view');
+  var roomView = document.getElementById('party-room-view');
+
+  if (target === 'room') {
+    if (!_partyCurRoom) {
+      tt('💡 您目前尚未加入任何組隊房間，請先在大廳創建或加入', 'info');
+      return;
+    }
+    _partyActiveNav = 'room';
+    if (navLobby) navLobby.classList.remove('active');
+    if (navRoom) navRoom.classList.add('active');
+    if (lobbyView) { lobbyView.style.display = 'none'; lobbyView.classList.remove('active'); }
+    if (roomView) { roomView.style.display = 'block'; roomView.classList.add('active'); }
+    renderRoomView(_partyCurRoom);
+  } else {
+    _partyActiveNav = 'lobby';
+    if (navRoom) navRoom.classList.remove('active');
+    if (navLobby) navLobby.classList.add('active');
+    if (roomView) { roomView.style.display = 'none'; roomView.classList.remove('active'); }
+    if (lobbyView) { lobbyView.style.display = 'block'; lobbyView.classList.add('active'); }
+    refreshPartyLobby(false);
+  }
+}
+
 /**
  * 檢查當前本機是否已處於某房間內
  */
@@ -124,15 +183,19 @@ function checkCurrentPartyRoom() {
   pywebview.api.get_party_room_details('').then(function(res) {
     if (res && res.ok && res.room) {
       _partyCurRoom = res.room;
-      renderRoomView(res.room);
+      updateSidebarRoomInfo(res.room);
+      switchPartyNav('room');
       schedulePartyPolling(3000); // 房內成員 3 秒同步
     } else {
       _partyCurRoom = null;
-      renderLobbyView();
+      updateSidebarRoomInfo(null);
+      switchPartyNav('lobby');
       refreshPartyLobby(false);
     }
   }).catch(function() {
-    renderLobbyView();
+    _partyCurRoom = null;
+    updateSidebarRoomInfo(null);
+    switchPartyNav('lobby');
     refreshPartyLobby(false);
   });
 }
@@ -162,12 +225,24 @@ function schedulePartyPolling(delay) {
       pywebview.api.get_party_room_details('').then(function(res) {
         if (res && res.ok && res.room) {
           _partyCurRoom = res.room;
-          renderRoomView(res.room);
+          updateSidebarRoomInfo(res.room);
+          if (_partyActiveNav === 'room') {
+            renderRoomView(res.room);
+          } else if (_partyActiveNav === 'lobby') {
+            // 在房內但同時瀏覽大廳：每 3 次心跳(約 9 秒)靜默同步一次大廳列表
+            if (!_lobbyBackgroundTick) _lobbyBackgroundTick = 0;
+            _lobbyBackgroundTick++;
+            if (_lobbyBackgroundTick >= 3) {
+              _lobbyBackgroundTick = 0;
+              refreshPartyLobby(false);
+            }
+          }
           schedulePartyPolling(3000);
         } else {
           tt(res && res.msg ? res.msg : '房間已解散或過期蒸發', 'info');
           _partyCurRoom = null;
-          renderLobbyView();
+          updateSidebarRoomInfo(null);
+          switchPartyNav('lobby');
           refreshPartyLobby(false);
         }
       }).catch(function() {
@@ -189,7 +264,6 @@ function refreshPartyLobby(isUserClick) {
   var now = Date.now();
   if (isUserClick) {
     if (now - _lastManualRefreshTime < 1200) {
-      // 1.2 秒內防狂點
       return;
     }
     _lastManualRefreshTime = now;
@@ -216,38 +290,39 @@ function refreshPartyLobby(isUserClick) {
     if (res && res.ok && Array.isArray(res.rooms)) {
       _partyRooms = res.rooms;
       renderLobbyRoomsGrid(_partyRooms);
-      if (isUserClick) tt('✅ 大廳已同步至最新狀態 (已享邊緣加速)', 'ok');
+      if (isUserClick) tt('✅ 大廳已同步至最新狀態', 'ok');
     } else {
       renderLobbyRoomsGrid([]);
       if (isUserClick) tt(res && res.msg ? res.msg : '無法連線至雲端大廳', 'err');
     }
 
-    // 排程下次大廳自動輪詢 (固定 8 秒)
-    if (!_partyCurRoom) schedulePartyPolling(8000);
+    if (!_partyCurRoom) schedulePartyPolling(10000);
   }).catch(function(err) {
     if (refreshBtn) {
       refreshBtn.classList.remove('refreshing');
       refreshBtn.disabled = false;
     }
     renderLobbyRoomsGrid([]);
-    if (!_partyCurRoom) schedulePartyPolling(8000);
+    if (!_partyCurRoom) schedulePartyPolling(10000);
   });
 }
 
 /**
- * 切換顯示大廳視圖
+ * 兼容舊呼叫的顯示大廳
  */
 function renderLobbyView() {
-  var lobbyView = document.getElementById('party-lobby-view');
-  var roomView = document.getElementById('party-room-view');
-  if (lobbyView) { lobbyView.style.display = 'block'; lobbyView.classList.add('active'); }
-  if (roomView) { roomView.style.display = 'none'; roomView.classList.remove('active'); }
+  switchPartyNav('lobby');
 }
 
 /**
  * 渲染大廳房間卡片網格
  */
 function renderLobbyRoomsGrid(rooms) {
+  var navCount = document.getElementById('party-nav-lobby-count');
+  if (navCount) {
+    navCount.textContent = (Array.isArray(rooms) ? rooms.length : 0);
+  }
+
   var container = document.getElementById('party-rooms-container');
   if (!container) return;
 
@@ -343,7 +418,8 @@ function joinPartyRoom(roomId) {
     if (res && res.ok && res.room) {
       tt(res.msg || '成功進入房間 #' + roomId, 'ok');
       _partyCurRoom = res.room;
-      renderRoomView(res.room);
+      updateSidebarRoomInfo(res.room);
+      switchPartyNav('room');
       schedulePartyPolling(3000);
     } else {
       tt(res && res.msg ? res.msg : '加入房間失敗', 'err');
@@ -614,12 +690,14 @@ function leaveOrCloseCurrentRoom() {
   p.then(function(res) {
     tt(res && res.msg ? res.msg : '操作已完成', 'ok');
     _partyCurRoom = null;
-    renderLobbyView();
+    updateSidebarRoomInfo(null);
+    switchPartyNav('lobby');
     refreshPartyLobby(false);
   }).catch(function(err) {
     tt('操作異常: ' + err, 'err');
     _partyCurRoom = null;
-    renderLobbyView();
+    updateSidebarRoomInfo(null);
+    switchPartyNav('lobby');
     refreshPartyLobby(false);
   });
 }
@@ -793,7 +871,8 @@ function submitCreatePartyRoom() {
       tt(res.msg || '成功建立房間！', 'ok');
       closeCreateRoomModal();
       _partyCurRoom = res.room;
-      renderRoomView(res.room);
+      updateSidebarRoomInfo(res.room);
+      switchPartyNav('room');
       schedulePartyPolling(3000);
     } else {
       tt(res && res.msg ? res.msg : '建立房間失敗', 'err');
