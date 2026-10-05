@@ -23,7 +23,7 @@ function doPost(e) {
     
     // 1. 上傳檔案 (預設自動清理歷史舊包，避免房主未正常關閉房間累積舊檔)
     if (action === "upload") {
-      var folderName = "SMU_Party_Packages";
+      var folderName = "SteamManifestUpdater建房專用";
       var folders = DriveApp.getFoldersByName(folderName);
       var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
       
@@ -77,19 +77,21 @@ function doPost(e) {
       }
     }
     
-    // 3. 清空專屬資料夾內的所有歷史整合包
+    // 3. 清空專屬資料夾內的所有歷史整合包 (兼顧新名稱與歷史名稱)
     if (action === "clean_all" || action === "cleanup") {
-      var folderName = "SMU_Party_Packages";
-      var folders = DriveApp.getFoldersByName(folderName);
+      var targetFolderNames = ["SteamManifestUpdater建房專用", "SMU_Party_Packages"];
       var count = 0;
-      if (folders.hasNext()) {
-        var fldr = folders.next();
-        var fls = fldr.getFiles();
-        while (fls.hasNext()) {
-          try {
-            fls.next().setTrashed(true);
-            count++;
-          } catch(e) {}
+      for (var i = 0; i < targetFolderNames.length; i++) {
+        var folders = DriveApp.getFoldersByName(targetFolderNames[i]);
+        while (folders.hasNext()) {
+          var fldr = folders.next();
+          var fls = fldr.getFiles();
+          while (fls.hasNext()) {
+            try {
+              fls.next().setTrashed(true);
+              count++;
+            } catch(e) {}
+          }
         }
       }
       return ContentService.createTextOutput(JSON.stringify({
@@ -264,7 +266,7 @@ class GASManager:
 
     def clean_space(self, gas_url: Optional[str] = None) -> Dict[str, Any]:
         """
-        主動清除房主 Google Drive 上 SMU_Party_Packages 專屬資料夾內的所有歷史遺留檔案
+        主動清除房主 Google Drive 上 SteamManifestUpdater建房專用 專屬資料夾內的所有歷史遺留檔案
         """
         target_url = (gas_url or self.get_gas_url()).strip()
         if not target_url:

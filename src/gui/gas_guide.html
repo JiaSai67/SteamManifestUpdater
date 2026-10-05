@@ -789,7 +789,7 @@ function doPost(e) {
     
     // 1. 上傳檔案 (預設自動清理歷史舊包，避免房主未正常關閉房間累積舊檔)
     if (action === "upload") {
-      var folderName = "SMU_Party_Packages";
+      var folderName = "SteamManifestUpdater建房專用";
       var folders = DriveApp.getFoldersByName(folderName);
       var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
       
@@ -843,19 +843,21 @@ function doPost(e) {
       }
     }
     
-    // 3. 清空專屬資料夾內的所有歷史整合包
+    // 3. 清空專屬資料夾內的所有歷史整合包 (兼顧新名稱與歷史名稱)
     if (action === "clean_all" || action === "cleanup") {
-      var folderName = "SMU_Party_Packages";
-      var folders = DriveApp.getFoldersByName(folderName);
+      var targetFolderNames = ["SteamManifestUpdater建房專用", "SMU_Party_Packages"];
       var count = 0;
-      if (folders.hasNext()) {
-        var fldr = folders.next();
-        var fls = fldr.getFiles();
-        while (fls.hasNext()) {
-          try {
-            fls.next().setTrashed(true);
-            count++;
-          } catch(e) {}
+      for (var i = 0; i < targetFolderNames.length; i++) {
+        var folders = DriveApp.getFoldersByName(targetFolderNames[i]);
+        while (folders.hasNext()) {
+          var fldr = folders.next();
+          var fls = fldr.getFiles();
+          while (fls.hasNext()) {
+            try {
+              fls.next().setTrashed(true);
+              count++;
+            } catch(e) {}
+          }
         }
       }
       return ContentService.createTextOutput(JSON.stringify({
@@ -1071,7 +1073,7 @@ function doPost(e) {
           <span class="faq-arrow">▼</span>
         </div>
         <div class="faq-answer">
-          絕對不會！GAS 腳本只針對專屬的 <code>SMU_Party_Packages</code> 資料夾進行操作。隊友拿到的是該遊戲 zip 檔案的獨立直鏈，完全無法遍歷或讀取您雲端硬碟中的任何相簿、文件或其他私人檔案。
+          絕對不會！GAS 腳本只針對專屬的 <code>SteamManifestUpdater建房專用</code> 資料夾進行操作。隊友拿到的是該遊戲 zip 檔案的獨立直鏈，完全無法遍歷或讀取您雲端硬碟中的任何相簿、文件或其他私人檔案。
         </div>
       </div>
 
