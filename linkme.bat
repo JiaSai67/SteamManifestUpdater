@@ -4,8 +4,8 @@ cd /d "%~dp0"
 set CWD=%~dp0
 if "%CWD:~-1%"=="\" set CWD=%CWD:~0,-1%
 
-set PROJECT_NAME=Steam Manifest 更新工具2.0.1
-set PROJECT_DESC=全新 2.0.1 櫻花流光極速版：多源 Manifest (Ryuu + Lua.tools) 自動比對、組隊系統全自動一鍵安裝、純 AppID 驅動與全自動入庫
+set PROJECT_NAME=Steam Manifest 更新工具2.0.2
+set PROJECT_DESC=全新 2.0.2 櫻花流光極速版：多源 Manifest (Ryuu + Lua.tools) 自動比對、組隊系統全自動一鍵安裝、純 AppID 驅動與全自動入庫
 set EXEC_FILE=%CWD%\src\main.py
 
 echo Registering "%PROJECT_NAME%" to AI Tool Launcher...

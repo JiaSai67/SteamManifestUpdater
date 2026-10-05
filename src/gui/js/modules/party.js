@@ -46,6 +46,13 @@ function resetPartyReadyCountdown() {
   _partyDestructSeconds = 30;
   _partyContactSubmitted = false;
   _partyReceivedContact = '';
+  _partyContactInputText = '';
+  var allReadyBanner = document.getElementById('party-all-ready-banner');
+  if (allReadyBanner) {
+    allReadyBanner.style.display = 'none';
+    var bannerContentEl = allReadyBanner.querySelector('.banner-content');
+    if (bannerContentEl) bannerContentEl.dataset.mode = '';
+  }
 }
 /**
 
@@ -1370,9 +1377,27 @@ function updateAllReadyBannerUI(isHost, rid, hostDiscord) {
     }
   }
 
-  // 2. 構建指定文案的三行 UI 結構
+  // 2. 構建指定文案的三行 UI 結構 (防重繪機制：避免心跳輪詢銷毀 input 導致失焦或取消輸入法)
   var bannerContentEl = allReadyBanner.querySelector('.banner-content');
   if (!bannerContentEl) return;
+
+  var currentMode = '';
+  if (isHost) {
+    currentMode = _partyContactSubmitted ? 'host-submitted' : 'host-input';
+  } else {
+    currentMode = _partyReceivedContact ? 'member-received' : 'member-waiting';
+  }
+
+  // 🌟 若模式未變，僅平滑更新秒數，絕不重寫 innerHTML，保證 input DOM 不被銷毀、焦點與輸入法不中斷
+  if (bannerContentEl.dataset.mode === currentMode) {
+    var cdSecEl = document.getElementById('party-cd-sec');
+    if (cdSecEl) cdSecEl.textContent = _partyCountdownSeconds;
+    var destructSecEl = document.getElementById('party-cd-destruct-sec');
+    if (destructSecEl) destructSecEl.textContent = _partyDestructSeconds;
+    return;
+  }
+
+  bannerContentEl.dataset.mode = currentMode;
 
   var contentHtml = '';
   if (isHost) {
@@ -1390,7 +1415,7 @@ function updateAllReadyBannerUI(isHost, rid, hostDiscord) {
         '<div class="banner-title">恭喜您完成組隊，隊伍房間將於 <span id="party-cd-sec" class="banner-cd-sec">' + _partyCountdownSeconds + '</span> 秒後關閉</div>' +
         '<div class="banner-desc">您可以提供聯絡資訊於下方</div>' +
         '<div class="banner-contact-row">' +
-          '<input type="text" id="party-contact-input" class="party-contact-input" placeholder="+dc: qwe123" value="' + escapeHtml(_partyContactInputText) + '" oninput="_partyContactInputText=this.value" />' +
+          '<input type="text" id="party-contact-input" class="party-contact-input" placeholder="+dc: qwe123" value="' + escapeHtml(_partyContactInputText) + '" oninput="_partyContactInputText=this.value" onkeydown="if(event.key===\'Enter\') submitPartyContactInfo()" autofocus />' +
           '<button class="btn btn-p btn-s" id="party-btn-send-contact" onclick="submitPartyContactInfo()">🚀 發送聯絡資訊</button>' +
         '</div>';
     }
@@ -1457,6 +1482,8 @@ function submitPartyContactInfo() {
           leaveOrCloseCurrentRoom(true);
         }
       }, 1000);
+      var bannerContentEl = document.querySelector('#party-all-ready-banner .banner-content');
+      if (bannerContentEl) bannerContentEl.dataset.mode = '';
       if (_partyCurRoom) renderRoomView(_partyCurRoom);
     } else {
       tt('發送失敗: ' + ((res && res.msg) || '未知錯誤'), 'er');
@@ -1485,6 +1512,8 @@ function startMemberContactPolling(rid) {
         _partyContactPollingTimer = null;
         _partyReceivedContact = res.contact_info;
         tt('🎉 已收到房主發送的聯絡資訊！', 'ok');
+        var bannerContentEl = document.querySelector('#party-all-ready-banner .banner-content');
+        if (bannerContentEl) bannerContentEl.dataset.mode = '';
         if (_partyCurRoom) renderRoomView(_partyCurRoom);
       } else if (res && res.is_closed) {
         clearInterval(_partyContactPollingTimer);

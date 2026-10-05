@@ -1,4 +1,4 @@
-# Steam Manifest Updater 2.0.1 (多源極速版)
+# Steam Manifest Updater 2.0.2 (多源極速版)
 
 🌸 **全新櫻花流光現代化無邊框架構** — 專為 Steam Manifest 清單更新、多源入庫 (Ryuu + Lua.tools) 與 Online-Fix / ZeiGames 補丁無縫安裝而打造。
 

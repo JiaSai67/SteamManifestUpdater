@@ -180,7 +180,7 @@ class PartyPackager:
                     "manifest_included": res_info["manifest"]["ready"],
                     "lua_included": res_info["lua"]["ready"],
                     "patch_source": res_info["patch"]["source"],
-                    "version": "2.0.1"
+                    "version": "2.0.2"
                 }
 
                 # 1. 寫入 Manifest
