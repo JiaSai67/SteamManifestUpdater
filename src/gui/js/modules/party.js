@@ -864,13 +864,17 @@ function openCreateRoomModal() {
   var modal = document.getElementById('modal-create-party-room');
   if (!modal) return;
 
-  // 清空輸入框
+  // 清空輸入值與卡片
   var gn = document.getElementById('input-party-gamename');
   var aid = document.getElementById('input-party-appid');
   var note = document.getElementById('input-party-note');
+  var select = document.getElementById('select-party-installed-games');
+  var gameCard = document.getElementById('party-selected-game-card');
   if (gn) gn.value = '';
   if (aid) aid.value = '';
   if (note) note.value = '';
+  if (select) select.selectedIndex = 0;
+  if (gameCard) gameCard.style.display = 'none';
 
   // 重置三檔指示燈
   resetResourceInspectBadges();
@@ -1059,16 +1063,21 @@ function loadInstalledGamesDropdown() {
   var select = document.getElementById('select-party-installed-games');
   if (!select || !window.pywebview || !window.pywebview.api || !window.pywebview.api.get_installed_games_for_party) return;
 
+  select.innerHTML = '<option value="">🔍 正在掃描本機已安裝且已就緒之遊戲…</option>';
+
   pywebview.api.get_installed_games_for_party().then(function(games) {
-    var html = '<option value="">-- 手動輸入遊戲名稱與 AppID --</option>';
     if (Array.isArray(games) && games.length > 0) {
+      var html = '<option value="">-- 請由清單挑選本機已安裝且已就緒的遊戲 (' + games.length + ' 款可選) --</option>';
       games.forEach(function(g) {
-        html += '<option value="' + g.appid + '" data-name="' + escapeHtml(g.name) + '">🎮 ' + escapeHtml(g.name) + ' (' + g.appid + ') · 已部署聯機補丁</option>';
+        html += '<option value="' + g.appid + '" data-name="' + escapeHtml(g.name) + '">🎮 ' + escapeHtml(g.name) + ' (' + g.appid + ') · 補丁就緒</option>';
       });
+      select.innerHTML = html;
     } else {
-      html += '<option value="" disabled>⚠️ 尚未檢測到已部署線上補丁的遊戲</option>';
+      select.innerHTML = '<option value="" disabled selected>⚠️ 本機尚未偵測到已部署線上補丁的遊戲 (請先至庫存部署補丁)</option>';
+      tt('本機尚未偵測到已部署線上補丁的遊戲，請先在主庫存為遊戲部署線上補丁！', 'warn');
     }
-    select.innerHTML = html;
+  }).catch(function(err) {
+    select.innerHTML = '<option value="" disabled selected>❌ 載入本機遊戲失敗</option>';
   });
 }
 
@@ -1076,14 +1085,25 @@ function onSelectInstalledGameChange() {
   var select = document.getElementById('select-party-installed-games');
   var gn = document.getElementById('input-party-gamename');
   var aid = document.getElementById('input-party-appid');
+  var card = document.getElementById('party-selected-game-card');
+  var cardName = document.getElementById('party-selected-game-name');
+  var cardAid = document.getElementById('party-selected-game-appid');
   if (!select) return;
 
   var selectedOpt = select.options[select.selectedIndex];
   if (selectedOpt && selectedOpt.value) {
-    if (aid) aid.value = selectedOpt.value;
-    if (gn) gn.value = selectedOpt.getAttribute('data-name') || '';
-    triggerResourceInspection(selectedOpt.value);
+    var valAid = selectedOpt.value;
+    var valName = selectedOpt.getAttribute('data-name') || ('AppID ' + valAid);
+    if (aid) aid.value = valAid;
+    if (gn) gn.value = valName;
+    if (cardName) cardName.textContent = valName;
+    if (cardAid) cardAid.textContent = valAid;
+    if (card) card.style.display = 'block';
+    triggerResourceInspection(valAid);
   } else {
+    if (aid) aid.value = '';
+    if (gn) gn.value = '';
+    if (card) card.style.display = 'none';
     resetResourceInspectBadges();
   }
 }
@@ -1105,8 +1125,14 @@ function submitCreatePartyRoom() {
   var autoUpload = true; // 🌟 核心常駐開啟：保證房間擁有三檔憑證與補丁，防止隊友版本或憑證不一致
   var gasUrl = (gasInput ? gasInput.value : '').trim();
 
-  if (!gameName) {
-    tt('請輸入遊戲名稱', 'warn');
+  if (!appid || !gameName) {
+    tt('⚠️ 請先由下拉選單挑選本機已安裝且已就緒的遊戲！', 'warn');
+    var select = document.getElementById('select-party-installed-games');
+    if (select) {
+      select.focus();
+      select.style.borderColor = '#FF4757';
+      setTimeout(function() { select.style.borderColor = ''; }, 3000);
+    }
     return;
   }
 

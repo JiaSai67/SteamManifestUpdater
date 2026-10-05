@@ -972,21 +972,33 @@
       <button class="btn btn-o btn-xs" onclick="closeCreateRoomModal()" style="border-radius:50%;width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center">✕</button>
     </div>
     
+    <!-- 🎮 選擇已偵測之遊戲 (唯一合法來源，杜絕手打錯誤) -->
     <div style="margin-bottom:12px">
-      <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px;color:var(--fg)">快速挑選已入庫遊戲：</label>
-      <select id="select-party-installed-games" onchange="onSelectInstalledGameChange()" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);outline:none">
-        <option value="">-- 手動輸入遊戲名稱與 AppID --</option>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <label style="font-size:12px;font-weight:700;color:var(--fg)">🎮 選擇組隊遊戲 (僅限自動偵測就緒之遊戲)：</label>
+        <button type="button" class="btn btn-o btn-xs" onclick="loadInstalledGamesDropdown()" style="font-size:11px;padding:1px 6px;border-radius:10px" title="重新掃描本地已部署聯機補丁之遊戲">🔄 重新整理</button>
+      </div>
+      <select id="select-party-installed-games" onchange="onSelectInstalledGameChange()" style="width:100%;padding:9px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);outline:none">
+        <option value="">-- 請由清單挑選本機已安裝且已就緒的遊戲 --</option>
       </select>
+      <div style="font-size:11px;color:var(--gray);margin-top:4px;line-height:1.4">
+        🔒 <strong>安全防呆</strong>：已停用手動輸入。為確保三檔打包 100% 提取正確的 Manifest 與 Lua 憑證，開房僅允許從本機已安裝且就緒的遊戲中挑選。
+      </div>
     </div>
 
-    <div style="display:flex;gap:10px;margin-bottom:12px">
-      <div style="flex:2">
-        <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">遊戲名稱：</label>
-        <input type="text" id="input-party-gamename" placeholder="例如：雙人成行 (It Takes Two)" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
-      </div>
-      <div style="flex:1">
-        <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">AppID：</label>
-        <input type="text" id="input-party-appid" placeholder="例如：1426210" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
+    <!-- 隱藏 input 供資料傳遞，卡片供使用者視覺確認已選項目 -->
+    <input type="hidden" id="input-party-gamename">
+    <input type="hidden" id="input-party-appid">
+    <div id="party-selected-game-card" style="display:none;margin-bottom:12px;padding:10px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:11px;color:var(--gray)">已鎖定目標遊戲：</div>
+          <div id="party-selected-game-name" style="font-size:13px;font-weight:700;color:#FFF;margin-top:2px">--</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--gray)">AppID：</div>
+          <span id="party-selected-game-appid" style="font-family:monospace;font-size:12px;font-weight:700;color:var(--pink-light)">--</span>
+        </div>
       </div>
     </div>
 

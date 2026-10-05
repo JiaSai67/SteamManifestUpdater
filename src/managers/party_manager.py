@@ -360,6 +360,13 @@ class PartyManager:
         # 如果已經在房間內，先退出
         self.leave_or_close()
 
+        app_id = str(app_id).strip()
+        game_name = str(game_name).strip()
+        if not app_id:
+            return {"ok": False, "msg": "建立房間失敗：請先由清單挑選本機已安裝且已就緒的遊戲"}
+        if not game_name:
+            return {"ok": False, "msg": "建立房間失敗：遊戲名稱不得為空"}
+
         # 生成 6 位數大寫房號或使用指定
         rid = room_id.strip().upper() if room_id else f"{uuid.uuid4().hex[:6].upper()}"
 
