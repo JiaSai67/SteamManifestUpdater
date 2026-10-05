@@ -17,7 +17,7 @@
       --accent-green: #3FB950;
       --accent-gold: #F1C40F;
       --text-main: #F0F6FC;
-      --text-muted: #8B949E;
+      --text-muted: #CBD5E1;
       --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft YaHei", sans-serif;
     }
 
@@ -68,20 +68,25 @@
     }
 
     .title {
-      font-size: 30px;
+      font-size: 32px;
       font-weight: 800;
       letter-spacing: -0.5px;
-      margin-bottom: 12px;
-      background: linear-gradient(135deg, #FFFFFF 30%, #FF758C 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      margin-bottom: 14px;
+      color: #FFFFFF !important;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7);
+    }
+
+    .title .accent {
+      color: #FF5E7E !important;
+      text-shadow: 0 0 20px rgba(255, 94, 126, 0.4);
     }
 
     .subtitle {
-      font-size: 15px;
-      color: var(--text-muted);
-      max-width: 620px;
+      font-size: 15.5px;
+      color: #E2E8F0;
+      max-width: 640px;
       margin: 0 auto;
+      line-height: 1.7;
     }
 
     /* 核心特性亮點標籤 */
@@ -487,7 +492,7 @@
       <div class="badge-pill">
         <span>🌸</span> SMU 邊緣微服務架構 · 房主專屬直連
       </div>
-      <h1 class="title">Google Apps Script (GAS) 1 分鐘極速部署指引</h1>
+      <h1 class="title">Google Apps Script (GAS) <span class="accent">1 分鐘極速部署指引</span></h1>
       <p class="subtitle">
         透過您個人 Google 帳號建立私人雲端分發節點，實現<strong>完全免費、0 伺服器依賴、全自動空間清理</strong>的遊戲整合包分發！
       </p>
