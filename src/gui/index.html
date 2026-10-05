@@ -1061,7 +1061,7 @@
             </div>
           </div>
           <div style="display:flex;gap:6px">
-            <input type="text" id="input-party-gas-url" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1;padding:7px 10px;border:1.5px solid var(--pink-light);border-radius:8px;font-size:11px;background:var(--bg);color:var(--fg);outline:none">
+            <input type="text" id="input-party-gas-url" oninput="updateCreateRoomBtnState()" onchange="updateCreateRoomBtnState()" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1;padding:7px 10px;border:1.5px solid var(--pink-light);border-radius:8px;font-size:11px;background:var(--bg);color:var(--fg);outline:none">
             <button type="button" class="btn btn-p btn-xs" id="btn-party-test-gas" onclick="testGasUrlConnection()">🔗 測試</button>
             <button type="button" class="btn btn-o btn-xs" onclick="cleanGasSpaceNow()" title="手動清空 Google Drive 上 SMU_Party_Packages 資料夾中的歷史舊包">🗑️ 清空舊檔</button>
           </div>
@@ -1090,7 +1090,7 @@
 
     <div style="display:flex;justify-content:flex-end;gap:8px">
       <button class="btn btn-o btn-s" id="btn-cancel-create-party" onclick="closeCreateRoomModal()">取消</button>
-      <button class="btn btn-party-create btn-s" id="btn-submit-create-party" onclick="submitCreatePartyRoom()">🚀 立即開房</button>
+      <button class="btn btn-party-create btn-s disabled" id="btn-submit-create-party" onclick="submitCreatePartyRoom()" disabled title="請先由清單挑選遊戲並填寫 GAS 網址">🚀 立即開房</button>
     </div>
   </div>
 </div>

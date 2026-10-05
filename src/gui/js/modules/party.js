@@ -860,6 +860,37 @@ function saveInlineNickname() {
 // ═══════════════════════════════════════════════════════
 // 彈窗邏輯：創建房間
 // ═══════════════════════════════════════════════════════
+function updateCreateRoomBtnState() {
+  var select = document.getElementById('select-party-installed-games');
+  var gasInput = document.getElementById('input-party-gas-url');
+  var btn = document.getElementById('btn-submit-create-party');
+  if (!btn) return;
+
+  var hasGame = !!(select && select.value && select.value.trim());
+  var hasGas = !!(gasInput && gasInput.value && gasInput.value.trim());
+
+  var isReady = hasGame && hasGas;
+
+  if (isReady) {
+    if (btn.disabled || btn.classList.contains('disabled')) {
+      btn.disabled = false;
+      btn.classList.remove('disabled');
+      btn.title = '✨ 必要資訊已就緒，可立即開房！';
+      // 重新觸發 CSS 變色擴張動畫 (強制 reflow)
+      btn.style.animation = 'none';
+      void btn.offsetWidth;
+      btn.style.animation = '';
+    }
+  } else {
+    btn.disabled = true;
+    btn.classList.add('disabled');
+    var missing = [];
+    if (!hasGame) missing.push('挑選組隊遊戲');
+    if (!hasGas) missing.push('填寫 GAS 網址');
+    btn.title = '⚠️ 請先完成：' + missing.join(' 與 ');
+  }
+}
+
 function openCreateRoomModal() {
   var modal = document.getElementById('modal-create-party-room');
   if (!modal) return;
@@ -875,6 +906,9 @@ function openCreateRoomModal() {
   if (note) note.value = '';
   if (select) select.selectedIndex = 0;
   if (gameCard) gameCard.style.display = 'none';
+
+  // 初始按鈕置灰禁用
+  updateCreateRoomBtnState();
 
   // 重置三檔指示燈
   resetResourceInspectBadges();
@@ -895,6 +929,7 @@ function openCreateRoomModal() {
         var gasInput = document.getElementById('input-party-gas-url');
         if (gasInput && res.gas_url) {
           gasInput.value = res.gas_url;
+          updateCreateRoomBtnState();
         }
       }
     });
@@ -916,7 +951,7 @@ function closeCreateRoomModal() {
   if (flowPanel) flowPanel.style.display = 'none';
   var btnSubmit = document.getElementById('btn-submit-create-party');
   var btnCancel = document.getElementById('btn-cancel-create-party');
-  if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = '🚀 立即開房'; }
+  if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.classList.add('disabled'); btnSubmit.textContent = '🚀 立即開房'; }
   if (btnCancel) { btnCancel.disabled = false; }
 }
 
@@ -1107,8 +1142,10 @@ function loadInstalledGamesDropdown() {
       select.innerHTML = '<option value="" disabled selected>⚠️ 本機尚未偵測到已部署線上補丁的遊戲 (請先至庫存部署補丁)</option>';
       tt('本機尚未偵測到已部署線上補丁的遊戲，請先在主庫存為遊戲部署線上補丁！', 'warn');
     }
+    updateCreateRoomBtnState();
   }).catch(function(err) {
     select.innerHTML = '<option value="" disabled selected>❌ 載入本機遊戲失敗</option>';
+    updateCreateRoomBtnState();
   });
 }
 
@@ -1137,6 +1174,9 @@ function onSelectInstalledGameChange() {
     if (card) card.style.display = 'none';
     resetResourceInspectBadges();
   }
+
+  // 遊戲選取狀態改變，即時更新按鈕顏色與狀態
+  updateCreateRoomBtnState();
 }
 
 function setPartyFlowStep(stepId, state, text) {
@@ -1526,5 +1566,7 @@ window.nextGasTourStep = nextGasTourStep;
 window.prevGasTourStep = prevGasTourStep;
 window.closeGasTour = closeGasTour;
 window.copyInPageGuideScript = copyInPageGuideScript;
+window.updateCreateRoomBtnState = updateCreateRoomBtnState;
+
 
 

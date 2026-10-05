@@ -6052,6 +6052,48 @@ body.party-mode .pages,
   transform: translateY(0) scale(0.98) !important;
 }
 
+/* 🚀 開房彈窗「立即開房」按鈕：未填妥時灰色禁用，填妥後播放變色擴張動畫變紅 */
+#btn-submit-create-party.disabled,
+#btn-submit-create-party:disabled {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #6E7681 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  opacity: 0.6 !important;
+  filter: grayscale(1) !important;
+  transition: all 0.35s ease !important;
+}
+
+#btn-submit-create-party:not(:disabled):not(.disabled) {
+  background: linear-gradient(135deg, #FF4757 0%, #EE2A3A 100%) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 71, 87, 0.5) !important;
+  box-shadow: 0 4px 16px rgba(238, 42, 58, 0.5) !important;
+  cursor: pointer !important;
+  opacity: 1 !important;
+  filter: none !important;
+  animation: smuBtnActivatePulse 0.55s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+@keyframes smuBtnActivatePulse {
+  0% {
+    background: rgba(255, 255, 255, 0.12);
+    transform: scale(0.96);
+    box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.6);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(255, 71, 87, 0.8);
+  }
+  100% {
+    background: linear-gradient(135deg, #FF4757 0%, #EE2A3A 100%);
+    transform: scale(1);
+    box-shadow: 0 4px 16px rgba(238, 42, 58, 0.5);
+  }
+}
+
 /* 側欄折疊狀態 */
 .party-moba-sidebar.collapsed {
   width: 44px;
