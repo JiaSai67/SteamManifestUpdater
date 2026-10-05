@@ -835,30 +835,36 @@ class WebApi:
         # 🌟 階段 3：對齊 SteamDB 官方歷史版本鏈 (42%)
         _push_step(42, "對齊 SteamDB 官方歷史版本鏈...", "檢索官方 Depots 完整鏈，核實發布日期與版本號", 3)
 
-        # 🌟 智慧探針比對：先以 SteamCMD 數據為基準比對本地獨立快取
-        # 關鍵優化：若需要更新，必須在【非阻塞背景執行緒 (daemon thread)】中執行，絕不阻塞主介面與進度條！
+        # 🌟 智慧探針比對：依需求在預載階段先同步獲取 SteamDB 完整歷史，配置 4.0 秒超時保護
+        steamdb_timeout = False
+        steamdb_error = ""
         from managers import steamdb_crawler
         first_gid = next(iter(steamdb_manifests.values()), "") if steamdb_manifests else ""
         if not steamdb_crawler.is_steamdb_cache_fresh(appid_str, steamcmd_latest_gid=first_gid):
             all_depot_keys = list(steamdb_manifests.keys())
             if all_depot_keys:
-                import threading
-                def _bg_update_and_notify():
-                    try:
-                        steamdb_crawler.update_app_steamdb_history(appid_str, all_depot_keys, steamdb_manifests, steamdb_date_str)
-                        if getattr(self, "_window", None):
-                            fresh = self.get_manifest_history(appid_str)
-                            if fresh and fresh.get("depots"):
-                                js = f"window.onSteamDBHistoryReady && window.onSteamDBHistoryReady({json.dumps(appid_str)}, {json.dumps(fresh['depots'])});"
-                                self._window.evaluate_js(js)
-                    except Exception as ce:
-                        print(f"[web_api] bg steamdb update exception for {appid_str}: {ce}")
+                import concurrent.futures
+                try:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                        fut = executor.submit(
+                            steamdb_crawler.update_app_steamdb_history,
+                            appid_str,
+                            all_depot_keys,
+                            steamdb_manifests,
+                            steamdb_date_str
+                        )
+                        fut.result(timeout=4.0)
+                except concurrent.futures.TimeoutError:
+                    steamdb_timeout = True
+                    steamdb_error = "SteamDB 官方版本鏈連線逾時 (4.0s)"
+                    print(f"[web_api] App {appid_str} SteamDB 歷史更新逾時 (4.0s)，降級使用本地快取")
+                except Exception as ce:
+                    steamdb_timeout = True
+                    steamdb_error = f"SteamDB 更新異常: {ce}"
+                    print(f"[web_api] App {appid_str} SteamDB 更新異常: {ce}")
 
-                threading.Thread(
-                    target=_bg_update_and_notify,
-                    daemon=True,
-                    name=f"steamdb_updater_{appid_str}"
-                ).start()
+        res["steamdb_timeout"] = steamdb_timeout
+        res["steamdb_error"] = steamdb_error
 
         # 3. 本地已校準 Depots (讀取校準後的 Lua 與實體檔狀態)
         local_status = steam_manager.get_lua_manifest_status(appid_str, steam_path=sp)

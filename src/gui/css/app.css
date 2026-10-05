@@ -88,6 +88,8 @@ h2{font-size:20px;font-weight:700;margin-bottom:12px}
 #results.browse-grid .card .card-menu:hover{background:var(--pink-deep);transform:scale(1.08)}
 #results.browse-grid .card .card-menu svg{display:block;margin:auto}
 .card.is-updating{border:2px solid #ffd700 !important;box-shadow:0 0 16px rgba(255,215,0,0.48) !important;transition:border .2s ease,box-shadow .2s ease}
+.card.is-preloading-detail{border:2px solid #64B5F6 !important;box-shadow:0 0 16px rgba(100,181,246,0.55) !important;transition:border .2s ease,box-shadow .2s ease;cursor:wait !important}
+.card-preloading-detail-ov{background:rgba(0,0,0,0.72) !important;backdrop-filter:blur(3px) !important}
 .card-updating-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.76);backdrop-filter:blur(4px);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;color:#fff;padding:8px 10px;text-align:center;animation:fadeIn .2s}
 .card-spinner{width:24px;height:24px;border:2.5px solid rgba(255,255,255,0.2);border-top-color:var(--pink-deep);border-radius:50%;animation:cardSpin .75s linear infinite;margin-bottom:8px}
 @keyframes cardSpin{to{transform:rotate(360deg)}}

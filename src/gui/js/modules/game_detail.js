@@ -271,17 +271,22 @@ function setDetailVerifyProgress(targetPct, title, desc, stepIdx){
   }
 }
 
+var _isPreloadingDetail = false;
+
 async function openGameDetail(appid, name, image){
   var targetAppid = String(appid).trim();
   var modal = document.getElementById('game-detail-modal');
   var verifyOverlay = document.getElementById('detail-verify-overlay');
   
-  // 🛡️ 防重複點擊守衛：若同一個遊戲小卡已經處於開啟狀態，避免二次點擊造成重置與競態
+  // 🛡️ 防重複點擊守衛：若同一個遊戲小卡已經處於開啟狀態或正在預載，避免二次點擊造成重置與競態
   if(_curDetailAppid === targetAppid && modal && modal.classList.contains('active')){
     return;
   }
+  if(_isPreloadingDetail){
+    return;
+  }
 
-  // 🧹 啟動新小卡前，徹底硬重置所有定時器與遮罩狀態至純淨 0% (杜絕殘留與倒退)
+  // 🧹 啟動新小卡前，徹底硬重置所有定時器與遮罩狀態至純淨 0%
   _resetDetailVerifyOverlay();
 
   var myReqId = ++_detailReqCounter;
@@ -291,70 +296,82 @@ async function openGameDetail(appid, name, image){
   _curSelectedDepotIdx = 0;
   _curDetailHasUpdate = false;
   if(!modal) return;
-  
-  // 1. 設定左側基礎資訊
-  document.getElementById('dt-name').textContent = _curDetailName;
-  document.getElementById('dt-aid').textContent = targetAppid;
-  var imgEl = document.getElementById('dt-img');
-  imgEl.src = image || ('https://cdn.cloudflare.steamstatic.com/steam/apps/' + targetAppid + '/header.jpg');
-  
-  var isInstalled = _installedAppids && _installedAppids.has(targetAppid);
-  var actBtn = document.getElementById('dt-btn-action');
-  
-  // 初始化按鈕狀態：未入庫則顯示「一鍵入庫」；已入庫預設先隱藏，等獲取到是否有更新後再精確決定
-  if(!isInstalled){
-    actBtn.textContent = '🚀 一鍵入庫此遊戲';
-    actBtn.className = 'btn btn-p btn-s';
-    actBtn.style.display = 'inline-flex';
+
+  // 🌟 1. 於卡片上掛載「正在預載 SteamDB」微狀態，暫時不開啟 Modal 彈窗
+  _isPreloadingDetail = true;
+  var cardEl = document.querySelector('#glist .card[data-appid="' + targetAppid + '"]') ||
+               document.querySelector('#results .card[data-appid="' + targetAppid + '"]') ||
+               document.querySelector('.card[data-appid="' + targetAppid + '"]');
+  var preOv = null;
+  if(cardEl){
+    cardEl.classList.add('is-preloading-detail');
+    preOv = document.createElement('div');
+    preOv.className = 'card-updating-overlay card-preloading-detail-ov';
+    preOv.innerHTML = '<div class="card-spinner" style="border-top-color:#64B5F6;width:22px;height:22px;margin-bottom:6px"></div><div class="card-update-status" style="color:#90CAF9;font-size:10.5px">正在預載 SteamDB...</div>';
+    cardEl.appendChild(preOv);
   } else {
-    actBtn.style.display = 'none';
+    if(window.tt) tt('🔍 正在預載「' + _curDetailName + '」SteamDB 數據…', 'in', 2500);
   }
 
-  // 徹底重置狀態檢查 4 項顯示為檢測中（清除任何前一遊戲的殘留資訊）
-  var rStatus = document.getElementById('dt-ryuu-status'), rGid = document.getElementById('dt-ryuu-gid');
-  var gStatus = document.getElementById('dt-gdrive-status'), gVal = document.getElementById('dt-gdrive-val');
-  var ofStatus = document.getElementById('dt-of-status'), ofVal = document.getElementById('dt-of-val');
-  var zgStatus = document.getElementById('dt-zg-status'), zgVal = document.getElementById('dt-zg-val');
-  if(rStatus){ rStatus.className = 'chip gray'; rStatus.textContent = '檢測中'; }
-  if(rGid){ rGid.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
-  if(gStatus){ gStatus.className = 'chip gray'; gStatus.textContent = '檢測中'; }
-  if(gVal){ gVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
-  if(ofStatus){ ofStatus.className = 'chip gray'; ofStatus.textContent = '檢測中'; }
-  if(ofVal){ ofVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
-  if(zgStatus){ zgStatus.className = 'chip gray'; zgStatus.textContent = '檢測中'; }
-  if(zgVal){ zgVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
-
-  // 2. 清空選項卡並顯示骨架屏
-  var tabsEl = document.getElementById('dt-depot-tabs');
-  if(tabsEl) tabsEl.innerHTML = '';
-  var listEl = document.getElementById('dt-manifest-list');
-  if(listEl) listEl.innerHTML = '<div class="dt-loading-skeleton"><div class="card-spinner"></div><div>正在依據 SteamDB 官方數據庫檢索版本鏈…</div></div>';
-  
-  // 🌟 3. 確保遮罩處於顯示狀態 (已在上面完成 0% 硬重置)
-  if(verifyOverlay){
-    verifyOverlay.classList.remove('hidden-overlay');
-  }
-
-  // 🌟 4. 立即激活彈窗顯示，讓使用者從第 1 毫秒親眼見證從 0% 往上平滑推進
-  modal.classList.add('active');
-
-  // 階段 1：探測 SteamCMD 官方協議 (起手平滑從 0 往 14% 前進，後續各階段由後端真實進度即時推播驅動)
-  setDetailVerifyProgress(14, '檢測 SteamCMD 官方協議與 Public 分支...', '連接 Valve PICS 伺服器，核驗最新 Manifest GID', 1);
-
-  // 5. 呼叫後端 API 獲取 Depot 分組歷史與 4 域狀態檢查
+  // 2. 呼叫後端 API 獲取 Depot 分組歷史與 4 域狀態檢查 (同步預載完成才開卡)
   try {
     var data = await pywebview.api.get_manifest_history(targetAppid);
     _curDetailData = data;
+
+    // 清除卡片預載遮罩
+    if(preOv) preOv.remove();
+    if(cardEl) cardEl.classList.remove('is-preloading-detail');
+    _isPreloadingDetail = false;
     
     // 🛡️ 核心競態守衛：如果使用者在此期間切換了其他遊戲或關閉視窗，直接丟棄過期結果！
-    // ⚠️ 絕不能執行 verifyOverlay.classList.add('hidden-overlay')，否則會誤殺新小卡的載入動效！
     if(myReqId !== _detailReqCounter || _curDetailAppid !== targetAppid){
       return;
     }
 
+    // 🌟 3. 檢查 SteamDB 是否逾時或連線異常：若逾時呈現報錯提示，但一樣開起小卡！
+    if(data && (data.steamdb_timeout || data.steamdb_error)){
+      var tipMsg = data.steamdb_error ? ('⚠️ SteamDB 連線異常 (' + data.steamdb_error + ')，已載入本地最新資料') : '⚠️ SteamDB 資料連線逾時，已載入本地最新版本資料';
+      if(window.tt) tt(tipMsg, 'wn', 5000);
+    }
+
+    // 設定左側基礎資訊
+    document.getElementById('dt-name').textContent = _curDetailName;
+    document.getElementById('dt-aid').textContent = targetAppid;
+    var imgEl = document.getElementById('dt-img');
+    imgEl.src = image || ('https://cdn.cloudflare.steamstatic.com/steam/apps/' + targetAppid + '/header.jpg');
+    
+    var isInstalled = _installedAppids && _installedAppids.has(targetAppid);
+    var actBtn = document.getElementById('dt-btn-action');
+    
+    if(!isInstalled){
+      actBtn.textContent = '🚀 一鍵入庫此遊戲';
+      actBtn.className = 'btn btn-p btn-s';
+      actBtn.style.display = 'inline-flex';
+    } else {
+      actBtn.style.display = 'none';
+    }
+
+    var rStatus = document.getElementById('dt-ryuu-status'), rGid = document.getElementById('dt-ryuu-gid');
+    var gStatus = document.getElementById('dt-gdrive-status'), gVal = document.getElementById('dt-gdrive-val');
+    var ofStatus = document.getElementById('dt-of-status'), ofVal = document.getElementById('dt-of-val');
+    var zgStatus = document.getElementById('dt-zg-status'), zgVal = document.getElementById('dt-zg-val');
+    if(rStatus){ rStatus.className = 'chip gray'; rStatus.textContent = '檢測中'; }
+    if(rGid){ rGid.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
+    if(gStatus){ gStatus.className = 'chip gray'; gStatus.textContent = '檢測中'; }
+    if(gVal){ gVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
+    if(ofStatus){ ofStatus.className = 'chip gray'; ofStatus.textContent = '檢測中'; }
+    if(ofVal){ ofVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
+    if(zgStatus){ zgStatus.className = 'chip gray'; zgStatus.textContent = '檢測中'; }
+    if(zgVal){ zgVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
+
+    var tabsEl = document.getElementById('dt-depot-tabs');
+    if(tabsEl) tabsEl.innerHTML = '';
+    var listEl = document.getElementById('dt-manifest-list');
+
     if(!data || !data.depots || !data.depots.length){
       if(listEl) listEl.innerHTML = '<div class="empty" style="padding:20px 0"><p>暫無可用版本歷史記錄</p></div>';
       if(verifyOverlay) verifyOverlay.classList.add('hidden-overlay');
+      modal.classList.add('active');
       return;
     }
 
@@ -511,25 +528,29 @@ async function openGameDetail(appid, name, image){
     // 預設渲染第一個 Depot
     renderDepotHistory(0);
 
-    // 🌟 階段 8：100% 驗證完成，7 個步驟全部點亮綠燈 done，稍作停頓後平滑淡出揭曉小卡
-    _registerDetailTimer(function(){
-      if(myReqId !== _detailReqCounter || _curDetailAppid !== targetAppid) return;
-      setDetailVerifyProgress(100, '✨ 資料核驗與版本對齊完成！', '官方版本與 4 域狀態已精準校準完畢', 8);
-      
-      var dots = document.querySelectorAll('.detail-verify-step-dot');
-      dots.forEach(function(dot){ dot.className = 'detail-verify-step-dot done'; });
-
-      _registerDetailTimer(function(){
-        if(myReqId !== _detailReqCounter || _curDetailAppid !== targetAppid) return;
-        if(verifyOverlay){
-          verifyOverlay.classList.add('hidden-overlay');
-        }
-      }, 300);
-    }, 220);
-  } catch(err) {
-    if(myReqId !== _detailReqCounter || _curDetailAppid !== targetAppid) return;
+    // 🌟 資料已在預載階段完全獲取完畢，直接隱藏內部遮罩並以完整數據開啟小卡！
     if(verifyOverlay) verifyOverlay.classList.add('hidden-overlay');
-    if(listEl) listEl.innerHTML = '<div class="empty" style="padding:20px 0"><p>獲取版本清單失敗: ' + (err.message || err) + '</p></div>';
+    modal.classList.add('active');
+  } catch(err) {
+    // 異常時徹底清理卡片預載狀態
+    if(preOv) preOv.remove();
+    if(cardEl) cardEl.classList.remove('is-preloading-detail');
+    _isPreloadingDetail = false;
+    if(myReqId !== _detailReqCounter || _curDetailAppid !== targetAppid) return;
+
+    if(window.tt) tt('⚠️ 載入 SteamDB 資料異常: ' + (err.message || err) + '，已為您開啟小卡', 'er', 4500);
+
+    // 設定左側基礎資訊避免介面全空白
+    var nameEl = document.getElementById('dt-name');
+    if(nameEl) nameEl.textContent = _curDetailName;
+    var aidEl = document.getElementById('dt-aid');
+    if(aidEl) aidEl.textContent = targetAppid;
+    var imgEl = document.getElementById('dt-img');
+    if(imgEl) imgEl.src = image || ('https://cdn.cloudflare.steamstatic.com/steam/apps/' + targetAppid + '/header.jpg');
+
+    if(verifyOverlay) verifyOverlay.classList.add('hidden-overlay');
+    if(listEl) listEl.innerHTML = '<div class="empty" style="padding:20px 0"><p>獲取版本清單失敗: ' + escHtml(err.message || String(err)) + '</p></div>';
+    modal.classList.add('active');
   }
 }
 
