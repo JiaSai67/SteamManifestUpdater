@@ -883,10 +883,11 @@ class PartyManager:
         # 如果已經在房間內，先退出
         self.leave_or_close()
 
-        # 先向 Supabase 查詢房間是否存在
+        # 先向 Supabase 查詢房間是否存在 (安全隔離投影：不獲取下載鏈結與解壓密碼)
         self._inc_quota()
         try:
-            query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select=*"
+            join_fields = "room_id,game_name,app_id,host_name,host_client_id,host_discord,max_players,is_public,status,note,members,updated_at,created_at"
+            query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select={join_fields}"
             resp = self.session.get(query_url, timeout=6)
             if resp.status_code != 200 or not resp.json():
                 return {"ok": False, "msg": f"找不到房間 #{rid} 或房主已離線"}
@@ -1318,10 +1319,21 @@ class PartyManager:
             self._heartbeat_thread.start()
 
     def _heartbeat_worker(self):
-        """心跳背景輪詢迴圈：房主 8 秒，隊員 6 秒"""
+        """心跳背景輪詢迴圈：房主 8 秒，隊員活躍 4 秒 / 空閒 8 秒 (支援動態頻率調適)"""
         logger.info(f"啟動房間 #{self.current_room_id} 心跳維持迴圈 (is_host={self.is_host})")
+        consecutive_errors = 0
         while not self._stop_heartbeat_event.is_set():
-            interval = 8.0 if self.is_host else 6.0
+            # 🌟 動態計算心跳間隔：房主 8 秒，隊員活躍期(下載/部署/剛入房) 4 秒，就緒空閒期 8 秒
+            if self.is_host:
+                interval = 8.0
+            else:
+                is_active = (self.my_status != "就緒" or self.my_deploy_status in ("downloading", "deploying") or self.my_progress < 100)
+                interval = 4.0 if is_active else 8.0
+
+            # 若遇到網路異常，加入退避延遲 (最長 16 秒)
+            if consecutive_errors > 0:
+                interval = min(16.0, interval + (consecutive_errors * 2.0))
+
             elapsed = 0.0
             while elapsed < interval and not self._stop_heartbeat_event.is_set():
                 time.sleep(0.5)
@@ -1336,11 +1348,16 @@ class PartyManager:
                 else:
                     sync_res = self._send_member_sync(action="update")
                     ok = sync_res.get("ok", False)
-                    if not ok and sync_res.get("error") == "ROOM_NOT_FOUND":
-                        logger.warning("房間已被房主關閉或過期蒸發，自動離開")
+                    if not ok and sync_res.get("error") in ("ROOM_NOT_FOUND", "HOST_OFFLINE"):
+                        logger.warning(f"房間已解散或房主離線 ({sync_res.get('msg')})，結束心跳")
                         self._cleanup_local_room()
                         break
+                if ok:
+                    consecutive_errors = 0
+                else:
+                    consecutive_errors += 1
             except Exception as e:
+                consecutive_errors += 1
                 logger.debug(f"心跳請求異常: {e}")
 
     # ═════════════════════════════════════════════════════════════════════

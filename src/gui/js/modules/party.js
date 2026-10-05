@@ -27,6 +27,7 @@ var _partyReceivedContact = '';
 var _partyPostDestructTimer = null;
 var _partyDestructSeconds = 30;
 var _partyContactInputText = '';
+var _partyPollFailures = 0;
 
 function resetPartyReadyCountdown() {
   if (_partyCountdownTimer) {
@@ -488,33 +489,56 @@ function schedulePartyPolling(delay) {
 
   if (!_isPartyActive) return;
 
-  if (document.hidden) return; // 視窗縮小或在後台時 0 請求！
+  if (_partyPollTimer) {
+    clearTimeout(_partyPollTimer);
+    _partyPollTimer = null;
+  }
 
-  
+  // 🌟 動態退避與頻率自適應 (Dynamic Heartbeat & Backoff)
+  var nextDelay = delay;
+  if (!nextDelay) {
+    if (_partyCurRoom) {
+      // 活躍狀態判斷：當前位於房間畫面、或處於倒數發車、或正有成員下載部署中
+      var isRoomActive = (_partyActiveNav === 'room') || (_partyCountdownTimer !== null);
+      if (_partyCurRoom.members && Array.isArray(_partyCurRoom.members)) {
+        var hasDownloading = _partyCurRoom.members.some(function(m) {
+          return m.status && (m.status.indexOf('下載') !== -1 || m.status.indexOf('部署') !== -1);
+        });
+        if (hasDownloading) isRoomActive = true;
+      }
+      
+      if (isRoomActive) {
+        nextDelay = 4000; // 🌟 活躍狀態維持嚴格 4 秒一次
+      } else {
+        nextDelay = 8000; // 背景/全員就緒空閒狀態動態放緩至 8 秒
+      }
+    } else {
+      nextDelay = 10000; // 大廳狀態 10 秒
+    }
+  }
 
-  if (_partyPollTimer) clearTimeout(_partyPollTimer);
-
-  // 若不在房間內，且使用者已閒置超過 45 秒，暫停大廳自動輪詢，節省 100% 閒置額度
-
+  // 若不在房間內且使用者已閒置超過 45 秒，暫停大廳自動輪詢節省額度
   if (!_partyCurRoom && (Date.now() - _partyLastUserAction > 45000)) {
-
     _partyIsIdle = true;
-
     return;
-
   }
 
   _partyPollTimer = setTimeout(function() {
 
-    if (!_isPartyActive || document.hidden) return;
+    if (!_isPartyActive || document.hidden) {
+      schedulePartyPolling(10000);
+      return;
+    }
 
     if (_partyCurRoom) {
 
-      // 房內成員狀態即時輪詢 (每 3 秒)
+      // 房內成員狀態即時輪詢 (活躍 4 秒)
 
       pywebview.api.get_party_room_details('').then(function(res) {
 
         if (res && res.ok && res.room) {
+
+          _partyPollFailures = 0; // 成功重置退避
 
           _partyCurRoom = res.room;
 
@@ -526,7 +550,7 @@ function schedulePartyPolling(delay) {
 
           } else if (_partyActiveNav === 'lobby') {
 
-            // 在房內但同時瀏覽大廳：每 3 次心跳(約 9 秒)靜默同步一次大廳列表
+            // 在房內但同時瀏覽大廳：每 3 次心跳靜默同步一次大廳列表
 
             if (!_lobbyBackgroundTick) _lobbyBackgroundTick = 0;
 
@@ -542,7 +566,7 @@ function schedulePartyPolling(delay) {
 
           }
 
-          schedulePartyPolling(3000);
+          schedulePartyPolling(); // 自動計算活躍 4 秒或空閒 8 秒
 
         } else {
 
@@ -572,7 +596,10 @@ function schedulePartyPolling(delay) {
 
       }).catch(function() {
 
-        schedulePartyPolling(5000);
+        // 異常指數退避 (4s -> 6s -> 9s -> 13.5s -> 最長 16s)
+        _partyPollFailures++;
+        var backoffDelay = Math.min(16000, Math.round(4000 * Math.pow(1.5, _partyPollFailures)));
+        schedulePartyPolling(backoffDelay);
 
       });
 
@@ -582,9 +609,11 @@ function schedulePartyPolling(delay) {
 
       refreshPartyLobby(false);
 
+      schedulePartyPolling(10000);
+
     }
 
-  }, delay || 10000);
+  }, nextDelay);
 
 }
 
