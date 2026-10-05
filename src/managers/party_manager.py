@@ -545,25 +545,50 @@ class PartyManager:
             return {"ok": False, "msg": f"加入房間連線失敗: {e}"}
 
     def _detect_initial_status(self, appid: Optional[str]):
-        """檢測本地遊戲是否已就緒"""
+        """檢測本地遊戲是否已就緒 (深度掃描 ACF StateFlags、庫存清單與遊戲目錄)"""
         self.my_status = "未下載"
         self.my_progress = 0
         if not appid:
             return
 
         try:
+            appid_str = str(appid).strip()
+            # 1. 優先使用 WebApi 經考驗的精準檢測 (包含所有 Steam 磁區與 ACF StateFlags)
             try:
-                from managers.steam_manager import SteamManager
-            except ImportError:
-                from src.managers.steam_manager import SteamManager
-            sm = SteamManager()
-            installed_apps = sm.get_installed_apps() if hasattr(sm, "get_installed_apps") else []
-            app_str = str(appid).strip()
-            if any(str(a.get("appid", "")) == app_str for a in installed_apps):
-                self.my_status = "就緒"
-                self.my_progress = 100
+                try:
+                    from web_api import WebApi
+                except ImportError:
+                    from src.web_api import WebApi
+                api = WebApi()
+                st = api.check_game_installed_status(appid_str)
+                if st.get("is_installed"):
+                    self.my_status = "就緒"
+                    self.my_progress = 100
+                    logger.info(f"[PARTY] 檢測到 AppID {appid_str} 本地已安裝就緒")
+                    return
+                elif st.get("is_downloading"):
+                    self.my_status = "下載中"
+                    self.my_progress = 50
+                    logger.info(f"[PARTY] 檢測到 AppID {appid_str} 本地下載進行中")
+                    return
+            except Exception as e1:
+                logger.debug(f"[PARTY] WebApi 狀態檢查異常: {e1}")
+
+            # 2. 備用方案：比對已部署或在線遊戲列表
+            try:
+                try:
+                    from managers import onlinefix_manager
+                except ImportError:
+                    from src.managers import onlinefix_manager
+                if onlinefix_manager.is_patch_deployed_locally(appid_str):
+                    self.my_status = "就緒"
+                    self.my_progress = 100
+                    return
+            except Exception:
+                pass
+
         except Exception as e:
-            logger.debug(f"檢測本地遊戲狀態出錯: {e}")
+            logger.warning(f"檢測本地遊戲狀態出錯: {e}")
 
     def update_member_progress(self, status: str, progress: int) -> Dict[str, Any]:
         """
@@ -729,6 +754,12 @@ class PartyManager:
         """
         if not self.current_room_id or self.current_room_id != room_id:
             return {"ok": False, "msg": "您不在該房間中"}
+
+        # 先檢查本地是否已經就緒
+        self._detect_initial_status(app_id)
+        if self.my_status == "就緒":
+            self.update_member_progress("就緒", 100)
+            return {"ok": True, "msg": "檢測到本地遊戲已安裝並就緒！"}
 
         # 檢查是否已在下載中
         if self.my_status == "下載中":
