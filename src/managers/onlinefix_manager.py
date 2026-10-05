@@ -764,6 +764,8 @@ def get_rar_file_list(rar_path):
                     startupinfo=startupinfo,
                     stderr=subprocess.STDOUT,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     creationflags=subprocess.CREATE_NO_WINDOW
                 )
                 files = []
@@ -792,6 +794,8 @@ def get_rar_file_list(rar_path):
                     startupinfo=startupinfo,
                     stderr=subprocess.STDOUT,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     creationflags=subprocess.CREATE_NO_WINDOW
                 )
                 files = [line.strip() for line in output.split('\n') if line.strip() and not line.strip().endswith('\\')]

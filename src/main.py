@@ -14,6 +14,15 @@ _src_dir = Path(__file__).resolve().parent
 if str(_src_dir) not in sys.path:
     sys.path.insert(0, str(_src_dir))
 
+# 註冊專屬 Windows AppUserModelID (杜絕任務欄 Python 預設圖標)
+if sys.platform == "win32":
+    try:
+        import ctypes
+        myappid = "jiasai.steammanifestupdater.modern.v2"
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except Exception:
+        pass
+
 def launch_modern_gui():
     """啟動現代化櫻花流光 Webview 介面"""
     import webview

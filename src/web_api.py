@@ -2402,6 +2402,7 @@ class WebApi:
         def check_one(lf):
             appid = lf.stem
             if not appid.isdigit(): return
+            cur_c = game_cache.get(appid, {})
             try:
                 diff_info = version_resolver.resolve_manifest_version_diff(
                     appid,
