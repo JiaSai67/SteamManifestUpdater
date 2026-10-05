@@ -65,6 +65,10 @@ class PartyManager:
         self.custom_discord = ""
         self._load_profile()
 
+        # 🌟 綁定本機客戶端 ID 至 Session 標頭 (供 Supabase RLS 權限校驗與房主專屬安全鎖)
+        if self.client_id:
+            self.session.headers["x-client-id"] = self.client_id
+
         # 當前房間狀態
         self.current_room_id: Optional[str] = None
         self.is_host: bool = False
