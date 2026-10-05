@@ -4753,12 +4753,42 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 
-    def prepare_party_package_upload(self, app_id: str, gas_url: str = "") -> Dict[str, Any]:
+    def test_discord_webhook(self, webhook_url: str) -> Dict[str, Any]:
+        """測試 Discord Webhook 連線"""
+        try:
+            from managers.discord_storage import get_discord_storage
+            return get_discord_storage().test_webhook(webhook_url)
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def save_discord_webhook(self, webhook_url: str) -> Dict[str, Any]:
+        """保存使用者自訂之 Discord Webhook 網址"""
+        try:
+            from managers.discord_storage import get_discord_storage
+            ok = get_discord_storage().set_custom_webhook_url(webhook_url)
+            return {"ok": ok, "msg": "Discord Webhook 已成功保存！"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def get_discord_webhook(self) -> Dict[str, Any]:
+        """獲取已保存之 Discord Webhook 網址"""
+        try:
+            from managers.discord_storage import get_discord_storage
+            url = get_discord_storage().get_custom_webhook_url()
+            return {"ok": True, "webhook_url": url}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def prepare_party_package_upload(self, app_id: str, discord_webhook: str = "", game_name: str = "") -> Dict[str, Any]:
         """
-        階段一：本地三檔檢查、打包並上傳至 Google Drive，確保取得下載網址
+        階段一：本地三檔檢查、打包並上傳至雲端（首選 Discord Webhook CDN，無限流量），確保取得下載網址
         """
         try:
-            return self._get_party_manager().prepare_package_and_upload(app_id=str(app_id), gas_url=gas_url)
+            return self._get_party_manager().prepare_package_and_upload(
+                app_id=str(app_id),
+                discord_webhook=str(discord_webhook),
+                game_name=str(game_name)
+            )
         except Exception as e:
             return {"ok": False, "msg": f"本地打包與雲端上傳失敗: {e}"}
 

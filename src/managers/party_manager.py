@@ -353,28 +353,24 @@ class PartyManager:
     # 房主操作：創建房間、心跳維持、解散房間
     # ═════════════════════════════════════════════════════════════════════
 
-    def prepare_package_and_upload(self, app_id: str, gas_url: str = "") -> Dict[str, Any]:
+    def prepare_package_and_upload(self, app_id: str, discord_webhook: str = "", game_name: str = "") -> Dict[str, Any]:
         """
         階段一：本地三檔檢查、打包、上傳至雲端並取得下載網址
-        支援雙軌傳輸通道：
-        1. ⚡ 免登入極速雲端 (預設 · 0 步驟 · 超高速專屬 Storage，自動生命週期管理)
-        2. 📁 個人 Google Apps Script (進階自訂 · 需手動佈署 GAS)
+        支援通道：
+        1. 🎮 Discord Webhook (首選 · 無限流量 · Cloudflare 全球 CDN · 房間解散自動刪除)
+        2. ⚡ 免登入極速雲端 (專屬備援 · 0 步驟)
         """
         app_id = str(app_id).strip()
         if not app_id:
             return {"ok": False, "msg": "未指定遊戲 AppID"}
 
-        target_gas = gas_url.strip() if gas_url else ""
-        if not target_gas:
-            try:
-                from managers.gas_manager import get_gas_manager
-                target_gas = get_gas_manager().get_gas_url().strip()
-            except Exception:
-                target_gas = ""
-
         try:
             from managers.party_packager import get_party_packager
+            from managers.discord_storage import get_discord_storage
+            from managers.fast_cloud_storage import get_fast_cloud_storage
+
             packager = get_party_packager()
+            discord_mgr = get_discord_storage()
             
             # 1. 嚴格檢查三檔完整性
             inspect = packager.inspect_resources(app_id)
@@ -398,39 +394,34 @@ class PartyManager:
             if not ok or not zip_path:
                 return {"ok": False, "msg": f"本地資源封裝失敗: {details}"}
 
-            # 3. 雲端上傳 (依據設定決定通道)
-            if target_gas:
-                # 📁 通道 B：自訂 Google Apps Script
-                from managers.gas_manager import get_gas_manager
-                gas_mgr = get_gas_manager()
-                gas_mgr.set_gas_url(target_gas)
-                logger.info(f"[PARTY] 正在透過使用者自訂 GAS 上傳整合包至 Google Drive...")
-                upload_res = gas_mgr.upload_archive(zip_path, gas_url=target_gas)
+            # 3. 雲端上傳 (優先嘗試 Discord Webhook)
+            webhook_target = discord_webhook.strip() or discord_mgr.get_custom_webhook_url()
+            upload_res = None
+            if webhook_target:
+                logger.info(f"[PARTY] 正在透過 Discord Webhook 上傳整合包至 Discord CDN...")
+                upload_res = discord_mgr.upload_package(
+                    file_path=zip_path,
+                    room_code=temp_rid,
+                    webhook_url=webhook_target,
+                    game_name=game_name,
+                    host_name=self.nickname
+                )
 
-                if not upload_res.get("ok"):
-                    return {"ok": False, "msg": f"Google Drive 上傳失敗: {upload_res.get('msg', '未知錯誤')}"}
-
-                download_url = upload_res.get("download_url", "").strip()
-                if not download_url:
-                    return {"ok": False, "msg": "Google Drive 上傳完成但未能取得下載網址，請檢查 GAS 權限是否設為【所有人】"}
-
-                file_id = upload_res.get("file_id")
-                provider = "Google Drive (GAS)"
-                msg = "✅ 本地三檔檢查與 Google Drive 上傳全數通過，已取得下載網址！"
-            else:
-                # ⚡ 通道 A：免登入極速雲端 (Supabase Storage / tmpfiles 備援)
-                from managers.fast_cloud_storage import get_fast_cloud_storage
-                logger.info(f"[PARTY] 正在透過【⚡ 免登入極速雲端】上傳整合包...")
+            # 若未設定 Webhook 或 Discord 上傳未成功，無縫降級至 FastCloudStorage 專屬通道
+            if not upload_res or not upload_res.get("ok"):
+                if webhook_target and upload_res:
+                    logger.warning(f"Discord 上傳未成功 ({upload_res.get('msg')})，正在切換至極速備援通道...")
+                logger.info(f"[PARTY] 正在透過專屬免登入極速通道上傳整合包...")
                 fast_storage = get_fast_cloud_storage()
                 upload_res = fast_storage.upload_package(zip_path, temp_rid)
 
-                if not upload_res.get("ok"):
-                    return {"ok": False, "msg": f"免登入極速雲端上傳失敗: {upload_res.get('msg', '未知錯誤')}"}
+            if not upload_res.get("ok"):
+                return {"ok": False, "msg": f"雲端上傳失敗: {upload_res.get('msg', '未知錯誤')}"}
 
-                download_url = upload_res.get("download_url", "").strip()
-                file_id = upload_res.get("file_id")
-                provider = upload_res.get("provider", "SMU Fast Cloud")
-                msg = "⚡ 免登入極速雲端同步成功！已取得直連下載網址！"
+            download_url = upload_res.get("download_url", "").strip()
+            file_id = upload_res.get("file_id")
+            provider = upload_res.get("provider", "SMU Cloud")
+            msg = upload_res.get("msg", "✅ 整合包已成功同步至雲端！")
 
             logger.info(f"[PARTY] 本地檢測與雲端上傳全部過關！下載鏈結: {download_url} (ID: {file_id}, Provider: {provider})")
 
@@ -599,18 +590,18 @@ class PartyManager:
 
         rid = self.current_room_id
         if self.is_host:
-            # 🌟 銷毀關聯的雲端整合包 (支援 Supabase Storage 與 Google Drive)
+            # 🌟 銷毀關聯的雲端整合包 (支援 Discord 訊息自動抹除與專屬儲存庫銷毀)
             if self.current_gas_file_id:
                 try:
                     fid_str = str(self.current_gas_file_id)
-                    if fid_str.startswith("supabase:"):
+                    if fid_str.startswith("discord:"):
+                        from managers.discord_storage import get_discord_storage
+                        get_discord_storage().delete_package(fid_str)
+                        logger.info(f"房間 #{rid} 解散，已自動從 Discord 頻道抹除開房訊息與附件 ({fid_str})")
+                    elif fid_str.startswith("supabase:"):
                         from managers.fast_cloud_storage import get_fast_cloud_storage
                         get_fast_cloud_storage().delete_package(fid_str)
                         logger.info(f"房間 #{rid} 解散，已自動銷毀 Supabase Storage 檔案 ({fid_str})")
-                    else:
-                        from managers.gas_manager import get_gas_manager
-                        get_gas_manager().delete_remote_file(self.current_gas_file_id, gas_url=self.current_gas_url)
-                        logger.info(f"房間 #{rid} 解散，已自動銷毀 Google Drive 檔案 (ID: {self.current_gas_file_id})")
                 except Exception as e:
                     logger.warning(f"自動銷毀雲端檔案異常: {e}")
 
