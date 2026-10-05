@@ -569,9 +569,24 @@ function renderRoomView(room) {
     return (m.id && myId && m.id === myId) || (m.name === myName);
   });
   var myStatusBadge = document.getElementById('party-my-status-badge');
-  if (myStatusBadge && myMemberObj) {
-    myStatusBadge.textContent = myMemberObj.status;
-    myStatusBadge.className = 'my-status-badge ' + (myMemberObj.status === '就緒' ? 'ready' : (myMemberObj.status === '下載中' ? 'downloading' : 'not_downloaded'));
+  var syncBtnWrap = document.getElementById('party-sync-btn-wrap');
+  var syncBtn = document.getElementById('party-btn-start-sync');
+
+  var isMyReady = false;
+  if (myMemberObj) {
+    var myStatus = myMemberObj.status || '未下載';
+    isMyReady = (myStatus === '就緒' || (myMemberObj.progress >= 100));
+    if (myStatusBadge) {
+      myStatusBadge.textContent = myStatus;
+      myStatusBadge.className = 'my-status-badge ' + (isMyReady ? 'ready' : (myStatus === '下載中' ? 'downloading' : 'not_downloaded'));
+    }
+  }
+
+  // 1. 如果本機狀態已經是就緒，那麼就不需要同步環境，就不用顯示按鈕
+  if (syncBtnWrap) {
+    syncBtnWrap.style.display = isMyReady ? 'none' : 'block';
+  } else if (syncBtn) {
+    syncBtn.style.display = isMyReady ? 'none' : 'inline-flex';
   }
 
   var html = '';
@@ -623,7 +638,7 @@ function renderRoomView(room) {
 }
 
 /**
- * 隊員點擊「一鍵同步遊戲聯機環境」
+ * 隊員點擊「安裝遊戲」
  */
 function startSyncCurrentGameInstall() {
   if (!_partyCurRoom) return;
@@ -633,26 +648,26 @@ function startSyncCurrentGameInstall() {
   var syncBtn = document.getElementById('party-btn-start-sync');
   if (syncBtn) {
     syncBtn.disabled = true;
-    syncBtn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px"></span> 正在同步與下載聯機環境…';
+    syncBtn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px"></span> 正在安裝遊戲…';
   }
 
-  tt('🌸 已啟動遊戲聯機環境同步流程…', 'info');
+  tt('🌸 已啟動遊戲安裝程序…', 'info');
 
   pywebview.api.start_party_sync_download(rid, appid).then(function(res) {
     if (res && res.ok) {
-      tt(res.msg || '聯機環境同步已在背景執行', 'ok');
+      tt(res.msg || '遊戲安裝已在背景執行', 'ok');
     } else {
-      tt(res && res.msg ? res.msg : '同步失敗', 'err');
+      tt(res && res.msg ? res.msg : '安裝失敗', 'err');
       if (syncBtn) {
         syncBtn.disabled = false;
-        syncBtn.innerHTML = '⚡ 一鍵同步遊戲聯機環境';
+        syncBtn.innerHTML = '🎮 安裝遊戲';
       }
     }
   }).catch(function(err) {
-    tt('啟動同步出錯: ' + err, 'err');
+    tt('啟動安裝出錯: ' + err, 'err');
     if (syncBtn) {
       syncBtn.disabled = false;
-      syncBtn.innerHTML = '⚡ 一鍵同步遊戲聯機環境';
+      syncBtn.innerHTML = '🎮 安裝遊戲';
     }
   });
 }
