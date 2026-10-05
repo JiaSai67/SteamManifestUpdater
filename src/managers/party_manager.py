@@ -594,7 +594,7 @@ class PartyManager:
             if self.current_gas_file_id:
                 try:
                     fid_str = str(self.current_gas_file_id)
-                    if fid_str.startswith("discord:"):
+                    if fid_str.startswith("discord:") or fid_str.startswith("discord_parts:"):
                         from managers.discord_storage import get_discord_storage
                         get_discord_storage().delete_package(fid_str)
                         logger.info(f"房間 #{rid} 解散，已自動從 Discord 頻道抹除開房訊息與附件 ({fid_str})")
@@ -914,36 +914,107 @@ class PartyManager:
                 download_url = self.current_room_data.get("download_url") or self.current_room_data.get("gdrive_url") or ""
 
             # 嘗試真實串流下載並套用
-            if download_url and (download_url.startswith("http://") or download_url.startswith("https://")):
+            if download_url:
+                import shutil
                 from managers.party_packager import get_party_packager
                 packager = get_party_packager()
                 dl_dir = packager.temp_pack_dir / "downloads"
                 dl_dir.mkdir(parents=True, exist_ok=True)
                 target_zip = dl_dir / f"download_{room_id}_{app_id}.zip"
 
-                logger.info(f"[PARTY] 正在為房間 #{room_id} 下載整合包: {download_url}")
-                resp = requests.get(download_url, stream=True, timeout=60)
-                if resp.status_code == 200:
-                    total_len = int(resp.headers.get("content-length", 0))
-                    downloaded = 0
-                    with open(target_zip, "wb") as f:
-                        for chunk in resp.iter_content(chunk_size=65536):
-                            if self.current_room_id != room_id:
-                                return
-                            if chunk:
-                                f.write(chunk)
-                                downloaded += len(chunk)
-                                if total_len > 0:
-                                    pct = min(85, int((downloaded / total_len) * 75) + 10)
-                                    self.update_member_progress(f"下載中: {pct}%", pct)
+                # -------------------------------------------------------------
+                # 模式 1: 大檔安全切片多卷下載 (multipart:url1|||url2...)
+                # -------------------------------------------------------------
+                if download_url.startswith("multipart:"):
+                    part_urls = [u.strip() for u in download_url.replace("multipart:", "").split("|||") if u.strip()]
+                    total_parts = len(part_urls)
+                    logger.info(f"[PARTY] 檢測到房間 #{room_id} 整合包為 {total_parts} 個分卷，啟動多卷批次下載與合併流...")
 
-                    # 下載完畢，解壓套用
-                    self.update_member_progress("部署中", 90)
-                    apply_res = packager.extract_and_apply_package(str(target_zip), app_id)
-                    logger.info(f"[PARTY] 整合包解壓部署結果: {apply_res}")
-                    time.sleep(0.5)
-                    self.update_member_progress("就緒", 100)
-                    return
+                    temp_parts = []
+                    all_downloaded = True
+
+                    for idx, p_url in enumerate(part_urls, 1):
+                        if self.current_room_id != room_id:
+                            return
+                        p_file = dl_dir / f"temp_{room_id}_part{idx}.bin"
+                        temp_parts.append(p_file)
+
+                        # 每卷分配的進度區間
+                        base_pct = 5 + int(((idx - 1) / total_parts) * 75)
+                        span_pct = int(75 / total_parts)
+
+                        logger.info(f"[PARTY] 正在下載分卷 ({idx}/{total_parts}): {p_url[:60]}...")
+                        resp = requests.get(p_url, stream=True, timeout=60)
+                        if resp.status_code == 200:
+                            p_len = int(resp.headers.get("content-length", 0))
+                            p_dl = 0
+                            with open(p_file, "wb") as f:
+                                for chunk in resp.iter_content(chunk_size=65536):
+                                    if self.current_room_id != room_id:
+                                        return
+                                    if chunk:
+                                        f.write(chunk)
+                                        p_dl += len(chunk)
+                                        if p_len > 0:
+                                            cur_pct = base_pct + int((p_dl / p_len) * span_pct)
+                                            self.update_member_progress(f"下載中: {cur_pct}%", cur_pct)
+                        else:
+                            logger.error(f"[PARTY] 下載分卷 {idx} 失敗: HTTP {resp.status_code}")
+                            all_downloaded = False
+                            break
+
+                    if all_downloaded and len(temp_parts) == total_parts:
+                        # 執行二進位流無損快速合併
+                        self.update_member_progress("合併中: 85%", 85)
+                        logger.info(f"[PARTY] 所有分卷下載完畢，正在二進位串接還原為完整 ZIP: {target_zip}")
+                        with open(target_zip, "wb") as outfile:
+                            for p_file in temp_parts:
+                                with open(p_file, "rb") as infile:
+                                    shutil.copyfileobj(infile, outfile)
+
+                        # 清理臨時分卷檔案
+                        for p_file in temp_parts:
+                            try:
+                                if p_file.exists():
+                                    p_file.unlink()
+                            except Exception:
+                                pass
+
+                        # 解壓套用
+                        self.update_member_progress("部署中", 90)
+                        apply_res = packager.extract_and_apply_package(str(target_zip), app_id)
+                        logger.info(f"[PARTY] 整合包解壓部署結果: {apply_res}")
+                        time.sleep(0.5)
+                        self.update_member_progress("就緒", 100)
+                        return
+
+                # -------------------------------------------------------------
+                # 模式 2: 標準單檔直鏈下載 (<= 20MB)
+                # -------------------------------------------------------------
+                elif download_url.startswith("http://") or download_url.startswith("https://"):
+                    logger.info(f"[PARTY] 正在為房間 #{room_id} 下載單檔整合包: {download_url}")
+                    resp = requests.get(download_url, stream=True, timeout=60)
+                    if resp.status_code == 200:
+                        total_len = int(resp.headers.get("content-length", 0))
+                        downloaded = 0
+                        with open(target_zip, "wb") as f:
+                            for chunk in resp.iter_content(chunk_size=65536):
+                                if self.current_room_id != room_id:
+                                    return
+                                if chunk:
+                                    f.write(chunk)
+                                    downloaded += len(chunk)
+                                    if total_len > 0:
+                                        pct = min(85, int((downloaded / total_len) * 75) + 10)
+                                        self.update_member_progress(f"下載中: {pct}%", pct)
+
+                        # 下載完畢，解壓套用
+                        self.update_member_progress("部署中", 90)
+                        apply_res = packager.extract_and_apply_package(str(target_zip), app_id)
+                        logger.info(f"[PARTY] 整合包解壓部署結果: {apply_res}")
+                        time.sleep(0.5)
+                        self.update_member_progress("就緒", 100)
+                        return
 
             # 若無直鏈或非直鏈下載，執行平滑進度更新
             progress_steps = [15, 35, 60, 85, 100]

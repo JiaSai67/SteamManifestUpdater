@@ -67,10 +67,15 @@ class DiscordStorage:
         except Exception as e:
             return {"ok": False, "msg": f"連線異常: {e}"}
 
+    # 嚴格定義單檔上傳安全閾值 (20MB) 與分卷切片大小 (19MB)
+    MAX_SINGLE_FILE_SIZE = 20 * 1024 * 1024  # 20 MB 觸發切割閾值
+    CHUNK_SIZE = 19 * 1024 * 1024            # 19 MB 安全切片大小 (確保不觸發 Discord 25MB 上限)
+
     def upload_package(self, file_path: str, room_code: str, webhook_url: str = "",
                        game_name: str = "", host_name: str = "") -> Dict[str, Any]:
         """
-        透過 Discord Webhook 上傳三檔整合包
+        透過 Discord Webhook 上傳三檔整合包。
+        若檔案超過 20MB，自動執行安全二進位切片分卷 (Part 1, Part 2...) 分批上傳，徹底突破 25MB 限制。
         :return: {"ok": bool, "download_url": str, "file_id": str, "provider": str, "msg": str}
         """
         p = Path(file_path)
@@ -78,82 +83,194 @@ class DiscordStorage:
             return {"ok": False, "msg": f"待上傳檔案不存在: {file_path}"}
 
         file_size = p.stat().st_size
-        if file_size > 25 * 1024 * 1024:
-            return {"ok": False, "msg": f"整合包大小 ({file_size/1024/1024:.1f}MB) 超過 Discord 免費單檔 25MB 上限"}
-
         target_webhook = webhook_url.strip() or self.get_custom_webhook_url()
         if not target_webhook:
             return {"ok": False, "msg": "未設定 Discord Webhook 網址"}
 
-        # 加上 wait=true 參數以確保 Discord 回傳包含 attachments 與 message id 的 JSON 物件
         sep = "&" if "?" in target_webhook else "?"
         post_url = f"{target_webhook}{sep}wait=true"
 
-        filename = f"SMU_Party_{room_code}.zip"
-        content_text = (
-            f"🎮 **【{game_name or '聯機遊戲'}】組隊房間已建立！**\n"
-            f"🔑 **房號**: `#{room_code}` ｜ 👑 **房主**: `{host_name or '玩家'}`\n"
-            f"📦 核心三檔整合包已上傳完畢，隊友啟動 SMU 即可秒級下載入庫！"
-        )
+        # -------------------------------------------------------------
+        # 情況 A: 檔案 <= 20MB，走標準單檔上傳
+        # -------------------------------------------------------------
+        if file_size <= self.MAX_SINGLE_FILE_SIZE:
+            filename = f"SMU_Party_{room_code}.zip"
+            content_text = (
+                f"🎮 **【{game_name or '聯機遊戲'}】組隊房間已建立！**\n"
+                f"🔑 **房號**: `#{room_code}` ｜ 👑 **房主**: `{host_name or '玩家'}`\n"
+                f"📦 核心三檔整合包 ({file_size/1024/1024:.2f} MB) 已上傳完畢，隊友啟動 SMU 即可秒級下載入庫！"
+            )
 
-        try:
-            with open(p, "rb") as f:
-                files = {
-                    "file": (filename, f, "application/zip")
-                }
-                data = {
-                    "username": "SMU Party Hub",
-                    "content": content_text
-                }
-                logger.info(f"[Discord] 正在上傳整合包 {filename} 至 Discord Webhook...")
-                resp = requests.post(post_url, data=data, files=files, timeout=40)
-
-            if resp.status_code in (200, 201):
-                res_data = resp.json()
-                message_id = res_data.get("id", "")
-                attachments = res_data.get("attachments", [])
-                if attachments and attachments[0].get("url"):
-                    download_url = attachments[0]["url"]
-                    file_id = f"discord:{message_id}:{target_webhook}"
-                    logger.info(f"[Discord] 上傳成功！下載直鏈: {download_url} (MsgID: {message_id})")
-                    return {
-                        "ok": True,
-                        "download_url": download_url,
-                        "file_id": file_id,
-                        "message_id": message_id,
-                        "size": file_size,
-                        "filename": filename,
-                        "provider": "Discord CDN (無限流量)",
-                        "msg": "✅ 整合包已成功上傳至 Discord 專用 CDN (無限下載流量)！"
+            try:
+                with open(p, "rb") as f:
+                    files = {
+                        "file": (filename, f, "application/zip")
                     }
+                    data = {
+                        "username": "SMU Party Hub",
+                        "content": content_text
+                    }
+                    logger.info(f"[Discord] 正在上傳單檔整合包 {filename} ({file_size/1024/1024:.2f}MB) 至 Discord Webhook...")
+                    resp = requests.post(post_url, data=data, files=files, timeout=40)
+
+                if resp.status_code in (200, 201):
+                    res_data = resp.json()
+                    message_id = res_data.get("id", "")
+                    attachments = res_data.get("attachments", [])
+                    if attachments and attachments[0].get("url"):
+                        download_url = attachments[0]["url"]
+                        file_id = f"discord:{message_id}:{target_webhook}"
+                        logger.info(f"[Discord] 上傳成功！下載直鏈: {download_url} (MsgID: {message_id})")
+                        return {
+                            "ok": True,
+                            "download_url": download_url,
+                            "file_id": file_id,
+                            "message_id": message_id,
+                            "size": file_size,
+                            "filename": filename,
+                            "provider": "Discord CDN (無限流量)",
+                            "msg": "✅ 整合包已成功上傳至 Discord 專用 CDN (無限下載流量)！"
+                        }
+                    else:
+                        return {"ok": False, "msg": "Discord 未能回傳有效附件下載直鏈"}
                 else:
-                    return {"ok": False, "msg": "Discord 未能回傳有效附件下載直鏈"}
-            else:
-                return {"ok": False, "msg": f"Discord 上傳失敗: HTTP {resp.status_code} {resp.text[:120]}"}
+                    return {"ok": False, "msg": f"Discord 上傳失敗: HTTP {resp.status_code} {resp.text[:120]}"}
+            except Exception as e:
+                logger.error(f"[Discord] 上傳異常: {e}", exc_info=True)
+                return {"ok": False, "msg": f"Discord Webhook 連線異常: {e}"}
+
+        # -------------------------------------------------------------
+        # 情況 B: 檔案 > 20MB，啟動大檔安全分卷切片機制 (Part 1, Part 2...)
+        # -------------------------------------------------------------
+        logger.info(f"[Discord] 檢測到整合包大小為 {file_size/1024/1024:.2f} MB (> 20MB 安全閾值)，啟動多分卷切片上傳...")
+        split_dir = self.root_dir / "data" / "party_packages" / "split_temp"
+        split_dir.mkdir(parents=True, exist_ok=True)
+
+        part_paths = []
+        try:
+            # 1. 本地二進位切片
+            with open(p, "rb") as src:
+                part_idx = 1
+                while True:
+                    chunk = src.read(self.CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    p_path = split_dir / f"SMU_Party_{room_code}.part{part_idx}"
+                    with open(p_path, "wb") as dst:
+                        dst.write(chunk)
+                    part_paths.append(p_path)
+                    part_idx += 1
+
+            total_parts = len(part_paths)
+            logger.info(f"[Discord] 已將整合包安全切成 {total_parts} 個分卷 (每卷 <= 19MB)")
+
+            # 2. 逐卷上傳至 Discord Webhook
+            download_urls = []
+            message_ids = []
+
+            for idx, p_file in enumerate(part_paths, 1):
+                part_size = p_file.stat().st_size
+                part_filename = p_file.name
+                part_content = (
+                    f"📦 **【{game_name or '聯機遊戲'}】整合包分卷切片 ({idx}/{total_parts})**\n"
+                    f"🔑 房號: `#{room_code}` ｜ 👑 房主: `{host_name or '玩家'}`\n"
+                    f"⚡ 本卷大小: `{part_size/1024/1024:.2f} MB` ｜ 總大小: `{file_size/1024/1024:.2f} MB`"
+                )
+                with open(p_file, "rb") as f:
+                    files = {
+                        "file": (part_filename, f, "application/octet-stream")
+                    }
+                    data = {
+                        "username": "SMU Party Hub",
+                        "content": part_content
+                    }
+                    logger.info(f"[Discord] 正在上傳分卷 {idx}/{total_parts}: {part_filename}...")
+                    resp = requests.post(post_url, data=data, files=files, timeout=50)
+
+                if resp.status_code in (200, 201):
+                    res_data = resp.json()
+                    msg_id = res_data.get("id")
+                    atts = res_data.get("attachments", [])
+                    if atts and atts[0].get("url"):
+                        message_ids.append(msg_id)
+                        download_urls.append(atts[0]["url"])
+                        logger.info(f"[Discord] 分卷 {idx}/{total_parts} 上傳成功！MsgID: {msg_id}")
+                    else:
+                        return {"ok": False, "msg": f"分卷 {idx} 上傳成功但未收到附件直鏈"}
+                else:
+                    return {"ok": False, "msg": f"分卷 {idx}/{total_parts} 上傳失敗: HTTP {resp.status_code}"}
+
+            # 3. 封裝多卷複合式資訊
+            composite_url = f"multipart:{'|||'.join(download_urls)}"
+            composite_file_id = f"discord_parts:{','.join(message_ids)}:{target_webhook}"
+
+            logger.info(f"[Discord] 恭喜！{total_parts} 個分卷全部上傳完畢！")
+            return {
+                "ok": True,
+                "download_url": composite_url,
+                "file_id": composite_file_id,
+                "size": file_size,
+                "is_multipart": True,
+                "total_parts": total_parts,
+                "filename": f"SMU_Party_{room_code}.zip (共 {total_parts} 卷)",
+                "provider": f"Discord CDN ({total_parts} 分卷 · 無限流量)",
+                "msg": f"✅ 整合包已安全切成 {total_parts} 個分卷並成功上傳至 Discord CDN！"
+            }
+
         except Exception as e:
-            logger.error(f"[Discord] 上傳異常: {e}", exc_info=True)
-            return {"ok": False, "msg": f"Discord Webhook 連線異常: {e}"}
+            logger.error(f"[Discord] 分卷切片上傳失敗: {e}", exc_info=True)
+            return {"ok": False, "msg": f"分卷切片上傳異常: {e}"}
+        finally:
+            # 清理臨時切片檔案
+            for p_file in part_paths:
+                try:
+                    if p_file.exists():
+                        p_file.unlink()
+                except Exception:
+                    pass
 
     def delete_package(self, file_id: str) -> bool:
         """
-        房間解散時自動抹除 Discord 頻道的開房訊息與附件
-        file_id 格式: discord:{message_id}:{webhook_url}
+        房間解散時自動抹除 Discord 頻道的開房訊息與附件。
+        支援單一檔案 (discord:{msg_id}:{webhook}) 與多卷檔案 (discord_parts:{msg_id1},{msg_id2}:{webhook})。
         """
-        if not file_id or not file_id.startswith("discord:"):
+        if not file_id:
             return False
 
         try:
-            parts = file_id.split(":", 2)
-            if len(parts) < 3:
-                return False
-            message_id = parts[1]
-            webhook_url = parts[2]
+            # 情況 A: 多分卷批次刪除
+            if file_id.startswith("discord_parts:"):
+                parts = file_id.split(":", 2)
+                if len(parts) < 3:
+                    return False
+                msg_ids = parts[1].split(",")
+                webhook_url = parts[2].rstrip("/")
+                all_ok = True
+                for mid in msg_ids:
+                    mid = mid.strip()
+                    if not mid:
+                        continue
+                    del_url = f"{webhook_url}/messages/{mid}"
+                    r = requests.delete(del_url, timeout=8)
+                    logger.info(f"[Discord] 已抹除分卷訊息 MsgID {mid} (HTTP {r.status_code})")
+                    if r.status_code not in (200, 204):
+                        all_ok = False
+                return all_ok
 
-            # Discord Webhook 刪除訊息端點: DELETE {webhook_url}/messages/{message_id}
-            del_url = f"{webhook_url.rstrip('/')}/messages/{message_id}"
-            r = requests.delete(del_url, timeout=8)
-            logger.info(f"[Discord] 已自動刪除開房訊息與附件: MsgID {message_id} (HTTP {r.status_code})")
-            return r.status_code in (200, 204)
+            # 情況 B: 單檔刪除
+            elif file_id.startswith("discord:"):
+                parts = file_id.split(":", 2)
+                if len(parts) < 3:
+                    return False
+                message_id = parts[1]
+                webhook_url = parts[2].rstrip("/")
+
+                del_url = f"{webhook_url}/messages/{message_id}"
+                r = requests.delete(del_url, timeout=8)
+                logger.info(f"[Discord] 已自動刪除開房訊息與附件: MsgID {message_id} (HTTP {r.status_code})")
+                return r.status_code in (200, 204)
+
+            return False
         except Exception as e:
             logger.warning(f"[Discord] 刪除訊息異常: {e}")
             return False
