@@ -6344,6 +6344,92 @@ body.party-mode .pages,
 }
 
 /* ═══════════════════════════════════════════════════════
+   組隊開房極簡動態過場卡片 (Spinner & Fade-in)
+   ═══════════════════════════════════════════════════════ */
+.party-create-flow-card {
+  margin-bottom: 14px;
+  padding: 16px 20px;
+  background: rgba(22, 27, 34, 0.85);
+  border: 1.5px solid rgba(88, 166, 255, 0.35);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: partyFadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.party-create-flow-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.party-spinner-ring {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(88, 166, 255, 0.18);
+  border-top-color: #58A6FF;
+  border-right-color: #79C0FF;
+  animation: partySpinGlow 0.85s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite;
+  box-shadow: 0 0 14px rgba(88, 166, 255, 0.3);
+}
+
+.party-spinner-ring.done {
+  border-color: #2EA043;
+  box-shadow: 0 0 14px rgba(46, 160, 67, 0.4);
+  animation: none;
+}
+
+.party-create-flow-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.party-create-flow-texts .flow-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #F0F6FC;
+  display: flex;
+  align-items: center;
+  letter-spacing: 0.3px;
+}
+
+.party-create-flow-texts .flow-sub {
+  font-size: 11.5px;
+  color: #8B949E;
+  transition: opacity 0.25s ease;
+}
+
+.animated-dots::after {
+  content: '';
+  display: inline-block;
+  animation: partyDotsAnim 1.6s infinite steps(4, start);
+  width: 14px;
+  text-align: left;
+}
+
+@keyframes partyDotsAnim {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+  100% { content: ''; }
+}
+
+@keyframes partySpinGlow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes partyFadeInUp {
+  0% { opacity: 0; transform: translateY(6px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ═══════════════════════════════════════════════════════
    SMU 新手聚光燈互動引導系統 (Spotlight Tour System)
    ═══════════════════════════════════════════════════════ */
 #smu-spotlight-tour-overlay {

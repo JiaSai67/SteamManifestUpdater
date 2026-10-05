@@ -1047,20 +1047,19 @@
       <input type="text" id="input-party-note" placeholder="例如：新手開荒 / 語音隨意 / 缺 1 人即開" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
     </div>
 
-    <!-- 🚀 開房檢核與進度狀態面板 (點擊開房後展開) -->
-    <div id="party-create-flow-status" style="display:none;margin-bottom:12px;padding:12px;background:rgba(0,0,0,0.35);border:1.5px solid var(--border);border-radius:12px">
-      <div style="font-size:12px;font-weight:700;color:#FFF;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
-        <span id="party-flow-status-title">🚀 正在執行開房前置檢核與雲端同步…</span>
-        <span id="party-flow-status-spinner" style="font-size:12px">⏳</span>
+    <!-- 🚀 開房極簡動態過場卡片 (點擊開房後展開，自動帶出轉圈與漸顯動效) -->
+    <div id="party-create-flow-status" class="party-create-flow-card" style="display:none">
+      <div class="party-create-flow-inner">
+        <!-- 旋轉環動畫 -->
+        <div class="party-spinner-ring" id="party-flow-status-spinner"></div>
+        <!-- 文字區 -->
+        <div class="party-create-flow-texts">
+          <div class="flow-title" id="party-flow-status-title">正在建立房間<span class="animated-dots"></span></div>
+          <div class="flow-sub" id="party-flow-status-sub">正在同步雲端與聯機環境，請稍候…</div>
+        </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;font-size:11.5px" id="party-flow-steps">
-        <div id="flow-step-check" style="color:var(--gray)">🔍 1. 本機 Manifest、Lua 腳本與補丁三檔完整性檢驗</div>
-        <div id="flow-step-pack" style="color:var(--gray)">📦 2. 封裝聯機資源整合包 (ZIP 壓縮)</div>
-        <div id="flow-step-upload" style="color:var(--gray)">☁️ 3. 透過 GAS 上傳整合包至個人 Google Drive</div>
-        <div id="flow-step-url" style="color:var(--gray)">🔗 4. 取得並驗證 Google Drive 下載網址</div>
-        <div id="flow-step-supa" style="color:var(--gray)">🌐 5. 向 Supabase 伺服器註冊房間並公開招募</div>
-      </div>
-      <div id="party-flow-error-msg" style="display:none;margin-top:8px;padding:8px;border-radius:8px;background:rgba(255,71,87,0.15);border:1px solid #FF4757;color:#FF6B81;font-size:11px;line-height:1.4"></div>
+      <!-- 出錯時展開之提示 -->
+      <div id="party-flow-error-msg" style="display:none;margin-top:10px;padding:8px 12px;border-radius:8px;background:rgba(255,71,87,0.15);border:1px solid #FF4757;color:#FF6B81;font-size:11.5px;line-height:1.4"></div>
     </div>
 
     <div style="display:flex;justify-content:flex-end;gap:8px">

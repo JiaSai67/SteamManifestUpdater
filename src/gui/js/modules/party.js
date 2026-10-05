@@ -2403,6 +2403,8 @@ function submitCreatePartyRoom() {
 
   var flowSpinner = document.getElementById('party-flow-status-spinner');
 
+  var flowSub = document.getElementById('party-flow-status-sub');
+
   var flowError = document.getElementById('party-flow-error-msg');
 
   var gameName = (gnInput ? gnInput.value : '').trim();
@@ -2464,23 +2466,17 @@ function submitCreatePartyRoom() {
     return;
   }
 
-  // 4. 展開流程進度面板，鎖定按鈕防止重複送出
-
+  // 4. 展開極簡動態過場卡片 (正在建立房間...)
   if (flowPanel) flowPanel.style.display = 'block';
   if (flowError) flowError.style.display = 'none';
-  if (flowTitle) flowTitle.textContent = '🚀 正在執行開房前置檢核與雲端同步…';
-  if (flowSpinner) flowSpinner.textContent = '⏳';
+  if (flowTitle) flowTitle.innerHTML = '正在建立房間<span class="animated-dots"></span>';
+  if (flowSub) flowSub.textContent = '正在同步雲端與聯機環境，請稍候…';
+  if (flowSpinner) flowSpinner.className = 'party-spinner-ring';
 
-  setPartyFlowStep('flow-step-check', 'active', '🔍 1. 正在檢測本機 Manifest、Lua 腳本與補丁三檔…');
-  setPartyFlowStep('flow-step-pack', 'pending', '📦 2. 封裝聯機資源整合包 (ZIP 壓縮)');
-  setPartyFlowStep('flow-step-upload', 'pending', '🎮 3. 正在上傳至 Discord 專用 CDN (無限下載流量)...');
-  setPartyFlowStep('flow-step-url', 'pending', '🔗 4. 取得並驗證 Discord CDN 下載直鏈...');
-  setPartyFlowStep('flow-step-supa', 'pending', '🌐 5. 向 Supabase 伺服器註冊房間並公開招募');
-
-  if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = '⏳ 檢核上傳中…'; }
+  if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = '⏳ 正在建立房間…'; }
   if (btnCancel) { btnCancel.disabled = true; }
 
-  tt('🎮 啟動開房流程：正在檢測本地三檔並同步至 Discord CDN…', 'info');
+  tt('🎮 正在建立房間，請稍候…', 'info');
 
   // 4. 階段一：本地三檔檢查、打包並上傳至 Discord CDN
   pywebview.api.prepare_party_package_upload(appid, discordWebhook, gameName).then(function(prepRes) {
@@ -2489,58 +2485,39 @@ function submitCreatePartyRoom() {
 
       var errMsg = (prepRes && prepRes.msg) ? prepRes.msg : '未能成功上傳或取得下載網址';
 
-      setPartyFlowStep('flow-step-check', 'error', '❌ 本地資源或雲端上傳檢驗未通過');
-
-      setPartyFlowStep('flow-step-upload', 'error', '❌ Google Drive 上傳中斷');
+      if (flowTitle) flowTitle.textContent = '❌ 建立房間失敗';
+      if (flowSub) flowSub.textContent = '資源檢查或雲端同步未通過';
+      if (flowSpinner) flowSpinner.className = 'party-spinner-ring done';
 
       if (flowError) {
-
         flowError.style.display = 'block';
-
-        flowError.textContent = '⛔ 開房程序已中止：' + errMsg + '。未向伺服器建立房間，請檢查後重試。';
-
+        flowError.textContent = '⛔ 建立房間失敗：' + errMsg;
       }
 
-      if (flowTitle) flowTitle.textContent = '❌ 開房前置檢核未通過';
-
-      if (flowSpinner) flowSpinner.textContent = '⚠️';
-
-      tt('❌ 開房中止: ' + errMsg, 'err');
+      tt('❌ 建立房間失敗: ' + errMsg, 'err');
 
       if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = '🚀 立即開房'; }
-
       if (btnCancel) { btnCancel.disabled = false; }
-
       return;
 
     }
 
     // 階段一完全過關，確認取得下載網址！
-
     var downloadUrl = prepRes.download_url;
-
     var fileId = prepRes.file_id || '';
 
-    setPartyFlowStep('flow-step-check', 'done', '✅ 1. 本機 Manifest、Lua 腳本與補丁三檔檢測通過');
-    setPartyFlowStep('flow-step-pack', 'done', '✅ 2. 本地聯機資源整合包封裝完成');
-    setPartyFlowStep('flow-step-upload', 'done', '🎮 3. 整合包已同步至 Discord 專屬 CDN (無限流量)！');
-    setPartyFlowStep('flow-step-url', 'done', '✅ 4. Cloudflare CDN 高速直連下載網址驗證就緒！');
-
-    setPartyFlowStep('flow-step-supa', 'active', '🌐 5. 正在向 Supabase 伺服器發送開房要求 (包含下載網址)…');
+    if (flowSub) flowSub.textContent = '即將完成，正在向伺服器登記房間…';
 
     // 5. 階段二：向 Supabase 正式發出開房要求 (攜帶下載網址)
-
     pywebview.api.create_party_room(gameName, appid, maxPlayers, isPublic, note, true, gasUrl, downloadUrl, fileId).then(function(res) {
 
       if (res && res.ok && res.room) {
 
-        setPartyFlowStep('flow-step-supa', 'done', '✅ 5. 成功於伺服器建立房間並同步發布下載鏈結！');
+        if (flowTitle) flowTitle.textContent = '🎉 房間建立成功！';
+        if (flowSub) flowSub.textContent = '即將進入房間大廳…';
+        if (flowSpinner) flowSpinner.className = 'party-spinner-ring done';
 
-        if (flowTitle) flowTitle.textContent = '🎉 開房成功！即將進入房間大廳…';
-
-        if (flowSpinner) flowSpinner.textContent = '✨';
-
-        tt(res.msg || '成功建立房間！已成功附加雲端下載網址！', 'ok');
+        tt(res.msg || '成功建立房間！', 'ok');
 
         if (discordWebhook) {
           try { localStorage.setItem('smu_party_discord_webhook', discordWebhook); } catch (e) {}
@@ -2550,77 +2527,65 @@ function submitCreatePartyRoom() {
         }
 
         setTimeout(function() {
-
           closeCreateRoomModal();
-
           _partyCurRoom = res.room;
-
           updateSidebarRoomInfo(res.room);
-
           switchPartyNav('room');
-
           schedulePartyPolling(3000);
-
-        }, 600);
+        }, 500);
 
       } else {
 
         var createErr = (res && res.msg) ? res.msg : '伺服器建房失敗';
 
-        setPartyFlowStep('flow-step-supa', 'error', '❌ 5. 伺服器建房失敗: ' + createErr);
+        if (flowTitle) flowTitle.textContent = '❌ 建立房間失敗';
+        if (flowSub) flowSub.textContent = '伺服器拒絕或登記異常';
+        if (flowSpinner) flowSpinner.className = 'party-spinner-ring done';
 
         if (flowError) {
-
           flowError.style.display = 'block';
-
           flowError.textContent = '⛔ 伺服器建房失敗: ' + createErr;
-
         }
 
         tt(createErr, 'err');
 
         if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = '🚀 立即開房'; }
-
         if (btnCancel) { btnCancel.disabled = false; }
 
       }
 
     }).catch(function(err) {
 
-      setPartyFlowStep('flow-step-supa', 'error', '❌ 5. 開房伺服器通訊異常: ' + err);
+      if (flowTitle) flowTitle.textContent = '❌ 建立房間失敗';
+      if (flowSub) flowSub.textContent = '連線伺服器異常';
+      if (flowSpinner) flowSpinner.className = 'party-spinner-ring done';
 
       if (flowError) {
-
         flowError.style.display = 'block';
-
         flowError.textContent = '⛔ 連線伺服器異常: ' + err;
-
       }
 
       tt('向伺服器開房出錯: ' + err, 'err');
 
       if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = '🚀 立即開房'; }
-
       if (btnCancel) { btnCancel.disabled = false; }
 
     });
 
   }).catch(function(prepErr) {
 
-    setPartyFlowStep('flow-step-check', 'error', '❌ 前置檢驗異常: ' + prepErr);
+    if (flowTitle) flowTitle.textContent = '❌ 建立房間失敗';
+    if (flowSub) flowSub.textContent = '前置檢驗異常';
+    if (flowSpinner) flowSpinner.className = 'party-spinner-ring done';
 
     if (flowError) {
-
       flowError.style.display = 'block';
-
       flowError.textContent = '⛔ 檢核異常: ' + prepErr;
-
     }
 
     tt('前置檢驗出錯: ' + prepErr, 'err');
 
     if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = '🚀 立即開房'; }
-
     if (btnCancel) { btnCancel.disabled = false; }
 
   });
