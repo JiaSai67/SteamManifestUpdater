@@ -1454,7 +1454,7 @@ function submitPartyContactInfo() {
           clearInterval(_partyPostDestructTimer);
           _partyPostDestructTimer = null;
           tt('房間保存期滿，已自動解散', 'info');
-          leaveOrCloseCurrentRoom();
+          leaveOrCloseCurrentRoom(true);
         }
       }, 1000);
       if (_partyCurRoom) renderRoomView(_partyCurRoom);
@@ -1490,7 +1490,7 @@ function startMemberContactPolling(rid) {
         clearInterval(_partyContactPollingTimer);
         _partyContactPollingTimer = null;
         tt('房間已被房主關閉', 'info');
-        leaveOrCloseCurrentRoom();
+        leaveOrCloseCurrentRoom(true);
       }
     }).catch(function() {});
   }, 500); // 0.5 秒一次極輕量查詢 (select=room_id,status,note,updated_at)
@@ -1614,53 +1614,35 @@ function copyPartyRoomCode() {
 }
 
 /**
-
- * 退出或解散房間
-
+ * 退出或解散房間 (已移除多餘的確認詢問，直接俐落退出並返回大廳)
+ * @param {boolean} [silent=false] 是否靜默退出
  */
-
-function leaveOrCloseCurrentRoom() {
-
+function leaveOrCloseCurrentRoom(silent) {
   resetPartyReadyCountdown();
-
   if (!_partyCurRoom) return;
 
   var isHost = (_partyCurRoom.host_name === ((_partyProfile && _partyProfile.nickname) || ''));
-
   var actionText = isHost ? '解散該房間' : '退出房間';
 
-  if (!confirm('確定要' + actionText + '嗎？')) return;
-
-  tt('🌸 正在' + actionText + '…', 'info');
+  if (!silent) {
+    tt('🌸 正在' + actionText + '…', 'info');
+  }
 
   var p = isHost ? pywebview.api.close_party_room() : pywebview.api.leave_party_room();
 
   p.then(function(res) {
-
     tt(res && res.msg ? res.msg : '操作已完成', 'ok');
-
     _partyCurRoom = null;
-
     updateSidebarRoomInfo(null);
-
     switchPartyNav('lobby');
-
     refreshPartyLobby(false);
-
   }).catch(function(err) {
-
     tt('操作異常: ' + err, 'err');
-
     _partyCurRoom = null;
-
     updateSidebarRoomInfo(null);
-
     switchPartyNav('lobby');
-
     refreshPartyLobby(false);
-
   });
-
 }
 
 // ═══════════════════════════════════════════════════════
