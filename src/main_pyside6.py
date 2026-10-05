@@ -1480,6 +1480,12 @@ class SteamManifestApp(QWidget):
 
 def main():
     try:
+        from managers.error_reporter import get_error_reporter
+        get_error_reporter().install_global_exception_hooks()
+    except Exception as e:
+        print(f"[main_pyside6] 安裝全域異常攔截器失敗: {e}")
+
+    try:
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("mycompany.steammanifestupdater.1")
     except:

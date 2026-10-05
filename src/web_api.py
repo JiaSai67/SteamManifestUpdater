@@ -4909,6 +4909,62 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 
+    # ══════════════════════════════════════════════════════════════════
+    # 🚨 全域錯誤報告與系統診斷 API (含 PC 名稱與 Discord 帳號偵測)
+    # ══════════════════════════════════════════════════════════════════
+    def get_system_diagnostic_info(self) -> Dict[str, Any]:
+        """獲取系統診斷總覽 (包含 PC 電腦名稱、Windows 帳號、Discord 帳號、Discord ID 與環境)"""
+        try:
+            from managers.error_reporter import get_error_reporter
+            data = get_error_reporter().get_system_diagnostic_summary()
+            return {"ok": True, "data": data}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def report_error(self, title: str, error_msg: str, context: str = "", level: str = "ERROR", extra: str = "") -> Dict[str, Any]:
+        """向 Discord 監控通道通報錯誤報告 (自動帶上 PC 名稱、Discord 帳號、系統環境與堆疊)"""
+        try:
+            from managers.error_reporter import get_error_reporter
+            extra_dict = {}
+            if extra:
+                try:
+                    import json
+                    parsed = json.loads(extra)
+                    if isinstance(parsed, dict):
+                        extra_dict = parsed
+                except Exception:
+                    extra_dict = {"額外備註": extra}
+            ok = get_error_reporter().send_error_report(
+                title=title,
+                error_msg=error_msg,
+                context=context,
+                level=level,
+                extra_fields=extra_dict if extra_dict else None,
+                sync=False
+            )
+            return {"ok": ok, "msg": "錯誤報告已遞交 Discord 監控通道" if ok else "錯誤報告發送失敗"}
+        except Exception as e:
+            return {"ok": False, "msg": f"通報異常: {e}"}
+
+    def send_user_feedback(self, title: str, content: str, contact: str = "") -> Dict[str, Any]:
+        """使用者主動提交反饋或問題回報 (同步通報至 Discord 異常守護頻道)"""
+        try:
+            from managers.error_reporter import get_error_reporter
+            extra_dict = {}
+            if contact:
+                extra_dict["聯絡方式"] = contact
+            ok = get_error_reporter().send_error_report(
+                title=f"使用者問題回報: {title}",
+                error_msg=content,
+                context="User Feedback Form",
+                level="FEEDBACK",
+                extra_fields=extra_dict if extra_dict else None,
+                sync=False
+            )
+            return {"ok": ok, "msg": "反饋已成功提交！感謝您的回報。" if ok else "提交失敗，請檢查網路連線。"}
+        except Exception as e:
+            return {"ok": False, "msg": f"提交失敗: {e}"}
+
 
 
 

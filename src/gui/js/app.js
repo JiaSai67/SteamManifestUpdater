@@ -1,4 +1,38 @@
 /* SteamManifestUpdater - Module: app.js */
+
+// ═══════════════════════════════════════════════════════
+// 🚨 全域前端異常攔截器 (自動帶上 PC 名稱與 Discord 身分通報)
+// ═══════════════════════════════════════════════════════
+window.onerror = function(msg, url, lineNo, colNo, error) {
+  try {
+    if (url && (url.includes('chrome-extension') || url.includes('moz-extension'))) return;
+    var stack = (error && error.stack) ? error.stack : (msg + ' at ' + url + ':' + lineNo + ':' + colNo);
+    if (window.pywebview && pywebview.api && pywebview.api.report_error) {
+      pywebview.api.report_error(
+        "前端 JavaScript 腳本例外",
+        stack,
+        "Frontend window.onerror (" + (url ? url.split('/').pop() : 'inline') + ":" + lineNo + ")",
+        "ERROR"
+      );
+    }
+  } catch(e) {}
+};
+
+window.addEventListener('unhandledrejection', function(event) {
+  try {
+    var reason = event.reason;
+    var errText = reason ? (reason.stack || reason.message || String(reason)) : 'Unknown rejection';
+    if (window.pywebview && pywebview.api && pywebview.api.report_error) {
+      pywebview.api.report_error(
+        "前端未處理 Promise 例外 (UnhandledRejection)",
+        errText,
+        "Frontend UnhandledRejection",
+        "ERROR"
+      );
+    }
+  } catch(e) {}
+});
+
 // ═══════════════════════════════════════════════════════
 // 導航
 // ═══════════════════════════════════════════════════════

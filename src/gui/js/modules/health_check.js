@@ -10,6 +10,7 @@ var _currentHealthLogMarkdown = '';
  */
 async function initSystemHealthView(){
   try {
+    loadSystemDiagnosticInfo();
     loadHealthHistoryList();
     if(_latestHealthData){
       renderHealthCheckOverview(_latestHealthData);
@@ -292,5 +293,155 @@ function copyHealthLogMarkdown(){
     document.execCommand('copy');
     document.body.removeChild(ta);
     if(window.tt) tt('已複製體檢報告至剪貼簿！', 'ok');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// 🚨 異常監控、PC 名稱/Discord 偵測與錯誤通報互動邏輯
+// ═══════════════════════════════════════════════════════
+
+/**
+ * 載入並渲染系統診斷資訊 (PC 電腦名稱、Discord 帳號、系統環境)
+ */
+async function loadSystemDiagnosticInfo(){
+  try {
+    if(!window.pywebview || !pywebview.api || !pywebview.api.get_system_diagnostic_info) return;
+    var res = await pywebview.api.get_system_diagnostic_info();
+    if(res && res.ok && res.data){
+      var d = res.data;
+      var elPc = document.getElementById('diag-pc-name');
+      var elDc = document.getElementById('diag-discord-name');
+      var elOs = document.getElementById('diag-os-platform');
+      var elCl = document.getElementById('diag-client-id');
+
+      if(elPc) elPc.textContent = (d.pc_name || 'Unknown') + ' (' + (d.windows_user || 'User') + ')';
+      if(elDc){
+        var dcStr = d.discord_name || '未綁定 Discord';
+        if(d.discord_id) dcStr += ' (ID: ' + d.discord_id + ')';
+        elDc.textContent = dcStr;
+      }
+      if(elOs) elOs.textContent = (d.os_platform || '') + ' (' + (d.os_arch || '') + ')';
+      if(elCl) elCl.textContent = 'Python ' + (d.python_version || '') + ' | ' + (d.client_id || '無 Client ID');
+    }
+  } catch(e){
+    console.warn('[HealthCheck] 載入系統診斷資訊異常:', e);
+  }
+}
+
+/**
+ * 手動觸發 Discord 錯誤通報 Webhook 測試
+ */
+async function triggerTestErrorWebhook(){
+  var btn = document.getElementById('btn-test-error-webhook');
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span><span>發送測試中...</span>';
+  }
+
+  try {
+    if(!window.pywebview || !pywebview.api || !pywebview.api.report_error){
+      if(window.tt) tt('後端 API 尚未就緒', 'er');
+      return;
+    }
+
+    if(window.tt) tt('正在向官方 Discord 守護通道發送測試通報...', 'in', 2000);
+    var res = await pywebview.api.report_error(
+      '手動連線測試 (前端面板觸發)',
+      '使用者於「系統設置 > 異常監控中樞」點擊了手動連線測試。\nPC 名稱與 Discord 帳號已完整封裝傳遞。',
+      'Settings System Tab Diagnostics',
+      'INFO'
+    );
+
+    if(res && res.ok){
+      if(window.tt) tt('✅ Discord Webhook 測試通報成功！請查看守護頻道', 'ok', 3500);
+    } else {
+      if(window.tt) tt('測試發送失敗: ' + ((res && res.msg) || '請檢查網路連線'), 'er');
+    }
+  } catch(e){
+    if(window.tt) tt('發送測試失敗: ' + (e.message || e), 'er');
+  } finally {
+    if(btn){
+      btn.disabled = false;
+      btn.innerHTML = '<span>📨</span><span>發送測試報告</span>';
+    }
+  }
+}
+
+/**
+ * 開啟反饋彈窗
+ */
+function openFeedbackModal(){
+  var modal = document.getElementById('modal-user-feedback');
+  if(modal){
+    modal.style.display = 'flex';
+    var inTitle = document.getElementById('feedback-input-title');
+    if(inTitle) inTitle.focus();
+  }
+}
+
+/**
+ * 關閉反饋彈窗
+ */
+function closeFeedbackModal(e){
+  if(e && e.target){
+    var isCloseBtn = (e.target.closest && e.target.closest('.detail-close-btn')) || (e.target.classList && e.target.classList.contains('detail-close-btn'));
+    if(!isCloseBtn && e.target.id !== 'modal-user-feedback') return;
+  }
+  var modal = document.getElementById('modal-user-feedback');
+  if(modal) modal.style.display = 'none';
+}
+
+/**
+ * 提交反饋或錯誤回報至 Discord
+ */
+async function submitUserFeedback(){
+  var inTitle = document.getElementById('feedback-input-title');
+  var inDesc = document.getElementById('feedback-input-desc');
+  var inContact = document.getElementById('feedback-input-contact');
+
+  var title = inTitle ? inTitle.value.trim() : '';
+  var desc = inDesc ? inDesc.value.trim() : '';
+  var contact = inContact ? inContact.value.trim() : '';
+
+  if(!title){
+    if(window.tt) tt('請填寫問題主旨或模組名稱', 'er');
+    if(inTitle) inTitle.focus();
+    return;
+  }
+
+  if(!desc){
+    if(window.tt) tt('請填寫詳細問題描述或錯誤內容', 'er');
+    if(inDesc) inDesc.focus();
+    return;
+  }
+
+  var btn = document.getElementById('btn-submit-feedback');
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span><span>正在送出...</span>';
+  }
+
+  try {
+    if(!window.pywebview || !pywebview.api || !pywebview.api.send_user_feedback){
+      if(window.tt) tt('後端 API 尚未就緒', 'er');
+      return;
+    }
+
+    var res = await pywebview.api.send_user_feedback(title, desc, contact);
+    if(res && res.ok){
+      if(window.tt) tt('🎉 ' + res.msg, 'ok', 4000);
+      closeFeedbackModal();
+      if(inTitle) inTitle.value = '';
+      if(inDesc) inDesc.value = '';
+    } else {
+      if(window.tt) tt('提交失敗: ' + ((res && res.msg) || '請稍候再試'), 'er');
+    }
+  } catch(e){
+    if(window.tt) tt('提交反饋發生例外: ' + (e.message || e), 'er');
+  } finally {
+    if(btn){
+      btn.disabled = false;
+      btn.innerHTML = '<span>🚀</span><span>送出報告至 Discord</span>';
+    }
   }
 }
