@@ -18,21 +18,16 @@
         <div class="moba-tab-badge" id="party-nav-lobby-count">0</div>
       </div>
 
-      <!-- 選單標籤 2：招募隊友 (當前房間) (圖一風格) -->
-      <div class="moba-tab-item" id="party-nav-my-room" onclick="switchPartyNav('room')" title="招募隊友 (當前房間)">
+      <!-- 選單標籤 2：當前房間 (僅入房後動態顯示，未入房隱藏) -->
+      <div class="moba-tab-item" id="party-nav-my-room" onclick="switchPartyNav('room')" title="檢視我的隊伍房間" style="display:none">
         <div class="moba-tab-icon">🎮</div>
-        <div class="moba-tab-label" id="party-nav-room-title">招募隊友</div>
+        <div class="moba-tab-label" id="party-nav-room-title">我的隊伍</div>
         <div class="moba-tab-dot" id="party-nav-room-dot" style="display:none"></div>
       </div>
 
       <!-- 側欄折疊/展開小箭頭 (圖一中間的小圓圈 < ) -->
       <div class="moba-sidebar-collapse-btn" id="party-moba-collapse-btn" onclick="toggleMobaSidebar()" title="收合/展開側欄">
         <span id="moba-collapse-icon">❮</span>
-      </div>
-
-      <!-- 底部快捷按鈕 (圖一底部的圓形功能圖標，此處做複製房號/分享) -->
-      <div class="moba-sidebar-bottom-action" onclick="copyPartyRoomCode()" title="複製房號分享">
-        <div class="moba-bottom-circle-btn">📋</div>
       </div>
     </div>
 
@@ -65,7 +60,7 @@
         </div>
 
         <div class="party-header-actions">
-          <button class="btn btn-p btn-s" onclick="openCreateRoomModal()">➕ 創建房間</button>
+          <button class="btn btn-party-create btn-s" id="btn-party-create-room" onclick="handlePartyCreateOrRecruit()" title="創建專屬組隊房間並開始招募隊友">➕ 創建房間</button>
           <button class="btn btn-o btn-s" id="party-btn-refresh" onclick="refreshPartyLobby(true)" title="立即刷新大廳">🔄 刷新</button>
         </div>
       </div>

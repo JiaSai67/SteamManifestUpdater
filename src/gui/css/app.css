@@ -6022,30 +6022,23 @@ body.party-mode .pages,
   transform: translateY(-50%) scale(1.12);
 }
 
-/* 側欄底部圓形按鈕 (圖一底部的相機/功能圖標) */
-.moba-sidebar-bottom-action {
-  margin-top: auto;
-  padding-bottom: 6px;
+/* 🌟 右上角專屬電競紅色「創建房間 / 招募隊友」按鈕 (高飽和度熱血紅，醒目質感) */
+.btn-party-create {
+  background: linear-gradient(135deg, #FF4757 0%, #EE2A3A 100%) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 71, 87, 0.45) !important;
+  box-shadow: 0 2px 10px rgba(238, 42, 58, 0.35) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3px !important;
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1) !important;
 }
-.moba-bottom-circle-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1.5px solid rgba(80, 140, 230, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  cursor: pointer;
-  color: #8EB7ED;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  transition: all 0.2s ease;
+.btn-party-create:hover {
+  background: linear-gradient(135deg, #FF6B81 0%, #FF4757 100%) !important;
+  box-shadow: 0 4px 16px rgba(238, 42, 58, 0.55) !important;
+  transform: translateY(-1px) scale(1.02) !important;
 }
-.moba-bottom-circle-btn:hover {
-  background: rgba(80, 140, 230, 0.2);
-  border-color: #58A6FF;
-  transform: scale(1.08);
+.btn-party-create:active {
+  transform: translateY(0) scale(0.98) !important;
 }
 
 /* 側欄折疊狀態 */

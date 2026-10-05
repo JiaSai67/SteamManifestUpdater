@@ -120,23 +120,59 @@ var _partyActiveNav = 'lobby';
 var _lobbyBackgroundTick = 0;
 
 /**
- * 更新左側 MOBA 側邊欄之當前房間狀態
+ * 處理右上角紅色「創建房間 / 招募隊友」核心動作按鈕
+ */
+function handlePartyCreateOrRecruit() {
+  if (!_partyCurRoom || !_partyCurRoom.room_id) {
+    // 尚未在房間中 -> 創建房間並發起招募隊友
+    openCreateRoomModal();
+  } else {
+    // 已經在房間中
+    if (_partyActiveNav === 'lobby') {
+      // 正在大廳視圖 -> 一鍵切換回我的隊伍房間
+      switchPartyNav('room');
+    } else {
+      // 已經在房間內視圖 -> 執行招募隊友動作 (一鍵複製 6 碼房號並提示好友快速加入)
+      copyPartyRoomCode();
+    }
+  }
+}
+
+/**
+ * 更新左側 MOBA 側邊欄之當前房間狀態與右上角紅色創建/招募按鈕
  */
 function updateSidebarRoomInfo(room) {
   var navRoom = document.getElementById('party-nav-my-room');
   var roomTitle = document.getElementById('party-nav-room-title');
   var roomDot = document.getElementById('party-nav-room-dot');
+  var btnCreate = document.getElementById('btn-party-create-room');
 
   if (room && room.room_id) {
-    if (navRoom) navRoom.classList.remove('disabled');
-    if (roomTitle) roomTitle.textContent = '招募隊友';
+    if (navRoom) {
+      navRoom.style.display = 'flex';
+      navRoom.classList.remove('disabled');
+    }
+    if (roomTitle) roomTitle.textContent = '我的隊伍';
     if (roomDot) roomDot.style.display = 'block';
+
+    if (btnCreate) {
+      if (_partyActiveNav === 'room') {
+        btnCreate.innerHTML = '📢 招募隊友';
+        btnCreate.title = '點擊立即複製 6 碼房號發給隊友快速加入';
+      } else {
+        btnCreate.innerHTML = '🎮 我的隊伍';
+        btnCreate.title = '點擊返回當前組隊房間';
+      }
+    }
   } else {
     if (navRoom) {
+      navRoom.style.display = 'none'; // 沒在房間中時隱藏，介面保持純淨
       navRoom.classList.remove('active');
     }
-    if (roomTitle) roomTitle.textContent = '招募隊友';
-    if (roomDot) roomDot.style.display = 'none';
+    if (btnCreate) {
+      btnCreate.innerHTML = '➕ 創建房間';
+      btnCreate.title = '創建專屬組隊房間並開始招募隊友';
+    }
   }
 }
 
@@ -154,7 +190,7 @@ function toggleMobaSidebar() {
 }
 
 /**
- * MOBA 垂直側欄切換 (圖一風格：隊伍大廳 vs 招募隊友)
+ * MOBA 垂直側欄切換 (圖一風格：隊伍大廳 vs 我的房間)
  * 核心特性：在房間內隨時切換觀看全網大廳，背景心跳不中斷！
  */
 function switchPartyNav(target) {
@@ -183,6 +219,7 @@ function switchPartyNav(target) {
     if (lobbyView) { lobbyView.style.display = 'block'; lobbyView.classList.add('active'); }
     refreshPartyLobby(false);
   }
+  updateSidebarRoomInfo(_partyCurRoom);
 }
 
 /**
