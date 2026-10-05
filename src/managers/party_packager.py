@@ -34,9 +34,9 @@ class PartyPackager:
 
         status = {
             "app_id": app_id,
-            "manifest": {"ready": False, "path": "", "size": 0},
-            "lua": {"ready": False, "path": "", "size": 0},
-            "patch": {"ready": False, "source": "", "files_count": 0, "size": 0, "archive_path": ""},
+            "manifest": {"ready": False, "found": False, "path": "", "size": 0},
+            "lua": {"ready": False, "found": False, "path": "", "size": 0},
+            "patch": {"ready": False, "found": False, "source": "", "files_count": 0, "size": 0, "archive_path": ""},
             "all_ready": False,
             "can_package": False
         }
@@ -46,6 +46,7 @@ class PartyPackager:
             acf_path = Path(steam_path) / "steamapps" / f"appmanifest_{app_id}.acf"
             if acf_path.exists():
                 status["manifest"]["ready"] = True
+                status["manifest"]["found"] = True
                 status["manifest"]["path"] = str(acf_path)
                 status["manifest"]["size"] = acf_path.stat().st_size
             else:
@@ -55,6 +56,7 @@ class PartyPackager:
                     cand = Path(lib) / "steamapps" / f"appmanifest_{app_id}.acf"
                     if cand.exists():
                         status["manifest"]["ready"] = True
+                        status["manifest"]["found"] = True
                         status["manifest"]["path"] = str(cand)
                         status["manifest"]["size"] = cand.stat().st_size
                         break
@@ -92,6 +94,7 @@ class PartyPackager:
         for l_cand in lua_candidates:
             if l_cand.exists() and l_cand.is_file():
                 status["lua"]["ready"] = True
+                status["lua"]["found"] = True
                 status["lua"]["path"] = str(l_cand)
                 status["lua"]["size"] = l_cand.stat().st_size
                 break
@@ -103,6 +106,7 @@ class PartyPackager:
             for f in app_cache_dir.iterdir():
                 if f.is_file() and f.suffix.lower() in ('.rar', '.zip', '.7z'):
                     status["patch"]["ready"] = True
+                    status["patch"]["found"] = True
                     status["patch"]["source"] = "archive"
                     status["patch"]["archive_path"] = str(f)
                     status["patch"]["size"] = f.stat().st_size
@@ -126,6 +130,7 @@ class PartyPackager:
 
                     if found_files:
                         status["patch"]["ready"] = True
+                        status["patch"]["found"] = True
                         status["patch"]["source"] = "installed_files"
                         status["patch"]["files_count"] = len(found_files)
                         status["patch"]["size"] = total_sz
@@ -138,6 +143,7 @@ class PartyPackager:
                 of_files = [f for f in ["OnlineFix64.dll", "OnlineFix.ini", "OnlineFix.url", "SteamOverlay64.dll"] if (g_dir / f).exists()]
                 if of_files:
                     status["patch"]["ready"] = True
+                    status["patch"]["found"] = True
                     status["patch"]["source"] = "signatures"
                     status["patch"]["files_count"] = len(of_files)
                     status["patch"]["size"] = sum((g_dir / f).stat().st_size for f in of_files)
@@ -147,6 +153,8 @@ class PartyPackager:
         status["can_package"] = (status["patch"]["ready"] or status["manifest"]["ready"])
 
         return status
+
+    inspect_resources = inspect_party_resources
 
     def build_party_package(self, app_id: str, room_id: str, password: Optional[str] = None) -> Tuple[bool, str, Dict[str, Any]]:
         """
@@ -257,5 +265,74 @@ class PartyPackager:
                 pass
         return libs
 
+    def extract_and_apply_package(self, zip_path: str, app_id: str) -> Dict[str, Any]:
+        """
+        隊員端：解壓並套用房主的三檔整合包 (Manifest, Lua, OnlineFix 補丁)
+        """
+        p = Path(zip_path)
+        if not p.exists():
+            return {"ok": False, "msg": f"整合包檔案不存在: {zip_path}"}
+
+        steam_path = steam_manager.find_steam_path()
+        applied = {"manifest": False, "lua": False, "patch": False, "files_count": 0}
+
+        try:
+            with zipfile.ZipFile(p, "r") as zf:
+                namelist = zf.namelist()
+
+                # 1. 部署 Manifest
+                manifest_files = [n for n in namelist if n.startswith("manifest/") and not n.endswith("/")]
+                if manifest_files and steam_path:
+                    sp_apps = Path(steam_path) / "steamapps"
+                    sp_apps.mkdir(parents=True, exist_ok=True)
+                    for mf in manifest_files:
+                        fn = Path(mf).name
+                        target_f = sp_apps / fn
+                        with zf.open(mf) as src, open(target_f, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
+                        applied["manifest"] = True
+                        logger.info(f"[Packager] 已解壓套用 Manifest: {target_f}")
+
+                # 2. 部署 Lua
+                lua_files = [n for n in namelist if n.startswith("lua/") and not n.endswith("/")]
+                if lua_files and steam_path:
+                    # 部署至常見路徑
+                    cfg_lua_dir = None
+                    try:
+                        cfg_lua_dir = config_manager.get_config().get("lua_dir")
+                    except Exception:
+                        pass
+                    target_lua_dir = Path(cfg_lua_dir) if cfg_lua_dir else (Path(steam_path) / "config" / "stplug-in")
+                    target_lua_dir.mkdir(parents=True, exist_ok=True)
+                    for lf in lua_files:
+                        fn = Path(lf).name
+                        target_f = target_lua_dir / fn
+                        with zf.open(lf) as src, open(target_f, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
+                        applied["lua"] = True
+                        logger.info(f"[Packager] 已解壓套用 Lua: {target_f}")
+
+                # 3. 部署線上補丁
+                patch_files = [n for n in namelist if n.startswith("patch/files/") and not n.endswith("/")]
+                if patch_files:
+                    game_dir = onlinefix_manager._find_steam_game_dir(app_id)
+                    if game_dir and Path(game_dir).exists():
+                        g_path = Path(game_dir)
+                        for pf in patch_files:
+                            rel_sub = pf.replace("patch/files/", "", 1)
+                            target_pf = g_path / rel_sub
+                            target_pf.parent.mkdir(parents=True, exist_ok=True)
+                            with zf.open(pf) as src, open(target_pf, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                            applied["files_count"] += 1
+                        applied["patch"] = True
+                        logger.info(f"[Packager] 已向遊戲目錄解壓套用 {applied['files_count']} 個補丁檔案: {g_path}")
+
+            return {"ok": True, "applied": applied, "msg": "聯機整合包解壓部署成功！"}
+        except Exception as e:
+            logger.error(f"[Packager] 解壓部署整合包失敗: {e}", exc_info=True)
+            return {"ok": False, "msg": f"套用整合包失敗: {e}"}
+
 def get_party_packager() -> PartyPackager:
     return PartyPackager()
+

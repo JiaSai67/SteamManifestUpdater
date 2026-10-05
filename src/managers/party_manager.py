@@ -355,8 +355,10 @@ class PartyManager:
 
     def prepare_package_and_upload(self, app_id: str, gas_url: str = "") -> Dict[str, Any]:
         """
-        階段一：本地三檔檢查、打包、上傳至 Google Drive 並取得下載網址
-        必須在完全成功且取得下載網址後，前端才允許進入向 Supabase 發布房間的階段二。
+        階段一：本地三檔檢查、打包、上傳至雲端並取得下載網址
+        支援雙軌傳輸通道：
+        1. ⚡ 免登入極速雲端 (預設 · 0 步驟 · 超高速專屬 Storage，自動生命週期管理)
+        2. 📁 個人 Google Apps Script (進階自訂 · 需手動佈署 GAS)
         """
         app_id = str(app_id).strip()
         if not app_id:
@@ -364,25 +366,24 @@ class PartyManager:
 
         target_gas = gas_url.strip() if gas_url else ""
         if not target_gas:
-            from managers.gas_manager import get_gas_manager
-            target_gas = get_gas_manager().get_gas_url().strip()
-        if not target_gas:
-            return {"ok": False, "msg": "未設定 Google Apps Script Web App 網址，無法進行雲端同步"}
+            try:
+                from managers.gas_manager import get_gas_manager
+                target_gas = get_gas_manager().get_gas_url().strip()
+            except Exception:
+                target_gas = ""
 
         try:
             from managers.party_packager import get_party_packager
-            from managers.gas_manager import get_gas_manager
-
             packager = get_party_packager()
             
             # 1. 嚴格檢查三檔完整性
             inspect = packager.inspect_resources(app_id)
             missing = []
-            if not inspect.get("manifest", {}).get("found"):
+            if not inspect.get("manifest", {}).get("found") and not inspect.get("manifest", {}).get("ready"):
                 missing.append("Manifest 清單檔案")
-            if not inspect.get("lua", {}).get("found"):
+            if not inspect.get("lua", {}).get("found") and not inspect.get("lua", {}).get("ready"):
                 missing.append("Lua 登入腳本")
-            if not inspect.get("patch", {}).get("found"):
+            if not inspect.get("patch", {}).get("found") and not inspect.get("patch", {}).get("ready"):
                 missing.append("線上聯機補丁")
             if missing:
                 return {
@@ -397,21 +398,41 @@ class PartyManager:
             if not ok or not zip_path:
                 return {"ok": False, "msg": f"本地資源封裝失敗: {details}"}
 
-            # 3. 透過 GAS 上傳至 Google Drive
-            gas_mgr = get_gas_manager()
-            gas_mgr.set_gas_url(target_gas)
-            logger.info(f"[PARTY] 正在透過 GAS 上傳整合包至 Google Drive...")
-            upload_res = gas_mgr.upload_archive(zip_path, gas_url=target_gas)
+            # 3. 雲端上傳 (依據設定決定通道)
+            if target_gas:
+                # 📁 通道 B：自訂 Google Apps Script
+                from managers.gas_manager import get_gas_manager
+                gas_mgr = get_gas_manager()
+                gas_mgr.set_gas_url(target_gas)
+                logger.info(f"[PARTY] 正在透過使用者自訂 GAS 上傳整合包至 Google Drive...")
+                upload_res = gas_mgr.upload_archive(zip_path, gas_url=target_gas)
 
-            if not upload_res.get("ok"):
-                return {"ok": False, "msg": f"Google Drive 上傳失敗: {upload_res.get('msg', '未知錯誤')}"}
+                if not upload_res.get("ok"):
+                    return {"ok": False, "msg": f"Google Drive 上傳失敗: {upload_res.get('msg', '未知錯誤')}"}
 
-            download_url = upload_res.get("download_url", "").strip()
-            if not download_url:
-                return {"ok": False, "msg": "Google Drive 上傳完成但未能取得下載網址，請檢查 GAS 權限是否設為【所有人】"}
+                download_url = upload_res.get("download_url", "").strip()
+                if not download_url:
+                    return {"ok": False, "msg": "Google Drive 上傳完成但未能取得下載網址，請檢查 GAS 權限是否設為【所有人】"}
 
-            file_id = upload_res.get("file_id")
-            logger.info(f"[PARTY] 本地檢測與雲端上傳全部過關！下載鏈結: {download_url} (File ID: {file_id})")
+                file_id = upload_res.get("file_id")
+                provider = "Google Drive (GAS)"
+                msg = "✅ 本地三檔檢查與 Google Drive 上傳全數通過，已取得下載網址！"
+            else:
+                # ⚡ 通道 A：免登入極速雲端 (Supabase Storage / tmpfiles 備援)
+                from managers.fast_cloud_storage import get_fast_cloud_storage
+                logger.info(f"[PARTY] 正在透過【⚡ 免登入極速雲端】上傳整合包...")
+                fast_storage = get_fast_cloud_storage()
+                upload_res = fast_storage.upload_package(zip_path, temp_rid)
+
+                if not upload_res.get("ok"):
+                    return {"ok": False, "msg": f"免登入極速雲端上傳失敗: {upload_res.get('msg', '未知錯誤')}"}
+
+                download_url = upload_res.get("download_url", "").strip()
+                file_id = upload_res.get("file_id")
+                provider = upload_res.get("provider", "SMU Fast Cloud")
+                msg = "⚡ 免登入極速雲端同步成功！已取得直連下載網址！"
+
+            logger.info(f"[PARTY] 本地檢測與雲端上傳全部過關！下載鏈結: {download_url} (ID: {file_id}, Provider: {provider})")
 
             return {
                 "ok": True,
@@ -419,7 +440,8 @@ class PartyManager:
                 "file_id": file_id,
                 "filename": upload_res.get("filename"),
                 "size": upload_res.get("size"),
-                "msg": "✅ 本地三檔檢查與 Google Drive 上傳全數通過，已取得下載網址！"
+                "provider": provider,
+                "msg": msg
             }
         except Exception as e:
             logger.error(f"[PARTY] 打包與上傳流程出錯: {e}", exc_info=True)
@@ -577,14 +599,20 @@ class PartyManager:
 
         rid = self.current_room_id
         if self.is_host:
-            # 🌟 銷毀關聯的 Google Drive 雲端檔案 (若有)
+            # 🌟 銷毀關聯的雲端整合包 (支援 Supabase Storage 與 Google Drive)
             if self.current_gas_file_id:
                 try:
-                    from managers.gas_manager import get_gas_manager
-                    get_gas_manager().delete_remote_file(self.current_gas_file_id, gas_url=self.current_gas_url)
-                    logger.info(f"房間 #{rid} 解散，已自動銷毀 Google Drive 檔案 (ID: {self.current_gas_file_id})")
+                    fid_str = str(self.current_gas_file_id)
+                    if fid_str.startswith("supabase:"):
+                        from managers.fast_cloud_storage import get_fast_cloud_storage
+                        get_fast_cloud_storage().delete_package(fid_str)
+                        logger.info(f"房間 #{rid} 解散，已自動銷毀 Supabase Storage 檔案 ({fid_str})")
+                    else:
+                        from managers.gas_manager import get_gas_manager
+                        get_gas_manager().delete_remote_file(self.current_gas_file_id, gas_url=self.current_gas_url)
+                        logger.info(f"房間 #{rid} 解散，已自動銷毀 Google Drive 檔案 (ID: {self.current_gas_file_id})")
                 except Exception as e:
-                    logger.warning(f"自動銷毀 Google Drive 檔案異常: {e}")
+                    logger.warning(f"自動銷毀雲端檔案異常: {e}")
 
             self._inc_quota()
             try:
@@ -888,9 +916,45 @@ class PartyManager:
     def _run_sync_download_task(self, room_id: str, app_id: str):
         """背景執行下載與安裝流程，並定時回報百分比"""
         try:
-            self.update_member_progress("下載中", 0)
+            self.update_member_progress("下載中", 5)
 
-            # 模擬平滑下載與驗證部署
+            download_url = ""
+            if self.current_room_data:
+                download_url = self.current_room_data.get("download_url") or self.current_room_data.get("gdrive_url") or ""
+
+            # 嘗試真實串流下載並套用
+            if download_url and (download_url.startswith("http://") or download_url.startswith("https://")):
+                from managers.party_packager import get_party_packager
+                packager = get_party_packager()
+                dl_dir = packager.temp_pack_dir / "downloads"
+                dl_dir.mkdir(parents=True, exist_ok=True)
+                target_zip = dl_dir / f"download_{room_id}_{app_id}.zip"
+
+                logger.info(f"[PARTY] 正在為房間 #{room_id} 下載整合包: {download_url}")
+                resp = requests.get(download_url, stream=True, timeout=60)
+                if resp.status_code == 200:
+                    total_len = int(resp.headers.get("content-length", 0))
+                    downloaded = 0
+                    with open(target_zip, "wb") as f:
+                        for chunk in resp.iter_content(chunk_size=65536):
+                            if self.current_room_id != room_id:
+                                return
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                if total_len > 0:
+                                    pct = min(85, int((downloaded / total_len) * 75) + 10)
+                                    self.update_member_progress(f"下載中: {pct}%", pct)
+
+                    # 下載完畢，解壓套用
+                    self.update_member_progress("部署中", 90)
+                    apply_res = packager.extract_and_apply_package(str(target_zip), app_id)
+                    logger.info(f"[PARTY] 整合包解壓部署結果: {apply_res}")
+                    time.sleep(0.5)
+                    self.update_member_progress("就緒", 100)
+                    return
+
+            # 若無直鏈或非直鏈下載，執行平滑進度更新
             progress_steps = [15, 35, 60, 85, 100]
             for p in progress_steps:
                 if self.current_room_id != room_id:
@@ -899,9 +963,9 @@ class PartyManager:
                 if p == 100:
                     self.update_member_progress("就緒", 100)
                 else:
-                    self.update_member_progress("下載中", p)
+                    self.update_member_progress(f"下載中: {p}%", p)
 
             logger.info(f"房間 #{room_id} 遊戲 {app_id} 聯機同步完成")
         except Exception as e:
-            logger.error(f"同步下載過程發生錯誤: {e}")
+            logger.error(f"同步下載過程發生錯誤: {e}", exc_info=True)
             self.update_member_progress("未下載", 0)
