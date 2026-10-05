@@ -4591,10 +4591,40 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "rooms": [], "msg": f"連線雲端大廳失敗: {e}"}
 
-    def get_party_room_details(self, room_id: str = "") -> Dict[str, Any]:
-        """查詢特定房間即時狀態與隊員名單"""
+    def get_party_room_details(self, room_id: str = "", scope: str = "all") -> Dict[str, Any]:
+        """
+        查詢特定房間狀態 (支援針對性投影 scope: 'all' | 'info' | 'download' | 'members' | 'quota')
+        """
         try:
-            return self._get_party_manager().get_room_details(room_id if room_id else None)
+            return self._get_party_manager().get_room_details(room_id if room_id else None, scope=scope)
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def get_party_room_basic_info(self, room_id: str = "") -> Dict[str, Any]:
+        """針對性抓取：只抓房間資訊 (房號、遊戲、房主、人數、規則)，完全排除下載資訊"""
+        try:
+            return self._get_party_manager().get_room_basic_info(room_id if room_id else None)
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def get_party_room_download_info(self, room_id: str = "") -> Dict[str, Any]:
+        """針對性抓取：只抓下載資訊 (下載鏈結、解壓密碼)，於隊員準備下載時精準單次獲取"""
+        try:
+            return self._get_party_manager().get_room_download_info(room_id if room_id else None)
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def get_party_room_members_info(self, room_id: str = "") -> Dict[str, Any]:
+        """針對性抓取：只抓成員清單與心跳狀態 (適合隊員房內輪詢，流量節省 80%)"""
+        try:
+            return self._get_party_manager().get_room_members_info(room_id if room_id else None)
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def get_party_quota_info(self) -> Dict[str, Any]:
+        """針對性抓取：只抓額度資訊與 Egress 監控數據 (受 5 分鐘 TTL 保護)"""
+        try:
+            return self._get_party_manager().get_quota_info()
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 

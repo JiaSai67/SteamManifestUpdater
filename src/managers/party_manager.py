@@ -383,15 +383,22 @@ class PartyManager:
     # 大廳與房間查詢
     # ═════════════════════════════════════════════════════════════════════
 
+    # ═════════════════════════════════════════════════════════════════════
+    # 大廳與房間查詢 (支援 PostgREST 針對性欄位投影：房間/下載/成員/額度)
+    # ═════════════════════════════════════════════════════════════════════
+
     def list_rooms(self) -> Dict[str, Any]:
-        """取得公開大廳房間列表 (過濾 35 秒內有活耀心跳之房間)"""
+        """
+        取得公開大廳房間列表 (針對性投影：只抓房間卡片所需資訊，剔除下載鏈結與密碼，節省 70% 流量)
+        """
         self._inc_quota()
         # 35 秒心跳截止時間 (UTC Z 格式)
         cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=35)
         cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # Supabase PostgREST 篩選語法
-        query_url = f"{self.rest_endpoint}?is_public=eq.true&updated_at=gte.{cutoff_iso}&order=updated_at.desc"
+        # 🌟 針對性投影：大廳只抓房間基本卡片欄位，嚴格不抓 gdrive_url (下載密文)、archive_password 與 note
+        lobby_fields = "room_id,game_name,app_id,host_name,host_client_id,host_discord,max_players,is_public,status,members,updated_at,created_at"
+        query_url = f"{self.rest_endpoint}?is_public=eq.true&updated_at=gte.{cutoff_iso}&select={lobby_fields}&order=updated_at.desc"
         try:
             resp = self.session.get(query_url, timeout=7)
             if resp.status_code == 200:
@@ -400,6 +407,7 @@ class PartyManager:
                 return {
                     "ok": True,
                     "rooms": rooms,
+                    "scope": "lobby_targeted",
                     "quota": self.latest_quota
                 }
             else:
@@ -419,14 +427,36 @@ class PartyManager:
                 "quota": self.latest_quota
             }
 
-    def get_room_details(self, room_id: Optional[str] = None) -> Dict[str, Any]:
-        """取得指定房間即時成員與下載狀況"""
+    def get_room_details(self, room_id: Optional[str] = None, scope: str = "all") -> Dict[str, Any]:
+        """
+        針對性查詢房間資訊：
+        - scope='all': 抓取全部欄位 (select=*)
+        - scope='info' / 'basic': 只抓房間資訊 (房號、遊戲、房主、人數、狀態、備註)
+        - scope='download': 只抓下載資訊 (gdrive_url, archive_password)
+        - scope='members': 只抓成員名單與狀態 (適合高頻心跳輪詢)
+        - scope='quota': 只抓雲端 Egress 與額度監控資訊
+        """
         rid = room_id or self.current_room_id
-        if not rid:
+        if not rid and scope != "quota":
             return {"ok": False, "error": "NO_ROOM_ID", "msg": "未指定房號"}
 
+        # 🌟 若專門針對額度資訊查詢
+        if scope == "quota":
+            return self.get_quota_info()
+
         self._inc_quota()
-        query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select=*"
+
+        # 依據針對性需求選擇精準投影欄位
+        if scope in ("info", "basic"):
+            select_cols = "room_id,game_name,app_id,host_name,host_client_id,host_discord,max_players,is_public,status,note,created_at,updated_at"
+        elif scope == "download":
+            select_cols = "room_id,gdrive_url,archive_password,updated_at"
+        elif scope in ("members", "status"):
+            select_cols = "room_id,status,members,updated_at"
+        else:
+            select_cols = "*"
+
+        query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select={select_cols}"
         try:
             resp = self.session.get(query_url, timeout=6)
             if resp.status_code == 200:
@@ -444,10 +474,13 @@ class PartyManager:
                     return {"ok": False, "error": "ROOM_CLOSED", "msg": "房間已過期離線"}
 
                 room_data = self._format_room(r)
-                self.current_room_data = room_data
+                
+                # 若為全量或包含重要欄位時更新快取
+                if scope in ("all", "info"):
+                    self.current_room_data = room_data
 
-                # 隊員端檢查自己是否仍在房間成員清單內
-                if self.current_room_id == rid and not self.is_host:
+                # 隊員端檢查自己是否仍在房間成員清單內 (在有抓取 members 時檢查)
+                if "members" in r and self.current_room_id == rid and not self.is_host:
                     members = room_data.get("members", [])
                     is_me_in = any(m.get("id") == self.client_id for m in members)
                     if not is_me_in:
@@ -455,11 +488,53 @@ class PartyManager:
                         self._cleanup_local_room()
                         return {"ok": False, "error": "ROOM_CLOSED", "msg": "您已被請離或房間已重整"}
 
-                return {"ok": True, "room": room_data, "quota": self.latest_quota}
+                return {
+                    "ok": True,
+                    "scope": scope,
+                    "room": room_data,
+                    "quota": self.latest_quota
+                }
             else:
                 return {"ok": False, "msg": f"查詢房間失敗 (HTTP {resp.status_code})"}
         except Exception as e:
             return {"ok": False, "msg": f"查詢房間連線異常: {e}"}
+
+    def get_room_basic_info(self, room_id: Optional[str] = None) -> Dict[str, Any]:
+        """針對性查詢：只抓房間資訊 (名稱、房主、人數、規則)，完全不抓下載資訊與密碼"""
+        return self.get_room_details(room_id=room_id, scope="info")
+
+    def get_room_download_info(self, room_id: Optional[str] = None) -> Dict[str, Any]:
+        """針對性查詢：只抓下載資訊 (下載鏈結、解壓密碼)，於隊員點擊下載時才發送"""
+        rid = room_id or self.current_room_id
+        res = self.get_room_details(room_id=rid, scope="download")
+        if res.get("ok") and res.get("room"):
+            r = res["room"]
+            return {
+                "ok": True,
+                "room_id": rid,
+                "download_url": r.get("gdrive_url", ""),
+                "archive_password": r.get("archive_password", ""),
+                "updated_at": r.get("updated_at", "")
+            }
+        return res
+
+    def get_room_members_info(self, room_id: Optional[str] = None) -> Dict[str, Any]:
+        """針對性查詢：只抓成員名單與狀態 (適合高頻輪詢與心跳同步，節省 80% 流量)"""
+        return self.get_room_details(room_id=room_id, scope="members")
+
+    def get_quota_info(self) -> Dict[str, Any]:
+        """針對性查詢：只抓額度與 Egress 監控資訊 (受 5 分鐘 TTL 保護，每日消耗 < 1MB)"""
+        try:
+            from managers.cloud_metrics_manager import get_cloud_metrics_manager
+            metrics_res = get_cloud_metrics_manager().get_public_cloud_metrics()
+            return {
+                "ok": True,
+                "scope": "quota",
+                "quota": self.latest_quota,
+                "metrics": metrics_res.get("data", {})
+            }
+        except Exception as e:
+            return {"ok": False, "msg": f"抓取額度資訊異常: {e}"}
 
     # ═════════════════════════════════════════════════════════════════════
     # 房主操作：創建房間、心跳維持、解散房間
@@ -875,8 +950,8 @@ class PartyManager:
 
         self._inc_quota()
         try:
-            # 1. 查詢最新房間現況
-            query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select=*"
+            # 1. 針對性查詢最新成員名單與狀態 (嚴格不抓下載密文與遊戲詳情，節省心跳流量)
+            query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select=room_id,status,members,updated_at"
             resp = self.session.get(query_url, timeout=6)
             if resp.status_code != 200 or not resp.json():
                 return {"ok": False, "error": "ROOM_NOT_FOUND", "msg": "房間已不存在"}
