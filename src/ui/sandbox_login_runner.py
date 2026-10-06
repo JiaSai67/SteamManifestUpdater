@@ -287,6 +287,7 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
 
             var stepText = '🐉 步驟 1/3：Ryuu (50次/日)';
             var stepColor = '#10b981';
+            var showHcDoneBtn = false;
 
             if (curStep === 1) {
                 stepText = '🐉 步驟 1/3：Ryuu 授權 (50次/日)';
@@ -295,8 +296,9 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                 stepText = '🛠️ 步驟 2/3：Lua.tools 授權 (25次/日)';
                 stepColor = '#6366f1';
             } else if (curStep === 3) {
-                stepText = '🧢 步驟 3/3：HubcapDB 授權 (25次/日)';
+                stepText = '請查看伺服器verify頻道開始驗證並注意私訊，完成後點我 👉';
                 stepColor = '#06b6d4';
+                showHcDoneBtn = true;
             }
 
             nav.innerHTML = `
@@ -308,6 +310,11 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                     <span id="_sm_nav_msg" style="color:#e4e4e7;font-size:12px;font-weight:500;"></span>
                 </div>
                 <div style="display:flex;align-items:center;gap:10px;">
+                    ${showHcDoneBtn ? `
+                    <button id="_sm_nav_btn_hc_done" style="background:linear-gradient(135deg,#06b6d4,#0891b2);color:#ffffff;border:none;padding:5px 13px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 10px rgba(6,182,212,0.45);transition:all 0.2s ease;">
+                        <span>🚀 已完成驗證</span>
+                    </button>
+                    ` : ''}
                     <button id="_sm_nav_btn_skip" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all 0.2s ease;">
                         <span>⏩ 跳過此步驟</span>
                     </button>
@@ -316,6 +323,15 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                     </button>
                 </div>
             `;
+
+            var hcDoneBtn = document.getElementById('_sm_nav_btn_hc_done');
+            if (hcDoneBtn) {
+                hcDoneBtn.onclick = function() {
+                    window._action_fetch_hc_key = true;
+                    hcDoneBtn.innerHTML = '<span>⏳ 正在前往 API 網頁...</span>';
+                    window.location.href = "https://hubcapmanifest.com/api-keys/stats";
+                };
+            }
 
             var skipBtn = document.getElementById('_sm_nav_btn_skip');
             if (skipBtn) {
@@ -456,7 +472,7 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                 } else if (curStep === 3) {
                     var msgEl = document.getElementById('_sm_nav_msg');
                     if (msgEl) {
-                        msgEl.innerHTML = '<span style="color:#38bdf8;font-weight:bold;">👉 請在下方完成 Verify 機器人驗證，完成後點擊右上角「✅ 完成並關閉沙盒」</span>';
+                        msgEl.innerHTML = '<span style="color:#38bdf8;font-weight:bold;">👉 請查看伺服器verify頻道開始驗證並注意私訊，完成後請點擊「🚀 已完成驗證」</span>';
                     }
                 }
             }
@@ -1577,6 +1593,19 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             }
                         }
 
+                        if (isHubcap && !window._hc_copy_listener_installed) {
+                            window._hc_copy_listener_installed = true;
+                            document.addEventListener('copy', function() {
+                                setTimeout(function() {
+                                    try {
+                                        var sel = (window.getSelection() ? window.getSelection().toString() : '');
+                                        var m = sel.match(/\b(smm_[a-zA-Z0-9_\-]{20,})\b/);
+                                        if (m && m[1]) window._hc_api_key = m[1];
+                                    } catch(e) {}
+                                }, 100);
+                            });
+                        }
+
                         var finalKey = window._hc_api_key || domKey || "";
                         var userObj = window._hc_user || null;
 
@@ -1586,7 +1615,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             if (finalKey) {
                                 msgEl.innerHTML = '<span style="color:#10b981;font-weight:bold;">🎉 成功獲取 API Key: ' + finalKey.substring(0, 10) + '... 正在自動綁定儲存！</span>';
                             } else if (isStatsPage) {
-                                msgEl.innerHTML = '<span style="color:#06b6d4;font-weight:600;">🔍 已進入 API Keys 統計頁，正在讀取金鑰...</span>';
+                                msgEl.innerHTML = '<span style="color:#06b6d4;font-weight:600;">🔍 已進入 Hubcap API 統計頁！請在網頁中產生並複製 API Key，系統將自動捕獲</span>';
                             } else if (isAuthed) {
                                 msgEl.innerHTML = '<span style="color:#06b6d4;font-weight:600;">🚀 授權已確認！正在自動前往 API Keys 統計頁...</span>';
                             }
