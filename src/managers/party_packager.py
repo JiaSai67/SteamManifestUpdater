@@ -6,6 +6,8 @@ PartyPackager - SMU 本地三檔自動打包器
 
 import os
 import re
+import time
+import stat
 import json
 import shutil
 import zipfile
@@ -27,41 +29,22 @@ class PartyPackager:
 
     def inspect_party_resources(self, app_id: str) -> Dict[str, Any]:
         """
-        全方位偵測指定遊戲之三檔就緒狀況 (Manifest, Lua, OnlineFix 補丁)
+        全方位偵測指定遊戲之三檔就緒狀況 (實體 .manifest 清單, Lua 腳本, OnlineFix 補丁)
         """
         app_id = str(app_id).strip()
         steam_path = steam_manager.find_steam_path()
 
         status = {
             "app_id": app_id,
-            "manifest": {"ready": False, "found": False, "path": "", "size": 0},
+            "manifest": {"ready": False, "found": False, "files": [], "missing_files": [], "count": 0, "size": 0},
+            "acf": {"ready": False, "found": False, "path": "", "size": 0},
             "lua": {"ready": False, "found": False, "path": "", "size": 0},
             "patch": {"ready": False, "found": False, "source": "", "files_count": 0, "size": 0, "archive_path": ""},
             "all_ready": False,
             "can_package": False
         }
 
-        # 1. 偵測 Manifest (appmanifest_<appid>.acf)
-        if steam_path:
-            acf_path = Path(steam_path) / "steamapps" / f"appmanifest_{app_id}.acf"
-            if acf_path.exists():
-                status["manifest"]["ready"] = True
-                status["manifest"]["found"] = True
-                status["manifest"]["path"] = str(acf_path)
-                status["manifest"]["size"] = acf_path.stat().st_size
-            else:
-                # 遍歷所有庫資料夾
-                libs = self._get_library_folders(steam_path)
-                for lib in libs:
-                    cand = Path(lib) / "steamapps" / f"appmanifest_{app_id}.acf"
-                    if cand.exists():
-                        status["manifest"]["ready"] = True
-                        status["manifest"]["found"] = True
-                        status["manifest"]["path"] = str(cand)
-                        status["manifest"]["size"] = cand.stat().st_size
-                        break
-
-        # 2. 偵測 Lua 腳本 (全面涵蓋 SteamTools 核心目錄與自訂設定)
+        # 1. 偵測 Lua 腳本 (全面涵蓋 SteamTools 核心目錄與自訂設定)
         lua_candidates = []
         if steam_path:
             sp = Path(steam_path)
@@ -91,16 +74,104 @@ class PartyPackager:
                     if lua_in_patch.exists():
                         lua_candidates.insert(0, lua_in_patch)
 
+        chosen_lua_path = None
         for l_cand in lua_candidates:
             if l_cand.exists() and l_cand.is_file():
                 status["lua"]["ready"] = True
                 status["lua"]["found"] = True
                 status["lua"]["path"] = str(l_cand)
                 status["lua"]["size"] = l_cand.stat().st_size
+                chosen_lua_path = l_cand
                 break
 
-        # 3. 偵測線上補丁 (OnlineFix / 聯機檔案)
-        # 情況 A: 檢查 LOCAL_PATCH_DIR 中是否有原始下載之補丁壓縮檔 (.rar, .zip, .7z)
+        # 2. 偵測實體 Manifest (位於 steam/depotcache 或是 steam/config/depotcache 的 .manifest 檔案)
+        manifest_files_found = []
+        missing_mfs = []
+        total_mf_size = 0
+
+        declared_manifests = []
+        if chosen_lua_path:
+            try:
+                l_content = chosen_lua_path.read_text(encoding="utf-8", errors="ignore")
+                pattern = re.compile(r'^[ \t]*setManifestid\(\s*(\d+)\s*,\s*["\']?(\d+)["\']?(?:,\s*(\d+))?\s*\)', re.MULTILINE)
+                declared_manifests = pattern.findall(l_content)
+            except Exception as le:
+                logger.debug(f"[Packager] 解析 Lua 宣告清單失敗: {le}")
+
+        if steam_path and declared_manifests:
+            sp = Path(steam_path)
+            depot_dir = sp / "depotcache"
+            backup_dir = sp / "config" / "depotcache"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+
+            for d_id, m_id, *rest in declared_manifests:
+                if str(m_id) == "0":
+                    continue
+                mf_name = f"{d_id}_{m_id}.manifest"
+                src_depot = depot_dir / mf_name
+                src_backup = backup_dir / mf_name
+                target_mf = None
+
+                if src_backup.exists() and src_backup.stat().st_size > 0:
+                    target_mf = src_backup
+                    # 若 depotcache 缺失，順便鏡像同步
+                    if not src_depot.exists():
+                        try:
+                            shutil.copy2(src_backup, src_depot)
+                            logger.info(f"[Packager] 自動從金庫鏡像還原清單至 depotcache: {mf_name}")
+                        except Exception:
+                            pass
+                elif src_depot.exists() and src_depot.stat().st_size > 0:
+                    target_mf = src_depot
+                    # 🌟 順手自動備份至 config/depotcache 防護金庫，避免 Steam 惡意清除！
+                    try:
+                        shutil.copy2(src_depot, src_backup)
+                        logger.info(f"[Packager] 自動備份清單至 config/depotcache 金庫: {mf_name}")
+                    except Exception:
+                        pass
+                elif chosen_lua_path and (chosen_lua_path.parent / mf_name).exists():
+                    target_mf = chosen_lua_path.parent / mf_name
+
+                if target_mf and target_mf.exists():
+                    manifest_files_found.append(str(target_mf))
+                    total_mf_size += target_mf.stat().st_size
+                else:
+                    missing_mfs.append(mf_name)
+
+        if declared_manifests and not missing_mfs and manifest_files_found:
+            status["manifest"]["ready"] = True
+            status["manifest"]["found"] = True
+            status["manifest"]["files"] = manifest_files_found
+            status["manifest"]["count"] = len(manifest_files_found)
+            status["manifest"]["size"] = total_mf_size
+        else:
+            status["manifest"]["ready"] = False
+            status["manifest"]["found"] = bool(manifest_files_found)
+            status["manifest"]["files"] = manifest_files_found
+            status["manifest"]["missing_files"] = missing_mfs
+            status["manifest"]["count"] = len(manifest_files_found)
+            status["manifest"]["size"] = total_mf_size
+
+        # 3. 偵測 appmanifest_<appid>.acf (作為輔助設定檔，非實體清單)
+        if steam_path:
+            acf_path = Path(steam_path) / "steamapps" / f"appmanifest_{app_id}.acf"
+            if acf_path.exists():
+                status["acf"]["ready"] = True
+                status["acf"]["found"] = True
+                status["acf"]["path"] = str(acf_path)
+                status["acf"]["size"] = acf_path.stat().st_size
+            else:
+                libs = self._get_library_folders(steam_path)
+                for lib in libs:
+                    cand = Path(lib) / "steamapps" / f"appmanifest_{app_id}.acf"
+                    if cand.exists():
+                        status["acf"]["ready"] = True
+                        status["acf"]["found"] = True
+                        status["acf"]["path"] = str(cand)
+                        status["acf"]["size"] = cand.stat().st_size
+                        break
+
+        # 4. 偵測線上補丁 (OnlineFix / 聯機檔案)
         app_cache_dir = onlinefix_manager.get_app_cache_dir(app_id)
         if app_cache_dir and app_cache_dir.exists():
             for f in app_cache_dir.iterdir():
@@ -113,7 +184,6 @@ class PartyPackager:
                     status["patch"]["files_count"] = 1
                     break
 
-        # 情況 B: 若壓縮檔已解壓或被清除，直接從遊戲目錄依據 patch_record.json 抓取已部署之補丁檔案！
         if not status["patch"]["ready"]:
             rec = onlinefix_manager.get_fix_record(app_id)
             if rec and rec.get("game_dir"):
@@ -135,7 +205,6 @@ class PartyPackager:
                         status["patch"]["files_count"] = len(found_files)
                         status["patch"]["size"] = total_sz
 
-        # 情況 C: 若既無壓縮檔也無 record，但遊戲目錄有 OnlineFix 特徵
         if not status["patch"]["ready"]:
             game_dir = onlinefix_manager._find_steam_game_dir(app_id)
             if game_dir and Path(game_dir).exists():
@@ -149,8 +218,8 @@ class PartyPackager:
                     status["patch"]["size"] = sum((g_dir / f).stat().st_size for f in of_files)
 
         status["all_ready"] = (status["manifest"]["ready"] and status["lua"]["ready"] and status["patch"]["ready"])
-        # 只要有補丁或 Manifest 即可打包，三者齊全最佳
-        status["can_package"] = (status["patch"]["ready"] or status["manifest"]["ready"])
+        # 只要有補丁或 Manifest 或 Lua 即可打包
+        status["can_package"] = (status["patch"]["ready"] or status["manifest"]["ready"] or status["lua"]["ready"])
 
         return status
 
@@ -178,26 +247,35 @@ class PartyPackager:
                     "room_id": room_id,
                     "created_at": str(os.path.getmtime(target_zip_path) if target_zip_path.exists() else 0),
                     "manifest_included": res_info["manifest"]["ready"],
+                    "manifest_files": [Path(f).name for f in res_info["manifest"]["files"]],
                     "lua_included": res_info["lua"]["ready"],
                     "patch_source": res_info["patch"]["source"],
                     "version": "2.0.2"
                 }
 
-                # 1. 寫入 Manifest
-                if res_info["manifest"]["ready"] and res_info["manifest"]["path"]:
-                    m_path = Path(res_info["manifest"]["path"])
-                    if m_path.exists():
-                        zf.write(m_path, arcname=f"manifest/{m_path.name}")
-                        logger.info(f"[Packager] 已打包 Manifest: {m_path.name}")
+                # 1. 寫入實體 Manifest (.manifest 二進位清單)
+                if res_info["manifest"]["files"]:
+                    for mf_p in res_info["manifest"]["files"]:
+                        m_path = Path(mf_p)
+                        if m_path.exists():
+                            zf.write(m_path, arcname=f"manifest/{m_path.name}")
+                            logger.info(f"[Packager] 已打包實體 Manifest: {m_path.name}")
 
-                # 2. 寫入 Lua
+                # 2. 寫入輔助 ACF 設定檔 (若有)
+                if res_info["acf"]["ready"] and res_info["acf"]["path"]:
+                    acf_p = Path(res_info["acf"]["path"])
+                    if acf_p.exists():
+                        zf.write(acf_p, arcname=f"acf/{acf_p.name}")
+                        logger.info(f"[Packager] 已打包輔助 ACF: {acf_p.name}")
+
+                # 3. 寫入 Lua 腳本
                 if res_info["lua"]["ready"] and res_info["lua"]["path"]:
                     l_path = Path(res_info["lua"]["path"])
                     if l_path.exists():
                         zf.write(l_path, arcname=f"lua/{l_path.name}")
                         logger.info(f"[Packager] 已打包 Lua: {l_path.name}")
 
-                # 3. 寫入線上補丁
+                # 4. 寫入線上補丁
                 patch_src = res_info["patch"]["source"]
                 if patch_src == "archive" and res_info["patch"]["archive_path"]:
                     # 直接封裝原始補丁壓縮包
@@ -239,6 +317,7 @@ class PartyPackager:
                 "filename": target_zip_name,
                 "all_ready": res_info["all_ready"],
                 "manifest_ready": res_info["manifest"]["ready"],
+                "manifest_count": res_info["manifest"]["count"],
                 "lua_ready": res_info["lua"]["ready"],
                 "patch_ready": res_info["patch"]["ready"]
             }
@@ -267,52 +346,103 @@ class PartyPackager:
 
     def extract_and_apply_package(self, zip_path: str, app_id: str) -> Dict[str, Any]:
         """
-        隊員端：解壓並套用房主的三檔整合包 (Manifest, Lua, OnlineFix 補丁)
+        隊員端：解壓並套用房主的三檔整合包：
+        1. 實體 .manifest 檔案解壓部署至 Steam/depotcache 與 Steam/config/depotcache (防護金庫)
+        2. 輔助 ACF 部署至 Steam/steamapps
+        3. Lua 腳本部署至 Steam/config/stplug-in 與 Steam/config/lua
+        4. 線上聯機補丁套用至遊戲目錄 (若遊戲已就緒)
         """
+        import stat
         p = Path(zip_path)
         if not p.exists():
             return {"ok": False, "msg": f"整合包檔案不存在: {zip_path}"}
 
         steam_path = steam_manager.find_steam_path()
-        applied = {"manifest": False, "lua": False, "patch": False, "files_count": 0}
+        applied = {"manifest": False, "manifest_count": 0, "lua": False, "patch": False, "files_count": 0}
 
         try:
             with zipfile.ZipFile(p, "r") as zf:
                 namelist = zf.namelist()
 
-                # 1. 部署 Manifest
-                manifest_files = [n for n in namelist if n.startswith("manifest/") and not n.endswith("/")]
+                # 1. 部署實體 Manifest 清單至 Steam/depotcache 與 Steam/config/depotcache
+                manifest_files = [n for n in namelist if n.startswith("manifest/") and n.endswith(".manifest")]
                 if manifest_files and steam_path:
-                    sp_apps = Path(steam_path) / "steamapps"
-                    sp_apps.mkdir(parents=True, exist_ok=True)
+                    sp_depot = Path(steam_path) / "depotcache"
+                    sp_config_depot = Path(steam_path) / "config" / "depotcache"
+                    sp_depot.mkdir(parents=True, exist_ok=True)
+                    sp_config_depot.mkdir(parents=True, exist_ok=True)
+
                     for mf in manifest_files:
                         fn = Path(mf).name
-                        target_f = sp_apps / fn
-                        with zf.open(mf) as src, open(target_f, "wb") as dst:
-                            shutil.copyfileobj(src, dst)
-                        applied["manifest"] = True
-                        logger.info(f"[Packager] 已解壓套用 Manifest: {target_f}")
+                        target_depot = sp_depot / fn
+                        target_backup = sp_config_depot / fn
 
-                # 2. 部署 Lua
-                lua_files = [n for n in namelist if n.startswith("lua/") and not n.endswith("/")]
+                        if target_depot.exists():
+                            try: os.chmod(target_depot, stat.S_IWRITE | stat.S_IREAD)
+                            except Exception: pass
+                        if target_backup.exists():
+                            try: os.chmod(target_backup, stat.S_IWRITE | stat.S_IREAD)
+                            except Exception: pass
+
+                        with zf.open(mf) as src, open(target_depot, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
+
+                        # 取消唯讀，並永久備份至金庫
+                        try:
+                            os.chmod(target_depot, stat.S_IWRITE | stat.S_IREAD)
+                            shutil.copy2(target_depot, target_backup)
+                            os.chmod(target_backup, stat.S_IWRITE | stat.S_IREAD)
+                        except Exception:
+                            pass
+
+                        applied["manifest_count"] += 1
+                        logger.info(f"[Packager] 已解壓套用實體 Manifest 並同步金庫備份: {fn}")
+
+                    if applied["manifest_count"] > 0:
+                        applied["manifest"] = True
+
+                # 2. 部署 ACF 遊戲設定檔 (若有)
+                acf_files = [n for n in namelist if (n.startswith("acf/") or n.startswith("manifest/")) and n.endswith(".acf")]
+                if acf_files and steam_path:
+                    sp_apps = Path(steam_path) / "steamapps"
+                    sp_apps.mkdir(parents=True, exist_ok=True)
+                    for af in acf_files:
+                        fn = Path(af).name
+                        target_acf = sp_apps / fn
+                        if target_acf.exists():
+                            try: os.chmod(target_acf, stat.S_IWRITE | stat.S_IREAD)
+                            except Exception: pass
+                        with zf.open(af) as src, open(target_acf, "wb") as dst:
+                            shutil.copyfileobj(src, dst)
+                        logger.info(f"[Packager] 已解壓套用輔助 ACF: {target_acf}")
+
+                # 3. 部署 Lua 腳本
+                lua_files = [n for n in namelist if n.startswith("lua/") and n.endswith(".lua")]
                 if lua_files and steam_path:
-                    # 部署至常見路徑
                     cfg_lua_dir = None
                     try:
                         cfg_lua_dir = config_manager.get_config().get("lua_dir")
                     except Exception:
                         pass
-                    target_lua_dir = Path(cfg_lua_dir) if cfg_lua_dir else (Path(steam_path) / "config" / "stplug-in")
-                    target_lua_dir.mkdir(parents=True, exist_ok=True)
-                    for lf in lua_files:
-                        fn = Path(lf).name
-                        target_f = target_lua_dir / fn
-                        with zf.open(lf) as src, open(target_f, "wb") as dst:
-                            shutil.copyfileobj(src, dst)
-                        applied["lua"] = True
-                        logger.info(f"[Packager] 已解壓套用 Lua: {target_f}")
+                    target_dirs = [Path(steam_path) / "config" / "stplug-in", Path(steam_path) / "config" / "lua"]
+                    if cfg_lua_dir:
+                        target_dirs.append(Path(cfg_lua_dir))
 
-                # 3. 部署線上補丁
+                    for td in target_dirs:
+                        td.mkdir(parents=True, exist_ok=True)
+                        for lf in lua_files:
+                            fn = Path(lf).name
+                            target_f = td / fn
+                            if target_f.exists():
+                                try: os.chmod(target_f, stat.S_IWRITE | stat.S_IREAD)
+                                except Exception: pass
+                            with zf.open(lf) as src, open(target_f, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+
+                    applied["lua"] = True
+                    logger.info(f"[Packager] 已解壓套用 Lua 腳本至 {len(target_dirs)} 個目錄")
+
+                # 4. 部署線上補丁 (若遊戲主程式目錄已存在)
                 patch_files = [n for n in namelist if n.startswith("patch/files/") and not n.endswith("/")]
                 if patch_files:
                     game_dir = onlinefix_manager._find_steam_game_dir(app_id)
@@ -335,6 +465,8 @@ class PartyPackager:
                                         logger.info(f"[Packager] 已自動備份原始檔案: {bak_f.name}")
                                     except Exception as be:
                                         logger.warning(f"[Packager] 備份原檔異常: {be}")
+                                try: os.chmod(target_pf, stat.S_IWRITE | stat.S_IREAD)
+                                except Exception: pass
 
                             with zf.open(pf) as src, open(target_pf, "wb") as dst:
                                 shutil.copyfileobj(src, dst)
@@ -439,6 +571,9 @@ class PartyPackager:
                             except Exception as be:
                                 logger.warning(f"[Packager] 備份原檔失敗: {be}")
 
+                    if target_pf.exists():
+                        try: os.chmod(target_pf, stat.S_IWRITE | stat.S_IREAD)
+                        except Exception: pass
                     with zf.open(pf) as src, open(target_pf, "wb") as dst:
                         shutil.copyfileobj(src, dst)
                     installed_rel_paths.append(rel_sub)

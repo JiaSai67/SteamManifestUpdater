@@ -970,11 +970,11 @@ class PartyManager:
 
     def _detect_initial_status(self, appid: Optional[str]):
         """
-        深度檢測本地遊戲狀態：
-        1. steam_installed: Steam 遊戲本體是否已安裝或已就緒
-        2. deploy_status: 線上聯機補丁是否已部署 (pending / downloading / success / failed)
-        3. deploy_error: 部署失敗原因
-        4. version_status: 遊戲 Manifest 版本狀態 (最新 / 舊 x 版 / 未安裝)
+        深度嚴格檢測本地遊戲狀態：
+        1. Lua 腳本與實體 Manifest 清單是否存在於 depotcache / config/depotcache
+        2. Steam 遊戲本體是否已真正安裝完成 (StateFlags == 4)
+        3. 線上聯機補丁是否已部署
+        4. 四項皆達成才標記為「就緒」，任何一項未完成皆精確標記當前階段，絕不虛假誤報。
         """
         self.my_status = "未下載"
         self.my_progress = 0
@@ -987,7 +987,21 @@ class PartyManager:
 
         try:
             appid_str = str(appid).strip()
-            # 1. 優先使用 WebApi 經考驗的精準檢測 (包含所有 Steam 磁區庫與 ACF StateFlags)
+
+            # 1. 檢驗 Lua 與實體 Manifest 清單
+            has_lua = False
+            manifest_complete = False
+            try:
+                from managers import steam_manager
+                lm_stat = steam_manager.get_lua_manifest_status(appid_str)
+                has_lua = lm_stat.get("has_lua", False)
+                manifest_complete = lm_stat.get("is_complete", False)
+            except Exception as e_lm:
+                logger.debug(f"[PARTY] 檢查 Lua/Manifest 狀態出錯: {e_lm}")
+
+            # 2. 檢驗 Steam 遊戲本體安裝狀況 (ACF StateFlags & 實體目錄)
+            is_installed = False
+            is_downloading = False
             try:
                 try:
                     from web_api import WebApi
@@ -995,36 +1009,54 @@ class PartyManager:
                     from src.web_api import WebApi
                 api = WebApi()
                 st = api.check_game_installed_status(appid_str)
-                if st.get("is_installed"):
-                    self.my_steam_installed = True
-                    logger.info(f"[PARTY] 檢測到 AppID {appid_str} Steam 本體已安裝")
-                elif st.get("is_downloading"):
-                    self.my_status = "下載中"
-                    self.my_progress = 50
-                    self.my_deploy_status = "downloading"
-                    logger.info(f"[PARTY] 檢測到 AppID {appid_str} Steam 本地下載中")
-            except Exception as e1:
-                logger.debug(f"[PARTY] WebApi 狀態檢查異常: {e1}")
+                is_installed = bool(st.get("is_installed", False))
+                is_downloading = bool(st.get("is_downloading", False))
+            except Exception as e_st:
+                logger.debug(f"[PARTY] WebApi 狀態檢查異常: {e_st}")
 
-            # 2. 檢測線上聯機補丁是否部署
+            self.my_steam_installed = is_installed
+
+            # 3. 檢測線上聯機補丁是否部署
+            patch_deployed = False
             try:
                 try:
                     from managers import onlinefix_manager
                 except ImportError:
                     from src.managers import onlinefix_manager
-                if onlinefix_manager.is_patch_deployed_locally(appid_str):
-                    self.my_deploy_status = "success"
-                    self.my_deploy_error = ""
-                    self.my_status = "就緒"
-                    self.my_progress = 100
+                patch_deployed = onlinefix_manager.is_patch_deployed_locally(appid_str)
             except Exception:
                 pass
 
-            # 3. 探測 Manifest 版本一致性狀態
-            if self.my_steam_installed:
-                self.my_version_status = self._detect_game_version_status(appid_str)
-            else:
+            # 4. 綜合嚴格判定當前狀態
+            if not has_lua or not manifest_complete:
+                # 尚未導入 Lua 或 Manifest
+                self.my_status = "未導入三檔"
+                self.my_progress = 0
+                self.my_deploy_status = "pending"
                 self.my_version_status = "未安裝"
+            elif not is_installed:
+                # 已導入清單，但 Steam 本體未安裝
+                if is_downloading:
+                    self.my_status = "Steam下載中"
+                    self.my_progress = 50
+                    self.my_deploy_status = "downloading"
+                else:
+                    self.my_status = "等待下載"
+                    self.my_progress = 0
+                    self.my_deploy_status = "pending"
+                self.my_version_status = "未安裝"
+            else:
+                # Steam 本體已安裝
+                self.my_version_status = self._detect_game_version_status(appid_str)
+                if patch_deployed:
+                    self.my_status = "就緒"
+                    self.my_progress = 100
+                    self.my_deploy_status = "success"
+                    self.my_deploy_error = ""
+                else:
+                    self.my_status = "待部署補丁"
+                    self.my_progress = 90
+                    self.my_deploy_status = "pending"
 
         except Exception as e:
             logger.warning(f"檢測本地遊戲狀態出錯: {e}")
@@ -1418,6 +1450,10 @@ class PartyManager:
                         self.current_room_data["gdrive_url"] = download_url
                         self.current_room_data["archive_password"] = dl_info.get("archive_password", "")
 
+            # 🌟 關鍵修復：解密還原 enc: 混淆壓縮下載鏈結！
+            if download_url and download_url.startswith("enc:"):
+                download_url = self._unpack_gdrive_url(download_url)
+
             if not download_url:
                 err_msg = "未獲取到房間配給的下載鏈結，請確認房主是否已正確上傳三檔整合包"
                 logger.warning(f"[PARTY] 房間 #{room_id}: {err_msg}")
@@ -1522,50 +1558,49 @@ class PartyManager:
                 else:
                     self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載整合包失敗 (HTTP {resp.status_code})")
                     return
+            else:
+                err_msg = f"房間配給的下載鏈結無效或協議不受支援: {download_url[:30]}..."
+                logger.error(f"[PARTY] {err_msg}")
+                self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=err_msg)
+                return
 
-            # 若無直鏈（模擬演示或平滑進度更新）
-            progress_steps = [15, 35, 60, 85, 100]
-            for p in progress_steps:
-                if self.current_room_id != room_id:
-                    break
-                time.sleep(1.2)
-                if p == 100:
-                    self._detect_initial_status(app_id)
-                    self.update_member_progress("就緒", 100, steam_installed=self.my_steam_installed, deploy_status="success")
-                else:
-                    self.update_member_progress(f"下載中: {p}%", p, deploy_status="downloading")
-
-            logger.info(f"房間 #{room_id} 遊戲 {app_id} 聯機同步完成")
         except Exception as e:
             logger.error(f"同步下載過程發生錯誤: {e}", exc_info=True)
             self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載或部署過程異常: {e}")
 
     def _execute_party_one_click_install(self, room_id: str, app_id: str, target_zip_path: str):
         """
-        🚀 隊員「一鍵安裝」核心流程（與遊戲入庫分類完全對齊）：
-        1. 部署 Manifest 清單與 Lua 腳本（三檔入庫前置，由房主 Discord Webhook 提供）
+        🚀 隊員「一鍵安裝」核心流程（嚴格依序執行，決不虛假跳過）：
+        1. 部署實體 Manifest 清單與 Lua 腳本（解壓至 Steam/depotcache 與 config/depotcache 金庫）
         2. 檢查本機 Steam 遊戲主程式是否已就緒：
-           - 若未就緒：喚起 Steam 開始下載遊戲主程式，並即時輪詢回報 Steam 下載百分比至 Supabase
+           - 若未安裝或等待下載：喚起 Steam 開始下載遊戲主程式，並即時輪詢回報 Steam 下載百分比至 Supabase
            - 若已就緒：直接推進至補丁部署階段
         3. 遊戲主程式就緒後，套用整合包內的線上補丁 (patch/files/*) 並寫入記錄檔
-        4. 最終檢查與狀態鎖定，完成就緒！
+        4. 最終進行嚴格全自檢確認，成功才標記為就緒！
         """
         from managers.party_packager import get_party_packager
         from managers import onlinefix_manager
         packager = get_party_packager()
 
         try:
-            # 步驟 1: 部署 Manifest 清單與 Lua 腳本
+            # 步驟 1: 部署實體 Manifest 清單與 Lua 腳本
             self.update_member_progress("部署清單與腳本中: 30%", 30, deploy_status="deploying")
             init_res = packager.extract_and_apply_package(target_zip_path, app_id)
             logger.info(f"[PARTY] 整合包 Manifest/Lua 部署結果: {init_res}")
+            if not init_res.get("ok"):
+                self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=init_res.get("msg", "Manifest/Lua 部署失敗"))
+                return
 
-            # 步驟 2: 檢查本地 Steam 遊戲主程式是否已就緒
-            game_dir = onlinefix_manager._find_steam_game_dir(app_id)
-            is_installed = bool(game_dir and Path(game_dir).exists())
+            # 步驟 2: 精準檢查本地 Steam 遊戲主程式是否已真正安裝完成
+            try:
+                from web_api import WebApi
+            except ImportError:
+                from src.web_api import WebApi
+            st_info = WebApi().check_game_installed_status(app_id)
+            is_installed = bool(st_info.get("is_installed", False))
 
             if not is_installed:
-                logger.info(f"[PARTY] 檢測到本地尚未安裝遊戲 {app_id} 主程式，喚起 Steam 開始下載...")
+                logger.info(f"[PARTY] 檢測到本地尚未真正安裝遊戲 {app_id} 主程式 (等待下載中)，喚起 Steam 下載...")
                 self.update_member_progress("正在喚起 Steam 下載遊戲...", 35, steam_installed=False, deploy_status="downloading")
 
                 # 喚起 Steam 下載安裝
@@ -1581,7 +1616,7 @@ class PartyManager:
                 while not download_done and poll_count < 7200:
                     if self.current_room_id != room_id:
                         return  # 隊員已離開房間
-                    time.sleep(2.0)
+                    time.sleep(2.5)
                     poll_count += 1
 
                     rep = onlinefix_manager.get_steam_app_download_report(app_id)
@@ -1589,11 +1624,13 @@ class PartyManager:
                     pct_from_steam = float(rep.get("progress_pct", 0) or 0)
                     speed_str = rep.get("speed_str") or ""
 
-                    if st == "COMPLETED":
+                    # 複查 ACF 狀態
+                    chk = WebApi().check_game_installed_status(app_id)
+                    if chk.get("is_installed") or st == "COMPLETED":
                         download_done = True
-                        logger.info(f"[PARTY] Steam 遊戲 {app_id} 主程式下載完畢！")
+                        logger.info(f"[PARTY] Steam 遊戲 {app_id} 主程式下載安裝完畢！")
                         break
-                    elif st in ("DOWNLOADING", "PAUSED"):
+                    elif st in ("DOWNLOADING", "PAUSED") or chk.get("is_downloading"):
                         mapped_pct = min(90, max(35, 35 + int(pct_from_steam * 0.55)))
                         status_str = f"Steam下載中: {pct_from_steam:.1f}%"
                         if speed_str:
@@ -1607,17 +1644,15 @@ class PartyManager:
                         self.update_member_progress("未下載", 0, steam_installed=False, deploy_status="failed", deploy_error="Steam 下載已取消")
                         return
                     else:
-                        check_dir = onlinefix_manager._find_steam_game_dir(app_id)
-                        if check_dir and Path(check_dir).exists():
-                            download_done = True
-                            break
+                        # 仍處於等待下載狀態
+                        self.update_member_progress("等待 Steam 下載完成...", 35, steam_installed=False, deploy_status="downloading")
 
             # 步驟 3: 套用整合包內的線上補丁 (此時遊戲主程式已就緒)
             self.update_member_progress("部署線上補丁中: 92%", 92, steam_installed=True, deploy_status="deploying")
             patch_res = packager.apply_patch_files(target_zip_path, app_id)
             logger.info(f"[PARTY] 線上補丁套用結果: {patch_res}")
 
-            # 步驟 4: 重新檢測本地狀態與回報最終結果
+            # 步驟 4: 重新嚴格檢測本地狀態與回報最終結果
             self._detect_initial_status(app_id)
 
             if patch_res.get("ok"):
@@ -1629,7 +1664,7 @@ class PartyManager:
                 else:
                     err_detail = patch_res.get("msg") or "線上補丁套用失敗"
                 logger.error(f"房間 #{room_id} 遊戲 {app_id} 補丁套用失敗: {err_detail}")
-                self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=str(err_detail))
+                self.update_member_progress("待部署補丁", 90, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=str(err_detail))
         except Exception as e:
             logger.error(f"[PARTY] 一鍵安裝流程發生例外: {e}", exc_info=True)
             self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=f"一鍵安裝異常: {e}")
