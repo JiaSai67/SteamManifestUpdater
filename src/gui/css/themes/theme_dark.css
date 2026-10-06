@@ -1,89 +1,170 @@
-/* ═════════════════════════════════════════════════════════════════════ */
-/* 🌙 SMU Dark Theme (純深色模式專屬配色、夜間磨砂玻璃與暗夜白字)       */
-/* ═════════════════════════════════════════════════════════════════════ */
-
+/* 🌟 深色模式最高優先底色宣告（防止 HTML 解析與視窗渲染時閃白） */
 html.dark, html.dark body, body.dark, .app.dark {
   --bg: #1E1719;
   --fg: #F8F9FA;
   --white: #251D20;
-  --gray: #C4B5B9;
-  --gray-light: #2C2326;
-  --pink-pale: #2F2125;
-  --border-card: rgba(255, 255, 255, 0.12);
-}
-
-.app.dark {
-  background: #181214 !important;
+  --dark: #FFFFFF;
+  --text: #F8F9FA;
+  --text-muted: #D1C5C9;
+  --gray: #C8BDC1;
+  --border: rgba(255, 183, 197, 0.25);
+  background: linear-gradient(135deg, #231C1E 0%, #2A2124 35%, #1E1719 70%, #251D20 100%) !important;
   color: #F8F9FA !important;
 }
-
-.app.dark .app-bg-overlay {
-  background: rgba(18, 14, 16, 0.55);
-}
-
-.app.dark .sidebar {
-  background: rgba(25, 20, 22, 0.92);
-  border-right-color: rgba(255, 255, 255, 0.08);
-}
-.app.dark .sidebar button {
-  color: #B0A2A6;
-}
-.app.dark .sidebar button:hover {
-  background: rgba(255, 183, 197, 0.15);
-  color: #FFB7C5;
-}
-.app.dark .sidebar button.active {
-  background: linear-gradient(135deg, var(--pink-deep), #D06080);
-  color: #FFFFFF;
-}
-
-.app.dark .titlebar {
-  background: rgba(25, 20, 22, 0.85);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  color: #F8F9FA;
-}
-.app.dark .titlebar button {
-  color: #B0A2A6;
-}
-.app.dark .titlebar button:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #FFFFFF;
-}
-
-.app.dark .card {
-  background: rgba(35, 28, 31, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #F8F9FA;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-.app.dark .card:hover {
-  background: rgba(45, 36, 40, 0.9);
-  border-color: rgba(255, 143, 167, 0.45);
-}
-
-/* 深色模式自訂桌布時的暗黑磨砂玻璃 */
-.app.dark.has-bg .card,
-.app.dark.has-bg .tool-card,
-.app.dark.has-bg .about-card,
-.app.dark.has-bg .stat-card,
-.app.dark.has-bg .party-room-panel,
-.app.dark.has-bg .party-chat-panel,
-.app.dark.has-bg .settings-section {
-  background: rgba(25, 20, 22, 0.75) !important;
-  backdrop-filter: blur(18px) !important;
-  -webkit-backdrop-filter: blur(18px) !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55) !important;
-}
-
-/* 深色模式彈窗規範 */
-.app.dark .modal>div,
-.app.dark .modal-box {
-  background: #20181A !important;
+html.dark .app {
+  background: linear-gradient(135deg, #231C1E 0%, #2A2124 35%, #1E1719 70%, #251D20 100%) !important;
   color: #F8F9FA !important;
-  border: 1px solid rgba(255, 143, 167, 0.25) !important;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75) !important;
 }
+html.dark .splash-overlay {
+  background: linear-gradient(135deg, #231C1E 0%, #2A2124 35%, #1E1719 70%, #251D20 100%) !important;
+}
+
+/* 深色模式全局標題與數量標籤高對比度規範 */
+.app.dark h1, .app.dark h2, .app.dark h3, .app.dark h4,
+html.dark h1, html.dark h2, html.dark h3, html.dark h4,
+body.dark h1, body.dark h2, body.dark h3, body.dark h4 {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+}
+.app.dark #mc, html.dark #mc, body.dark #mc {
+  color: #E2D7DA !important;
+  font-weight: 600 !important;
+}
+
+/* 深色模式全局下拉選單高對比亮白規範 */
+html.dark select, .app.dark select, body.dark select {
+  background: rgba(35, 30, 32, 0.95) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+}
+html.dark select option, .app.dark select option, body.dark select option {
+  background: #281F22 !important;
+  color: #FFFFFF !important;
+}
+/* 🌟 全域標準化 Modal 彈窗深色模式 (暗夜微光櫻花) */
+html.dark .modal>div, html.dark .modal-box,
+.app.dark .modal>div, .app.dark .modal-box {
+  background: rgba(35, 27, 31, 0.96) !important;
+  color: #F0E6E8 !important;
+  border: 1.5px solid rgba(255, 183, 197, 0.28) !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75), 0 0 1px rgba(255, 183, 197, 0.35) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+}
+
+html.dark .modal h3, html.dark .modal-box h3,
+.app.dark .modal h3, .app.dark .modal-box h3 {
+  color: #FFFFFF !important;
+  text-shadow: 0 0 12px rgba(255, 183, 197, 0.2);
+}
+
+html.dark .modal label, html.dark .modal-box label,
+.app.dark .modal label, .app.dark .modal-box label {
+  color: #E2D5D8 !important;
+}
+
+html.dark .modal p, html.dark .modal-box p,
+.app.dark .modal p, .app.dark .modal-box p {
+  color: #E2D7DA !important;
+}
+
+/* 彈窗內部輸入框、下拉選單深色模式 */
+html.dark .modal input, html.dark .modal select, html.dark .modal textarea,
+.app.dark .modal input, .app.dark .modal select, .app.dark .modal textarea {
+  background: rgba(22, 17, 19, 0.85) !important;
+  color: #F5EEF0 !important;
+  border: 1.5px solid rgba(255, 183, 197, 0.32) !important;
+  box-sizing: border-box;
+}
+
+html.dark .modal input:focus, html.dark .modal select:focus, html.dark .modal textarea:focus,
+.app.dark .modal input:focus, .app.dark .modal select:focus, .app.dark .modal textarea:focus {
+  border-color: #FF8FA7 !important;
+  box-shadow: 0 0 0 3px rgba(255, 143, 167, 0.25) !important;
+}
+
+html.dark .modal select option,
+.app.dark .modal select option {
+  background: #231C1F !important;
+  color: #F5EEF0 !important;
+}
+
+html.dark .modal .btn-o, html.dark .modal-box .btn-o,
+.app.dark .modal .btn-o, .app.dark .modal-box .btn-o {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1.5px solid rgba(255, 183, 197, 0.3) !important;
+  color: #FFB7C5 !important;
+}
+
+html.dark .modal .btn-o:hover, html.dark .modal-box .btn-o:hover,
+.app.dark .modal .btn-o:hover, .app.dark .modal-box .btn-o:hover {
+  background: rgba(255, 183, 197, 0.18) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(255, 183, 197, 0.6) !important;
+}
+
+.modal h3{font-size:14px;margin-bottom:6px}
+.modal p{font-size:11px;color:var(--gray);margin-bottom:12px}
+.modal .btns{display:flex;gap:8px;justify-content:center}
+
+.prog-box{min-width:320px}
+#prog-bar{width:100%;height:8px;border-radius:8px;overflow:hidden;border:none;margin:4px 0}
+#prog-bar::-webkit-progress-bar{background:#F0E0E4;border-radius:8px}
+#prog-bar::-webkit-progress-value{background:linear-gradient(90deg,var(--pink-deep),#F090A8);border-radius:8px;transition:width .3s ease}
+#prog-bar:indeterminate::-webkit-progress-bar{background:linear-gradient(90deg,var(--pink-deep),#F090A8,var(--pink-deep));background-size:200% 100%;animation:progInd 1.2s ease infinite}
+@keyframes progInd{from{background-position:200% 0}to{background-position:-200% 0}}
+#prog-step{font-size:11px;color:var(--gray);margin:0}
+.empty{text-align:center;padding:40px 0;color:var(--gray);font-size:13px}
+.empty .icon{font-size:36px;margin-bottom:6px}
+.gbe{background:#F0A0B8!important;color:var(--white)!important}.gbe:hover{background:#E0889E!important}
+/* DLC 卡片標籤 */
+.dlc-tag{display:inline-block;font-size:10px;background:linear-gradient(135deg,#B8A0D0,#C098D8);color:#fff;padding:1px 6px;border-radius:6px;margin-right:2px;vertical-align:middle;line-height:1.5}
+.dlc-card{border-left:3px solid #C098D8!important}
+.dlc-card img{opacity:.85}
+/* 类型識別中 */
+.unknown-tag{display:inline-block;font-size:10px;background:#E8D8E0;color:var(--gray);padding:1px 6px;border-radius:6px;margin-left:4px;vertical-align:middle;line-height:1.5;animation:pulse 1.5s ease infinite}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+/* 深色模式 — 現代高對比度純淨白字風格，完美兼容有無背景圖 */
+.app.dark{--bg:linear-gradient(135deg,#231C1E 0%,#282023 35%,#1E1719 70%,#231C1E 100%);background:var(--bg);background-size:cover;background-position:center;color:#F8F9FA}
+.app.dark.has-bg{}
+.app.dark.has-bg::after{content:'';position:fixed;inset:0;background:rgba(20,15,17,.2);pointer-events:none;z-index:0}
+.app.dark .sidebar{background:rgba(35,30,32,.55)!important;border-color:rgba(255,255,255,.08)}
+.app.dark .sidebar button{color:#E2D7DA}.app.dark .sidebar button:hover{background:rgba(255,183,197,.2);color:#FFFFFF}
+.app.dark .sidebar button.active{background:linear-gradient(135deg,var(--pink-deep),#D06080);color:#FFF}
+.app.dark .titlebar{background:rgba(35,30,32,.55);color:#E2D7DA}.app.dark .titlebar button{color:#E2D7DA}.app.dark .titlebar .tt{color:#FFF}
+.app.dark .titlebar button:hover{background:rgba(255,255,255,.12);color:#FFFFFF}
+.app.dark .card{background:rgba(35,30,32,.25);border-color:rgba(255,255,255,.08);color:#F8F9FA;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 12px rgba(0,0,0,.25)}
+.app.dark .card:hover{background:rgba(255,183,197,.15);border-color:rgba(255,183,197,.35)}
+.app.dark .tool-card{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.18);box-shadow:none;color:#FFFFFF}
+.app.dark .about-card{background:rgba(35,30,32,.65);border-color:rgba(255,255,255,.08);color:#F8F9FA}
+.app.dark .modal>div{background:#281F22;border:1px solid rgba(255,183,197,.25);color:#F8F9FA}
+.app.dark input{background:rgba(35,30,32,.6)!important;color:#FFFFFF!important;border-color:rgba(255,183,197,.35)!important}
+.app.dark input::placeholder{color:#A89B9E}
+.app.dark .search-row input{background:rgba(35,30,32,.6)!important;color:#FFFFFF!important}
+.app.dark .btn-o{background:rgba(35,30,32,.6);color:var(--pink-deep);border-color:rgba(255,183,197,.35)}
+.app.dark .btn-o:hover{background:rgba(255,183,197,.2);color:#FFFFFF}
+.app.dark .btn-manifest-diag{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.28);color:#FFFFFF!important}
+.app.dark .btn-manifest-diag:hover{background:rgba(255,255,255,.25)}
+.app.dark #manage-sort-mode,
+.app.dark #view-mode{background:rgba(35,30,32,.92)!important;color:#FFFFFF!important;border-color:rgba(255,255,255,.25)!important}
+.app.dark #manage-sort-mode:hover,
+.app.dark #view-mode:hover{background:rgba(48,39,43,.98)!important;border-color:rgba(255,183,197,.55)!important}
+.app.dark #manage-sort-mode option,
+.app.dark #view-mode option{background:#281F22!important;color:#FFFFFF!important}
+.app.dark #glist .card .card-dd, .app.dark #results .card-dd{background:rgba(38,30,34,.98)!important;border:1px solid rgba(255,255,255,.22)!important;box-shadow:0 10px 32px rgba(0,0,0,.75)!important}
+.app.dark #glist .card .card-dd button, .app.dark #results .card-dd button{color:#FFFFFF!important}
+.app.dark #glist .card .card-dd button:hover, .app.dark #results .card-dd button:hover{background:rgba(255,183,197,.22)!important;color:#FFB2C3!important}
+.app.dark .toggle{border-color:rgba(255,255,255,.08)}
+.app.dark .switch span{background:#4A4045}
+.app.dark .empty{color:#C2B8BC}
+.app.dark .card .aid{color:#E6DEE0}
+.app.dark .link{color:var(--pink-deep)}
+/* 深色+毛玻璃叠加 */
+.app.dark.has-bg .sidebar{background:transparent!important}
+.app.dark.has-bg .card{background:rgba(20,15,17,.15)}
+.app.dark.has-bg .tool-card{background:rgba(255,255,255,.12);box-shadow:none}
+.app.dark.has-bg .about-card{background:rgba(20,15,17,.55)}
+.app.dark.has-bg .modal>div{background:rgba(30,22,26,.85)}
 /* ═══════════════════════════════════════════════════════
    深色模式 (Dark Mode 黑底白字)
    ═══════════════════════════════════════════════════════ */
@@ -307,3 +388,5 @@ html.dark, html.dark body, body.dark, .app.dark {
   color: #FFFFFF !important;
   text-shadow: none !important;
 }
+
+

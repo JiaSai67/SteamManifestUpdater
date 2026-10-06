@@ -1,20 +1,19 @@
-/* ═════════════════════════════════════════════════════════════════════ */
-/* 🌟 SMU Theme Variables & Design Tokens (共用顏色 Token 與 CSS 變數基礎)  */
-/* ═════════════════════════════════════════════════════════════════════ */
-
 :root {
-  --bg: #FFFFFF;
-  --fg: #3D2C2E;
-  --pink: #FFB7C5;
-  --pink-deep: #FF8FA7;
-  --pink-light: #FFD1DC;
-  --pink-pale: #FFF0F3;
-  --white: #FFFFFF;
-  --gray: #8A7E82;
-  --gray-light: #F0EAEC;
-  --green: #4CAF50;
-  --red: #F44336;
-  --orange: #FF9800;
-  --r: 8px;
-  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif;
-}
+  --bg:#FFFFFF;
+  --fg:#3D2C2E;
+  --pink:#FFB7C5;
+  --pink-deep:#FF8FA7;
+  --pink-light:#FFD1DC;
+  --pink-pale:#FFF0F3;
+  --white:#FFF;
+  --dark:#3D2C2E;
+  --gray:#9B8E8F;
+  --err:#FF6B6B;
+  --succ:#6ECB63;
+  --card:rgba(255,255,255,0.15);
+  --border:rgba(240,224,227,0.6);
+  --font:'Microsoft YaHei',sans-serif;
+  --r:12px;
+  --rs:8px}
+
+

@@ -1,22 +1,14 @@
-/* ═════════════════════════════════════════════════════════════════════ */
-/* 🌟 Search View Styles (遊戲搜尋首頁與結果流排版)                       */
-/* ═════════════════════════════════════════════════════════════════════ */
+/* 首頁瀏覽全部（網格）— 尺寸放大，框線與管理頁網格對齐 */
+#results.browse-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:14px}
+#results.browse-grid .card{flex-direction:column;align-items:stretch;text-align:center;padding:0;overflow:visible!important;border-radius:14px;min-height:auto;position:relative;gap:0;height:auto}
+#results.browse-grid .card img{width:100%;height:105px;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.08);border-top-left-radius:13px;border-top-right-radius:13px;display:block}
+#results.browse-grid .card .name{font-size:12.5px;font-weight:700;padding:7px 10px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;background:var(--card-text-bg, rgba(255,255,255,.75));color:#2D2528;border-top-left-radius:13px;border-top-right-radius:13px;transition:background .15s, color .15s}
+#results.browse-grid .card .aid{font-size:11px;color:#75696D;padding:3px 32px 5px 10px;margin:0;font-variant-numeric:tabular-nums;background:var(--card-text-bg, rgba(255,255,255,.75));border-bottom-left-radius:13px;border-bottom-right-radius:13px;transition:background .15s, color .15s;display:flex;align-items:center;justify-content:center;min-height:24px;box-sizing:border-box;position:relative}
 
-.search-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-.search-row input {
-  flex: 1;
-}
-
-#results.browse-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 14px;
-}
+/* 🌟 搜尋小卡操作區與轉圈讀取狀態 */
+.search-action-wrap{display:flex;align-items:center;justify-content:flex-end;min-width:90px;margin-left:auto;flex-shrink:0}
+.search-loading-spinner{width:18px;height:18px;border:2.5px solid rgba(255,143,167,0.25);border-top-color:var(--pink-deep);border-radius:50%;animation:searchSpin 0.75s linear infinite;margin:auto}
+@keyframes searchSpin{to{transform:rotate(360deg)}}
 /* ═══════════════════════════════════════════════════════════════════════
    全新雙版面系統：【小模式 (精簡預設)】 vs 【正常模式 (高清適配版面)】
    ═══════════════════════════════════════════════════════════════════════ */
@@ -403,3 +395,6 @@ body.font-normal .toast {
   font-size: 14px !important;
   padding: 10px 26px !important;
 }
+
+
+

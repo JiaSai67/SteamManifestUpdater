@@ -1,54 +1,10 @@
-/* ═════════════════════════════════════════════════════════════════════ */
-/* 🌟 SMU Buttons System (通用按鈕、小模式 vs 正常清晰放大模式)          */
-/* ═════════════════════════════════════════════════════════════════════ */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: var(--r);
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all .18s;
-  user-select: none;
-  white-space: nowrap;
-}
-.btn:hover { transform: translateY(-1px); }
-.btn:active { transform: translateY(0); }
-.btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-
-.btn-p {
-  background: linear-gradient(135deg, var(--pink), var(--pink-deep));
-  color: #FFFFFF !important;
-  box-shadow: 0 2px 6px rgba(255, 143, 167, 0.35);
-}
-.btn-p:hover { box-shadow: 0 4px 12px rgba(255, 143, 167, 0.5); }
-
-.btn-s {
-  background: var(--gray-light);
-  color: var(--fg);
-}
-.btn-s:hover { background: #E5DCDF; }
-
-.btn-d {
-  background: #E53935;
-  color: #FFFFFF;
-}
-.btn-d:hover { background: #C62828; }
-
-.btn-outline {
-  background: transparent;
-  border: 1px solid var(--pink-deep);
-  color: var(--pink-deep);
-}
-.btn-outline:hover {
-  background: var(--pink-pale);
-}
+.btn{padding:8px 18px;border:none;border-radius:var(--r);font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;transition:.2s;white-space:nowrap}
+.btn-p{background:linear-gradient(135deg,var(--pink),var(--pink-deep));color:var(--white)}
+.btn-p:hover{transform:translateY(-1px)}.btn-p:disabled{opacity:.55;transform:none}
+.btn-o{background:var(--white);border:1.5px solid var(--pink);color:var(--pink-deep)}.btn-o:hover{background:var(--pink-pale)}
+.btn-d{background:var(--err);color:var(--white)}.btn-d:hover{background:#FF5252}
+.btn-manifest-diag{display:inline-flex;align-items:center;gap:4px;background:rgba(255,183,197,.2);border:1px solid rgba(255,183,197,.45);color:#111827;font-weight:600;cursor:pointer;transition:all .2s ease}
+.btn-manifest-diag:hover{background:rgba(255,183,197,.35)}
 /* ═══════════════════════════════════════════════════════════════════════
    全域版面排版與尺寸縮放系統（小模式 vs 正常清晰放大模式）
    ═══════════════════════════════════════════════════════════════════════ */
@@ -719,3 +675,5 @@ body.font-normal .toast {
   font-size: 14px !important;
   padding: 10px 26px !important;
 }
+
+

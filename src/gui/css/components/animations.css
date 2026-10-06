@@ -1,23 +1,88 @@
-/* ═════════════════════════════════════════════════════════════════════ */
-/* 🌟 SMU Animations & Transitions (全域過場、流光動效與動畫關鍵影格)    */
-/* ═════════════════════════════════════════════════════════════════════ */
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+/* ── 頂級絲滑硬體加速動畫系統（GPU 合成，零 Blur，零 CPU 重繪） ── */
+/* 卡片通用硬件加速與渲染隔離 */
+.card {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: layout style;
 }
 
-@keyframes fadeInMenu {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+/* 卡片逐個入場（管理/搜尋/DLC 通用：自然微位移彈入，前 16 張輕盈錯開，最大延遲 0.28s） */
+.card {
+  animation: cardIn .26s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(min(var(--i, 0), 16) * 0.016s);
 }
-
 @keyframes cardIn {
-  from { opacity: 0; transform: translateY(12px) translateZ(0); }
-  to { opacity: 1; transform: translateY(0) translateZ(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px) translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateZ(0);
+  }
 }
 
+/* 首頁遊戲入庫網格專屬：頂級優雅微縮放浮入（徹底移除高消耗的高斯模糊 filter: blur） */
+#results.browse-grid .card {
+  animation: browseSmoothIn .32s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(min(var(--i, 0), 18) * 0.018s);
+}
+@keyframes browseSmoothIn {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97) translateZ(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) translateZ(0);
+  }
+}
+
+/* 圖片平滑淡入加載（移除一切 filter: blur 濾鏡，僅走 GPU 透明度通道） */
+.card img {
+  opacity: 0;
+  transition: opacity .25s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity;
+  transform: translateZ(0);
+}
+.card img.i-ok {
+  opacity: 1;
+}
+
+/* 圖片載入佔位：GPU 呼吸脈衝（杜絕 linear-gradient 的 background-position 重繪，CPU 負載降為 0） */
+.card img:not(.i-ok) {
+  background: rgba(255, 255, 255, 0.08);
+  animation: gpuPulse 1.4s ease-in-out infinite alternate;
+}
 @keyframes gpuPulse {
   0% { opacity: 0.35; }
-  100% { opacity: 0.85; }
+  100% { opacity: 0.75; }
 }
+/* 按鈕按下反饋 */
+.btn:active,.sidebar button:active,.titlebar .btns button:active{transform:scale(.94)!important}
+.btn,.sidebar button{transition:transform .12s,background .2s,opacity .2s!important}
+/* 平滑滚動 */
+.pages{scroll-behavior:smooth}
+/* 骨架屏 */
+.skel{background:linear-gradient(90deg,rgba(255,255,255,.08) 25%,rgba(255,255,255,.18) 50%,rgba(255,255,255,.08) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px}
+.skel-row{display:flex;align-items:center;gap:10px;padding:15px 12px;margin-bottom:4px;background:var(--card);border:1px solid var(--border);border-radius:var(--rs)}
+.skel-img{width:120px;height:56px;border-radius:4px}
+.skel-txt{flex:1;height:13px}.skel-sub{width:60%;height:10px;margin-top:4px}
+/* 卡片删除平滑縮小淡出 */
+.card.rm{animation:cardOut .22s cubic-bezier(0.4,0,1,1) forwards!important;pointer-events:none}
+@keyframes cardOut{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(0.7)}}
+/* 管理頁列表視圖 */
+/* 網格視圖 */
+/* 列表視圖 */
+#glist.list .card{flex-direction:row;align-items:center;text-align:left;padding:10px 14px;border-radius:14px;min-height:78px;margin-bottom:4px;overflow:visible}
+#glist.list .card button{width:auto;margin:0 3px}
+#glist.list .card-btns{position:absolute;right:10px;top:50%;transform:translateY(-50%);padding:0}
+/* 毛玻璃 — 背景圖激活時 */
+.app.has-bg .sidebar{background:transparent!important;;border-color:transparent}
+.app.has-bg .card{background:rgba(255,255,255,.12)}
+.app.has-bg .modal>div{background:rgba(255,255,255,.7);}
+.app.has-bg .tool-card{background:rgba(255,255,255,.45)}
+.app.has-bg .about-card{background:rgba(255,255,255,.45)}
+.app.has-bg .titlebar{background:transparent;}
+.app.has-bg .pages{text-shadow:0 0 2px rgba(255,255,255,.6)}

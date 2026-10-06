@@ -1,12 +1,47 @@
-/* ═════════════════════════════════════════════════════════════════════ */
-/* 🌟 Manage View Styles (管理入庫、DLC清單、更新狀態與版本切換)         */
-/* ═════════════════════════════════════════════════════════════════════ */
+.card-update-status{font-size:11px;font-weight:700;color:#ffd700;text-shadow:0 1px 4px rgba(0,0,0,0.9);line-height:1.35;max-width:94%;word-break:break-word}
+/* 管理頁列表 */
+#glist.list{display:flex;flex-direction:column;gap:8px}
+#glist.list .card{flex-direction:row;align-items:center;text-align:left;padding:10px 16px;border-radius:14px;min-height:68px;margin-bottom:0;overflow:visible!important;position:relative;gap:14px}
+#glist.list .card img{width:116px;height:54px;border-radius:6px;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.1);order:-1}
+#glist.list .card .name{font-size:13.5px;font-weight:600;padding:0;background:transparent!important;color:inherit;flex:1;min-width:0;border-radius:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#glist.list .card .aid{padding:0;background:transparent!important;border-radius:0;min-height:auto;display:inline-flex;align-items:center;gap:10px;margin:0 40px 0 auto;color:var(--gray)}
+#glist.list .card .card-menu{position:absolute;top:50%;transform:translateY(-50%);right:12px;width:28px;height:28px;font-size:16px;line-height:28px}
+#glist.list .card .card-dd{top:calc(50% + 18px);right:12px;bottom:auto}
+#glist.list .dlc-card{margin-left:24px}
 
-#glist {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+#manage-sort-mode,
+#view-mode {
+  height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--pink-light);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font);
+  background: rgba(255,255,255,.85);
+  color: #111827;
+  cursor: pointer;
+  outline: none;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  transition: all .2s ease;
 }
+#manage-sort-mode:hover,
+#view-mode:hover {
+  background: #FFF;
+  border-color: var(--pink-deep);
+}
+#manage-sort-mode option,
+#view-mode option {
+  background: #FFF !important;
+  color: #111827 !important;
+}
+.card .info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px;text-align:left}
+.card .name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.card .info .aid{font-size:11px!important;color:var(--gray,#888)!important;margin:0!important;background:transparent!important;border-radius:0!important;min-height:auto!important;padding:0!important;display:inline-block!important;text-align:left!important;letter-spacing:0.2px!important;font-variant-numeric:tabular-nums!important}
+.card .ver-info{font-size:10px;color:var(--pink-deep);margin:0 6px 3px;cursor:default;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* ═══════════════════════════════════════════════════════════════════════
    全域字體大小與雙套版型系統（小模式 vs 正常清晰排版模式）
    ═══════════════════════════════════════════════════════════════════════ */
@@ -607,3 +642,5 @@ body.font-normal .free-badge {
   font-size: 12.5px !important;
   padding: 7px 16px !important;
 }
+
+

@@ -1,63 +1,280 @@
-/* ═════════════════════════════════════════════════════════════════════ */
-/* ☀️ SMU Light Theme (純淺色模式專屬配色、晶瑩透亮毛玻璃與白底呈現)      */
-/* ═════════════════════════════════════════════════════════════════════ */
-
-html:not(.dark) body, body:not(.dark), .app:not(.dark) {
-  --bg: #FFFFFF;
-  --fg: #3D2C2E;
-  --bg-card: rgba(255, 255, 255, 0.88);
-  --border-card: rgba(255, 183, 197, 0.45);
-}
-
-.app:not(.dark) {
-  background: linear-gradient(135deg, #FFE2E7 0%, #FFF5F7 50%, #FFEBF0 100%);
-}
-
-.app:not(.dark) .sidebar {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-right: 1px solid rgba(255, 183, 197, 0.5);
-}
-
-.app:not(.dark) .titlebar {
-  background: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 183, 197, 0.3);
-}
-
-/* 淺色模式下自訂背景桌布時的高透晶瑩毛玻璃 */
-.app:not(.dark).has-bg .card,
-.app:not(.dark).has-bg .tool-card,
-.app:not(.dark).has-bg .about-card,
-.app:not(.dark).has-bg .stat-card,
-.app:not(.dark).has-bg .party-room-panel,
-.app:not(.dark).has-bg .party-chat-panel,
-.app:not(.dark).has-bg .settings-section {
-  background: rgba(255, 255, 255, 0.72) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border-color: rgba(255, 255, 255, 0.85) !important;
-  box-shadow: 0 4px 16px rgba(180, 140, 150, 0.12) !important;
-}
-
-.app:not(.dark) .card {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(255, 183, 197, 0.45);
-  box-shadow: 0 2px 8px rgba(255, 143, 167, 0.12);
-  color: var(--fg);
-}
-.app:not(.dark) .card:hover {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: var(--pink-deep);
-  box-shadow: 0 6px 18px rgba(255, 143, 167, 0.25);
-}
-
-.app:not(.dark) .modal>div,
-.app:not(.dark) .modal-box {
+/* ═══════════════════════════════════════════════════════
+   全新標準化 Modal 彈窗深/淺色主題系統 (白底黑字 / 黑底白字)
+   ═══════════════════════════════════════════════════════ */
+/* 淺色模式 (預設白底黑字) */
+.modal-box {
   background: #FFFFFF !important;
-  color: #1A1A1A !important;
-  border: 1.5px solid rgba(255, 183, 197, 0.6) !important;
-  box-shadow: 0 16px 40px rgba(180, 100, 120, 0.22) !important;
+  color: #2D2528 !important;
+  border: 1.5px solid rgba(255,183,197,0.7) !important;
+  box-shadow: 0 16px 45px rgba(61,44,46,0.2) !important;
+  border-radius: 20px;
 }
+.modal-box h3, .modal-box h2, .modal-box .m-title {
+  color: #1A1A1A !important;
+  font-weight: 700 !important;
+}
+.modal-box p, .modal-box .m-desc {
+  color: #554448 !important;
+}
+.modal-box .btn-close {
+  color: #665558 !important;
+  background: rgba(0,0,0,0.05);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+.modal-box .btn-close:hover {
+  background: rgba(255,102,153,0.2);
+  color: #D81B60 !important;
+}
+
+/* 雙軌選擇卡片 - 淺色 */
+.login-choice-card {
+  transition: all .2s ease;
+  cursor: pointer;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.login-choice-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+.login-choice-card.card-normal {
+  background: #FFF5F7 !important;
+  border: 2px solid #FF8FA7 !important;
+}
+.login-choice-card.card-fast {
+  background: #FFFDF5 !important;
+  border: 2px solid #FFA726 !important;
+}
+.login-choice-card .lc-title {
+  color: #1A1A1A !important;
+  font-size: 14px;
+  font-weight: 700;
+}
+.login-choice-card .lc-desc {
+  color: #554448 !important;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* 風險提示條與獨立彈窗 - 淺色 */
+.risk-notice-strip {
+  background: #FFF5F7 !important;
+  border: 1px solid rgba(255,102,153,0.3) !important;
+  color: #C2185B !important;
+}
+.token-risk-box {
+  background: #FFFFFF !important;
+  border: 2px solid #FF3B30 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.25) !important;
+  color: #1F1A1C !important;
+}
+.token-risk-box .token-risk-title {
+  color: #FF3B30 !important;
+}
+.token-risk-box .token-risk-text {
+  color: #1F1A1C !important;
+}
+.token-risk-box .token-risk-sub {
+  color: #665559 !important;
+}
+.token-risk-box .token-risk-yellow {
+  color: #D97706 !important;
+  font-weight: 800 !important;
+  background: #FEF3C7 !important;
+  padding: 1px 6px !important;
+  border-radius: 4px !important;
+  border: 1px solid #FCD34D !important;
+}
+.token-risk-box .token-risk-img-container {
+  background: #FDF4F6 !important;
+  border: 1px solid #F3D5DC !important;
+}
+.token-risk-box .token-risk-warning-footer {
+  color: #D32F2F !important;
+}
+
+/* 啟動前置雙欄環境檢查字卡 (左：OpenSteamTools / 右：Discord) - 淺色 */
+.wizard-column-card {
+  border-radius: 16px;
+  background: #FFFFFF;
+  border: 2px solid rgba(0,0,0,0.08);
+  transition: all .25s ease;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+}
+.wizard-column-card.is-ok {
+  background: #F0FDF4 !important;
+  border-color: #86EFAC !important;
+}
+.wizard-column-card.is-err {
+  background: #FEF2F2 !important;
+  border-color: #FCA5A5 !important;
+}
+.wizard-state-badge {
+  display: inline-block;
+  font-size: 14.5px;
+  font-weight: 800;
+  padding: 6px 20px;
+  border-radius: 99px;
+  letter-spacing: 0.5px;
+  transition: all .2s ease;
+}
+.wizard-state-badge.is-ok {
+  background: #DCFCE7 !important;
+  color: #15803D !important;
+  border: 1.5px solid #86EFAC !important;
+}
+.wizard-state-badge.is-err {
+  background: #FEE2E2 !important;
+  color: #B91C1C !important;
+  border: 1.5px solid #FCA5A5 !important;
+}
+
+/* 啟動前置環境檢查精靈 (SteamTools & Discord) - 淺色 (相容保留) */
+.wizard-step-card {
+  border-radius: 14px;
+  padding: 16px;
+  background: #FDFBFC;
+  border: 1.5px solid rgba(0,0,0,0.08);
+  transition: all .2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.wizard-step-card.is-ok {
+  background: #F0FDF4 !important;
+  border-color: #86EFAC !important;
+}
+.wizard-step-card.is-missing {
+  background: #FEF2F2 !important;
+  border-color: #FCA5A5 !important;
+}
+.wizard-step-card .w-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.wizard-step-card .w-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #1A1A1A;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wizard-step-card .w-status {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 99px;
+}
+.wizard-step-card.is-ok .w-status {
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #86EFAC;
+}
+.wizard-step-card.is-missing .w-status {
+  background: #FEE2E2;
+  color: #B91C1C;
+  border: 1px solid #FCA5A5;
+}
+.wizard-step-card .w-desc {
+  font-size: 12px;
+  color: #665559;
+  line-height: 1.6;
+}
+.wizard-step-card .w-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* 授權平台選擇條 - 淺色 */
+.platform-select-bar {
+  background: #FFF0F5 !important;
+  border: 1px solid rgba(255,102,153,0.3) !important;
+  border-radius: 10px;
+  color: #1A1A1A !important;
+  text-shadow: none !important;
+}
+.platform-select-bar label, .platform-select-bar span {
+  text-shadow: none !important;
+  filter: none !important;
+}
+.ft-label-ryuu {
+  color: #D81B60 !important;
+  text-shadow: none !important;
+}
+.ft-label-luatools {
+  color: #7B1FA2 !important;
+  text-shadow: none !important;
+}
+
+/* 帳號清單與項目 - 淺色 */
+.fast-token-item {
+  background: #FFFFFF !important;
+  border: 1.5px solid rgba(255,183,197,0.5) !important;
+  border-radius: 12px;
+  transition: all .18s;
+  cursor: pointer;
+  text-shadow: none !important;
+}
+.fast-token-item * {
+  text-shadow: none !important;
+  filter: none !important;
+}
+.fast-token-item.is-checked {
+  background: #FFF0F5 !important;
+  border-color: #FF6699 !important;
+}
+.fast-token-item.is-excluded {
+  background: #F8F8F8 !important;
+  border-color: #E0E0E0 !important;
+  opacity: 0.7;
+}
+.fast-token-item .ft-name {
+  color: #1A1A1A !important;
+  font-weight: 700;
+  font-size: 12.5px;
+  text-shadow: none !important;
+}
+.fast-token-item .ft-tag {
+  background: rgba(0,0,0,0.06) !important;
+  color: #554448 !important;
+  font-size: 9.5px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  text-shadow: none !important;
+}
+.fast-token-item .ft-token {
+  color: #77666A !important;
+  font-size: 10px;
+  text-shadow: none !important;
+}
+.ft-status-included {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #2E7D32 !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+.ft-status-excluded {
+  font-size: 10.5px;
+  color: #75696D !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+

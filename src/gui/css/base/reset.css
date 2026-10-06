@@ -1,74 +1,99 @@
-/* ═════════════════════════════════════════════════════════════════════ */
-/* 🌟 SMU Base Reset & Typography (重設、基礎字型與全域滾動條)           */
-/* ═════════════════════════════════════════════════════════════════════ */
+html,body {
+  margin:0;
+  padding:0;
+  overflow:hidden;
+  background:linear-gradient(135deg,#FFE2E7 0%,#FFE9ED 30%,#FFD8DF 60%,#FFE2E7 100%)}
 
-*, *::before, *::after {
-  box-sizing: border-box;
-}
+body {
+  font-family:var(--font);
+  color:var(--dark);
+  user-select:none;
+  min-width:880px;
+  min-height:580px}
 
-html, body {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  font-family: var(--font);
-  color: var(--fg);
-  user-select: none;
-  -webkit-user-select: none;
-}
+.app {
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+  width:100vw;
+  min-width:880px;
+  min-height:580px;
+  background:linear-gradient(135deg,#FFE2E7 0%,#FFE9ED 30%,#FFD8DF 60%,#FFE2E7 100%);
+  background-size:cover;
+  background-position:center;
+  transform:translateZ(0);
+  backface-visibility:hidden}
 
-/* 現代極簡全透明軌道膠囊滑塊 */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent !important;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(138, 126, 130, 0.28);
-  border-radius: 9999px;
-  border: 1px solid transparent;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 143, 167, 0.65);
-}
-::-webkit-scrollbar-corner {
-  background: transparent;
-}
-/* ═══════════════════════════════════════════════════════
-   圖四/圖五需求：全域現代極簡純拉條
-   - 軌道底色與背景完全一致 (全透明，徹底去除刺眼白底)
-   - 移除上下箭頭按鈕
-   - 純膠囊滑塊造型 (圖五)
-   - 滑動時平滑漸顯，停止滑動 0.25 秒後漸消
-   ═══════════════════════════════════════════════════════ */
-::-webkit-scrollbar,
-*::-webkit-scrollbar {
-  width: 6px !important;
-  height: 6px !important;
-  background: transparent !important;
-}
-::-webkit-scrollbar-track,
-*::-webkit-scrollbar-track {
-  background: transparent !important;
-  border: none !important;
-}
-::-webkit-scrollbar-button,
-*::-webkit-scrollbar-button {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-}
-::-webkit-scrollbar-corner,
-*::-webkit-scrollbar-corner {
-  background: transparent !important;
-}
-::-webkit-scrollbar-thumb,
-*::-webkit-scrollbar-thumb {
-  background-color: transparent !important;
-  border-radius: 99px !important;
-  transition: background-color .25s cubic-bezier(.16,1,.3,1) !important;
-}
+.app.has-bg {
+  position:relative}
 
-/* 滑動中 (.is-scrolling) 或滑鼠懸停拉條時漸顯純膠囊拉條 */
-.is-scrolling::-webkit-scrollbar-thumb,
+.app.has-bg::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background:transparent;
+  pointer-events:none;
+  z-index:0;
+  display:none}
+
+.app::after {
+  content:'';
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:0;
+  opacity:0}
+
+.app.has-bg .titlebar,.app.has-bg .body-row {
+  position:relative;
+  z-index:1}
+
+.titlebar {
+  height:32px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 4px 0 8px;
+  flex-shrink:0;
+  z-index:10;
+  background:rgba(255,255,255,.45);
+  user-select:none;
+  cursor:default;
+  transform:translateZ(0)}
+
+.titlebar .tt {
+  font-size:11px;
+  font-weight:600;
+  color:var(--dark);
+  pointer-events:none}
+
+.titlebar .btns {
+  position:relative;
+  z-index:60;
+  display:flex;
+  pointer-events:auto}
+
+.titlebar .btns button {
+  width:34px;
+  height:24px;
+  border:none;
+  background:transparent;
+  border-radius:4px;
+  font-size:10px;
+  cursor:pointer;
+  color:var(--dark);
+  pointer-events:auto}
+
+.titlebar .btns button:hover {
+  background:rgba(0,0,0,.08)}
+
+.titlebar .btns .bc:hover {
+  background:var(--err);
+  color:var(--white)}
+
+.body-row {
+  display:flex;
+  flex:1;
+  overflow:hidden}
+
+
