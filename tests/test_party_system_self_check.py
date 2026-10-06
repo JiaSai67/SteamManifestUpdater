@@ -203,6 +203,36 @@ def run_self_check():
     print(f"  --> 測試結果: {'✅ 通過' if t6_pass else '❌ 失敗'}")
 
     # -------------------------------------------------------------
+    # 測試 7: Discord Webhook 錯誤報告格式與本機 Discord 帳號偵測
+    # -------------------------------------------------------------
+    print_header("測試 7: Discord 錯誤報告格式與本機 Discord 帳號探測")
+    from managers.error_reporter import get_error_reporter
+    reporter = get_error_reporter()
+    pc_info = reporter.get_pc_info()
+    discord_info = reporter.get_discord_info()
+
+    # 驗證本機 Discord 帳號探測與格式組裝
+    test_payload = reporter._build_discord_payload(
+        title="自檢測試異常",
+        error_msg="測試錯誤堆疊 Traceback",
+        context="SelfCheck Suite",
+        level="ERROR",
+        pc=pc_info,
+        discord=discord_info,
+    )
+
+    has_content_mention = bool(test_payload.get("content"))
+    has_identity_field = any("發生者 Discord 身分" in f.get("name", "") for f in test_payload["embeds"][0]["fields"])
+    has_pc_field = any("電腦設備" in f.get("name", "") for f in test_payload["embeds"][0]["fields"])
+
+    t7_pass = has_content_mention and has_identity_field and has_pc_field
+    primary_id_str = discord_info.get("primary_discord_display", "未知")
+    results.append(("Discord 錯誤報告身分綁定與格式校驗", t7_pass, f"識別身分: {primary_id_str} | 外層提及: {has_content_mention}"))
+    print(f"  [身分探測結果] 主要 Discord: {primary_id_str} (桌面端: {discord_info.get('desktop_username') or '無'})")
+    print(f"  [通知外層標籤] {test_payload.get('content')}")
+    print(f"  --> 測試結果: {'✅ 通過' if t7_pass else '❌ 失敗'}")
+
+    # -------------------------------------------------------------
     # 總結自檢結果
     # -------------------------------------------------------------
     print("\n" + "=" * 65)
@@ -215,7 +245,8 @@ def run_self_check():
             all_passed = False
         print(f"  {status_icon} | {name.ljust(35)} : {note}")
     print("=" * 65)
-    print(f"  🎯 最終自檢結論: {'🎉 全部 6 項核心機制驗證通過！系統處於生產就緒狀態！' if all_passed else '⚠️ 部分項目未通過'}\n")
+    print(f"  🎯 最終自檢結論: {'🎉 全部 7 項核心機制驗證通過！系統處於生產就緒狀態！' if all_passed else '⚠️ 部分項目未通過'}\n")
 
 if __name__ == "__main__":
     run_self_check()
+

