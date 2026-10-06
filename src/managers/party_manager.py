@@ -1038,7 +1038,10 @@ class PartyManager:
                 pass
 
             # 4. 綜合嚴格判定當前狀態
-            if not has_lua or not manifest_complete:
+            # 🌟 保護進行中任務：若當前正在執行一鍵安裝下載或部署，絕不覆蓋當前進度！
+            if self.my_deploy_status in ("downloading", "deploying") and (self.my_progress or 0) > 0 and not (is_installed and patch_deployed):
+                pass
+            elif not has_lua or not manifest_complete:
                 # 尚未導入 Lua 或 Manifest
                 self.my_status = "未導入三檔"
                 self.my_progress = 0
@@ -1048,7 +1051,7 @@ class PartyManager:
                 # 已導入清單，但 Steam 本體未安裝
                 if is_downloading:
                     self.my_status = "Steam下載中"
-                    self.my_progress = 50
+                    self.my_progress = max(35, self.my_progress or 35)
                     self.my_deploy_status = "downloading"
                 else:
                     self.my_status = "等待下載"
@@ -1097,18 +1100,24 @@ class PartyManager:
         if version_status is not None:
             self.my_version_status = version_status
 
-        if status in ["ready", "就緒"]:
+        p_val = int(progress) if progress is not None else 0
+
+        if status in ["ready", "就緒"] or p_val >= 100:
             self.my_status = "就緒"
             self.my_progress = 100
             if deploy_status is None:
                 self.my_deploy_status = "success"
-        elif any(k in status for k in ["下載中", "downloading", "部署中", "合併中"]):
+        elif deploy_status == "failed" or status in ["failed", "失敗"]:
+            self.my_status = "部署失敗"
+            self.my_progress = 0
+            self.my_deploy_status = "failed"
+        elif p_val > 0 or self.my_deploy_status in ("downloading", "deploying") or any(k in status for k in ["下載", "download", "部署", "合併", "準備", "等待", "安裝"]):
             self.my_status = status
-            self.my_progress = max(0, min(99, int(progress)))
+            self.my_progress = max(1, min(99, p_val if p_val > 0 else (self.my_progress or 5)))
             if deploy_status is None:
-                self.my_deploy_status = "deploying" if ("部署" in status or progress >= 90) else "downloading"
+                self.my_deploy_status = "deploying" if ("部署" in status or self.my_progress >= 90) else "downloading"
         else:
-            self.my_status = "未下載"
+            self.my_status = status or "未下載"
             self.my_progress = 0
             if deploy_status is None and self.my_deploy_status != "failed":
                 self.my_deploy_status = "pending"
@@ -1433,8 +1442,11 @@ class PartyManager:
             return {"ok": True, "msg": "檢測到本地遊戲已安裝並就緒！"}
 
         # 檢查是否已在下載中
-        if self.my_status == "下載中":
+        if self.my_status == "下載中" or self.my_deploy_status in ("downloading", "deploying"):
             return {"ok": False, "msg": "下載同步正在進行中..."}
+
+        # 立即在主線程將狀態標記為 downloading 並更新進度為 5%，防止任何時間差！
+        self.update_member_progress("正在啟動一鍵安裝: 5%", 5, deploy_status="downloading")
 
         # 啟動異步下載模擬/執行線程
         t = threading.Thread(target=self._run_sync_download_task, args=(room_id, app_id), daemon=True)
@@ -1607,7 +1619,7 @@ class PartyManager:
         try:
             # 步驟 1: 部署實體 Manifest 清單與 Lua 腳本
             logger.info(f"[PARTY] 步驟 1/4: 開始部署 AppID {app_id} 之 Manifest 清單與 Lua 腳本...")
-            self.update_member_progress("部署清單與腳本中: 30%", 30, deploy_status="deploying")
+            self.update_member_progress("部署清單與Lua腳本中: 28%", 28, deploy_status="deploying")
             init_res = packager.extract_and_apply_package(target_zip_path, app_id)
             logger.info(f"[PARTY] 整合包 Manifest/Lua 部署結果: {init_res}")
             if not init_res.get("ok"):
@@ -1615,6 +1627,7 @@ class PartyManager:
                 report_party_error("Manifest/Lua 部署失敗", err_msg, context=f"房間 #{room_id} AppID {app_id}")
                 self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=err_msg)
                 return
+            self.update_member_progress("清單與Lua已就緒: 30%", 30, deploy_status="deploying")
 
             # 步驟 2: 精準檢查本地 Steam 遊戲主程式是否已真正安裝完成
             try:
@@ -1626,7 +1639,7 @@ class PartyManager:
 
             if not is_installed:
                 logger.info(f"[PARTY] 步驟 2/4: 檢測到本地尚未安裝遊戲 {app_id} 主程式 (等待下載)，準備喚起 Steam 下載...")
-                self.update_member_progress("正在準備 Steam 下載授權...", 35, steam_installed=False, deploy_status="downloading")
+                self.update_member_progress("準備喚起 Steam 下載: 32%", 32, steam_installed=False, deploy_status="downloading")
 
                 # 🌟 關鍵修復 1：喚起 Steam 前必須解除唯讀鎖定，確保 Steam 有權限讀寫 depotcache 與 ACF
                 from managers import steam_manager
@@ -1670,6 +1683,7 @@ class PartyManager:
                 poll_count = 0
                 cancelled_strike_count = 0
                 install_launch_time = time.time()
+                self.update_member_progress("等待 Steam 下載啟動: 35%", 35, steam_installed=False, deploy_status="downloading")
 
                 while not download_done and poll_count < 7200:
                     if self.current_room_id != room_id:
@@ -1688,6 +1702,7 @@ class PartyManager:
                     if chk.get("is_installed") or st == "COMPLETED":
                         download_done = True
                         logger.info(f"[PARTY] Steam 遊戲 {app_id} 主程式下載安裝完畢！")
+                        self.update_member_progress("Steam 主程式安裝完成: 90%", 90, steam_installed=True, deploy_status="deploying")
                         break
                     elif st in ("DOWNLOADING", "PAUSED") or chk.get("is_downloading") or pct_from_steam > 0:
                         cancelled_strike_count = 0
@@ -1725,7 +1740,7 @@ class PartyManager:
 
             # 步驟 3: 套用整合包內的線上補丁 (此時遊戲主程式已就緒)
             logger.info(f"[PARTY] 步驟 3/4: 遊戲主程式已就緒，開始部署線上補丁...")
-            self.update_member_progress("部署線上補丁中: 92%", 92, steam_installed=True, deploy_status="deploying")
+            self.update_member_progress("部署線上補丁中: 95%", 95, steam_installed=True, deploy_status="deploying")
             patch_res = packager.apply_patch_files(target_zip_path, app_id)
             logger.info(f"[PARTY] 線上補丁套用結果: {patch_res}")
 
@@ -1733,7 +1748,7 @@ class PartyManager:
             self._detect_initial_status(app_id)
 
             if patch_res.get("ok"):
-                self.update_member_progress("就緒", 100, steam_installed=self.my_steam_installed, deploy_status="success", deploy_error="")
+                self.update_member_progress("就緒", 100, steam_installed=True, deploy_status="success", deploy_error="")
                 logger.info(f"房間 #{room_id} 遊戲 {app_id} 一鍵安裝與補丁套用全流程成功！")
                 # 🌟 核心清理：隊員一鍵安裝已完全就緒，立即刪除本地下載的暫存包，避免硬碟無限膨脹！
                 try:

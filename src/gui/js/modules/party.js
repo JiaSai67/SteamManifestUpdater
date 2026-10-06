@@ -1213,15 +1213,25 @@ function renderRoomView(room) {
     isMyReady = (myStatus === '就緒' || (myMemberObj.progress >= 100) || myMemberObj.deploy_status === 'success');
     var isPendingPatch = (myStatus === '待部署補丁' || (myMemberObj.steam_installed && !isMyReady && myMemberObj.deploy_status !== 'downloading' && myMemberObj.deploy_status !== 'deploying'));
 
-    // 🌟 嚴格判定動態進行中狀態，排除「未下載」與「待部署補丁」，徹底防止按鈕被永久鎖死在 spinner
-    isMyDownloading = !isMyReady && myStatus !== '未下載' && !isPendingPatch && (
+    if (isMyReady || myMemberObj.deploy_status === 'failed') {
+      window._partyLocalInstalling = false;
+    }
+
+    // 🌟 嚴格判定動態進行中狀態：
+    // 若前端處於安裝鎖定，或後端回報 downloading/deploying，或進度大於0，皆保持進行中狀態
+    isMyDownloading = !isMyReady && !isPendingPatch && (
+      window._partyLocalInstalling === true ||
       myMemberObj.deploy_status === 'downloading' ||
       myMemberObj.deploy_status === 'deploying' ||
+      (myMemberObj.progress && myMemberObj.progress > 0) ||
       myStatus === '下載中' ||
-      myStatus.indexOf('下載中') !== -1 ||
+      myStatus.indexOf('下載') !== -1 ||
       myStatus.indexOf('正在') !== -1 ||
-      myStatus.indexOf('合併中') !== -1 ||
-      myStatus.indexOf('Steam下載') !== -1
+      myStatus.indexOf('合併') !== -1 ||
+      myStatus.indexOf('Steam') !== -1 ||
+      myStatus.indexOf('部署') !== -1 ||
+      myStatus.indexOf('準備') !== -1 ||
+      myStatus.indexOf('等待') !== -1
     );
 
     if (myStatusBadge) {
@@ -1246,9 +1256,11 @@ function renderRoomView(room) {
         myProgBarInner.style.width = '90%';
         myProgBarInner.className = 'party-my-progress-bar-inner active';
       } else if (isMyDownloading) {
-        var pctVal = Math.max(0, Math.min(99, myMemberObj.progress || 0));
+        var pctVal = Math.max(5, Math.min(99, myMemberObj.progress || 5));
         var stageDesc = myStatus;
-        if (stageDesc === '下載中') stageDesc = '正在下載與部署資源…';
+        if (!stageDesc || stageDesc === '下載中' || stageDesc === '未下載' || stageDesc === '等待下載') {
+          stageDesc = '正在下載與部署資源…';
+        }
         myProgStage.innerHTML = '<span class="spinner" style="width:11px;height:11px;margin-right:4px"></span> <span>' + escapeHtml(stageDesc) + '</span>';
         myProgPct.textContent = pctVal + '%';
         myProgBarInner.style.width = pctVal + '%';
@@ -1655,6 +1667,10 @@ function startSyncCurrentGameInstall() {
 
   var isPendingPatch = (syncBtn && syncBtn.textContent.indexOf('套用') !== -1);
 
+  // 🌟 啟動前端本地安裝保護鎖：防止定時輪詢在最初 1~2 秒內因後端異步時間差覆蓋進度為 0%
+  window._partyLocalInstalling = true;
+  window._partyLocalInstallAppId = appid;
+
   if (syncBtn) {
     syncBtn.disabled = true;
     syncBtn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px"></span> ' + (isPendingPatch ? '正在套用補丁中…' : '正在一鍵安裝中…');
@@ -1673,6 +1689,7 @@ function startSyncCurrentGameInstall() {
     if (res && res.ok) {
       tt(res.msg || (isPendingPatch ? '線上補丁部署已在背景啟動' : '一鍵安裝程序已在背景啟動'), 'ok');
     } else {
+      window._partyLocalInstalling = false;
       tt(res && res.msg ? res.msg : '部署失敗', 'err');
       if (syncBtn) {
         syncBtn.disabled = false;
@@ -1686,6 +1703,7 @@ function startSyncCurrentGameInstall() {
       }
     }
   }).catch(function(err) {
+    window._partyLocalInstalling = false;
     tt('啟動部署出錯: ' + err, 'err');
     if (syncBtn) {
       syncBtn.disabled = false;
