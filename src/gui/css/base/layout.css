@@ -47,9 +47,36 @@ h2{font-size:20px;font-weight:700;margin-bottom:12px}
 .dg-mono{font-family:Consolas,monospace;word-break:break-all}
 
 /* 獨立高階背景圖層 (支援 GIF 動圖、磨砂毛玻璃與透明度) */
-/* 視窗透明度由後端 Win32 SetLayeredWindowAttributes 實體控制穿透桌面 */
 .app{opacity:1}
-.app-bg-layer{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-.app-bg-img{position:absolute;inset:-30px;background-size:cover;background-position:center;background-repeat:no-repeat;filter:blur(var(--bg-blur,0px));opacity:var(--bg-opacity,0.8);transition:filter .15s,opacity .15s}
-.app-bg-overlay{position:absolute;inset:0;background:transparent;pointer-events:none}
-.app.dark .app-bg-overlay{background:rgba(25,20,23,.35)}
+.app-bg-layer{
+  position:absolute;
+  inset:0;
+  z-index:0 !important;
+  pointer-events:none;
+  overflow:hidden;
+  display:none; /* 🌟 核心防呆：無自訂背景圖時完全隱藏，杜絕任何遮罩覆蓋文字 */
+}
+.app.has-bg .app-bg-layer{
+  display:block !important; /* 只有在明確設置自訂背景圖片時才開啟 */
+}
+.app-bg-img{
+  position:absolute;
+  inset:-30px;
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+  filter:blur(var(--bg-blur,0px));
+  opacity:var(--bg-opacity,0.8);
+  transition:filter .15s,opacity .15s;
+  z-index:1;
+}
+.app-bg-overlay{
+  position:absolute;
+  inset:0;
+  background:transparent;
+  pointer-events:none;
+  z-index:2;
+}
+.app.dark.has-bg .app-bg-overlay{
+  background:rgba(25,20,23,.35);
+}

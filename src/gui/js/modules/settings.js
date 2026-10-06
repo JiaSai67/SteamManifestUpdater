@@ -288,15 +288,18 @@ async function swBg(id){
   try {
     var app = document.getElementById('app');
     var bgImg = document.getElementById('app-bg-img');
+    var bgLayer = document.getElementById('app-bg-layer');
     if(id){
       var d = await pywebview.api.get_bg_data(id);
       if(d && app){
         app.classList.add('has-bg');
+        if(bgLayer) bgLayer.style.display = 'block';
         if(bgImg) bgImg.style.backgroundImage = 'url(' + d + ')';
         else app.style.backgroundImage = 'url(' + d + ')';
       }
     } else if(app) {
       app.classList.remove('has-bg');
+      if(bgLayer) bgLayer.style.display = 'none';
       if(bgImg) bgImg.style.backgroundImage = '';
       else app.style.backgroundImage = '';
     }

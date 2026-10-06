@@ -336,7 +336,8 @@ async function init(){
 
     loadBgThumbs();
     try { pywebview.api.install_default_bgs().then(loadBgThumbs).catch(function(){}); } catch(e){}
-    if(config.bg_active) swBg(config.bg_active);
+    if(config && config.bg_active) swBg(config.bg_active);
+    else swBg('');
     initVisualSettings(config);
     var savedView = (config && config.view_mode) || 'grid';
     if(!savedView || savedView === 'undefined'){
