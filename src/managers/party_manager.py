@@ -103,6 +103,13 @@ class PartyManager:
         # 啟動 Egress 脫敏監控 5 分鐘自動刷新排程
         self._start_metrics_scheduler()
 
+        # 啟動時自動資源回收：清理歷史整合包與暫存分卷，防止硬碟無限膨脹
+        try:
+            from managers.party_packager import get_party_packager
+            get_party_packager().cleanup_all_packages(max_age_seconds=0)
+        except Exception:
+            pass
+
     def _start_metrics_scheduler(self):
         def _loop():
             # 首次啟動延遲 3 秒執行一次，隨後每 300 秒 (5 分鐘) 定時校準
@@ -643,8 +650,10 @@ class PartyManager:
             file_id = upload_res.get("file_id")
             provider = upload_res.get("provider", "SMU Cloud")
             msg = upload_res.get("msg", "✅ 整合包已成功同步至雲端！")
-
             logger.info(f"[PARTY] 本地檢測與雲端上傳全部過關！下載鏈結: {download_url} (ID: {file_id}, Provider: {provider})")
+
+            # 🌟 資源回收：房主整合包已成功推播至 Discord CDN，本地暫存檔功成身退立即清空，杜絕專案無限膨脹！
+            packager.cleanup_package_file(zip_path)
 
             return {
                 "ok": True,
@@ -1238,6 +1247,13 @@ class PartyManager:
             self.current_gas_file_id = None
             self.current_gas_url = None
 
+        # 🌟 資源回收：退出或解散房間時，清理歷史整合包與暫存分卷，杜絕硬碟膨脹
+        try:
+            from managers.party_packager import get_party_packager
+            get_party_packager().cleanup_all_packages(max_age_seconds=120)
+        except Exception:
+            pass
+
     def send_room_contact_info(self, room_id: str, contact_info: str) -> Dict[str, Any]:
         """
         房主提交房間聯絡資訊 (如 Discord 頻道、房號等)：
@@ -1658,6 +1674,11 @@ class PartyManager:
             if patch_res.get("ok"):
                 self.update_member_progress("就緒", 100, steam_installed=self.my_steam_installed, deploy_status="success", deploy_error="")
                 logger.info(f"房間 #{room_id} 遊戲 {app_id} 一鍵安裝與補丁套用全流程成功！")
+                # 🌟 核心清理：隊員一鍵安裝已完全就緒，立即刪除本地下載的暫存包，避免硬碟無限膨脹！
+                try:
+                    packager.cleanup_package_file(target_zip_path)
+                except Exception as ce:
+                    logger.debug(f"[PARTY] 清理下載暫存包失敗: {ce}")
             else:
                 if patch_res.get("is_antivirus_blocked"):
                     err_detail = patch_res.get("msg") or "🛡️ 防毒軟體攔截 (Windows Defender 阻止寫入，請新增排除項)"

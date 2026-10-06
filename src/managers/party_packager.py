@@ -584,6 +584,50 @@ class PartyPackager:
                 "msg": f"補丁套用失敗: {e}"
             }
 
+    def cleanup_package_file(self, package_path: str) -> bool:
+        """安全清理單一暫存整合包檔案"""
+        try:
+            p = Path(package_path)
+            if p.exists() and p.is_file():
+                p.unlink()
+                logger.info(f"[Packager] 資源回收：已成功刪除暫存整合包 {p.name}")
+                return True
+        except Exception as e:
+            logger.warning(f"[Packager] 刪除暫存包失敗 ({package_path}): {e}")
+        return False
+
+    def cleanup_all_packages(self, max_age_seconds: int = 0) -> int:
+        """
+        全域資源回收：清理 data/party_packages 目錄下的歷史整合包與暫存分卷，防止磁碟膨脹。
+        :param max_age_seconds: 檔案過期門檻秒數 (0 代表不論時間全數清空)
+        :return: 清理的檔案數量
+        """
+        cleaned_count = 0
+        if not self.temp_pack_dir.exists():
+            return 0
+
+        now = time.time()
+        try:
+            for item in self.temp_pack_dir.iterdir():
+                if item.is_file() and (item.suffix.lower() == ".zip" or ".part" in item.name.lower()):
+                    try:
+                        mtime = item.stat().st_mtime
+                        if max_age_seconds <= 0 or (now - mtime) >= max_age_seconds:
+                            item.unlink()
+                            cleaned_count += 1
+                            logger.info(f"[Packager] 自動資源回收：已刪除歷史暫存檔案 {item.name}")
+                    except Exception as ie:
+                        logger.warning(f"[Packager] 清理歷史檔案異常 ({item.name}): {ie}")
+                elif item.is_dir() and item.name == "split_temp":
+                    try:
+                        shutil.rmtree(item, ignore_errors=True)
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.warning(f"[Packager] 全域清理 party_packages 異常: {e}")
+
+        return cleaned_count
+
 def get_party_packager() -> PartyPackager:
     return PartyPackager()
 
