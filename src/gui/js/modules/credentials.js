@@ -589,6 +589,22 @@ function renderQuotaMatrix(res) {
     }
   }
   
+  // 🌟 核心過濾防禦：徹底過濾無任何平台有效憑證之幽靈/已刪除帳號（使用者要求：刪除後整列完全消失不要出現）
+  var validAccountOrder = [];
+  for (var oi = 0; oi < accountOrder.length; oi++) {
+    var kId = accountOrder[oi];
+    var accItem = accountsMap[kId];
+    var hasRyuuVal = accItem.ryuu && _isAccValid('ryuu', accItem.ryuu);
+    var hasLuaVal = accItem.lua && _isAccValid('lua_tools', accItem.lua);
+    var hasHcVal = accItem.hubcap && (accItem.hubcap.is_valid || accItem.hubcap.is_configured);
+    
+    // 只有在至少一個平台具備有效憑證或配置時，才在配額矩陣中列出該帳號
+    if (hasRyuuVal || hasLuaVal || hasHcVal) {
+      validAccountOrder.push(kId);
+    }
+  }
+  accountOrder = validAccountOrder;
+
   if (accountOrder.length === 0) {
     wrap.innerHTML = '<div style="text-align:center;padding:36px 0;color:var(--gray);font-size:13px">' +
       '<div style="font-size:24px;margin-bottom:8px">📭</div>' +
@@ -720,6 +736,15 @@ function renderQuotaMatrix(res) {
     var accTargetName = acc.name || acc.discord_id || '該帳號';
     
     var deleteAccId = (acc.ryuu && acc.ryuu.id) || (acc.lua && acc.lua.id) || acc.raw_id || accTargetId;
+    var extraJson = JSON.stringify({
+      id: deleteAccId,
+      raw_id: acc.raw_id || '',
+      discord_id: acc.discord_id || '',
+      email: acc.email || '',
+      name: acc.name || '',
+      key: acc.key || ''
+    }).replace(/"/g, '&quot;');
+
     var userCell = '<div class="user-cell-wrap" style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px">' +
       '<div style="display:flex;align-items:center;gap:9px;min-width:0;flex:1">' +
         '<img class="user-cell-avatar" src="' + avatarSrc + '" onerror="this.src=\'' + defaultAvatar + '\'" alt="avatar" />' +
@@ -728,7 +753,7 @@ function renderQuotaMatrix(res) {
           '<div class="user-cell-email">' + emailDisplay + '</div>' +
         '</div>' +
       '</div>' +
-      '<button class="btn-del-matrix-acc" onclick="event.stopPropagation();deleteAccount(\'all\',\'' + escHtml(deleteAccId) + '\',\'' + escHtml(accTargetName).replace(/'/g, "\\'") + '\')" title="刪除此帳號綁定與憑證" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:6px;padding:3px 7px;cursor:pointer;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;flex-shrink:0;transition:all 0.2s ease;">' +
+      '<button class="btn-del-matrix-acc" onclick="event.stopPropagation();deleteAccount(\'all\',\'' + escHtml(deleteAccId) + '\',\'' + escHtml(accTargetName).replace(/'/g, "\\'") + '\', ' + extraJson + ')" title="徹底刪除此帳號" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:6px;padding:3px 7px;cursor:pointer;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;flex-shrink:0;transition:all 0.2s ease;">' +
         '<span>🗑️</span><span>刪除</span>' +
       '</button>' +
     '</div>';
@@ -1148,12 +1173,27 @@ async function switchActiveAccount(platform, accountId){
   }
 }
 
-async function deleteAccount(platform, accountId, accountName){
-  if(!confirm('確定要刪除帳號憑證 [' + accountName + '] 嗎？\n系統將直接同步刪除雙平台（Ryuu 與 Lua.tools）的關聯憑證。')) return;
+async function deleteAccount(platform, accountId, accountName, extraInfo){
+  if(!confirm('確定要完全刪除帳號 [' + accountName + '] 嗎？\n系統將直接從所有平台徹底移除該帳號，該列將不再顯示。')) return;
   try {
-    var res = await pywebview.api.delete_credential_account(platform || 'all', accountId);
+    var res = await pywebview.api.delete_credential_account('all', accountId, extraInfo || {});
     if(res && res.ok){
-      tt('已成功同步刪除雙平台帳號憑證', 'ok');
+      tt('已成功徹底刪除該帳號！', 'ok');
+      
+      // 🌟 立即從本地快取中剔除該帳號所有特徵，防止殘留
+      var filterFn = function(a){
+        if (!a) return false;
+        if (a.id === accountId) return false;
+        if (extraInfo) {
+          if (extraInfo.id && a.id === extraInfo.id) return false;
+          if (extraInfo.discord_id && a.discord_id === extraInfo.discord_id) return false;
+          if (extraInfo.email && a.email && a.email.toLowerCase() === extraInfo.email.toLowerCase()) return false;
+        }
+        return true;
+      };
+      if (_credAccountsCache.ryuu) _credAccountsCache.ryuu = _credAccountsCache.ryuu.filter(filterFn);
+      if (_credAccountsCache.lua_tools) _credAccountsCache.lua_tools = _credAccountsCache.lua_tools.filter(filterFn);
+      
       loadCredentialsStatus(false);
     } else {
       tt((res && res.msg) || '刪除失敗', 'err');

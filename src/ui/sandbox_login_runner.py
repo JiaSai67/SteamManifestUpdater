@@ -290,10 +290,78 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
         }
         renderTopNavbar();
 
-        // 7. 伺服器未加入錯誤即時偵測與自動跳轉
+        // 7. Lua.tools 無縫過渡：隱藏前端首頁並直接跳轉至 Discord 授權頁面
+        if (window.location.hostname.indexOf('lua.tools') !== -1) {
+            // 立即注入全螢幕暗色遮罩，完全遮蔽 Lua.tools 首頁
+            if (!document.getElementById('_sm_lt_seamless_mask')) {
+                var mask = document.createElement('div');
+                mask.id = '_sm_lt_seamless_mask';
+                mask.style.cssText = 'position:fixed!important;top:42px!important;left:0!important;right:0!important;bottom:0!important;background:#090d16!important;z-index:2147483640!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;color:#ffffff!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;user-select:none!important;';
+                mask.innerHTML = '<div style="width:36px;height:36px;border:3px solid rgba(99,102,241,0.25);border-top-color:#6366f1;border-radius:50%;animation:_sm_spin 0.8s linear infinite;margin-bottom:16px;"></div>' +
+                                 '<div style="font-size:16px;font-weight:600;color:#818cf8;margin-bottom:6px;">🛠️ 正在為您連接 Lua.tools 專屬授權通道...</div>' +
+                                 '<div style="font-size:13px;color:#94a3b8;">即刻為您載入 Discord 授權頁面，請稍候</div>' +
+                                 '<style>@keyframes _sm_spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>';
+                document.body.appendChild(mask);
+            }
+
+            // 高頻輪詢並秒速點擊 Login with Discord 按鈕
+            if (!window._lt_auto_clicked) {
+                var clickLt = function() {
+                    var btns = document.querySelectorAll('button, a');
+                    for (var i = 0; i < btns.length; i++) {
+                        var t = (btns[i].textContent || '').toLowerCase().trim();
+                        if (t.indexOf('login with discord') !== -1 || (t.indexOf('login') !== -1 && t.indexOf('discord') !== -1)) {
+                            window._lt_auto_clicked = true;
+                            try { btns[i].click(); } catch(e){}
+                            return true;
+                        }
+                    }
+                    var sel = document.querySelector('button.login-btn, a[href*="login"], a[href*="discord"], button[class*="discord"]');
+                    if (sel) {
+                        window._lt_auto_clicked = true;
+                        try { sel.click(); } catch(e){}
+                        return true;
+                    }
+                    return false;
+                };
+                clickLt();
+                var ltTimer = setInterval(function() {
+                    if (clickLt() || window._lt_auto_clicked) clearInterval(ltTimer);
+                }, 50);
+            }
+        }
+
+        // 8. Discord 伺服器加入成功即時監聽：點擊接受邀請進入頻道後，自動導回對應平台完成授權
+        if (window.location.hostname.indexOf('discord.com') !== -1) {
+            var isChannelPage = window.location.pathname.indexOf('/channels/') !== -1;
+            if (isChannelPage) {
+                var curStep = window._sm_current_step || 1;
+                if (curStep === 1 && !window._redirecting_step1_success) {
+                    window._redirecting_step1_success = true;
+                    var msgEl = document.getElementById('_sm_nav_msg');
+                    if (msgEl) {
+                        msgEl.innerHTML = '<span style="color:#10b981;font-weight:bold;">🎉 成功加入 Ryuu 伺服器！正在自動返回完成登入...</span>';
+                    }
+                    setTimeout(function() {
+                        window.location.href = "https://generator.ryuu.lol/login";
+                    }, 600);
+                } else if (curStep === 3 && !window._redirecting_step3_success) {
+                    window._redirecting_step3_success = true;
+                    var msgEl = document.getElementById('_sm_nav_msg');
+                    if (msgEl) {
+                        msgEl.innerHTML = '<span style="color:#10b981;font-weight:bold;">🎉 成功加入 Hubcap 伺服器！正在自動返回完成登入...</span>';
+                    }
+                    setTimeout(function() {
+                        window.location.href = "https://hubcapmanifest.com/auth/discord";
+                    }, 600);
+                }
+            }
+        }
+
+        // 9. 伺服器未加入錯誤即時偵測與自動跳轉
         var bodyTxt = document.body ? (document.body.innerText || '') : '';
         var isRyuu = window.location.hostname.indexOf('ryuu.lol') !== -1;
-        var isHc = window.location.hostname.indexOf('hubcapmanifest.com') !== -1;
+        var isHc = window.location.hostname.indexOf('hubcapmanifest.com') !== -1 || bodyTxt.indexOf('You must be a member of our Discord server') !== -1;
 
         // 檢查 Ryuu 未加入伺服器提示
         if (isRyuu) {
@@ -316,10 +384,12 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
             }
         }
 
-        // 檢查 Hubcap 未加入伺服器提示
+        // 檢查 Hubcap 未加入伺服器提示 (精確支援圖一之 JSON 與各類報錯文字)
         if (isHc) {
-            var needHcJoin = bodyTxt.indexOf('hubcapsmanifest') !== -1 ||
-                             (bodyTxt.indexOf('must join') !== -1 && bodyTxt.indexOf('server') !== -1);
+            var needHcJoin = bodyTxt.indexOf('You must be a member of our Discord server') !== -1 ||
+                             bodyTxt.indexOf('member of our Discord server to access this application') !== -1 ||
+                             bodyTxt.indexOf('hubcapsmanifest') !== -1 ||
+                             (bodyTxt.indexOf('Discord server') !== -1 && (bodyTxt.indexOf('member') !== -1 || bodyTxt.indexOf('access') !== -1));
             if (needHcJoin) {
                 window._needs_join_hc_detected = true;
                 var msgEl = document.getElementById('_sm_nav_msg');
@@ -330,7 +400,7 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                     window._hc_invite_auto_redirected = true;
                     window._action_join_hubcap = true;
                     setTimeout(function() {
-                        window.location.href = "https://discord.gg/hubcapsmanifest";
+                        window.location.href = "https://discord.com/invite/hubcapsmanifest";
                     }, 400);
                 }
             }
@@ -652,10 +722,29 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                 try:
                     if bool(window.evaluate_js("Boolean(window._action_join_hubcap)")):
                         window.evaluate_js("window._action_join_hubcap = false;")
-                        print("[Sandbox] 正在導向 Hubcap 官方 Discord 伺服器邀請 (discord.gg/hubcapsmanifest)...")
-                        window.load_url("https://discord.gg/hubcapsmanifest")
+                        print("[Sandbox] 正在導向 Hubcap 官方 Discord 伺服器邀請 (discord.com/invite/hubcapsmanifest)...")
+                        window.load_url("https://discord.com/invite/hubcapsmanifest")
                         time.sleep(1.0)
                         continue
+                except Exception:
+                    pass
+
+                # 2.5 監聽是否已在 Discord 成功接受邀請並進入伺服器頻道
+                try:
+                    cur_url = str(window.get_current_url() or "")
+                    if "discord.com/channels/" in cur_url:
+                        if state["step"] == 1 and not state.get("ryuu_reloaded_after_join"):
+                            state["ryuu_reloaded_after_join"] = True
+                            print("[Sandbox] 偵測到使用者已成功加入 Ryuu 伺服器，自動導回 Ryuu 登入頁完成授權...")
+                            window.load_url("https://generator.ryuu.lol/login")
+                            time.sleep(1.2)
+                            continue
+                        elif state["step"] == 3 and not state.get("hc_reloaded_after_join"):
+                            state["hc_reloaded_after_join"] = True
+                            print("[Sandbox] 偵測到使用者已成功加入 Hubcap 伺服器，自動導回 Hubcap 登入頁完成授權...")
+                            window.load_url("https://hubcapmanifest.com/auth/discord")
+                            time.sleep(1.2)
+                            continue
                 except Exception:
                     pass
 
@@ -768,17 +857,21 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             data = json.loads(raw_res) if isinstance(raw_res, str) else raw_res
                         except Exception:
                             pass
+                    needs_join_ryuu = bool(data.get("needs_join_server"))
 
-                    # 偵測到尚未加入 Ryuu 伺服器，自動導航至官方邀請連結
-                    if data.get("needs_join_server") and not state.get("ryuu_invite_redirected"):
-                        state["ryuu_invite_redirected"] = True
-                        print("[Sandbox] 偵測到該帳號尚未加入 Ryuu 伺服器，自動載入官方 Discord 邀請連結...")
-                        window.load_url("https://discord.com/invite/manifests")
-                        time.sleep(1.2)
+                    # 1. 偵測到尚未加入 Ryuu 伺服器，自動導航至官方邀請連結並嚴格阻斷進入步驟 2
+                    if needs_join_ryuu:
+                        if not state.get("ryuu_invite_redirected"):
+                            state["ryuu_invite_redirected"] = True
+                            print("[Sandbox] 偵測到該帳號尚未加入 Ryuu 伺服器，自動載入官方 Discord 邀請連結...")
+                            window.load_url("https://discord.com/invite/manifests")
+                        # ⚠️ 嚴格阻斷：只要處於未入群阻斷狀態，絕不推進步驟 2！
+                        time.sleep(1.0)
                         continue
 
-                    # 從 pywebview 原生 Cookies 中解析 session (支援 HttpOnly Cookie)
+                    # 2. 從 pywebview 原生 Cookies 中解析 session (支援 HttpOnly Cookie)
                     session_val = ""
+                    has_real_user_session = False
                     raw_cookies = []
                     try:
                         raw_cookies = window.get_cookies()
@@ -790,6 +883,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                                 decoded = decode_flask_session(val)
                                 if decoded.get("user") or decoded.get("id") or decoded.get("username"):
                                     session_val = val
+                                    has_real_user_session = True
                                     break
                                 elif decoded.get("oauth_state") and not decoded.get("user"):
                                     continue
@@ -798,14 +892,15 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                     except Exception as e:
                         print(f"[Sandbox] Ryuu get_cookies check error: {e}")
 
-                    is_login_page = data.get("is_login_page", False)
                     is_ui_logged_in = data.get("is_ui_logged_in", False) or data.get("is_home", False)
 
-                    if not is_login_page and (session_val or manual_save) and (is_ui_logged_in or session_val or manual_save):
+                    # 🌟 首次跳授權立即儲存：只要已獲取到真實使用者 Session，或是 UI 已登入，或手動保存，即刻儲存並推進！
+                    # 徹底移除 not is_login_page 的限制，杜絕跳兩次授權問題！
+                    if not needs_join_ryuu and (has_real_user_session or manual_save or (is_ui_logged_in and session_val)):
                         state["is_saving"] = True
                         dl = data.get("downloads_left")
                         downloads_left = dl if dl is not None else 50
-                        print(f"[Sandbox] Step 1 Ryuu Auth OK! Session length: {len(session_val)}, Downloads: {downloads_left}")
+                        print(f"[Sandbox] Step 1 Ryuu Auth OK! 首次授權成功捕獲 (User Session={has_real_user_session})，剩餘額度: {downloads_left}")
 
                         # 注入視覺回饋標籤
                         try:
@@ -1156,10 +1251,10 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         var userObj = window._hc_user || null;
 
                         var bodyText = document.body ? (document.body.innerText || '') : '';
-                        var needsJoinHc = isHubcap && (
-                            bodyText.indexOf('hubcapsmanifest') !== -1 ||
-                            (bodyText.indexOf('must join') !== -1 && bodyText.indexOf('server') !== -1)
-                        );
+                        var needsJoinHc = bodyText.indexOf('You must be a member of our Discord server') !== -1 ||
+                                          bodyText.indexOf('member of our Discord server') !== -1 ||
+                                          bodyText.indexOf('hubcapsmanifest') !== -1 ||
+                                          (bodyText.indexOf('Discord server') !== -1 && (bodyText.indexOf('member') !== -1 || bodyText.indexOf('access') !== -1));
 
                         return JSON.stringify({
                             is_hubcap: isHubcap,
@@ -1184,12 +1279,13 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         except Exception:
                             pass
 
-                    # 偵測到尚未加入 Hubcap 伺服器，自動導航至官方邀請連結
-                    if data_hc.get("needs_join_server") and not state.get("hc_invite_redirected"):
-                        state["hc_invite_redirected"] = True
-                        print("[Sandbox] 偵測到該帳號尚未加入 Hubcap 伺服器，自動載入官方 Discord 邀請連結...")
-                        window.load_url("https://discord.gg/hubcapsmanifest")
-                        time.sleep(1.2)
+                    # 偵測到尚未加入 Hubcap 伺服器 (精準支援圖一報錯)，自動導航至官方邀請連結
+                    if data_hc.get("needs_join_server"):
+                        if not state.get("hc_invite_redirected"):
+                            state["hc_invite_redirected"] = True
+                            print("[Sandbox] 偵測到該帳號尚未加入 Hubcap 伺服器 (圖一報錯)，自動載入官方 Discord 邀請連結...")
+                            window.load_url("https://discord.com/invite/hubcapsmanifest")
+                        time.sleep(1.0)
                         continue
 
                     api_key = str(data_hc.get("api_key") or "").strip()

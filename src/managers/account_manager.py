@@ -137,10 +137,29 @@ class AccountManager:
                     continue
                 dname = p_dir.name
                 c_file = p_dir / "Cookies"
-                if not c_file.exists():
+                if not c_file.exists() or c_file.stat().st_size == 0:
                     continue
 
                 if dname.startswith("lt_") and dname not in existing_lt_ids:
+                    # 嚴格驗證 Lua.tools 是否具有有效授權 Token，無憑證者絕不自動還原
+                    has_lt_token = False
+                    try:
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp:
+                            tmp_p = tmp.name
+                        shutil.copy2(c_file, tmp_p)
+                        conn = sqlite3.connect(tmp_p)
+                        cur = conn.cursor()
+                        cur.execute("SELECT count(*) FROM cookies WHERE host_key LIKE '%lua.tools%' AND (name LIKE 'sb-%auth-token%' OR name LIKE '%token%') AND length(value) > 10")
+                        cnt = cur.fetchone()[0]
+                        has_lt_token = (cnt > 0)
+                        conn.close()
+                        if os.path.exists(tmp_p): os.remove(tmp_p)
+                    except Exception:
+                        pass
+
+                    if not has_lt_token:
+                        continue
+
                     info = self._extract_user_info_from_sqlite(c_file, "lua.tools")
                     if info.get("name") or info.get("email") or info.get("discord_id"):
                         uname = info.get("name") or info.get("email") or f"Lua.tools ({dname})"
@@ -169,9 +188,7 @@ class AccountManager:
                         print(f"[account_manager] [Recovery] 自動從硬碟救回 Lua.tools 帳號: {uname} ({dname})")
 
                 elif dname.startswith("ryuu_") and dname not in existing_ryuu_ids:
-                    info = self._extract_user_info_from_sqlite(c_file, "ryuu")
-                    uname = info.get("name") or "Discord 用戶"
-                    # 檢查是否有有效 session cookie
+                    # 嚴格驗證 Ryuu 是否具有有效 session cookie
                     has_session = False
                     try:
                         with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp:
@@ -179,9 +196,9 @@ class AccountManager:
                         shutil.copy2(c_file, tmp_p)
                         conn = sqlite3.connect(tmp_p)
                         cur = conn.cursor()
-                        cur.execute("SELECT length(value) FROM cookies WHERE name = 'session'")
+                        cur.execute("SELECT count(*) FROM cookies WHERE (host_key LIKE '%ryuu%' OR host_key LIKE '%generator%') AND name = 'session' AND length(value) > 10")
                         row = cur.fetchone()
-                        if row and row[0] and row[0] > 10:
+                        if row and row[0] and row[0] > 0:
                             has_session = True
                         conn.close()
                         if os.path.exists(tmp_p): os.remove(tmp_p)
@@ -1138,41 +1155,108 @@ class AccountManager:
         self.registry_updated.emit()
         return new_acc
 
-    def delete_account(self, platform: str, account_id: str) -> bool:
+    def delete_account(self, platform: str, account_id: str, extra_info: dict = None) -> bool:
         """
-        刪除指定平台帳號，並自動一併刪除另一平台中同屬該使用者的關聯帳號憑證（雙平台同步刪除）。
+        刪除指定平台帳號（徹底連根拔起雙平台關聯憑證與實體檔案，保證該帳號完全消失不要出現）。
         """
-        target_platform = "ryuu" if platform == "ryuu" else "lua_tools"
-        other_platform = "lua_tools" if target_platform == "ryuu" else "ryuu"
+        return self.delete_account_completely(account_id, extra_info=extra_info)
 
-        target_acc = None
-        accounts = self.data.get(target_platform, [])
-        for acc in accounts:
-            if acc.get("id") == account_id:
-                target_acc = acc
-                break
+    def delete_account_completely(self, identifier: str, extra_info: dict = None) -> bool:
+        """
+        徹底連根拔起刪除帳號：跨雙平台 (Ryuu 與 Lua.tools) 比對所有關聯條目，
+        同步銷毀本機 Profile 資料夾、Cookies 檔案、清理 Hubcap Key、清理憑證保管箱，
+        並更新活躍指標與持久化儲存，確保該帳號從矩陣與所有清單中徹底消失不要出現。
+        """
+        self._check_reload()
 
-        if not target_acc:
-            # 若在目標平台找不到，嘗試在另一平台找找看
-            for acc in self.data.get(other_platform, []):
-                if acc.get("id") == account_id:
-                    target_acc = acc
-                    target_platform, other_platform = other_platform, target_platform
-                    accounts = self.data.get(target_platform, [])
-                    break
+        # 1. 收集候選標識符集合
+        candidates = set()
+        if identifier:
+            candidates.update(self._normalize_ident(str(identifier)))
+        if extra_info and isinstance(extra_info, dict):
+            for k in ["id", "raw_id", "discord_id", "email", "name", "username", "key"]:
+                v = extra_info.get(k)
+                if v:
+                    candidates.update(self._normalize_ident(str(v)))
 
-        if not target_acc:
+        # 2. 收集所有命中的帳號條目 (跨 Ryuu 與 Lua.tools)
+        matched_targets = []
+        for plat in ["ryuu", "lua_tools"]:
+            for acc in list(self.data.get(plat, [])):
+                acc_id = str(acc.get("id", "")).strip()
+                did = str(acc.get("discord_id", "")).strip()
+                email = str(acc.get("email", "")).strip().lower()
+                name = str(acc.get("name", "")).strip().lower()
+                toks = self._extract_identity_tokens(acc)
+                u_name = toks.get("username", "")
+
+                matched = False
+                if acc_id and acc_id in candidates:
+                    matched = True
+                elif did and did in candidates:
+                    matched = True
+                elif email and (email in candidates or any(c.lower() == email for c in candidates)):
+                    matched = True
+                elif name and any(c.lower() == name for c in candidates):
+                    matched = True
+                elif u_name and any(c.lower() == u_name for c in candidates):
+                    matched = True
+
+                if matched and (plat, acc) not in matched_targets:
+                    matched_targets.append((plat, acc))
+
+        # 3. 交叉比對同身份關聯帳號
+        all_acc_objects = [acc for _, acc in matched_targets]
+        if all_acc_objects:
+            for plat in ["ryuu", "lua_tools"]:
+                for acc in list(self.data.get(plat, [])):
+                    if any(self._is_same_identity(acc, t) for t in all_acc_objects):
+                        if (plat, acc) not in matched_targets:
+                            matched_targets.append((plat, acc))
+
+        if not matched_targets:
+            # 防禦處理：若列表中找不到，但 candidate 包含特定 profile id，強制銷毀可能殘留的實體目錄
+            profiles_root = _PROFILES_DIR.resolve()
+            for c in candidates:
+                if c.startswith(("ryuu_", "lt_")):
+                    p_dir = (_PROFILES_DIR / c).resolve()
+                    if p_dir.exists() and p_dir.is_dir() and p_dir != profiles_root and profiles_root in p_dir.parents:
+                        try:
+                            shutil.rmtree(p_dir, ignore_errors=True)
+                        except Exception:
+                            pass
             return False
 
-        # 1. 刪除目標平台上的帳號
-        self._remove_single_account(target_platform, target_acc)
+        # 4. 徹底銷毀所有命中之帳號物件與實體檔案
+        for plat, acc in matched_targets:
+            self._remove_single_account(plat, acc)
 
-        # 2. 在另一平台上比對同一個使用者的憑證並一併刪除
-        other_accounts = list(self.data.get(other_platform, []))
-        for o_acc in other_accounts:
-            if self._is_same_identity(target_acc, o_acc):
-                self._remove_single_account(other_platform, o_acc)
+        # 5. 清理關聯之 Hubcap Key 映射
+        if "hubcap_keys" in self.data and isinstance(self.data["hubcap_keys"], dict):
+            keys_to_del = [k for k in self.data["hubcap_keys"] if k in candidates or any(c.lower() == str(k).lower() for c in candidates)]
+            for k in keys_to_del:
+                self.data["hubcap_keys"].pop(k, None)
 
+        # 6. 清理關聯之 account_vault.json
+        if _VAULT_FILE.exists():
+            try:
+                with open(_VAULT_FILE, "r", encoding="utf-8") as f:
+                    vdata = json.load(f)
+                if isinstance(vdata, dict):
+                    v_changed = False
+                    for vk in list(vdata.keys()):
+                        for c in candidates:
+                            if c in vk or (":" in vk and vk.split(":", 1)[1] == c):
+                                vdata.pop(vk, None)
+                                v_changed = True
+                                break
+                    if v_changed:
+                        with open(_VAULT_FILE, "w", encoding="utf-8") as f:
+                            json.dump(vdata, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"[account_manager] Failed to clean vault for deleted account: {e}")
+
+        # 7. 去重與持久化寫入
         self._deduplicate_accounts()
         self.save_data()
         self.registry_updated.emit()
@@ -1181,14 +1265,17 @@ class AccountManager:
     def clear_all_accounts(self) -> bool:
         """清空所有已綁定的帳號憑證並清理本機 Profile 資料夾與 Hubcap API Key"""
         try:
+            profiles_root = _PROFILES_DIR.resolve()
             for p in ["ryuu", "lua_tools"]:
                 for acc in list(self.data.get(p, [])):
-                    p_dir = Path(acc.get("profile_dir", ""))
-                    if p_dir.exists() and p_dir != _ROOT_DIR / "data" / "credentials" / "lua_tools_profile":
-                        try:
-                            shutil.rmtree(p_dir, ignore_errors=True)
-                        except Exception:
-                            pass
+                    p_dir_str = str(acc.get("profile_dir", "") or "").strip()
+                    if p_dir_str:
+                        p_dir = Path(p_dir_str).resolve()
+                        if p_dir.exists() and p_dir.is_dir() and p_dir != profiles_root and profiles_root in p_dir.parents:
+                            try:
+                                shutil.rmtree(p_dir, ignore_errors=True)
+                            except Exception:
+                                pass
                 self.data[p] = []
             self.data["active_account_ryuu"] = None
             self.data["active_account_lt"] = None
@@ -1202,20 +1289,31 @@ class AccountManager:
             return False
 
     def _remove_single_account(self, platform: str, acc: dict):
-        """內部輔助方法：移除單一帳號條目並清理對應之 Profile 憑證資料夾"""
+        """內部輔助方法：移除單一帳號條目並徹底清理對應之 Profile 憑證資料夾與 Cookies"""
         accounts = self.data.get(platform, [])
         acc_id = acc.get("id")
-        if acc in accounts:
-            accounts.remove(acc)
-        else:
-            self.data[platform] = [a for a in accounts if a.get("id") != acc_id]
+        # 移除平台列表符合的所有相同 id 與物件條目
+        self.data[platform] = [a for a in accounts if a.get("id") != acc_id and a != acc]
 
-        p_dir = Path(acc.get("profile_dir", ""))
-        if p_dir.exists() and p_dir != _ROOT_DIR / "data" / "credentials" / "lua_tools_profile":
-            try:
-                shutil.rmtree(p_dir, ignore_errors=True)
-            except Exception:
-                pass
+        p_dir_str = str(acc.get("profile_dir", "") or "").strip()
+        if p_dir_str:
+            p_dir = Path(p_dir_str).resolve()
+            profiles_root = _PROFILES_DIR.resolve()
+            # 🌟 嚴格安全性驗證：只有當 p_dir 是 _PROFILES_DIR 底下的子目錄時，才允許清理！
+            if p_dir.exists() and p_dir.is_dir() and p_dir != profiles_root and profiles_root in p_dir.parents:
+                # 優先清空並刪除 Cookies 檔案，杜絕 Windows 占用導致被 auto_recover 再次救回
+                c_file = p_dir / "Cookies"
+                if c_file.exists():
+                    try:
+                        with open(c_file, "wb") as f:
+                            f.truncate(0)
+                        c_file.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                try:
+                    shutil.rmtree(p_dir, ignore_errors=True)
+                except Exception:
+                    pass
 
         key = "active_account_lt" if platform == "lua_tools" else "active_account_ryuu"
         remaining = self.data.get(platform, [])
