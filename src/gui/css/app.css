@@ -6192,14 +6192,15 @@ body.party-mode .pages,
   position: relative;
 }
 
-/* 左側 MOBA 垂直側欄 (頂天立地，完全貼齊左邊界) */
+/* 左側 MOBA 垂直側欄 (頂天立地，完全貼齊左邊界，自帶向右漸變流光過渡) */
 .party-moba-sidebar {
   width: 98px;
   min-width: 98px;
   height: 100% !important;
   flex-shrink: 0;
   background: linear-gradient(180deg, rgba(16, 26, 44, 0.98) 0%, rgba(10, 16, 28, 0.99) 100%);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(77, 166, 255, 0.2);
+  box-shadow: 6px 0 25px -4px rgba(5, 12, 24, 0.75), 2px 0 10px rgba(30, 115, 232, 0.2);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -6210,6 +6211,19 @@ body.party-mode .pages,
   transition: width 0.22s cubic-bezier(0.2, 0, 0, 1), min-width 0.22s cubic-bezier(0.2, 0, 0, 1);
   z-index: 10;
   box-sizing: border-box;
+}
+
+/* 🌟 邊條右側流光漸變光幕：向右側顯示區域柔和暈染，消除側欄與主視圖的突兀斷層 */
+.party-moba-sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -24px;
+  bottom: 0;
+  width: 24px;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(30, 115, 232, 0.14) 0%, rgba(30, 115, 232, 0.04) 55%, transparent 100%);
+  z-index: 9;
 }
 
 /* 頂部返回箭頭 (如圖一頂部圖標) */
@@ -6458,12 +6472,69 @@ body.party-mode .pages,
   flex-direction: column !important;
   overflow: hidden !important;
   gap: 8px;
+  position: relative;
 }
 
-/* 頂部個人狀態橫幅：固定不動 */
+/* 🌟 深色模式右側主視圖：套用與左側同源的沉浸式曜石星海深藍漸變，告別暖紅棕割裂感 */
+.app.dark .party-moba-viewport {
+  background: radial-gradient(circle at 8% 18%, rgba(20, 36, 64, 0.88) 0%, rgba(13, 22, 38, 0.95) 45%, rgba(9, 14, 25, 0.99) 100%) !important;
+}
+
+/* 深色模式 + 自訂桌布背景：維持深藍星海毛玻璃半透明質感 */
+.app.dark.has-bg .party-moba-viewport {
+  background: radial-gradient(circle at 8% 18%, rgba(20, 36, 64, 0.65) 0%, rgba(13, 22, 38, 0.78) 45%, rgba(9, 14, 25, 0.88) 100%) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+}
+
+/* 頂部個人狀態橫幅：固定不動，深色模式電競深藍透明玻璃卡片 */
 .party-moba-viewport .party-header-bar {
   flex-shrink: 0 !important;
   margin-bottom: 0 !important;
+}
+.app.dark .party-moba-viewport .party-header-bar {
+  background: rgba(16, 26, 44, 0.72) !important;
+  border: 1px solid rgba(77, 166, 255, 0.22) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+.app.dark .party-moba-viewport .party-avatar-icon {
+  background: linear-gradient(135deg, rgba(30, 115, 232, 0.4), rgba(99, 102, 241, 0.3)) !important;
+  border: 1.5px solid rgba(77, 166, 255, 0.45) !important;
+  box-shadow: 0 0 14px rgba(45, 140, 255, 0.35) !important;
+}
+.app.dark .party-moba-viewport .party-nickname {
+  color: #FFFFFF !important;
+  text-shadow: 0 0 10px rgba(77, 166, 255, 0.4) !important;
+}
+
+/* 搜尋與快速加入列深色模式適配 */
+.party-toolbar-row {
+  flex-shrink: 0 !important;
+  margin-bottom: 8px !important;
+}
+.app.dark .party-moba-viewport .party-search-wrap input,
+.app.dark .party-moba-viewport .party-quick-join-wrap input {
+  background: rgba(11, 19, 32, 0.8) !important;
+  border: 1.5px solid rgba(77, 166, 255, 0.22) !important;
+  color: #FFFFFF !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5) !important;
+}
+.app.dark .party-moba-viewport .party-search-wrap input::placeholder,
+.app.dark .party-moba-viewport .party-quick-join-wrap input::placeholder {
+  color: #728AA8 !important;
+}
+.app.dark .party-moba-viewport .party-search-wrap input:focus,
+.app.dark .party-moba-viewport .party-quick-join-wrap input:focus {
+  border-color: #4DA6FF !important;
+  box-shadow: 0 0 14px rgba(77, 166, 255, 0.4) !important;
+}
+
+/* 空房間提示圖示微光與亮白文字 */
+.app.dark .party-moba-viewport .empty .icon {
+  filter: drop-shadow(0 0 18px rgba(77, 166, 255, 0.55)) !important;
+}
+.app.dark .party-moba-viewport .empty p {
+  color: #D1E1F5 !important;
 }
 
 /* 子視圖基礎切換邏輯：未激活時強制隱藏，激活時滿版 flex 排版 */
@@ -6485,12 +6556,6 @@ body.party-mode .pages,
   flex-direction: column !important;
   overflow: hidden !important;
   margin-top: 0 !important;
-}
-
-/* 搜尋與快速加入列：固定置頂不滾動 */
-.party-toolbar-row {
-  flex-shrink: 0 !important;
-  margin-bottom: 8px !important;
 }
 
 /* 🌟 核心需求：房間清單容器是全頁面唯一滾動區域！滾輪僅滾動卡片列表 */
