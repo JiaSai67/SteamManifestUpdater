@@ -186,8 +186,8 @@ def is_steamdb_cache_fresh(appid: str, steamcmd_latest_gid: Optional[str] = None
     return False
 
 
-def crawl_depot_manifests_via_webview(depot_id: str, timeout: int = 10) -> List[Dict[str, Any]]:
-    """以本機 Microsoft Edge WebView2 引擎自動穿透 Cloudflare 盾並爬取 SteamDB 表格 (10s 完整穿透探測)"""
+def crawl_depot_manifests_via_webview(depot_id: str, timeout: int = 16) -> List[Dict[str, Any]]:
+    """以本機 Microsoft Edge WebView2 引擎自動穿透 Cloudflare 盾並爬取 SteamDB 表格 (16s 完整穿透探測)"""
     import subprocess
     import sys
     runner_script = Path(__file__).resolve().parent / "steamdb_webview_crawler.py"
@@ -195,7 +195,7 @@ def crawl_depot_manifests_via_webview(depot_id: str, timeout: int = 10) -> List[
         return []
     try:
         cmd = [sys.executable, str(runner_script), "--depot", str(depot_id).strip(), "--timeout", str(timeout)]
-        p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout + 5)
+        p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout + 6)
         out = p.stdout or ""
         if "===RESULT_START===" in out and "===RESULT_END===" in out:
             json_str = out.split("===RESULT_START===")[1].split("===RESULT_END===")[0].strip()
@@ -228,11 +228,11 @@ def fetch_depot_manifests_from_steamdb(depot_id: str, timeout: int = 3) -> List[
     except urllib.error.HTTPError as e:
         if e.code in (403, 503, 429):
             print(f"[steamdb_crawler] HTTP {e.code} 遇到 Cloudflare 盾 - 自動切換至 WebView2 原生內核穿透爬取 Depot {did_str}...")
-            return crawl_depot_manifests_via_webview(did_str, timeout=10)
+            return crawl_depot_manifests_via_webview(did_str, timeout=16)
         return []
     except Exception as e:
         print(f"[steamdb_crawler] Fetch depot {did_str} error: {e} - 嘗試 WebView2 備援通道")
-        return crawl_depot_manifests_via_webview(did_str, timeout=10)
+        return crawl_depot_manifests_via_webview(did_str, timeout=16)
     return []
 
 

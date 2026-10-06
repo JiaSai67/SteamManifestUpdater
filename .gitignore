@@ -38,6 +38,7 @@ src/gui/theme_cache.js
 *.log
 debug_*.json
 .scratch/
+scratch/
 .tmp/
 
 # 歷史與過期備份檔

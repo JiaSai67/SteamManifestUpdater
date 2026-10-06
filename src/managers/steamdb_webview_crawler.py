@@ -14,12 +14,11 @@ from pathlib import Path
 from datetime import datetime
 
 # 設置 UTF-8 輸出
-if sys.platform == "win32":
-    try:
-        import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    except Exception:
-        pass
+try:
+    if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 
 
 def _parse_steamdb_date(date_str: str) -> tuple:
@@ -35,7 +34,7 @@ def _parse_steamdb_date(date_str: str) -> tuple:
     return "", ""
 
 
-def run_webview_crawler(depot_id: str, max_wait: int = 15) -> dict:
+def run_webview_crawler(depot_id: str, max_wait: int = 18) -> dict:
     import webview
     
     url = f"https://steamdb.info/depot/{depot_id}/manifests/"
@@ -102,8 +101,8 @@ def run_webview_crawler(depot_id: str, max_wait: int = 15) -> dict:
                     return
                 elif data and data.get("isJustMoment"):
                     shield_count += 1
-                    # Cloudflare Managed Challenge (5秒盾) 正常計算需 4~6 秒，若超過 9 秒仍未解開才視為需人工互動退出
-                    if shield_count >= 9:
+                    # Cloudflare Managed Challenge (5秒盾) 正常計算需 5~8 秒，若超過 14 秒仍未解開才退出
+                    if shield_count >= 14:
                         break
             except Exception:
                 pass
