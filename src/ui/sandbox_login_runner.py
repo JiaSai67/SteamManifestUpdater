@@ -36,11 +36,13 @@ from managers.account_manager import get_account_manager, _ROOT_DIR
 def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> str:
     """
     生成注入沙盒的前端核心腳本：
-    1. 阻斷本機 Discord RPC (6463) 探測
+    1. 阻斷本機 Discord RPC (6463-6475) 探測與 discord:// 外部協定喚醒 (100% 在 WebView2 內呈現)
     2. 即時動態捕獲使用者在登入框輸入/修改的帳號密碼
     3. 若本機已有儲存帳密，自動使用 React 原生 Setter 預填入輸入框
     4. 頂部常駐全域多功能導航列 (步驟指示、加入 Discord 伺服器、返回授權頁、跳過前往下一步、立即儲存)
-    5. 自動偵測 Ryuu 與 Hubcap 未加入伺服器錯誤，並自動導向官方邀請連結
+    5. Lua.tools 專屬通道：快速自動點擊授權，若 1.5s 未跳轉提供手動直達按鈕，3.5s 自動淡出防呆絕不卡死
+    6. Ryuu 智慧防抖：OAuth 回跳與冷卻期間絕不重複觸發登入，嚴格限制至多 2 次授權
+    7. 自動偵測 Ryuu 與 Hubcap 未加入伺服器錯誤，並自動導向官方邀請連結
     """
     js_email = json.dumps(auto_email or "")
     js_pwd = json.dumps(auto_pwd or "")
@@ -56,36 +58,84 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
             };
         }
 
-        // 2. 阻斷 Discord RPC 探測 (防止直接讀取本機桌面版 Discord)
-        if (!window._sandbox_rpc_blocked) {
-            window._sandbox_rpc_blocked = true;
-            
+        // 2. 徹底阻斷喚醒外部桌面版 Discord (協定攔截 + 本機 RPC 端口全範圍阻斷)
+        if (!window._sandbox_protocol_and_rpc_blocked) {
+            window._sandbox_protocol_and_rpc_blocked = true;
+
+            // A. 全域捕獲階段攔截所有點擊：若指向 discord:// 或 intent:// 協定，徹底阻斷喚醒本機桌面 App
+            document.addEventListener('click', function(e) {
+                var el = e.target;
+                while (el && el !== document) {
+                    var href = (el.getAttribute && el.getAttribute('href')) || '';
+                    if (typeof href === 'string') {
+                        var hLower = href.toLowerCase().trim();
+                        if (hLower.indexOf('discord://') === 0 || hLower.indexOf('intent://') === 0) {
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+                            console.warn('[Sandbox] 🛡️ 已成功阻斷喚醒外部 Discord 應用程式協定:', href);
+                            return false;
+                        }
+                    }
+                    el = el.parentNode;
+                }
+            }, true);
+
+            // B. 覆寫 window.open，強制在新視窗打開的請求直接在當前 WebView2 內載入，且阻斷自定義協定
+            var origWindowOpen = window.open;
+            window.open = function(url, target, features) {
+                if (url) {
+                    var urlStr = String(url).trim();
+                    var uLower = urlStr.toLowerCase();
+                    if (uLower.indexOf('discord://') === 0 || uLower.indexOf('intent://') === 0) {
+                        console.warn('[Sandbox] 🛡️ 已阻斷 window.open 喚醒外部 Discord 協定:', urlStr);
+                        return null;
+                    }
+                    try {
+                        window.location.href = urlStr;
+                    } catch(err) {
+                        console.error('[Sandbox] 重定向導航失敗:', err);
+                    }
+                }
+                return window;
+            };
+
+            // C. 輔助判定是否為本機 Discord RPC 探測
+            function isDiscordRpcUrl(url) {
+                if (!url) return false;
+                var urlStr = (typeof url === 'string') ? url : (url && url.url ? url.url : '');
+                if (!urlStr) return false;
+                var isLocal = (urlStr.indexOf('127.0.0.1') !== -1 || urlStr.indexOf('localhost') !== -1);
+                if (!isLocal) return false;
+                // 擴大阻斷 Discord RPC 常用端口 6463-6475 與 /rpc 路由
+                return (/:646[3-9]|:647[0-5]|\/rpc/.test(urlStr));
+            }
+
+            // D. 阻斷 Fetch 探測本機 RPC
             var origFetch = window.fetch;
             if (origFetch) {
                 window.fetch = function(url, opts) {
-                    var urlStr = (typeof url === 'string') ? url : (url && url.url ? url.url : '');
-                    if (urlStr && (urlStr.indexOf('127.0.0.1') !== -1 || urlStr.indexOf('localhost') !== -1) && (urlStr.indexOf('6463') !== -1 || urlStr.indexOf('rpc') !== -1)) {
+                    if (isDiscordRpcUrl(url)) {
                         return Promise.reject(new Error('Blocked local Discord RPC probe'));
                     }
                     return origFetch.apply(this, arguments);
                 };
             }
 
+            // E. 阻斷 XMLHttpRequest 探測本機 RPC
             var origOpen = XMLHttpRequest.prototype.open;
             XMLHttpRequest.prototype.open = function(method, url) {
-                var urlStr = (typeof url === 'string') ? url : '';
-                if (urlStr && (urlStr.indexOf('127.0.0.1') !== -1 || urlStr.indexOf('localhost') !== -1) && (urlStr.indexOf('6463') !== -1 || urlStr.indexOf('rpc') !== -1)) {
+                if (isDiscordRpcUrl(url)) {
                     this.abort();
                     return;
                 }
                 return origOpen.apply(this, arguments);
             };
 
+            // F. 阻斷 WebSocket 連接本機 RPC
             var OrigWS = window.WebSocket;
             if (OrigWS) {
                 window.WebSocket = function(url, protocols) {
-                    var urlStr = (typeof url === 'string') ? url : '';
-                    if (urlStr && (urlStr.indexOf('127.0.0.1') !== -1 || urlStr.indexOf('localhost') !== -1)) {
+                    if (isDiscordRpcUrl(url)) {
                         throw new Error('Blocked local Discord WebSocket');
                     }
                     return new OrigWS(url, protocols);
@@ -290,44 +340,87 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
         }
         renderTopNavbar();
 
-        // 7. Lua.tools 無縫過渡：隱藏前端首頁並直接跳轉至 Discord 授權頁面
+        // 7. Lua.tools 專屬通道：快速點擊授權 + 1.5s 手動直達按鈕 + 3.5s 自動平滑淡出防呆 (絕不卡死)
         if (window.location.hostname.indexOf('lua.tools') !== -1) {
-            // 立即注入全螢幕暗色遮罩，完全遮蔽 Lua.tools 首頁
-            if (!document.getElementById('_sm_lt_seamless_mask')) {
+            // 建立無縫過渡遮罩
+            if (!document.getElementById('_sm_lt_seamless_mask') && !window._lt_mask_dismissed) {
                 var mask = document.createElement('div');
                 mask.id = '_sm_lt_seamless_mask';
-                mask.style.cssText = 'position:fixed!important;top:42px!important;left:0!important;right:0!important;bottom:0!important;background:#090d16!important;z-index:2147483640!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;color:#ffffff!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;user-select:none!important;';
-                mask.innerHTML = '<div style="width:36px;height:36px;border:3px solid rgba(99,102,241,0.25);border-top-color:#6366f1;border-radius:50%;animation:_sm_spin 0.8s linear infinite;margin-bottom:16px;"></div>' +
-                                 '<div style="font-size:16px;font-weight:600;color:#818cf8;margin-bottom:6px;">🛠️ 正在為您連接 Lua.tools 專屬授權通道...</div>' +
-                                 '<div style="font-size:13px;color:#94a3b8;">即刻為您載入 Discord 授權頁面，請稍候</div>' +
-                                 '<style>@keyframes _sm_spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>';
+                mask.style.cssText = 'position:fixed!important;top:42px!important;left:0!important;right:0!important;bottom:0!important;background:#090d16!important;z-index:2147483640!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;color:#ffffff!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;user-select:none!important;transition:opacity 0.4s ease!important;';
+                mask.innerHTML = `
+                    <div id="_sm_lt_spinner" style="width:38px;height:38px;border:3px solid rgba(99,102,241,0.25);border-top-color:#6366f1;border-radius:50%;animation:_sm_spin 0.8s linear infinite;margin-bottom:16px;"></div>
+                    <div style="font-size:16px;font-weight:600;color:#818cf8;margin-bottom:6px;">🛠️ 正在為您連接 Lua.tools 專屬授權通道...</div>
+                    <div style="font-size:13px;color:#94a3b8;margin-bottom:18px;">即刻為您載入 Discord 授權頁面，請稍候</div>
+                    <button id="_sm_lt_manual_btn" style="display:none;background:linear-gradient(135deg, #5865F2, #4752C4);color:#ffffff;border:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(88,101,242,0.5);transition:transform 0.2s ease;">🔑 點擊此處立即前往 Discord 授權</button>
+                    <style>@keyframes _sm_spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>
+                `;
                 document.body.appendChild(mask);
+
+                var manualBtn = document.getElementById('_sm_lt_manual_btn');
+                if (manualBtn) {
+                    manualBtn.onclick = function() {
+                        manualBtn.innerHTML = '⏳ 正在跳轉授權...';
+                        clickLtButtons();
+                    };
+                }
+
+                // 1.5 秒防呆：若尚未轉跳 Discord，展示手動授權按鈕
+                setTimeout(function() {
+                    if (manualBtn && mask && mask.parentNode && window.location.hostname.indexOf('lua.tools') !== -1) {
+                        manualBtn.style.display = 'inline-block';
+                    }
+                }, 1500);
+
+                // 3.5 秒終極防呆：若仍未離開 Lua.tools，遮罩自動淡出銷毀，呈現原生介面讓使用者直接操作
+                setTimeout(function() {
+                    window._lt_mask_dismissed = true;
+                    if (mask && mask.parentNode) {
+                        mask.style.opacity = '0';
+                        mask.style.pointerEvents = 'none';
+                        setTimeout(function() {
+                            if (mask && mask.parentNode) mask.parentNode.removeChild(mask);
+                        }, 400);
+                    }
+                }, 3500);
             }
 
-            // 高頻輪詢並秒速點擊 Login with Discord 按鈕
-            if (!window._lt_auto_clicked) {
-                var clickLt = function() {
-                    var btns = document.querySelectorAll('button, a');
-                    for (var i = 0; i < btns.length; i++) {
-                        var t = (btns[i].textContent || '').toLowerCase().trim();
-                        if (t.indexOf('login with discord') !== -1 || (t.indexOf('login') !== -1 && t.indexOf('discord') !== -1)) {
-                            window._lt_auto_clicked = true;
-                            try { btns[i].click(); } catch(e){}
-                            return true;
-                        }
+            // 精確探測並觸發 Lua.tools Discord 登入按鈕
+            function clickLtButtons() {
+                var found = false;
+                var btns = document.querySelectorAll('button, a, [role="button"]');
+                for (var i = 0; i < btns.length; i++) {
+                    var el = btns[i];
+                    var txt = (el.textContent || '').toLowerCase().trim();
+                    var href = (el.getAttribute && el.getAttribute('href')) || '';
+                    if (txt.indexOf('login with discord') !== -1 || (txt.indexOf('login') !== -1 && txt.indexOf('discord') !== -1) || href.indexOf('discord') !== -1) {
+                        try {
+                            el.click();
+                            found = true;
+                            break;
+                        } catch(e) {}
                     }
+                }
+                if (!found) {
                     var sel = document.querySelector('button.login-btn, a[href*="login"], a[href*="discord"], button[class*="discord"]');
                     if (sel) {
-                        window._lt_auto_clicked = true;
-                        try { sel.click(); } catch(e){}
-                        return true;
+                        try { sel.click(); found = true; } catch(e) {}
                     }
-                    return false;
-                };
-                clickLt();
+                }
+                return found;
+            }
+
+            // 持續探測 (至多嘗試 12 次，每次間隔 250ms)
+            if (!window._lt_auto_poll_started) {
+                window._lt_auto_poll_started = true;
+                var pollCount = 0;
                 var ltTimer = setInterval(function() {
-                    if (clickLt() || window._lt_auto_clicked) clearInterval(ltTimer);
-                }, 50);
+                    pollCount++;
+                    var clicked = clickLtButtons();
+                    // 一旦跳離 lua.tools 或次數達到上限，停止計時器
+                    if (clicked || pollCount >= 12 || window.location.hostname.indexOf('discord.com') !== -1) {
+                        clearInterval(ltTimer);
+                    }
+                }, 250);
             }
         }
 
@@ -384,7 +477,7 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
             }
         }
 
-        // 檢查 Hubcap 未加入伺服器提示 (精確支援圖一之 JSON 與各類報錯文字)
+        // 檢查 Hubcap 未加入伺服器提示
         if (isHc) {
             var needHcJoin = bodyTxt.indexOf('You must be a member of our Discord server') !== -1 ||
                              bodyTxt.indexOf('member of our Discord server to access this application') !== -1 ||
@@ -480,6 +573,23 @@ def decode_flask_session(session_val: str) -> dict:
         return json.loads(raw.decode("utf-8", errors="ignore"))
     except Exception:
         return {}
+
+
+def is_valid_ryuu_session(decoded: dict) -> bool:
+    """
+    精確判斷解碼後的 Flask Session 是否代表已登入的有效使用者 Session：
+    支援多種 Discord OAuth 與使用者標識字段，並嚴格排除純流程中暫態 session
+    """
+    if not isinstance(decoded, dict) or not decoded:
+        return False
+    # 排除單純處於 OAuth 流程中且無使用者資訊的暫態 Session
+    if decoded.get("oauth_state") and not any(k in decoded for k in ["user", "id", "user_id", "_user_id", "discord_id", "username", "downloads", "logged_in"]):
+        return False
+    user_keys = [
+        "user", "id", "user_id", "_user_id", "discord_id", "discord_user",
+        "username", "sub", "downloads", "downloads_left", "logged_in", "email"
+    ]
+    return any(k in decoded for k in user_keys)
 
 
 def save_ryuu_cookies(c_file: Path, session_val: str, cookie_objs=None):
@@ -656,6 +766,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
     # 監控狀態
     state = {
         "step": initial_step,
+        "step_entered_time": time.time(),
         "target_platform": plat,
         "is_saving": False,
         "ryuu_done": False,
@@ -757,9 +868,11 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             window.load_url("https://generator.ryuu.lol/login")
                         elif state["step"] == 2:
                             print("[Sandbox] 正在重新載入 Lua.tools 首頁...")
+                            state["step_entered_time"] = time.time()
                             window.load_url("https://lua.tools/")
                         elif state["step"] == 3:
                             print("[Sandbox] 正在重新載入 Hubcap 授權頁...")
+                            state["step_entered_time"] = time.time()
                             window.load_url("https://hubcapmanifest.com/auth/discord")
                         time.sleep(1.0)
                         continue
@@ -773,6 +886,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         if state["step"] == 1:
                             print("[Sandbox] 使用者手動跳過 Ryuu，推進至步驟 2 (Lua.tools)...")
                             state["step"] = 2
+                            state["step_entered_time"] = time.time()
                             state["is_saving"] = False
                             window.set_title("🛡️ [步驟 2/3] Lua.tools 專屬安全無痕授權沙盒 (25次/日) · 請點擊授權")
                             window.load_url("https://lua.tools/")
@@ -781,6 +895,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         elif state["step"] == 2:
                             print("[Sandbox] 使用者手動跳過 Lua.tools，推進至步驟 3 (HubcapDB)...")
                             state["step"] = 3
+                            state["step_entered_time"] = time.time()
                             state["is_saving"] = False
                             window.set_title("🛡️ [步驟 3/3] HubcapDB 專屬安全無痕授權沙盒 (25次/日) · 請確認授權以自動獲取 API Key")
                             window.load_url("https://hubcapmanifest.com/auth/discord")
@@ -801,12 +916,20 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         var isLogin = window.location.pathname.indexOf('/login') !== -1;
                         var isHome = isRyuu && (window.location.pathname === '/' || window.location.pathname === '');
                         
-                        // 自動輔助點擊登入按鈕 (若在 /login 頁面)
+                        // 自動輔助點擊登入按鈕 (若在 /login 頁面，且非 OAuth 回跳中且具冷卻保護)
                         if (isLogin) {
-                            var loginBtn = document.querySelector('a[href*="discord"], a[href*="login"], button.login-btn, a.btn');
-                            if (loginBtn && !window._clicked_ryuu_login) {
-                                window._clicked_ryuu_login = true;
-                                setTimeout(function() { try { loginBtn.click(); } catch(e){} }, 400);
+                            var isCallback = window.location.search.indexOf('code=') !== -1 || window.location.search.indexOf('state=') !== -1;
+                            var lastClick = 0;
+                            try { lastClick = parseInt(sessionStorage.getItem('_ryuu_login_click_ts') || '0'); } catch(e){}
+                            var now = Date.now();
+                            var cooldownOk = (now - lastClick) > 8000;
+                            if (!isCallback && cooldownOk && !window._clicked_ryuu_login) {
+                                var loginBtn = document.querySelector('a[href*="discord"], a[href*="login"], button.login-btn, a.btn');
+                                if (loginBtn) {
+                                    window._clicked_ryuu_login = true;
+                                    try { sessionStorage.setItem('_ryuu_login_click_ts', String(now)); } catch(e){}
+                                    setTimeout(function() { try { loginBtn.click(); } catch(e){} }, 400);
+                                }
                             }
                         }
 
@@ -881,7 +1004,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             cname = ck.get("name", "")
                             if cname == "session" and len(val) > 8:
                                 decoded = decode_flask_session(val)
-                                if decoded.get("user") or decoded.get("id") or decoded.get("username"):
+                                if is_valid_ryuu_session(decoded):
                                     session_val = val
                                     has_real_user_session = True
                                     break
@@ -895,12 +1018,11 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                     is_ui_logged_in = data.get("is_ui_logged_in", False) or data.get("is_home", False)
 
                     # 🌟 首次跳授權立即儲存：只要已獲取到真實使用者 Session，或是 UI 已登入，或手動保存，即刻儲存並推進！
-                    # 徹底移除 not is_login_page 的限制，杜絕跳兩次授權問題！
                     if not needs_join_ryuu and (has_real_user_session or manual_save or (is_ui_logged_in and session_val)):
                         state["is_saving"] = True
                         dl = data.get("downloads_left")
                         downloads_left = dl if dl is not None else 50
-                        print(f"[Sandbox] Step 1 Ryuu Auth OK! 首次授權成功捕獲 (User Session={has_real_user_session})，剩餘額度: {downloads_left}")
+                        print(f"[Sandbox] Step 1 Ryuu Auth OK! 授權成功捕獲 (User Session={has_real_user_session})，剩餘額度: {downloads_left}")
 
                         # 注入視覺回饋標籤
                         try:
@@ -984,39 +1106,18 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
 
                         # 推進到 Step 2 (Lua.tools)
                         state["step"] = 2
+                        state["step_entered_time"] = time.time()
                         state["is_saving"] = False
                         window.set_title("🛡️ [步驟 2/3] Lua.tools 專屬安全無痕授權沙盒 (25次/日) · 請點擊授權")
                         window.load_url("https://lua.tools/")
-                        time.sleep(1.5)
+                        time.sleep(1.2)
                         continue
 
                 # ── 步驟 2：Lua.tools 平台檢查 ──
                 elif state["step"] == 2 and not state["is_saving"]:
-                    # 自動尋找並點擊 Login with Discord
-                    js_auto_click = """
-                    (function() {
-                        if (window.location.hostname.indexOf('lua.tools') !== -1) {
-                            var btns = document.querySelectorAll('button, a');
-                            for (var i = 0; i < btns.length; i++) {
-                                var txt = (btns[i].textContent || '').toLowerCase().trim();
-                                if (txt.indexOf('login with discord') !== -1 || (txt.indexOf('login') !== -1 && txt.indexOf('discord') !== -1)) {
-                                    btns[i].click();
-                                    return 'clicked';
-                                }
-                            }
-                            var sel = document.querySelector('button.login-btn, a[href*="login"], a[href*="discord"], button[class*="discord"]');
-                            if (sel) {
-                                sel.click();
-                                return 'clicked';
-                            }
-                        }
-                        return 'not_found';
-                    })();
-                    """
-                    try:
-                        window.evaluate_js(js_auto_click)
-                    except Exception:
-                        pass
+                    elapsed_step2 = time.time() - state.get("step_entered_time", 0)
+                    cur_url = str(window.get_current_url() or "").lower()
+                    is_in_discord_oauth = ("discord.com" in cur_url and ("authorize" in cur_url or "login" in cur_url))
 
                     js_lt = """
                     (function() {
@@ -1085,22 +1186,28 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         except Exception:
                             pass
 
-                    # 從原生 Cookie 探測
+                    # 從原生 Cookie 嚴格探測 (排除 code-verifier，且 Token 長度需具備實際內容)
                     has_lt_cookie = False
                     raw_cookies_lt = []
                     try:
                         raw_cookies_lt = window.get_cookies()
                         parsed_lt = extract_cookies_dict(raw_cookies_lt)
                         for ck in parsed_lt:
-                            if "sb-db-auth-token" in ck.get("name", ""):
+                            cname = ck.get("name", "")
+                            cval = ck.get("value", "")
+                            if "sb-db-auth-token" in cname and "code-verifier" not in cname and len(cval) > 30:
                                 has_lt_cookie = True
                                 break
                     except Exception:
                         pass
 
-                    if data.get("logged_in") or has_lt_cookie or manual_save:
+                    # 冷卻保護：剛進入步驟 2 前 3 秒內禁止自動完成 (防前次舊 Cookie 瞬間誤觸，除非 manual_save)
+                    is_cooldown = (elapsed_step2 < 3.0)
+                    has_valid_token = (data.get("logged_in") or has_lt_cookie) and not is_in_discord_oauth
+
+                    if (has_valid_token and not is_cooldown) or manual_save:
                         state["is_saving"] = True
-                        print(f"[Sandbox] Step 2 Lua.tools Auth OK!")
+                        print(f"[Sandbox] Step 2 Lua.tools Auth OK! (ValidToken={has_valid_token}, Elapsed={elapsed_step2:.1f}s)")
 
                         try:
                             window.evaluate_js("""
@@ -1176,12 +1283,13 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             window.destroy()
                             return
 
-                        # 若為 all 則推進到 Step 3 (HubcapDB)
+                        # 儲存完畢後平穩推進到 Step 3 (HubcapDB)
                         state["step"] = 3
+                        state["step_entered_time"] = time.time()
                         state["is_saving"] = False
                         window.set_title("🛡️ [步驟 3/3] HubcapDB 專屬安全無痕授權沙盒 (25次/日) · 請確認授權以自動獲取 API Key")
                         window.load_url("https://hubcapmanifest.com/auth/discord")
-                        time.sleep(1.5)
+                        time.sleep(1.2)
                         continue
 
                 # ── 步驟 3：HubcapDB 平台檢查與 API Key 自動捕獲 ──
