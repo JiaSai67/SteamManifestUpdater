@@ -37,10 +37,7 @@ window.addEventListener('unhandledrejection', function(event) {
 // 導航
 // ═══════════════════════════════════════════════════════
 function switchPage(p){
-  if(!_hasPassedPrereq && (p === 'search' || p === 'manage')){
-    tt('⚠️ 尚未完成必備環境檢測，請先配置憑證或安裝內核', 'warn');
-    return;
-  }
+  // 🌟 依使用者規範：無憑證不阻擋頁面瀏覽，僅在下載或更新無額度時才守衛攔截
   document.querySelectorAll('.sidebar button').forEach(function(x){x.classList.remove('active')});
   document.querySelectorAll('.page').forEach(function(x){x.classList.remove('active')});
   var targetBtn = document.querySelector('.sidebar button[data-p=\"'+p+'\"]');

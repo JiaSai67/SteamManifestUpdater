@@ -2,15 +2,15 @@
 html.dark, html.dark body, body.dark, .app.dark {
   --bg: #1E1719;
   --fg: #F8F9FA;
-  --white: #251D20;
+  --white: #FFFFFF;
   --dark: #FFFFFF;
-  --text: #F8F9FA;
-  --text-muted: #D1C5C9;
-  --gray: #C8BDC1;
+  --text: #FFFFFF;
+  --text-muted: #E6DEE0;
+  --gray: #DDD4D7;
   --border: rgba(255, 183, 197, 0.25);
   --card-text-bg: rgba(0, 0, 0, 0.65);
   background: linear-gradient(135deg, #231C1E 0%, #2A2124 35%, #1E1719 70%, #251D20 100%) !important;
-  color: #F8F9FA !important;
+  color: #FFFFFF !important;
 }
 html.dark .app {
   background: linear-gradient(135deg, #231C1E 0%, #2A2124 35%, #1E1719 70%, #251D20 100%) !important;

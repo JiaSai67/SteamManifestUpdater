@@ -51,3 +51,168 @@
   box-sizing: border-box;
   transition: border-color .15s;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* 🌟 設置頁專屬：高對比純白標題與清晰字符保護 (杜絕任何變暗或色度降低)    */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* 1. 設置大標題 */
+#p-settings h2,
+.app.dark #p-settings h2,
+html.dark #p-settings h2 {
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* 2. 頂部母分類頁籤切換按鈕 */
+#p-settings .settings-tab-btn.btn-p,
+.app.dark #p-settings .settings-tab-btn.btn-p {
+  background: linear-gradient(135deg, #FF8FA7, #FF6699) !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 8px rgba(255, 102, 153, 0.45) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+#p-settings .settings-tab-btn.btn-o,
+.app.dark #p-settings .settings-tab-btn.btn-o {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+#p-settings .settings-tab-btn.btn-o:hover,
+.app.dark #p-settings .settings-tab-btn.btn-o:hover {
+  background: rgba(255, 183, 197, 0.25) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(255, 183, 197, 0.6) !important;
+}
+
+/* 3. 分區標題 (Steam安裝路徑 / 個性化 / 自訂背景 / 遊戲瀏覽 等) */
+#p-settings .section,
+.app.dark #p-settings .section,
+html.dark #p-settings .section {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* 4. 開關項目標題與滑桿標題 */
+#p-settings .toggle .l,
+#p-settings .setting-slider-header .l,
+.app.dark #p-settings .toggle .l,
+.app.dark #p-settings .setting-slider-header .l,
+html.dark #p-settings .toggle .l,
+html.dark #p-settings .setting-slider-header .l {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* 5. 說明小字與滑桿括號提示 (明亮粉白，杜絕暗灰) */
+#p-settings small,
+#p-settings .pref-desc,
+.app.dark #p-settings small,
+.app.dark #p-settings .pref-desc,
+html.dark #p-settings small,
+html.dark #p-settings .pref-desc {
+  color: #E8DFE2 !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* 6. 滑桿數值標籤 (0 px, 80%, 100%, 65%) */
+#p-settings .setting-slider-header .val,
+.app.dark #p-settings .setting-slider-header .val,
+html.dark #p-settings .setting-slider-header .val {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* 7. 快捷按鈕區 (必備環境檢查 / 一鍵注入內核) */
+#p-settings .shortcut-btn-row .btn-p,
+.app.dark #p-settings .shortcut-btn-row .btn-p {
+  background: linear-gradient(135deg, #FF8FA7, #FF6699) !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  box-shadow: 0 3px 12px rgba(255, 102, 153, 0.4) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+#p-settings .shortcut-btn-row .btn-o,
+.app.dark #p-settings .shortcut-btn-row .btn-o {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #FFFFFF !important;
+  border: 1.5px solid rgba(255, 183, 197, 0.45) !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+#p-settings .shortcut-btn-row .btn-o:hover,
+.app.dark #p-settings .shortcut-btn-row .btn-o:hover {
+  background: rgba(255, 183, 197, 0.22) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(255, 183, 197, 0.75) !important;
+}
+
+/* 8. Steam 路徑操作按鈕與輸入框 */
+#p-settings .path-row .btn-o,
+.app.dark #p-settings .path-row .btn-o {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #FFFFFF !important;
+  border: 1.5px solid rgba(255, 183, 197, 0.45) !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+}
+#p-settings .path-row .btn-o:hover,
+.app.dark #p-settings .path-row .btn-o:hover {
+  background: rgba(255, 183, 197, 0.22) !important;
+  color: #FFFFFF !important;
+}
+#p-settings #sp2,
+.app.dark #p-settings #sp2 {
+  background: rgba(35, 30, 32, 0.75) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(255, 183, 197, 0.35) !important;
+  font-weight: 600 !important;
+}
+
+/* 9. 文字大小切換按鈕 */
+#p-settings #btn-font-small.btn-p,
+#p-settings #btn-font-normal.btn-p,
+.app.dark #p-settings #btn-font-small.btn-p,
+.app.dark #p-settings #btn-font-normal.btn-p {
+  background: linear-gradient(135deg, #FF8FA7, #FF6699) !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+#p-settings #btn-font-small.btn-o,
+#p-settings #btn-font-normal.btn-o,
+.app.dark #p-settings #btn-font-small.btn-o,
+.app.dark #p-settings #btn-font-normal.btn-o {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #FFFFFF !important;
+  border: 1.5px solid rgba(255, 183, 197, 0.4) !important;
+  opacity: 1 !important;
+}
+
+/* 10. 桌布選擇卡片標籤純白 */
+#p-settings #bg-g > div,
+.app.dark #p-settings #bg-g > div {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
