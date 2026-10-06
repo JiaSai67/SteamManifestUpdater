@@ -1295,149 +1295,35 @@ def get_steam_app_download_report(app_id: str) -> dict:
     try:
         from managers import steam_tracker
         live_rep = steam_tracker.get_steam_live_report(app_id, target_lib)
-        if live_rep.get("status") == "COMPLETED":
-            return {
-                "status": "COMPLETED",
-                "app_id": app_id,
-                "state_flags": 4,
-                "update_result": 0,
-                "error_msg": None,
-                "bytes_downloaded": live_rep.get("bytes_downloaded", 0),
-                "bytes_to_download": live_rep.get("bytes_to_download", 0),
-                "progress_pct": 100.0,
-                "speed_str": "",
-                "game_dir": live_rep.get("game_dir", "")
-            }
-        elif live_rep.get("status") == "CANCELLED":
-            return {
-                "status": "CANCELLED",
-                "app_id": app_id,
-                "state_flags": 0,
-                "update_result": 0,
-                "error_msg": "使用者已取消下載",
-                "bytes_downloaded": 0,
-                "bytes_to_download": live_rep.get("bytes_to_download", 0),
-                "progress_pct": 0.0,
-                "speed_str": "",
-                "game_dir": live_rep.get("game_dir", "")
-            }
-        elif live_rep.get("status") == "PAUSED":
-            return {
-                "status": "PAUSED",
-                "app_id": app_id,
-                "state_flags": 512,
-                "update_result": 0,
-                "error_msg": None,
-                "bytes_downloaded": live_rep.get("bytes_downloaded", 0),
-                "bytes_to_download": live_rep.get("bytes_to_download", 0),
-                "progress_pct": live_rep.get("progress_pct", 0.0),
-                "speed_str": live_rep.get("speed_str", ""),
-                "game_dir": live_rep.get("game_dir", "")
-            }
-        elif live_rep.get("status") == "DOWNLOADING":
-            return {
-                "status": "DOWNLOADING",
-                "app_id": app_id,
-                "state_flags": 1024,
-                "update_result": 0,
-                "error_msg": None,
-                "bytes_downloaded": live_rep.get("bytes_downloaded", 0),
-                "bytes_to_download": live_rep.get("bytes_to_download", 0),
-                "progress_pct": live_rep.get("progress_pct", 0.0),
-                "speed_str": live_rep.get("speed_str", ""),
-                "stage_name": live_rep.get("stage_name", "DOWNLOADING"),
-                "game_dir": live_rep.get("game_dir", "")
-            }
-    except Exception as e:
-        print(f"[get_steam_app_download_report] steam_tracker error: {e}")
+        st = live_rep.get("status", "NOT_INSTALLED")
         return {
-            "status": "COMPLETED",
+            "status": st,
             "app_id": app_id,
-            "state_flags": state_flags or 4,
+            "state_flags": 4 if st == "COMPLETED" else (512 if st == "PAUSED" else (1024 if st == "DOWNLOADING" else 0)),
             "update_result": 0,
-            "error_msg": None,
-            "bytes_downloaded": bytes_to_download or bytes_downloaded,
-            "bytes_to_download": bytes_to_download or bytes_downloaded,
-            "progress_pct": 100.0,
-            "speed_str": "",
-            "game_dir": game_dir
+            "error_msg": "使用者已取消下載" if st == "CANCELLED" else None,
+            "bytes_downloaded": live_rep.get("bytes_downloaded", 0),
+            "bytes_to_download": live_rep.get("bytes_to_download", 0),
+            "progress_pct": live_rep.get("progress_pct", 0.0),
+            "speed_str": live_rep.get("speed_str", ""),
+            "stage_name": live_rep.get("stage_name", st),
+            "game_dir": live_rep.get("game_dir", "")
         }
-
-    # 2. 檢查使用者是否在【最近 60 秒內】主動取消下載或卸載
-    if latest_recent_cancel_log and not is_downloading_dir_exists and not has_real_exe:
+    except Exception as e:
+        logger.error(f"[get_steam_app_download_report] steam_tracker 異常: {e}", exc_info=True)
         return {
-            "status": "CANCELLED",
+            "status": "NOT_INSTALLED",
             "app_id": app_id,
-            "state_flags": state_flags,
-            "update_result": update_result,
-            "error_msg": "使用者已取消下載或已卸載",
+            "state_flags": 0,
+            "update_result": 0,
+            "error_msg": str(e),
             "bytes_downloaded": 0,
-            "bytes_to_download": bytes_to_download,
+            "bytes_to_download": 0,
             "progress_pct": 0.0,
             "speed_str": "",
-            "game_dir": game_dir
+            "stage_name": "NOT_INSTALLED",
+            "game_dir": ""
         }
-
-    # 3. 檢查錯誤 (UpdateResult != 0 且 != 2 暫停)
-    if update_result in UPDATE_ERROR_MESSAGES and update_result not in (0, 2) and not is_downloading_dir_exists:
-        return {
-            "status": "ERROR",
-            "app_id": app_id,
-            "state_flags": state_flags,
-            "update_result": update_result,
-            "error_msg": UPDATE_ERROR_MESSAGES.get(update_result, f"Steam 下載錯誤 (代碼 {update_result})"),
-            "bytes_downloaded": bytes_downloaded,
-            "bytes_to_download": bytes_to_download,
-            "progress_pct": progress_pct,
-            "speed_str": "",
-            "game_dir": game_dir
-        }
-
-    # 4. 檢查暫停
-    if (state_flags & 512 == 512) or update_result == 2:
-        return {
-            "status": "PAUSED",
-            "app_id": app_id,
-            "state_flags": state_flags,
-            "update_result": update_result,
-            "error_msg": "下載暫停中",
-            "bytes_downloaded": bytes_downloaded,
-            "bytes_to_download": bytes_to_download,
-            "progress_pct": progress_pct,
-            "speed_str": "",
-            "game_dir": game_dir
-        }
-
-    # 5. 正在下載中 (只要下載目錄存在、或有下載位元組、或 ACF 包含下載旗標)
-    if is_downloading_dir_exists or bytes_downloaded > 0 or (state_flags & 1024) or (state_flags & 2) or (state_flags & 16):
-        return {
-            "status": "DOWNLOADING",
-            "stage_name": stage_name,
-            "app_id": app_id,
-            "state_flags": state_flags,
-            "update_result": update_result,
-            "error_msg": None,
-            "bytes_downloaded": bytes_downloaded,
-            "bytes_to_download": bytes_to_download,
-            "progress_pct": progress_pct,
-            "speed_str": speed_str,
-            "game_dir": game_dir
-        }
-
-    # 6. 尚未安裝 (等候 Steam 安裝對話框確認或剛入庫)
-    return {
-        "status": "NOT_INSTALLED",
-        "stage_name": "NONE",
-        "app_id": app_id,
-        "state_flags": state_flags,
-        "update_result": update_result,
-        "error_msg": None,
-        "bytes_downloaded": 0,
-        "bytes_to_download": bytes_to_download,
-        "progress_pct": 0.0,
-        "speed_str": "",
-        "game_dir": game_dir
-    }
 
 
 import threading
