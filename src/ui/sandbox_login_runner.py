@@ -268,7 +268,7 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
             }
         }
 
-        // 6. 頂部常駐全域多功能導航列 (Navbar)
+        // 6. 頂部常駐極簡導航列 (Navbar - 僅保留步驟狀態、跳過此步驟、完成並關閉沙盒)
         function renderTopNavbar() {
             var curStep = window._sm_current_step || 1;
             var nav = document.getElementById('_sm_top_navbar');
@@ -287,26 +287,16 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
 
             var stepText = '🐉 步驟 1/3：Ryuu (50次/日)';
             var stepColor = '#10b981';
-            var showRyuuBtn = false;
-            var showHcVerifyBtn = false;
-            var showHcFetchBtn = false;
-            var nextStepText = '⏩ 跳過 Ryuu，前往步驟 2 (Lua.tools)';
 
             if (curStep === 1) {
                 stepText = '🐉 步驟 1/3：Ryuu 授權 (50次/日)';
                 stepColor = '#10b981';
-                showRyuuBtn = true;
-                nextStepText = '⏩ 跳過 Ryuu，前往步驟 2 (Lua.tools)';
             } else if (curStep === 2) {
                 stepText = '🛠️ 步驟 2/3：Lua.tools 授權 (25次/日)';
                 stepColor = '#6366f1';
-                nextStepText = '⏩ 跳過 Lua，前往步驟 3 (HubcapDB)';
             } else if (curStep === 3) {
                 stepText = '🧢 步驟 3/3：HubcapDB 授權 (25次/日)';
                 stepColor = '#06b6d4';
-                showHcVerifyBtn = true;
-                showHcFetchBtn = true;
-                nextStepText = '✅ 完成並關閉沙盒';
             }
 
             nav.innerHTML = `
@@ -317,46 +307,15 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                     </div>
                     <span id="_sm_nav_msg" style="color:#e4e4e7;font-size:12px;font-weight:500;"></span>
                 </div>
-                <div style="display:flex;align-items:center;gap:8px;">
-                    ${showRyuuBtn ? '<button id="_sm_nav_btn_ryuu" style="background:#5865F2;color:#ffffff;border:none;padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(88,101,242,0.4);"><span>💬</span><span>加入 Ryuu 伺服器</span></button>' : ''}
-                    ${showHcVerifyBtn ? '<button id="_sm_nav_btn_hc_verify" style="background:#5865F2;color:#ffffff;border:none;padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(88,101,242,0.4);"><span>🔑</span><span>前往 Verify 頻道</span></button>' : ''}
-                    ${showHcFetchBtn ? '<button id="_sm_nav_btn_hc_fetch" style="background:linear-gradient(135deg,#06b6d4,#0891b2);color:#ffffff;border:none;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(6,182,212,0.4);"><span>🚀</span><span>已驗證，獲取 Key</span></button>' : ''}
-                    <button id="_sm_nav_btn_reload" style="background:#27272a;color:#f4f4f5;border:1px solid #3f3f46;padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;"><span>🔙</span><span>返回授權頁</span></button>
-                    <button id="_sm_nav_btn_skip" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;"><span>${nextStepText}</span></button>
-                    <button id="_sm_nav_btn_save" style="background:linear-gradient(135deg,#10b981,#059669);color:#ffffff;border:none;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(16,185,129,0.35);"><span>⚡</span><span>立即儲存</span></button>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <button id="_sm_nav_btn_skip" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all 0.2s ease;">
+                        <span>⏩ 跳過此步驟</span>
+                    </button>
+                    <button id="_sm_nav_btn_finish" style="background:linear-gradient(135deg,#10b981,#059669);color:#ffffff;border:none;padding:5px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(16,185,129,0.35);transition:all 0.2s ease;">
+                        <span>✅ 完成並關閉沙盒</span>
+                    </button>
                 </div>
             `;
-
-            var ryuuBtn = document.getElementById('_sm_nav_btn_ryuu');
-            if (ryuuBtn) {
-                ryuuBtn.onclick = function() {
-                    window._action_join_ryuu = true;
-                    window.location.href = "https://discord.com/invite/manifests";
-                };
-            }
-
-            var hcVerifyBtn = document.getElementById('_sm_nav_btn_hc_verify');
-            if (hcVerifyBtn) {
-                hcVerifyBtn.onclick = function() {
-                    window._action_go_hc_verify = true;
-                    window.location.href = "https://discord.com/channels/1327856038967246970/1387379723289755780/1478783030763061329";
-                };
-            }
-
-            var hcFetchBtn = document.getElementById('_sm_nav_btn_hc_fetch');
-            if (hcFetchBtn) {
-                hcFetchBtn.onclick = function() {
-                    window._action_fetch_hc_key = true;
-                    window.location.href = "https://hubcapmanifest.com/api-keys/stats";
-                };
-            }
-
-            var reloadBtn = document.getElementById('_sm_nav_btn_reload');
-            if (reloadBtn) {
-                reloadBtn.onclick = function() {
-                    window._action_reload_step = true;
-                };
-            }
 
             var skipBtn = document.getElementById('_sm_nav_btn_skip');
             if (skipBtn) {
@@ -366,11 +325,12 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                 };
             }
 
-            var saveBtn = document.getElementById('_sm_nav_btn_save');
-            if (saveBtn) {
-                saveBtn.onclick = function() {
+            var finishBtn = document.getElementById('_sm_nav_btn_finish');
+            if (finishBtn) {
+                finishBtn.onclick = function() {
                     window._manual_save_requested = true;
-                    saveBtn.innerHTML = '<span>⏳ 正在儲存...</span>';
+                    window._action_finish_and_close = true;
+                    finishBtn.innerHTML = '<span>⏳ 正在保存並關閉...</span>';
                 };
             }
         }
@@ -494,16 +454,15 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                         window.location.href = "https://generator.ryuu.lol/login";
                     }, 600);
                 } else if (curStep === 3) {
-                    // 🚨 步驟 3：在 Hubcap Verify 頻道保持停留，讓使用者點擊機器人完成 Verify，絕不可提前自動拉回！
                     var msgEl = document.getElementById('_sm_nav_msg');
                     if (msgEl) {
-                        msgEl.innerHTML = '<span style="color:#38bdf8;font-weight:bold;">👉 請在下方點擊 Verify 機器人按鈕完成驗證，驗證後點擊右上方「🚀 已驗證，獲取 Key」</span>';
+                        msgEl.innerHTML = '<span style="color:#38bdf8;font-weight:bold;">👉 請在下方完成 Verify 機器人驗證，完成後點擊右上角「✅ 完成並關閉沙盒」</span>';
                     }
                 }
             }
         }
 
-        // 9. 伺服器未加入 / 未完成 Verify 即時偵測與自動導向
+        // 9. 伺服器未加入 / 未完成 Verify 即時偵測與分流導向
         var bodyTxt = document.body ? (document.body.innerText || '') : '';
         var isRyuu = window.location.hostname.indexOf('ryuu.lol') !== -1;
         var isHc = window.location.hostname.indexOf('hubcapmanifest.com') !== -1;
@@ -533,24 +492,69 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
             }
         }
 
-        // 檢查 Hubcap 未完成 Verify / 無權限提示 (自動跳轉至官方 Verify 訊息頻道做驗證)
-        if (isHc) {
-            var needHcVerify = bodyTxt.indexOf('You must be a member of our Discord server') !== -1 ||
-                               bodyTxt.indexOf('member of our Discord server') !== -1 ||
-                               bodyTxt.indexOf('hubcapsmanifest') !== -1 ||
-                               bodyTxt.indexOf('Unauthorized') !== -1 ||
-                               bodyTxt.indexOf('Forbidden') !== -1 ||
-                               bodyTxt.indexOf('Access Denied') !== -1 ||
-                               bodyTxt.indexOf('Access denied') !== -1 ||
-                               bodyTxt.indexOf('no permission') !== -1 ||
-                               bodyTxt.indexOf('must be verified') !== -1 ||
-                               bodyTxt.indexOf('verification required') !== -1 ||
-                               (bodyTxt.indexOf('Discord server') !== -1 && (bodyTxt.indexOf('member') !== -1 || bodyTxt.indexOf('access') !== -1));
-            if (needHcVerify) {
+        // 檢查 Hubcap 平台狀態：
+        // 【結果一：未加入伺服器】授權後跳轉並呈現 {detail.....} 或未加入 Discord 伺服器提示 -> 跳轉至 Discord 官方邀請連結
+        // 【結果二：尚未 Verify】進入正常網頁，但提示沒有授權 / 沒有驗證文字 -> 跳轉至 Discord 官方 Verify 頻道訊息
+        var isHcHostOrUrl = isHc || window.location.href.indexOf('hubcap') !== -1;
+        var isHcNotJoined = false;
+        var isHcNotVerified = false;
+
+        if (isHcHostOrUrl) {
+            // 結果一：未加入伺服器 (呈現 {detail...} 或未加入 Discord 伺服器提示)
+            // 🚨 這是未加入伺服器，必須跳轉至 Discord 邀請連結，絕不可直接跳轉至頻道！
+            isHcNotJoined = (
+                bodyTxt.indexOf('{"detail"') !== -1 ||
+                bodyTxt.indexOf('"detail"') !== -1 ||
+                bodyTxt.indexOf('{detail') !== -1 ||
+                bodyTxt.indexOf('{"detail":') !== -1 ||
+                bodyTxt.indexOf('You must be in the Hubcap discord server') !== -1 ||
+                bodyTxt.indexOf('You must be a member of our Discord server') !== -1 ||
+                bodyTxt.indexOf('member of our Discord server') !== -1 ||
+                bodyTxt.indexOf('must join our Discord server') !== -1 ||
+                bodyTxt.indexOf('join our Discord server') !== -1 ||
+                bodyTxt.indexOf('must be in the discord') !== -1 ||
+                (bodyTxt.indexOf('hubcapsmanifest') !== -1 && (bodyTxt.indexOf('member') !== -1 || bodyTxt.indexOf('join') !== -1))
+            );
+
+            if (isHcNotJoined) {
+                window._needs_hc_join_detected = true;
+                var msgEl = document.getElementById('_sm_nav_msg');
+                if (msgEl) {
+                    msgEl.innerHTML = '<span style="color:#ef4444;font-weight:bold;">⚠️ 尚未加入 Hubcap Discord 伺服器！正在跳轉官方邀請連結...</span>';
+                }
+                if (!window._hc_invite_auto_redirected) {
+                    window._hc_invite_auto_redirected = true;
+                    window._action_join_hc = true;
+                    setTimeout(function() {
+                        window.location.href = "https://discord.com/invite/hubcapsmanifest";
+                    }, 400);
+                }
+                return;
+            }
+
+            // 結果二：已在伺服器中，但尚未 Verify (進入網頁但提示沒有授權/未驗證)
+            // 🚨 此時才自動跳轉至官方 Verify 頻道訊息做機器人驗證！
+            isHcNotVerified = !isHcNotJoined && (
+                bodyTxt.indexOf('Unauthorized') !== -1 ||
+                bodyTxt.indexOf('unauthorized') !== -1 ||
+                bodyTxt.indexOf('Forbidden') !== -1 ||
+                bodyTxt.indexOf('forbidden') !== -1 ||
+                bodyTxt.indexOf('Access Denied') !== -1 ||
+                bodyTxt.indexOf('Access denied') !== -1 ||
+                bodyTxt.indexOf('access denied') !== -1 ||
+                bodyTxt.indexOf('no permission') !== -1 ||
+                bodyTxt.indexOf('must be verified') !== -1 ||
+                bodyTxt.indexOf('verification required') !== -1 ||
+                bodyTxt.indexOf('not verified') !== -1 ||
+                bodyTxt.indexOf('need verification') !== -1 ||
+                bodyTxt.indexOf('verify your account') !== -1
+            );
+
+            if (isHcNotVerified) {
                 window._needs_hc_verify_detected = true;
                 var msgEl = document.getElementById('_sm_nav_msg');
                 if (msgEl) {
-                    msgEl.innerHTML = '<span style="color:#ef4444;font-weight:bold;">⚠️ 帳號需完成 Discord 伺服器 Verify！正在自動跳轉至官方驗證頻道...</span>';
+                    msgEl.innerHTML = '<span style="color:#f59e0b;font-weight:bold;">⚠️ 帳號尚未完成 Verify 驗證！正在自動跳轉官方驗證頻道...</span>';
                 }
                 if (!window._hc_verify_auto_redirected) {
                     window._hc_verify_auto_redirected = true;
@@ -563,8 +567,8 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
             }
         }
 
-        // 10. HubcapDB 授權成功自動導航至 API Keys 統計頁取得 Key
-        if (isHc && !needHcVerify) {
+        // 10. HubcapDB 授權成功且正常進入，自動導航至 API Keys 統計頁取得 Key
+        if (isHc && !isHcNotJoined && !isHcNotVerified) {
             var path = window.location.pathname || '';
             var isStatsPage = path.indexOf('/api-keys/stats') !== -1;
             var isIndex = (path === '/' || path === '');
@@ -902,7 +906,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                     pass
 
                 # ── 全域導航列事件監聽 ──
-                # 1. 加入 Ryuu Discord 伺服器
+                # 1. 加入 Ryuu Discord 伺服器邀請
                 try:
                     if bool(window.evaluate_js("Boolean(window._action_join_ryuu)")):
                         window.evaluate_js("window._action_join_ryuu = false;")
@@ -913,22 +917,35 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                 except Exception:
                     pass
 
-                # 2. 前往 Hubcap Verify 頻道 (做 Verify)
+                # 1.1 加入 Hubcap Discord 伺服器邀請 (未加入伺服器時)
+                try:
+                    if bool(window.evaluate_js("Boolean(window._action_join_hc)")):
+                        window.evaluate_js("window._action_join_hc = false;")
+                        print(f"[Sandbox] 正在導向 Hubcap 官方 Discord 伺服器邀請 ({HUBCAP_INVITE_URL})...")
+                        state["hc_invite_redirected"] = True
+                        window.load_url(HUBCAP_INVITE_URL)
+                        time.sleep(1.0)
+                        continue
+                except Exception:
+                    pass
+
+                # 2. 前往 Hubcap Verify 頻道 (尚未 Verify 時)
                 try:
                     if bool(window.evaluate_js("Boolean(window._action_go_hc_verify)")):
                         window.evaluate_js("window._action_go_hc_verify = false;")
                         print(f"[Sandbox] 正在導向 Hubcap 官方 Discord Verify 頻道訊息 ({HUBCAP_VERIFY_URL})...")
+                        state["hc_verify_redirected"] = True
                         window.load_url(HUBCAP_VERIFY_URL)
                         time.sleep(1.0)
                         continue
                 except Exception:
                     pass
 
-                # 2.1 獲取 Hubcap API Key (已完成驗證時)
+                # 2.1 獲取 Hubcap API Key
                 try:
                     if bool(window.evaluate_js("Boolean(window._action_fetch_hc_key)")):
                         window.evaluate_js("window._action_fetch_hc_key = false;")
-                        print("[Sandbox] 使用者點擊「已驗證，獲取 Key」，正在導向 https://hubcapmanifest.com/api-keys/stats...")
+                        print("[Sandbox] 正在導向 https://hubcapmanifest.com/api-keys/stats 讀取金鑰...")
                         state["hc_verify_redirected"] = False
                         state["_redirected_to_stats"] = False
                         window.load_url("https://hubcapmanifest.com/api-keys/stats")
@@ -948,12 +965,17 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             time.sleep(1.2)
                             continue
                         elif state["step"] == 3:
-                            # 🚨 步驟 3 使用者正在 Verify 頻道訊息進行驗證，絕不可自動導回 Hubcap！
-                            pass
+                            # 步驟 3：若剛從邀請連結接受邀請加入伺服器，自動導航至 Verify 頻道進行機器人驗證
+                            if state.get("hc_invite_redirected") and not state.get("hc_verify_redirected"):
+                                state["hc_verify_redirected"] = True
+                                print(f"[Sandbox] 偵測到已接受邀請加入 Hubcap 伺服器，自動導向 Verify 頻道 ({HUBCAP_VERIFY_URL})...")
+                                window.load_url(HUBCAP_VERIFY_URL)
+                                time.sleep(1.0)
+                                continue
                 except Exception:
                     pass
 
-                # 3. 返回授權起始頁
+                # 3. 返回授權起始頁 (備用相容)
                 try:
                     if bool(window.evaluate_js("Boolean(window._action_reload_step)")):
                         window.evaluate_js("window._action_reload_step = false;")
@@ -996,7 +1018,31 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             time.sleep(1.2)
                             continue
                         elif state["step"] == 3:
-                            print("[Sandbox] 使用者點擊完成/結束沙盒視窗。")
+                            print("[Sandbox] 使用者手動跳過 HubcapDB，關閉沙盒視窗。")
+                            window.destroy()
+                            return
+                except Exception:
+                    pass
+
+                # 5. 完成並關閉沙盒
+                try:
+                    if bool(window.evaluate_js("Boolean(window._action_finish_and_close)")):
+                        window.evaluate_js("window._action_finish_and_close = false;")
+                        state["finish_requested"] = True
+                        print("[Sandbox] 使用者點擊「✅ 完成並關閉沙盒」...")
+                        cur_url = str(window.get_current_url() or "")
+                        # 若處於步驟 3 且在 Discord 頁面，使用者已驗證完成，自動轉向 Hubcap 抓 Key
+                        if state["step"] == 3 and "discord.com" in cur_url and not state.get("hubcap_done"):
+                            print("[Sandbox] 正在自動導回 Hubcap API Keys 統計頁獲取最新金鑰...")
+                            state["_redirected_to_stats"] = False
+                            state["hc_verify_redirected"] = False
+                            window.load_url("https://hubcapmanifest.com/api-keys/stats")
+                            time.sleep(1.0)
+                            continue
+                        else:
+                            manual_save = True
+                            state["is_saving"] = True
+                            time.sleep(0.5)
                             window.destroy()
                             return
                 except Exception:
@@ -1201,6 +1247,13 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             window.destroy()
                             return
 
+                        # 若使用者要求完成並關閉沙盒，已保存 Ryuu 憑證，直接關閉視窗退出
+                        if state.get("finish_requested"):
+                            print("[Sandbox] 使用者要求完成並關閉沙盒，已保存 Ryuu 憑證並關閉視窗。")
+                            time.sleep(0.8)
+                            window.destroy()
+                            return
+
                         # 推進到 Step 2 (Lua.tools)
                         state["step"] = 2
                         state["step_entered_time"] = time.time()
@@ -1380,6 +1433,13 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             window.destroy()
                             return
 
+                        # 若使用者要求完成並關閉沙盒，已保存 Lua.tools 憑證，直接關閉視窗退出
+                        if state.get("finish_requested"):
+                            print("[Sandbox] 使用者要求完成並關閉沙盒，已保存 Lua.tools 憑證並關閉視窗。")
+                            time.sleep(0.8)
+                            window.destroy()
+                            return
+
                         # 儲存完畢後平穩推進到 Step 3 (HubcapDB)
                         state["step"] = 3
                         state["step_entered_time"] = time.time()
@@ -1409,25 +1469,43 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             }
                         }
 
-                        // 2. 檢查是否有尚未完成 Verify 或無權限提示
-                        var needsVerifyHc = isHubcap && (
+                        // 2. 檢查 Hubcap 的兩種狀態：未加入伺服器 vs 尚未 Verify
+                        // 結果一：未加入伺服器 (呈現 {detail.....} 或未加入 Discord 伺服器提示)
+                        var needsJoinServerHc = (isHubcap || curUrl.indexOf('hubcap') !== -1) && (
+                            bodyText.indexOf('{"detail"') !== -1 ||
+                            bodyText.indexOf('"detail"') !== -1 ||
+                            bodyText.indexOf('{detail') !== -1 ||
+                            bodyText.indexOf('{"detail":') !== -1 ||
+                            bodyText.indexOf('You must be in the Hubcap discord server') !== -1 ||
                             bodyText.indexOf('You must be a member of our Discord server') !== -1 ||
                             bodyText.indexOf('member of our Discord server') !== -1 ||
-                            bodyText.indexOf('hubcapsmanifest') !== -1 ||
+                            bodyText.indexOf('must join our Discord server') !== -1 ||
+                            bodyText.indexOf('join our Discord server') !== -1 ||
+                            bodyText.indexOf('must be in the discord') !== -1 ||
+                            (bodyText.indexOf('hubcapsmanifest') !== -1 && (bodyText.indexOf('member') !== -1 || bodyText.indexOf('join') !== -1))
+                        );
+
+                        // 結果二：已在伺服器中但尚未 Verify (提示沒有授權 / 沒有驗證文字)
+                        var needsVerifyHc = isHubcap && !needsJoinServerHc && (
                             bodyText.indexOf('Unauthorized') !== -1 ||
+                            bodyText.indexOf('unauthorized') !== -1 ||
                             bodyText.indexOf('Forbidden') !== -1 ||
+                            bodyText.indexOf('forbidden') !== -1 ||
                             bodyText.indexOf('Access Denied') !== -1 ||
                             bodyText.indexOf('Access denied') !== -1 ||
+                            bodyText.indexOf('access denied') !== -1 ||
                             bodyText.indexOf('no permission') !== -1 ||
                             bodyText.indexOf('must be verified') !== -1 ||
                             bodyText.indexOf('verification required') !== -1 ||
-                            (bodyText.indexOf('Discord server') !== -1 && (bodyText.indexOf('member') !== -1 || bodyText.indexOf('access') !== -1))
+                            bodyText.indexOf('not verified') !== -1 ||
+                            bodyText.indexOf('need verification') !== -1 ||
+                            bodyText.indexOf('verify your account') !== -1
                         );
 
                         // 3. 核心自動跳轉：若在 Hubcap 且授權通過（無報錯），且不在 stats 頁面，自動跳轉至 stats 頁
                         var isIndex = (pathname === '/' || pathname === '');
                         var hasLoginBtn = isIndex && !!document.querySelector('a[href*="/auth/discord"]');
-                        var isAuthed = isHubcap && !needsVerifyHc && (
+                        var isAuthed = isHubcap && !needsJoinServerHc && !needsVerifyHc && (
                             pathname.indexOf('/auth/') !== -1 ||
                             pathname.indexOf('/dashboard') !== -1 ||
                             pathname.indexOf('/user') !== -1 ||
@@ -1443,7 +1521,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         }
 
                         // 4. 若在 Hubcap 且尚未發起非同步探測，發起前端 fetch
-                        if (isHubcap && !needsVerifyHc && !window._hc_fetching) {
+                        if (isHubcap && !needsJoinServerHc && !needsVerifyHc && !window._hc_fetching) {
                             window._hc_fetching = true;
                             fetch('/auth/me', { credentials: 'include' })
                                 .then(function(r) { return r.json(); })
@@ -1479,8 +1557,8 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
 
                         // 5. 全方位正則掃描 DOM 中的 API Key (支援 smm_ 開頭金鑰)
                         var domKey = "";
-                        var smmRegex = /\\b(smm_[a-zA-Z0-9_\\-]{20,})\\b/;
-                        if (isHubcap && !needsVerifyHc) {
+                        var smmRegex = /\b(smm_[a-zA-Z0-9_\-]{20,})\b/;
+                        if (isHubcap && !needsJoinServerHc && !needsVerifyHc) {
                             var els = document.querySelectorAll('input, textarea, code, span, pre, div, td, p, h1, h2, h3, h4');
                             for (var i = 0; i < els.length; i++) {
                                 var val = els[i].value || '';
@@ -1522,7 +1600,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             logged_in: !!userObj || !!finalKey || isStatsPage || isAuthed,
                             api_key: finalKey,
                             needs_verify: needsVerifyHc,
-                            needs_join_server: needsVerifyHc,
+                            needs_join_server: needsJoinServerHc,
                             user: userObj
                         });
                     })();
@@ -1540,8 +1618,19 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         except Exception:
                             pass
 
-                    # 偵測到尚未完成 Hubcap Verify 驗證 / 無權限報錯，自動導向官方 Verify 頻道訊息
-                    if data_hc.get("needs_verify") or data_hc.get("needs_join_server"):
+                    # 情況一：偵測到尚未加入 Hubcap Discord 伺服器 (呈現 {detail...})
+                    # 🚨 必須自動導向官方邀請連結 (HUBCAP_INVITE_URL)，絕不能直接導向頻道！
+                    if data_hc.get("needs_join_server"):
+                        if not state.get("hc_invite_redirected"):
+                            state["hc_invite_redirected"] = True
+                            print(f"[Sandbox] 偵測到尚未加入 Hubcap Discord 伺服器 (呈現 {{detail...}})，自動導向官方邀請連結 ({HUBCAP_INVITE_URL})...")
+                            window.load_url(HUBCAP_INVITE_URL)
+                        time.sleep(1.0)
+                        continue
+
+                    # 情況二：已在伺服器中但尚未 Verify 驗證
+                    # 🚨 此時才自動導向官方 Verify 頻道訊息 (HUBCAP_VERIFY_URL)
+                    if data_hc.get("needs_verify"):
                         if not state.get("hc_verify_redirected"):
                             state["hc_verify_redirected"] = True
                             print(f"[Sandbox] 偵測到 Hubcap 提示無權限 / 需完成 Discord 驗證，自動導向官方 Verify 頻道 ({HUBCAP_VERIFY_URL})...")
@@ -1552,7 +1641,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                     # 🌟 核心流程：授權完成後如果已在 Hubcap 網域且無報錯，自動跳轉至 https://hubcapmanifest.com/api-keys/stats
                     cur_hc_url = str(window.get_current_url() or "")
                     is_in_stats = ("/api-keys/stats" in cur_hc_url) or data_hc.get("is_stats_page")
-                    if data_hc.get("is_hubcap") and not data_hc.get("needs_verify") and not is_in_stats:
+                    if data_hc.get("is_hubcap") and not data_hc.get("needs_verify") and not data_hc.get("needs_join_server") and not is_in_stats:
                         # 排除剛載入首頁正在點擊登入的過渡期
                         if data_hc.get("is_authed") or ("/auth/discord" not in cur_hc_url and cur_hc_url.rstrip("/") != "https://hubcapmanifest.com"):
                             if not state.get("_redirected_to_stats"):
