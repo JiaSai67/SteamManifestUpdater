@@ -1,0 +1,23 @@
+/* ═════════════════════════════════════════════════════════════════════ */
+/* 🌟 SMU Animations & Transitions (全域過場、流光動效與動畫關鍵影格)    */
+/* ═════════════════════════════════════════════════════════════════════ */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInMenu {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(12px) translateZ(0); }
+  to { opacity: 1; transform: translateY(0) translateZ(0); }
+}
+
+@keyframes gpuPulse {
+  0% { opacity: 0.35; }
+  100% { opacity: 0.85; }
+}

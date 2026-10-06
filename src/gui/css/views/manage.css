@@ -1,0 +1,609 @@
+/* ═════════════════════════════════════════════════════════════════════ */
+/* 🌟 Manage View Styles (管理入庫、DLC清單、更新狀態與版本切換)         */
+/* ═════════════════════════════════════════════════════════════════════ */
+
+#glist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* ═══════════════════════════════════════════════════════════════════════
+   全域字體大小與雙套版型系統（小模式 vs 正常清晰排版模式）
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 第一套：小模式 (精簡版型 / 預設) ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  height: 36px;
+  line-height: 36px;
+  border: none;
+  border-radius: var(--r);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: transform .12s, background .2s, opacity .2s, box-shadow .2s;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.btn-s {
+  height: 34px !important;
+  line-height: 34px !important;
+  padding: 0 15px !important;
+  font-size: 12.5px !important;
+  border-radius: 8px !important;
+}
+.btn-xs {
+  height: 28px !important;
+  line-height: 28px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+}
+.path-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.path-row input {
+  flex: 1;
+  height: 34px;
+  padding: 0 12px;
+  border: 1.5px solid var(--pink-light);
+  border-radius: var(--rs);
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  box-sizing: border-box;
+}
+small, .pref-desc {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* 帳號卡片基礎樣式 (小模式防重疊) */
+
+.cred-acc-invalid-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  margin-top: 1px !important;
+}
+.cred-acc-invalid-row .cred-badge-not-in-server,
+.cred-acc-invalid-row .btn-cred-quick-join {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 23px !important;
+  min-height: 23px !important;
+  max-height: 23px !important;
+  padding: 0 9px !important;
+  box-sizing: border-box !important;
+  border-radius: 5px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  vertical-align: middle !important;
+}
+
+.cred-account-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  margin-bottom: 10px !important;
+  max-height: 240px !important;
+  overflow-y: auto !important;
+  padding-right: 3px !important;
+}
+.cred-account-item {
+  display: flex !important;
+  align-items: center !important;
+  background: rgba(255, 255, 255, .85);
+  border: 1.5px solid rgba(255, 183, 197, .4);
+  border-radius: 11px;
+  padding: 7px 11px !important;
+  min-height: 56px !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  gap: 7px !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+.app.dark .cred-account-item, .app.dark.has-bg .cred-account-item {
+  background: rgba(24, 18, 21, .92);
+  border-color: rgba(255, 183, 197, .18);
+}
+.cred-rank-badge {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 5px !important;
+  background: rgba(0, 0, 0, .06) !important;
+  color: var(--dark) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+.app.dark .cred-rank-badge {
+  background: rgba(255, 255, 255, .12) !important;
+  color: #FFF !important;
+}
+.cred-acc-avatar, .cred-acc-avatar-placeholder {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  flex-shrink: 0 !important;
+}
+.cred-acc-info {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  margin-right: 4px !important;
+  overflow: hidden !important;
+}
+.cred-acc-header-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+  line-height: 1.2 !important;
+}
+.cred-acc-name {
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  color: var(--dark) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+.app.dark .cred-acc-name, .app.dark.has-bg .cred-acc-name {
+  color: #FFF !important;
+}
+.cred-acc-status-box {
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+.cred-acc-meta {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+  line-height: 1.2 !important;
+  font-size: 10.5px !important;
+}
+.cred-acc-meta-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  flex: 1 1 auto !important;
+}
+.cred-acc-sub {
+  font-size: 9.5px !important;
+  color: var(--gray) !important;
+  max-width: 110px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  flex-shrink: 1 !important;
+}
+.cred-acc-quota {
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  color: #75696D !important;
+}
+.app.dark .cred-acc-quota, .app.dark.has-bg .cred-acc-quota {
+  color: #E2D7DA !important;
+}
+.cred-acc-quick-box {
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+.cred-acc-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex-shrink: 0 !important;
+  width: 82px !important;
+  justify-content: flex-end !important;
+}
+.btn-order, .btn-del-acc {
+  width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 5px !important;
+  font-size: 11px !important;
+  cursor: pointer !important;
+  transition: all .15s ease !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+  border: 1px solid rgba(255, 183, 197, .5) !important;
+  background: rgba(255, 255, 255, .8) !important;
+  color: var(--dark) !important;
+}
+.btn-del-acc {
+  background: rgba(255, 235, 238, .8) !important;
+  border-color: rgba(239, 83, 80, .4) !important;
+  color: #D32F2F !important;
+  font-size: 11.5px !important;
+}
+.app.dark .btn-order {
+  background: rgba(45, 35, 40, .8) !important;
+  border-color: rgba(255, 183, 197, .25) !important;
+  color: #FFF !important;
+}
+.app.dark .btn-del-acc {
+  background: rgba(211, 47, 47, .2) !important;
+  border-color: rgba(255, 138, 128, .3) !important;
+  color: #FF8A80 !important;
+}
+.btn-order:hover:not(:disabled) {
+  background: var(--pink-pale) !important;
+  border-color: var(--pink-deep) !important;
+  transform: scale(1.08) !important;
+}
+.btn-del-acc:hover {
+  background: #FFCDD2 !important;
+  border-color: #E53935 !important;
+  color: #C62828 !important;
+  transform: scale(1.08) !important;
+}
+.btn-order:disabled {
+  opacity: .25 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+.cred-priority-badge {
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  padding: 1.5px 6px !important;
+  border-radius: 99px !important;
+  white-space: nowrap !important;
+}
+.cred-badge-not-in-server {
+  font-size: 9.5px !important;
+  padding: 1px 0 !important;
+  width: 70px !important;
+  text-align: center !important;
+  border-radius: 4px !important;
+  background: #FFEBEE !important;
+  color: #D32F2F !important;
+  font-weight: 700 !important;
+  border: 1px solid rgba(211, 47, 47, .35) !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+  line-height: 14px !important;
+}
+.app.dark .cred-badge-not-in-server, .app.dark.has-bg .cred-badge-not-in-server {
+  background: rgba(211, 47, 47, .22) !important;
+  color: #FF8A80 !important;
+  border-color: rgba(255, 138, 128, .4) !important;
+}
+.btn-cred-quick-join {
+  font-size: 9.5px !important;
+  padding: 0 !important;
+  width: 70px !important;
+  height: 20px !important;
+  line-height: 18px !important;
+  text-align: center !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  border: 1px solid #FFB74D !important;
+  background: rgba(255, 183, 77, .18) !important;
+  color: #E65100 !important;
+  font-weight: 700 !important;
+  box-sizing: border-box !important;
+}
+.app.dark .btn-cred-quick-join, .app.dark.has-bg .btn-cred-quick-join {
+  color: #FFB74D !important;
+  border-color: rgba(255, 183, 77, .45) !important;
+  background: rgba(255, 183, 77, .18) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ── 第二套：正常模式 (清晰大氣，獨立第二套排版，按鈕文字黃金比例，絕不重疊) ──
+   ═══════════════════════════════════════════════════════════════════════ */
+html.font-normal, body.font-normal {
+  font-size: 14.5px;
+}
+body.font-normal h2 {
+  font-size: 23px !important;
+  margin-bottom: 14px !important;
+}
+body.font-normal h3 {
+  font-size: 18px !important;
+}
+body.font-normal h4 {
+  font-size: 15.5px !important;
+}
+
+/* 正常模式：標題、區塊與排版容器間距擴展 */
+body.font-normal .section {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  margin: 22px 0 12px !important;
+}
+body.font-normal .toggle {
+  padding: 12px 0 !important;
+  min-height: 48px !important;
+}
+body.font-normal .toggle .l {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+body.font-normal .setting-slider-row {
+  padding: 12px 0 !important;
+  margin-bottom: 6px !important;
+}
+body.font-normal .setting-slider-header {
+  margin-bottom: 8px !important;
+}
+body.font-normal .setting-slider-header .l {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+body.font-normal .setting-slider-header .val {
+  font-size: 14px !important;
+}
+
+/* 正常模式：說明小字清晰化 */
+body.font-normal small,
+body.font-normal .pref-desc,
+body.font-normal .toggle small,
+body.font-normal .setting-slider-header small,
+body.font-normal .cred-platform-sub,
+body.font-normal .cred-account-list-sub,
+body.font-normal .cred-strategy-sub,
+body.font-normal .cloud-dest-sub,
+body.font-normal .dt-source-gid-lbl,
+body.font-normal .detail-section-sub,
+body.font-normal .dt-meta,
+body.font-normal .of-desc {
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+}
+
+/* 正常模式：按鈕系統黃金比例（字體大、按鈕飽滿、文字加粗） */
+body.font-normal .btn {
+  height: 40px !important;
+  line-height: 40px !important;
+  padding: 0 20px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+}
+body.font-normal .btn-s {
+  height: 38px !important;
+  line-height: 38px !important;
+  padding: 0 18px !important;
+  font-size: 14.5px !important;
+  font-weight: 700 !important;
+  border-radius: 9px !important;
+}
+body.font-normal .btn-xs {
+  height: 32px !important;
+  line-height: 32px !important;
+  padding: 0 14px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  border-radius: 7px !important;
+}
+
+/* 正常模式：Steam 路徑列與按鈕群排版 */
+body.font-normal .path-row {
+  display: flex !important;
+  gap: 10px !important;
+  margin-bottom: 14px !important;
+  align-items: center !important;
+}
+body.font-normal .path-row input {
+  height: 38px !important;
+  padding: 0 14px !important;
+  font-size: 14.5px !important;
+  border-radius: 9px !important;
+}
+body.font-normal .path-row .btn-s {
+  min-width: 72px !important;
+  text-align: center !important;
+}
+
+/* 快捷按鈕容器：自適應防擠壓折行 */
+body.font-normal .shortcut-btn-row {
+  display: flex !important;
+  gap: 10px !important;
+  row-gap: 10px !important;
+  flex-wrap: wrap !important;
+  margin: 10px 0 16px 0 !important;
+}
+
+/* 正常模式：憑證池與帳號卡片專屬排版 (絕不重疊) */
+body.font-normal .cred-account-list {
+  max-height: 260px !important;
+  gap: 9px !important;
+}
+body.font-normal .cred-account-item {
+  padding: 8px 12px !important;
+  min-height: 62px !important;
+  gap: 8px !important;
+  border-radius: 12px !important;
+}
+body.font-normal .cred-rank-badge {
+  font-size: 12px !important;
+  width: 24px !important;
+  height: 24px !important;
+}
+body.font-normal .cred-acc-avatar,
+body.font-normal .cred-acc-avatar-placeholder {
+  width: 32px !important;
+  height: 32px !important;
+}
+body.font-normal .cred-acc-name {
+  font-size: 13.5px !important;
+}
+body.font-normal .cred-acc-sub {
+  font-size: 11px !important;
+  max-width: 130px !important;
+}
+body.font-normal .cred-acc-quota {
+  font-size: 11.5px !important;
+}
+body.font-normal .cred-priority-badge {
+  font-size: 10.5px !important;
+  padding: 2px 7px !important;
+}
+body.font-normal .cred-badge-not-in-server {
+  font-size: 10px !important;
+  width: 74px !important;
+  padding: 1.5px 0 !important;
+  line-height: 15px !important;
+}
+body.font-normal .btn-cred-quick-join {
+  font-size: 10px !important;
+  width: 74px !important;
+  height: 21px !important;
+  line-height: 19px !important;
+}
+body.font-normal .cred-acc-actions {
+  width: 88px !important;
+  gap: 4px !important;
+}
+body.font-normal .btn-order,
+body.font-normal .btn-del-acc {
+  width: 26px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  font-size: 11.5px !important;
+}
+body.font-normal .btn-del-acc {
+  font-size: 12px !important;
+}
+
+/* 正常模式：搜尋框與輸入元件 */
+body.font-normal .search-row {
+  margin-bottom: 16px !important;
+}
+body.font-normal .search-row input {
+  font-size: 15.5px !important;
+  height: 44px !important;
+  padding: 0 20px !important;
+}
+body.font-normal input,
+body.font-normal select,
+body.font-normal textarea {
+  font-size: 14.5px !important;
+}
+body.font-normal .titlebar .tt {
+  font-size: 12.5px !important;
+}
+
+/* 正常模式：遊戲卡片（管理頁 & 首頁網格 & 清單） */
+body.font-normal #glist .card .name,
+body.font-normal #results.browse-grid .card .name {
+  font-size: 13.5px !important;
+  padding: 8px 10px 4px !important;
+}
+body.font-normal #glist .card .aid,
+body.font-normal #results.browse-grid .card .aid {
+  font-size: 12px !important;
+  padding: 3px 10px 8px !important;
+}
+body.font-normal #glist.list .card .name {
+  font-size: 15px !important;
+}
+body.font-normal #glist.list .card .aid {
+  font-size: 12.5px !important;
+}
+body.font-normal .card .ver-info,
+body.font-normal .card .link {
+  font-size: 12px !important;
+}
+body.font-normal .dlc-tag,
+body.font-normal .unknown-tag {
+  font-size: 11.5px !important;
+  padding: 2px 8px !important;
+}
+
+/* 正常模式：更多工具、關於頁與體檢 */
+body.font-normal .tool-card .tt {
+  font-size: 15px !important;
+}
+body.font-normal .tool-card .ds {
+  font-size: 12.5px !important;
+}
+body.font-normal .about-card h4 {
+  font-size: 15px !important;
+}
+body.font-normal .about-card p {
+  font-size: 13px !important;
+  line-height: 1.75 !important;
+}
+body.font-normal .tool-block .tb-name {
+  font-size: 15px !important;
+}
+body.font-normal .tool-block .tb-desc {
+  font-size: 13px !important;
+}
+body.font-normal .sc-table {
+  font-size: 13px !important;
+}
+body.font-normal .sc-table th,
+body.font-normal .sc-table td {
+  padding: 7px 10px !important;
+}
+body.font-normal .dg-row .dg-title {
+  font-size: 14.5px !important;
+}
+body.font-normal .dg-row .dg-detail {
+  font-size: 13px !important;
+}
+body.font-normal .dg-row .dg-fix {
+  font-size: 13px !important;
+}
+body.font-normal .dg-sug {
+  font-size: 13px !important;
+}
+body.font-normal .chip {
+  font-size: 12px !important;
+  padding: 3px 9px !important;
+}
+
+/* 正常模式：彈窗 (Modal) 與 Toast */
+body.font-normal .modal h3 {
+  font-size: 17px !important;
+}
+body.font-normal .modal p {
+  font-size: 13.5px !important;
+}
+body.font-normal .toast {
+  font-size: 14px !important;
+  padding: 10px 26px !important;
+}
+body.font-normal .free-badge {
+  font-size: 12.5px !important;
+  padding: 7px 16px !important;
+}

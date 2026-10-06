@@ -1,0 +1,309 @@
+/* ═════════════════════════════════════════════════════════════════════ */
+/* 🌙 SMU Dark Theme (純深色模式專屬配色、夜間磨砂玻璃與暗夜白字)       */
+/* ═════════════════════════════════════════════════════════════════════ */
+
+html.dark, html.dark body, body.dark, .app.dark {
+  --bg: #1E1719;
+  --fg: #F8F9FA;
+  --white: #251D20;
+  --gray: #C4B5B9;
+  --gray-light: #2C2326;
+  --pink-pale: #2F2125;
+  --border-card: rgba(255, 255, 255, 0.12);
+}
+
+.app.dark {
+  background: #181214 !important;
+  color: #F8F9FA !important;
+}
+
+.app.dark .app-bg-overlay {
+  background: rgba(18, 14, 16, 0.55);
+}
+
+.app.dark .sidebar {
+  background: rgba(25, 20, 22, 0.92);
+  border-right-color: rgba(255, 255, 255, 0.08);
+}
+.app.dark .sidebar button {
+  color: #B0A2A6;
+}
+.app.dark .sidebar button:hover {
+  background: rgba(255, 183, 197, 0.15);
+  color: #FFB7C5;
+}
+.app.dark .sidebar button.active {
+  background: linear-gradient(135deg, var(--pink-deep), #D06080);
+  color: #FFFFFF;
+}
+
+.app.dark .titlebar {
+  background: rgba(25, 20, 22, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #F8F9FA;
+}
+.app.dark .titlebar button {
+  color: #B0A2A6;
+}
+.app.dark .titlebar button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+}
+
+.app.dark .card {
+  background: rgba(35, 28, 31, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #F8F9FA;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.app.dark .card:hover {
+  background: rgba(45, 36, 40, 0.9);
+  border-color: rgba(255, 143, 167, 0.45);
+}
+
+/* 深色模式自訂桌布時的暗黑磨砂玻璃 */
+.app.dark.has-bg .card,
+.app.dark.has-bg .tool-card,
+.app.dark.has-bg .about-card,
+.app.dark.has-bg .stat-card,
+.app.dark.has-bg .party-room-panel,
+.app.dark.has-bg .party-chat-panel,
+.app.dark.has-bg .settings-section {
+  background: rgba(25, 20, 22, 0.75) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55) !important;
+}
+
+/* 深色模式彈窗規範 */
+.app.dark .modal>div,
+.app.dark .modal-box {
+  background: #20181A !important;
+  color: #F8F9FA !important;
+  border: 1px solid rgba(255, 143, 167, 0.25) !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75) !important;
+}
+/* ═══════════════════════════════════════════════════════
+   深色模式 (Dark Mode 黑底白字)
+   ═══════════════════════════════════════════════════════ */
+.app.dark .modal-box, .app.dark.has-bg .modal-box {
+  background: #251D21 !important;
+  color: #FFFFFF !important;
+  border: 1.5px solid rgba(255,183,197,0.25) !important;
+  box-shadow: 0 16px 45px rgba(0,0,0,0.7) !important;
+  text-shadow: none !important;
+}
+.modal-box, .modal-box * {
+  text-shadow: none !important;
+}
+.app.dark .modal-box h3, .app.dark .modal-box h2, .app.dark .modal-box .m-title,
+.app.dark.has-bg .modal-box h3, .app.dark.has-bg .modal-box h2, .app.dark.has-bg .modal-box .m-title {
+  color: #FFFFFF !important;
+  text-shadow: none !important;
+}
+.app.dark .modal-box p, .app.dark .modal-box .m-desc,
+.app.dark.has-bg .modal-box p, .app.dark.has-bg .modal-box .m-desc {
+  color: #E6DEE0 !important;
+  text-shadow: none !important;
+}
+.app.dark .modal-box .btn-close, .app.dark.has-bg .modal-box .btn-close {
+  color: #E6DEE0 !important;
+  background: rgba(255,255,255,0.08);
+  text-shadow: none !important;
+}
+.app.dark .modal-box .btn-close:hover, .app.dark.has-bg .modal-box .btn-close:hover {
+  background: rgba(255,183,197,0.22);
+  color: #FFFFFF !important;
+}
+
+/* 雙軌選擇卡片 - 深色 */
+.app.dark .login-choice-card.card-normal, .app.dark.has-bg .login-choice-card.card-normal {
+  background: rgba(45,25,32,0.9) !important;
+  border: 2px solid rgba(255,143,167,0.5) !important;
+  text-shadow: none !important;
+}
+.app.dark .login-choice-card.card-fast, .app.dark.has-bg .login-choice-card.card-fast {
+  background: rgba(45,35,22,0.9) !important;
+  border: 2px solid rgba(255,167,38,0.5) !important;
+  text-shadow: none !important;
+}
+.app.dark .login-choice-card .lc-title, .app.dark.has-bg .login-choice-card .lc-title {
+  color: #FFFFFF !important;
+  text-shadow: none !important;
+}
+.app.dark .login-choice-card .lc-desc, .app.dark.has-bg .login-choice-card .lc-desc {
+  color: #E6DEE0 !important;
+  text-shadow: none !important;
+}
+
+/* 風險提示條與獨立彈窗 - 深色 */
+.app.dark .risk-notice-strip, .app.dark.has-bg .risk-notice-strip {
+  background: rgba(255,59,48,0.12) !important;
+  border: 1px solid rgba(255,59,48,0.35) !important;
+  color: #FF8A80 !important;
+  text-shadow: none !important;
+}
+.app.dark .token-risk-box, .app.dark.has-bg .token-risk-box {
+  background: #241D20 !important;
+  border: 2px solid #FF453A !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 24px rgba(255,69,58,0.25) !important;
+  color: #FFF0F3 !important;
+  text-shadow: none !important;
+}
+.app.dark .token-risk-box .token-risk-title, .app.dark.has-bg .token-risk-box .token-risk-title {
+  color: #FF453A !important;
+  text-shadow: none !important;
+}
+.app.dark .token-risk-box .token-risk-text, .app.dark.has-bg .token-risk-box .token-risk-text {
+  color: #FFFFFF !important;
+  text-shadow: none !important;
+}
+.app.dark .token-risk-box .token-risk-sub, .app.dark.has-bg .token-risk-box .token-risk-sub {
+  color: #C5B6BA !important;
+  text-shadow: none !important;
+}
+.app.dark .token-risk-box .token-risk-yellow, .app.dark.has-bg .token-risk-box .token-risk-yellow {
+  color: #FFD600 !important;
+  font-weight: 800 !important;
+  background: rgba(255,214,0,0.16) !important;
+  padding: 1px 6px !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(255,214,0,0.4) !important;
+  text-shadow: none !important;
+}
+.app.dark .token-risk-box .token-risk-img-container, .app.dark.has-bg .token-risk-box .token-risk-img-container {
+  background: rgba(0,0,0,0.38) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+}
+.app.dark .token-risk-box .token-risk-warning-footer, .app.dark.has-bg .token-risk-box .token-risk-warning-footer {
+  color: #FF5252 !important;
+  text-shadow: none !important;
+}
+
+/* 啟動前置雙欄環境檢查字卡 (左：OpenSteamTools / 右：Discord) - 深色 */
+.app.dark .wizard-column-card, .app.dark.has-bg .wizard-column-card {
+  background: rgba(255,255,255,0.03) !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+  text-shadow: none !important;
+}
+.app.dark .wizard-column-card.is-ok, .app.dark.has-bg .wizard-column-card.is-ok {
+  background: rgba(34,197,94,0.1) !important;
+  border-color: rgba(74,222,128,0.4) !important;
+}
+.app.dark .wizard-column-card.is-err, .app.dark.has-bg .wizard-column-card.is-err {
+  background: rgba(239,68,68,0.1) !important;
+  border-color: rgba(248,113,113,0.4) !important;
+}
+.app.dark .wizard-state-badge.is-ok, .app.dark.has-bg .wizard-state-badge.is-ok {
+  background: rgba(34,197,94,0.2) !important;
+  color: #4ADE80 !important;
+  border-color: rgba(74,222,128,0.3) !important;
+  text-shadow: none !important;
+}
+.app.dark .wizard-state-badge.is-err, .app.dark.has-bg .wizard-state-badge.is-err {
+  background: rgba(239,68,68,0.2) !important;
+  color: #F87171 !important;
+  border-color: rgba(248,113,113,0.3) !important;
+  text-shadow: none !important;
+}
+
+/* 啟動前置環境檢查精靈 (SteamTools & Discord) - 深色 (相容保留) */
+.app.dark .wizard-step-card, .app.dark.has-bg .wizard-step-card {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  text-shadow: none !important;
+}
+.app.dark .wizard-step-card.is-ok, .app.dark.has-bg .wizard-step-card.is-ok {
+  background: rgba(34,197,94,0.12) !important;
+  border-color: rgba(74,222,128,0.4) !important;
+}
+.app.dark .wizard-step-card.is-missing, .app.dark.has-bg .wizard-step-card.is-missing {
+  background: rgba(239,68,68,0.12) !important;
+  border-color: rgba(248,113,113,0.4) !important;
+}
+.app.dark .wizard-step-card .w-title, .app.dark.has-bg .wizard-step-card .w-title {
+  color: #FFFFFF !important;
+  text-shadow: none !important;
+}
+.app.dark .wizard-step-card .w-desc, .app.dark.has-bg .wizard-step-card .w-desc {
+  color: #E6DEE0 !important;
+  text-shadow: none !important;
+}
+.app.dark .wizard-step-card.is-ok .w-status, .app.dark.has-bg .wizard-step-card.is-ok .w-status {
+  background: rgba(34,197,94,0.2) !important;
+  color: #4ADE80 !important;
+  border-color: rgba(74,222,128,0.3) !important;
+  text-shadow: none !important;
+}
+.app.dark .wizard-step-card.is-missing .w-status, .app.dark.has-bg .wizard-step-card.is-missing .w-status {
+  background: rgba(239,68,68,0.2) !important;
+  color: #F87171 !important;
+  border-color: rgba(248,113,113,0.3) !important;
+  text-shadow: none !important;
+}
+
+/* 授權平台選擇條 - 深色 */
+.app.dark .platform-select-bar, .app.dark.has-bg .platform-select-bar {
+  background: rgba(35,25,30,0.92) !important;
+  border: 1px solid rgba(255,183,197,0.2) !important;
+  color: #FFFFFF !important;
+  text-shadow: none !important;
+}
+.app.dark .ft-label-ryuu, .app.dark.has-bg .ft-label-ryuu {
+  color: #FF80AB !important;
+  text-shadow: none !important;
+}
+.app.dark .ft-label-luatools, .app.dark.has-bg .ft-label-luatools {
+  color: #E1BEE7 !important;
+  text-shadow: none !important;
+}
+
+/* 帳號清單與項目 - 深色 */
+.app.dark .fast-token-item, .app.dark.has-bg .fast-token-item {
+  background: rgba(25,18,22,0.9) !important;
+  border: 1.5px solid rgba(255,183,197,0.2) !important;
+  text-shadow: none !important;
+}
+.app.dark .fast-token-item.is-checked, .app.dark.has-bg .fast-token-item.is-checked {
+  background: rgba(50,25,35,0.95) !important;
+  border-color: #FFAEC0 !important;
+}
+.app.dark .fast-token-item.is-excluded, .app.dark.has-bg .fast-token-item.is-excluded {
+  background: rgba(255,255,255,0.03) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+  opacity: 0.6;
+}
+.app.dark .fast-token-item .ft-name, .app.dark.has-bg .fast-token-item .ft-name {
+  color: #FFFFFF !important;
+  text-shadow: none !important;
+}
+.app.dark .fast-token-item .ft-tag, .app.dark.has-bg .fast-token-item .ft-tag {
+  background: rgba(255,255,255,0.12) !important;
+  color: #E6DEE0 !important;
+  text-shadow: none !important;
+}
+.app.dark .fast-token-item .ft-token, .app.dark.has-bg .fast-token-item .ft-token {
+  color: #A89B9E !important;
+  text-shadow: none !important;
+}
+.app.dark .ft-status-included, .app.dark.has-bg .ft-status-included {
+  color: #81C784 !important;
+  text-shadow: none !important;
+}
+.app.dark .ft-status-excluded, .app.dark.has-bg .ft-status-excluded {
+  color: #A89B9E !important;
+  text-shadow: none !important;
+}
+
+/* 統計列文字深色適配 */
+.app.dark .ft-count-bar, .app.dark.has-bg .ft-count-bar {
+  color: #E6DEE0 !important;
+  text-shadow: none !important;
+}
+.app.dark .ft-count-bar b, .app.dark.has-bg .ft-count-bar b {
+  color: #FFFFFF !important;
+  text-shadow: none !important;
+}

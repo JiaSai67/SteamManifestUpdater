@@ -1,0 +1,20 @@
+/* ═════════════════════════════════════════════════════════════════════ */
+/* 🌟 SMU Theme Variables & Design Tokens (共用顏色 Token 與 CSS 變數基礎)  */
+/* ═════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg: #FFFFFF;
+  --fg: #3D2C2E;
+  --pink: #FFB7C5;
+  --pink-deep: #FF8FA7;
+  --pink-light: #FFD1DC;
+  --pink-pale: #FFF0F3;
+  --white: #FFFFFF;
+  --gray: #8A7E82;
+  --gray-light: #F0EAEC;
+  --green: #4CAF50;
+  --red: #F44336;
+  --orange: #FF9800;
+  --r: 8px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif;
+}

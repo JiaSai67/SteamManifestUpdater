@@ -1,0 +1,74 @@
+/* ═════════════════════════════════════════════════════════════════════ */
+/* 🌟 SMU Base Reset & Typography (重設、基礎字型與全域滾動條)           */
+/* ═════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--font);
+  color: var(--fg);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 現代極簡全透明軌道膠囊滑塊 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(138, 126, 130, 0.28);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 143, 167, 0.65);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* ═══════════════════════════════════════════════════════
+   圖四/圖五需求：全域現代極簡純拉條
+   - 軌道底色與背景完全一致 (全透明，徹底去除刺眼白底)
+   - 移除上下箭頭按鈕
+   - 純膠囊滑塊造型 (圖五)
+   - 滑動時平滑漸顯，停止滑動 0.25 秒後漸消
+   ═══════════════════════════════════════════════════════ */
+::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+  background: transparent !important;
+}
+::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track {
+  background: transparent !important;
+  border: none !important;
+}
+::-webkit-scrollbar-button,
+*::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb {
+  background-color: transparent !important;
+  border-radius: 99px !important;
+  transition: background-color .25s cubic-bezier(.16,1,.3,1) !important;
+}
+
+/* 滑動中 (.is-scrolling) 或滑鼠懸停拉條時漸顯純膠囊拉條 */
+.is-scrolling::-webkit-scrollbar-thumb,

@@ -1,0 +1,439 @@
+/* ═════════════════════════════════════════════════════════════════════ */
+/* 🌟 SMU Cards & Badges (通用卡片、遊戲卡片標籤與 Toast 提示)           */
+/* ═════════════════════════════════════════════════════════════════════ */
+
+.card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-corner-tags {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  gap: 4px;
+  z-index: 2;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #FFF;
+  z-index: 99999;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px) scale(0.95);
+  transition: all .25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.toast.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.toast.ok { background: rgba(46, 125, 50, 0.95); box-shadow: 0 4px 16px rgba(46, 125, 50, 0.3); }
+.toast.er { background: rgba(198, 40, 40, 0.95); box-shadow: 0 4px 16px rgba(198, 40, 40, 0.3); }
+.toast.wn { background: rgba(230, 81, 0, 0.95); box-shadow: 0 4px 16px rgba(230, 81, 0, 0.3); }
+/* ══════════════════════════════════════════════════════════════════════
+   🌟 最新自適配樣式：遊戲小卡尺寸擴展、底部版本標籤同行左側、AppID 永遠置中、憑證卡片完美排齊
+   ══════════════════════════════════════════════════════════════════════ */
+#glist:not(.list) .card .aid,
+#results.browse-grid .card .aid {
+  font-size: 11px;
+  color: #ddd;
+  padding: 3px 10px 5px;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  background: var(--card-text-bg, rgba(0,0,0,.65));
+  border-bottom-left-radius: 13px;
+  border-bottom-right-radius: 13px;
+  transition: background .15s;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  min-height: 24px;
+  box-sizing: border-box;
+  position: relative !important;
+}
+.card .aid .aid-num {
+  font-size: 11px;
+  color: #ddd;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+  text-align: center;
+  margin: 0 auto;
+}
+.card.needs-update .aid .aid-num {
+  color: #FFE066 !important;
+  font-weight: 700;
+}
+.card .aid .update-badge,
+.update-badge {
+  position: absolute !important;
+  left: 8px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 10px !important;
+  background: linear-gradient(135deg, #FF9800, #F57C00) !important;
+  color: #ffffff !important;
+  padding: 1.5px 6px !important;
+  border-radius: 4px !important;
+  margin: 0 !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  line-height: 1.2 !important;
+  animation: pulseBadge 1.5s infinite ease-in-out !important;
+  box-shadow: 0 1px 4px rgba(245, 124, 0, 0.4) !important;
+  z-index: 2 !important;
+}
+
+/* 預設小尺寸網格與卡片 */
+#glist {
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)) !important;
+  gap: 12px !important;
+}
+#glist .card img {
+  height: 85px !important;
+}
+#results.browse-grid {
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)) !important;
+  gap: 14px !important;
+}
+#results.browse-grid .card img {
+  height: 105px !important;
+}
+
+/* 憑證卡片未加群水平像素級對齊（小尺寸） */
+.cred-acc-invalid-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  margin-top: 1px !important;
+}
+.cred-acc-invalid-row .cred-badge-not-in-server,
+.cred-acc-invalid-row .btn-cred-quick-join {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 23px !important;
+  min-height: 23px !important;
+  max-height: 23px !important;
+  padding: 0 9px !important;
+  box-sizing: border-box !important;
+  border-radius: 5px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  vertical-align: middle !important;
+}
+
+/* 🌟 正常模式 / 尺寸=中：小卡長寬拉大，大幅容納更多字數，AppID 精準置中 */
+body.font-normal #glist {
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)) !important;
+  gap: 14px !important;
+}
+body.font-normal #glist .card img {
+  height: 105px !important;
+}
+body.font-normal #results.browse-grid {
+  grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)) !important;
+  gap: 16px !important;
+}
+body.font-normal #results.browse-grid .card img {
+  height: 125px !important;
+}
+body.font-normal #glist .card .name,
+body.font-normal #results.browse-grid .card .name {
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  padding: 8px 12px 5px !important;
+}
+body.font-normal #glist .card .aid,
+body.font-normal #results.browse-grid .card .aid {
+  font-size: 12px !important;
+  padding: 4px 12px 6px !important;
+  min-height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+body.font-normal #glist .card .aid .aid-num,
+body.font-normal #results.browse-grid .card .aid .aid-num {
+  font-size: 12px !important;
+  text-align: center !important;
+  margin: 0 auto !important;
+}
+body.font-normal .card .aid .update-badge,
+body.font-normal .update-badge {
+  left: 10px !important;
+  font-size: 11px !important;
+  padding: 2px 7px !important;
+  border-radius: 4px !important;
+}
+
+/* 憑證卡片未加群水平像素級對齊（中/正常尺寸） */
+body.font-normal .cred-account-item {
+  min-height: 64px !important;
+  height: auto !important;
+  padding: 9px 12px !important;
+  gap: 9px !important;
+  border-radius: 12px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+}
+body.font-normal .cred-rank-badge {
+  width: 26px !important;
+  height: 26px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+body.font-normal .cred-acc-avatar,
+body.font-normal .cred-acc-avatar-placeholder {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+}
+body.font-normal .cred-acc-info {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  overflow: hidden !important;
+}
+body.font-normal .cred-acc-header-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+  line-height: 1.2 !important;
+}
+body.font-normal .cred-acc-name {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+body.font-normal .cred-acc-invalid-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  margin-top: 1px !important;
+}
+body.font-normal .cred-acc-invalid-row .cred-badge-not-in-server,
+body.font-normal .cred-acc-invalid-row .btn-cred-quick-join {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 25px !important;
+  min-height: 25px !important;
+  max-height: 25px !important;
+  padding: 0 10px !important;
+  box-sizing: border-box !important;
+  border-radius: 6px !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  vertical-align: middle !important;
+}
+body.font-normal .cred-acc-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  width: 86px !important;
+  justify-content: flex-end !important;
+  flex-shrink: 0 !important;
+}
+body.font-normal .cred-acc-actions .btn-order,
+body.font-normal .cred-acc-actions .btn-cred-del {
+  width: 26px !important;
+  height: 26px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 13px !important;
+  padding: 0 !important;
+}
+
+
+/* 憑證過期/待補憑證項目樣式 (呈現灰色、醒目標籤與單一重新登入按鈕) */
+.cred-account-item.is-expired-cred {
+  background: rgba(150, 150, 150, 0.12) !important;
+  border: 1.5px dashed rgba(245, 158, 11, 0.6) !important;
+  opacity: 0.92;
+  transition: all .2s ease;
+}
+.app.dark .cred-account-item.is-expired-cred {
+  background: rgba(45, 38, 42, 0.65) !important;
+  border-color: rgba(245, 158, 11, 0.55) !important;
+}
+.cred-account-item.is-expired-cred .cred-acc-avatar {
+  filter: grayscale(100%);
+  opacity: 0.7;
+}
+.cred-account-item.is-expired-cred .cred-acc-name {
+  color: var(--gray) !important;
+  font-weight: 700;
+}
+.cred-account-item.is-expired-cred .cred-expired-tag {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  height: 26px !important;
+  line-height: 1 !important;
+  padding: 0 10px !important;
+  border-radius: 6px !important;
+}
+.cred-account-item.is-expired-cred .btn-relogin {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 26px !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  padding: 0 12px !important;
+  border-radius: 6px !important;
+  transition: transform .15s, box-shadow .15s !important;
+}
+.cred-account-item.is-expired-cred .btn-relogin:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 4px 12px rgba(245, 124, 0, 0.45) !important;
+}
+
+.manage-quota-strip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+.quota-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 3px 10px !important;
+  border-radius: 8px !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  line-height: 18px !important;
+  border: 1px solid transparent !important;
+  box-sizing: border-box !important;
+  user-select: none !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.quota-chip:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16) !important;
+}
+.quota-chip b {
+  font-weight: 800 !important;
+}
+.quota-chip-ryuu {
+  background: rgba(230, 81, 0, 0.14) !important;
+  color: #E65100 !important;
+  border-color: rgba(255, 152, 0, 0.45) !important;
+}
+.app.dark .quota-chip-ryuu, .app.dark.has-bg .quota-chip-ryuu {
+  background: rgba(230, 81, 0, 0.25) !important;
+  color: #FFA726 !important;
+  border-color: rgba(255, 167, 38, 0.45) !important;
+}
+.quota-chip-lua {
+  background: rgba(123, 31, 162, 0.14) !important;
+  color: #7B1FA2 !important;
+  border-color: rgba(186, 104, 200, 0.45) !important;
+}
+.app.dark .quota-chip-lua, .app.dark.has-bg .quota-chip-lua {
+  background: rgba(123, 31, 162, 0.25) !important;
+  color: #BA68C8 !important;
+  border-color: rgba(186, 104, 200, 0.45) !important;
+}
+.quota-chip-hubcap {
+  background: rgba(0, 151, 167, 0.14) !important;
+  color: #00838F !important;
+  border-color: rgba(77, 208, 225, 0.45) !important;
+}
+.app.dark .quota-chip-hubcap, .app.dark.has-bg .quota-chip-hubcap {
+  background: rgba(0, 151, 167, 0.25) !important;
+  color: #4DD0E1 !important;
+  border-color: rgba(77, 208, 225, 0.45) !important;
+}
+/* 🌟 狀態特化徽章：未登入 (活力琥珀金)、已過期 (醒目珊瑚紅)、額度用罄 (深邃紫粉) */
+.quota-chip-unlogin {
+  background: rgba(255, 160, 0, 0.15) !important;
+  color: #E65100 !important;
+  border-color: rgba(255, 179, 0, 0.5) !important;
+}
+.app.dark .quota-chip-unlogin, .app.dark.has-bg .quota-chip-unlogin {
+  background: rgba(255, 160, 0, 0.24) !important;
+  color: #FFD54F !important;
+  border-color: rgba(255, 213, 79, 0.55) !important;
+  box-shadow: 0 0 10px rgba(255, 160, 0, 0.18) !important;
+}
+.quota-chip-expired {
+  background: rgba(244, 67, 54, 0.15) !important;
+  color: #D32F2F !important;
+  border-color: rgba(244, 67, 54, 0.5) !important;
+}
+.app.dark .quota-chip-expired, .app.dark.has-bg .quota-chip-expired {
+  background: rgba(244, 67, 54, 0.25) !important;
+  color: #FF8A80 !important;
+  border-color: rgba(255, 138, 128, 0.55) !important;
+  box-shadow: 0 0 10px rgba(244, 67, 54, 0.2) !important;
+}
+.quota-chip-exhausted {
+  background: rgba(142, 36, 170, 0.15) !important;
+  color: #8E24AA !important;
+  border-color: rgba(186, 104, 200, 0.45) !important;
+}
+.app.dark .quota-chip-exhausted, .app.dark.has-bg .quota-chip-exhausted {
+  background: rgba(142, 36, 170, 0.25) !important;
+  color: #CE93D8 !important;
+  border-color: rgba(206, 147, 216, 0.5) !important;
+}
+body.font-normal .quota-chip {
+  font-size: 12px !important;
+  padding: 3.5px 12px !important;
+  line-height: 20px !important;
+}

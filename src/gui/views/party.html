@@ -1,4 +1,3 @@
-<!-- 📄 View: party.html - 🌸 SMU 無伺服器邊緣組隊大廳與聯機同步 -->
 <div class="page" id="p-party">
   <!-- 雙欄排版容器：王者榮耀 / MOBA 電競風格側邊導覽欄 (如圖一) + 右側主視圖區 -->
   <div class="party-moba-wrapper">
@@ -52,11 +51,11 @@
           </div>
         </div>
 
-        <!-- 雲端大廳配額監控徽章 (點擊可展開 Egress 與 5GB 用量監控面板) -->
-        <div class="party-quota-badge" id="party-quota-badge" onclick="openCloudMetricsModal()" title="點擊查看 Supabase 雲端資源詳細用量與健康狀態 (雜湊加密中繼)" style="cursor:pointer">
+        <!-- 雲端大廳配額監控徽章 -->
+        <div class="party-quota-badge" id="party-quota-badge" title="Supabase 全球高速雲端資料庫 (高可用叢集 · 充沛)">
           <span class="quota-dot green"></span>
           <span class="quota-title">雲端大廳</span>
-          <span class="quota-val" id="party-quota-text">Egress: 0.002/5GB (0.04%)</span>
+          <span class="quota-val" id="party-quota-text">Supabase · 充沛</span>
         </div>
 
         <div class="party-header-actions">
@@ -144,6 +143,7 @@
               <span class="my-status-label">我的本機狀態：</span>
               <span class="my-status-badge" id="party-my-status-badge">未下載</span>
             </div>
+
             <!-- 🌟 本機即時進度條與詳細進度狀態 (填補長空白區域) -->
             <div class="party-my-progress-container" id="party-my-progress-container">
               <div class="party-my-progress-info">
@@ -154,8 +154,10 @@
                 <div class="party-my-progress-bar-inner" id="party-my-progress-bar-inner" style="width:0%"></div>
               </div>
             </div>
+
+            <!-- 🚀 核心主動作按鈕：一鍵安裝 (取得房主 Discord Webhook 整合包並自動部署入庫與套用補丁) -->
             <div class="party-sync-btn-wrap" id="party-sync-btn-wrap" style="display:none">
-              <button class="btn btn-p" id="party-btn-start-sync" onclick="startSyncCurrentGameInstall()">
+              <button class="btn btn-party-install" id="party-btn-start-sync" onclick="startSyncCurrentGameInstall()">
                 🚀 一鍵安裝
               </button>
             </div>
@@ -166,197 +168,7 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════ -->
-<!-- 彈窗：創建房間 Modal -->
-<!-- ═══════════════════════════════════════════════════════ -->
-<div class="modal hidden" id="modal-create-party-room" onclick="if(isStrictBackdropClick(event, this))closeCreateRoomModal()">
-  <div class="modal-box" style="max-width:480px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <h3 style="margin:0;font-size:15px;color:var(--fg)">➕ 創建組隊房間</h3>
-      <button class="btn btn-o btn-xs" onclick="closeCreateRoomModal()" style="border-radius:50%;width:28px;height:28px;padding:0">✕</button>
-    </div>
-    
-    <!-- 🎮 選擇已偵測之遊戲 (唯一合法來源，杜絕手打錯誤) -->
-    <div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <label style="font-size:12px;font-weight:700;color:var(--fg)">🎮 選擇組隊遊戲 (僅限自動偵測就緒之遊戲)：</label>
-        <button type="button" class="btn btn-o btn-xs" onclick="loadInstalledGamesDropdown()" style="font-size:11px;padding:1px 6px;border-radius:10px" title="重新掃描本地已部署聯機補丁之遊戲">🔄 重新整理</button>
-      </div>
-      <select id="select-party-installed-games" onchange="onSelectInstalledGameChange()" style="width:100%;padding:9px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);outline:none">
-        <option value="">-- 請由清單挑選本機已安裝且已就緒的遊戲 --</option>
-      </select>
-    </div>
+<!-- ═══ 憑證管理 ═══ -->
 
-    <!-- 隱藏 input 供資料傳遞 -->
-    <input type="hidden" id="input-party-gamename">
-    <input type="hidden" id="input-party-appid">
 
-    <!-- 📦 聯機資源自動打包與雲端極速同步 (預設免登入) -->
-    <div class="party-package-section" style="margin-bottom:14px;padding:12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:12px">
-      <input type="checkbox" id="check-party-auto-upload" checked disabled style="display:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div id="party-package-core-badge" style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:12.5px;font-weight:700;color:var(--fg)">📦 核心三檔同步：</span>
-          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;color:#2EA043;background:rgba(46,160,67,0.15);padding:2px 8px;border-radius:10px;border:1px solid rgba(46,160,67,0.3)">
-            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2EA043;box-shadow:0 0 6px #2EA043"></span> 常駐開啟
-          </span>
-        </div>
-      </div>
-
-      <!-- 三檔檢測狀態條 -->
-      <div id="party-resources-inspect-box" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;font-size:11px">
-        <span id="inspect-manifest" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">📄 Manifest: 檢測中</span>
-        <span id="inspect-lua" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">📜 Lua 腳本: 檢測中</span>
-        <span id="inspect-patch" class="resource-badge checking" style="padding:3px 8px;border-radius:6px;background:rgba(0,0,0,0.2);color:var(--gray)">🎮 線上補丁: 檢測中</span>
-      </div>
-
-      <!-- Discord Webhook 設定區塊 (常駐顯示並自動記憶) -->
-      <div id="party-discord-config-wrap" style="margin-top:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <label style="font-size:12px;font-weight:700;color:var(--fg);display:inline-flex;align-items:center;gap:5px">
-            <span>🎮</span> Discord Webhook 網址 (整合包託管通道)：
-          </label>
-        </div>
-        <div style="margin-bottom:6px">
-          <div style="display:flex;gap:6px">
-            <input type="text" id="input-party-discord-webhook" oninput="savePartyDiscordWebhook()" placeholder="貼上專屬 Discord Webhook 網址 (https://discord.com/api/webhooks/...)" style="flex:1;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:8px;font-size:11px;background:var(--bg);color:var(--fg);outline:none">
-            <button type="button" class="btn btn-p btn-xs" id="btn-party-test-webhook" onclick="testDiscordWebhookConnection()" style="padding:0 12px;background:#5865F2;border-color:#5865F2">🔗 測試連線</button>
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--gray);line-height:1.5">
-          💡 <strong>如何獲取？</strong> 在 Discord 任何頻道右鍵 ➔ 編輯頻道 ➔ 整合 ➔ 建立 Webhook 複製貼上即可（通過測試或開房後會自動記憶保存）。
-        </div>
-      </div>
-    </div>
-
-    <div style="display:flex;gap:10px;margin-bottom:12px">
-      <div style="flex:1">
-        <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">人數上限：</label>
-        <select id="select-party-max-players" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);outline:none">
-          <option value="2">2 人房 (雙人成行/雙人探險)</option>
-          <option value="4" selected>4 人房 (經典四人派對)</option>
-          <option value="6">6 人房</option>
-          <option value="8">8 人房 (大型組隊)</option>
-        </select>
-      </div>
-      <div style="flex:1">
-        <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">大廳能見度：</label>
-        <select id="select-party-is-public" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);outline:none">
-          <option value="1" selected>🌐 公開 (顯示於全網大廳)</option>
-          <option value="0">🔒 私密 (僅限 6 碼房號加入)</option>
-        </select>
-      </div>
-    </div>
-
-    <div style="margin-bottom:12px">
-      <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">房間備註 / 招募宣言 (選填)：</label>
-      <input type="text" id="input-party-note" placeholder="例如：新手開荒 / 語音隨意 / 缺 1 人即開" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
-    </div>
-
-    <!-- 🚀 開房檢核與進度狀態面板 (點擊開房後展開) -->
-    <div id="party-create-flow-status" style="display:none;margin-bottom:12px;padding:12px;background:rgba(0,0,0,0.35);border:1.5px solid var(--border);border-radius:12px">
-      <div style="font-size:12px;font-weight:700;color:#FFF;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
-        <span id="party-flow-status-title">🚀 正在執行開房前置檢核與雲端同步…</span>
-        <span id="party-flow-status-spinner" style="font-size:12px">⏳</span>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px;font-size:11.5px" id="party-flow-steps">
-        <div id="flow-step-check" style="color:var(--gray)">🔍 1. 本機 Manifest、Lua 腳本與補丁三檔完整性檢驗</div>
-        <div id="flow-step-pack" style="color:var(--gray)">📦 2. 封裝聯機資源整合包 (ZIP 壓縮)</div>
-        <div id="flow-step-upload" style="color:var(--gray)">☁️ 3. 透過 GAS 上傳整合包至個人 Google Drive</div>
-        <div id="flow-step-url" style="color:var(--gray)">🔗 4. 取得並驗證 Google Drive 下載網址</div>
-        <div id="flow-step-supa" style="color:var(--gray)">🌐 5. 向 Supabase 伺服器註冊房間並公開招募</div>
-      </div>
-      <div id="party-flow-error-msg" style="display:none;margin-top:8px;padding:8px;border-radius:8px;background:rgba(255,71,87,0.15);border:1px solid #FF4757;color:#FF6B81;font-size:11px;line-height:1.4"></div>
-    </div>
-
-    <div style="display:flex;justify-content:flex-end;gap:8px">
-      <button class="btn btn-o btn-s" id="btn-cancel-create-party" onclick="closeCreateRoomModal()">取消</button>
-      <button class="btn btn-party-create btn-s disabled" id="btn-submit-create-party" onclick="submitCreatePartyRoom()" disabled title="⛔ 開房限制：請先由清單挑選並鎖定遊戲（鎖定遊戲、三檔檢查、Webhook 網址缺一不可）">🚀 立即開房</button>
-    </div>
-  </div>
-</div>
-
-<!-- ☁️ Supabase 雲端配額與 Egress 脫敏監控彈窗 (雜湊壓縮加密中繼) -->
-<div id="modal-cloud-metrics" class="modal-overlay" style="display:none;align-items:center;justify-content:center;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:99999;backdrop-filter:blur(6px)">
-  <div style="background:var(--card-bg, #161B22);border:1.5px solid var(--border);border-radius:16px;width:90%;max-width:480px;padding:22px;box-shadow:0 16px 40px rgba(0,0,0,0.6);color:var(--fg)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:18px">☁️</span>
-        <span style="font-weight:800;font-size:15px">Supabase 雲端資源與 5GB 流量監控</span>
-      </div>
-      <button class="btn btn-o btn-xs" onclick="closeCloudMetricsModal()" style="border-radius:50%;width:26px;height:26px;padding:0;display:flex;align-items:center;justify-content:center">✕</button>
-    </div>
-
-    <!-- 脫敏安全認證徽章 -->
-    <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(46,213,115,0.08);border:1px solid rgba(46,213,115,0.3);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:11.5px">
-      <span style="color:#2ED573;display:flex;align-items:center;gap:5px">
-        <span>🔐</span> <strong>數據已雜湊高壓加密傳輸</strong>
-      </span>
-      <span style="color:var(--gray)">本地安全解密還原</span>
-    </div>
-
-    <!-- 核心數據進度條卡片列表 -->
-    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">
-      <!-- 1. Egress 5GB 傳輸流量 -->
-      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:12px;font-weight:700">🌐 外發傳輸流量 (Egress)：</span>
-          <span id="metric-egress-text" style="font-size:12px;font-weight:800;color:#2ED573">0.002 / 5.00 GB (0.04%)</span>
-        </div>
-        <div style="width:100%;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden">
-          <div id="metric-egress-bar" style="width:0.04%;height:100%;background:linear-gradient(90deg, #2ED573, #1DD1A1);border-radius:4px;transition:width 0.4s"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10.5px;color:var(--gray)">
-          <span>月配額 5 GB (純文字傳輸，極省流量)</span>
-          <span id="metric-egress-status" style="color:#2ED573">✅ 極其充沛</span>
-        </div>
-      </div>
-
-      <!-- 2. Database 容量 -->
-      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:12px;font-weight:700">💾 資料庫容量 (Database Size)：</span>
-          <span id="metric-db-text" style="font-size:12px;font-weight:800;color:#70A1FF">26.0 / 500 MB (5.2%)</span>
-        </div>
-        <div style="width:100%;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden">
-          <div id="metric-db-bar" style="width:5.2%;height:100%;background:linear-gradient(90deg, #1E90FF, #70A1FF);border-radius:4px;transition:width 0.4s"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10.5px;color:var(--gray)">
-          <span>包含房間大廳、成員心跳與訊息表</span>
-          <span style="color:#70A1FF">✅ 容量安全</span>
-        </div>
-      </div>
-
-      <!-- 3. 大檔儲存 Storage -->
-      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <span style="font-size:12px;font-weight:700">📦 大型檔案儲存 (Storage)：</span>
-          <span style="font-size:12px;font-weight:800;color:#A4B0BE">0.00 / 1.00 GB (0%)</span>
-        </div>
-        <div style="font-size:11px;color:var(--gray);line-height:1.4">
-          ✨ 整合包已由 <strong>Discord CDN</strong> 託管，享有免費無限下載頻寬，完全不消耗 Supabase 儲存空間！
-        </div>
-      </div>
-    </div>
-
-    <!-- 原始雜湊壓縮密文可視化區域 (證明雜湊加密中繼) -->
-    <div style="background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:16px">
-      <div style="font-size:11px;color:var(--gray);margin-bottom:4px;display:flex;justify-content:space-between">
-        <span>📦 雲端中繼傳輸密文 (Zlib Level 9 + SHA-256 KDF XOR Token)：</span>
-        <span style="color:#2ED573">已安全還原</span>
-      </div>
-      <div id="metric-token-preview" style="font-family:monospace;font-size:10px;color:#A4B0BE;word-break:break-all;max-height:36px;overflow:hidden;text-overflow:ellipsis">
-        載入中…
-      </div>
-    </div>
-
-    <!-- 底部操作列 -->
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <span id="metric-updated-at" style="font-size:11px;color:var(--gray)">更新時間: 讀取中…</span>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-o btn-s" onclick="fetchAndRefreshCloudMetrics(true)">🔄 立即刷新</button>
-        <button class="btn btn-p btn-s" onclick="closeCloudMetricsModal()">確定</button>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- 📄 View: credentials.html -->

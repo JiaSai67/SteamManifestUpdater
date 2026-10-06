@@ -1,0 +1,63 @@
+/* ═════════════════════════════════════════════════════════════════════ */
+/* ☀️ SMU Light Theme (純淺色模式專屬配色、晶瑩透亮毛玻璃與白底呈現)      */
+/* ═════════════════════════════════════════════════════════════════════ */
+
+html:not(.dark) body, body:not(.dark), .app:not(.dark) {
+  --bg: #FFFFFF;
+  --fg: #3D2C2E;
+  --bg-card: rgba(255, 255, 255, 0.88);
+  --border-card: rgba(255, 183, 197, 0.45);
+}
+
+.app:not(.dark) {
+  background: linear-gradient(135deg, #FFE2E7 0%, #FFF5F7 50%, #FFEBF0 100%);
+}
+
+.app:not(.dark) .sidebar {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-right: 1px solid rgba(255, 183, 197, 0.5);
+}
+
+.app:not(.dark) .titlebar {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 183, 197, 0.3);
+}
+
+/* 淺色模式下自訂背景桌布時的高透晶瑩毛玻璃 */
+.app:not(.dark).has-bg .card,
+.app:not(.dark).has-bg .tool-card,
+.app:not(.dark).has-bg .about-card,
+.app:not(.dark).has-bg .stat-card,
+.app:not(.dark).has-bg .party-room-panel,
+.app:not(.dark).has-bg .party-chat-panel,
+.app:not(.dark).has-bg .settings-section {
+  background: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-color: rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 4px 16px rgba(180, 140, 150, 0.12) !important;
+}
+
+.app:not(.dark) .card {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 183, 197, 0.45);
+  box-shadow: 0 2px 8px rgba(255, 143, 167, 0.12);
+  color: var(--fg);
+}
+.app:not(.dark) .card:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--pink-deep);
+  box-shadow: 0 6px 18px rgba(255, 143, 167, 0.25);
+}
+
+.app:not(.dark) .modal>div,
+.app:not(.dark) .modal-box {
+  background: #FFFFFF !important;
+  color: #1A1A1A !important;
+  border: 1.5px solid rgba(255, 183, 197, 0.6) !important;
+  box-shadow: 0 16px 40px rgba(180, 100, 120, 0.22) !important;
+}

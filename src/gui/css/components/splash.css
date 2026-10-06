@@ -1,0 +1,58 @@
+/* ═════════════════════════════════════════════════════════════════════ */
+/* 🌟 SMU Splash Screen (櫻花流光啟動全屏遮罩與 Loading 動畫)           */
+/* ═════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════ */
+/* 全新櫻花流光 系統啟動載入全屏遮罩 (Splash Loading Screen) */
+/* ═══════════════════════════════════════════════════════ */
+.splash-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #FFE2E7 0%, #FFE9ED 30%, #FFD8DF 60%, #FFE2E7 100%);
+  user-select: none;
+  overflow: hidden;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: opacity, transform;
+  transition: opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.45s;
+}
+.app.dark .splash-overlay, .splash-overlay.dark, html.dark .splash-overlay {
+  background: linear-gradient(135deg, #231C1E 0%, #2A2124 35%, #1E1719 70%, #251D20 100%) !important;
+}
+.splash-overlay.fade-out {
+  opacity: 0;
+  transform: scale(1.04) translateZ(0);
+  pointer-events: none;
+  visibility: hidden;
+}
+.splash-bg-decorations {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transform: translateZ(0);
+}
+.splash-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.45;
+  will-change: transform;
+  transform: translateZ(0);
+  animation: floatSplashGlow 8s ease-in-out infinite alternate;
+}
+.splash-glow-1 {
+  width: 340px;
+  height: 340px;
+  top: -60px;
+  left: 8%;
+  background: radial-gradient(circle, #FFB7C5 0%, rgba(255, 183, 197, 0) 70%);
+}
+.splash-glow-2 {
+  width: 400px;
+  height: 400px;
+  bottom: -90px;

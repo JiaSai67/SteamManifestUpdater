@@ -1,0 +1,405 @@
+/* ═════════════════════════════════════════════════════════════════════ */
+/* 🌟 Search View Styles (遊戲搜尋首頁與結果流排版)                       */
+/* ═════════════════════════════════════════════════════════════════════ */
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.search-row input {
+  flex: 1;
+}
+
+#results.browse-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+/* ═══════════════════════════════════════════════════════════════════════
+   全新雙版面系統：【小模式 (精簡預設)】 vs 【正常模式 (高清適配版面)】
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────
+   第一套：小模式基礎佈局（緊湊精簡，預設基準）
+   ───────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: transform .12s, background .2s, opacity .2s, box-shadow .2s;
+  white-space: nowrap;
+  box-sizing: border-box;
+  line-height: 1;
+}
+.btn-s {
+  height: 32px !important;
+  padding: 0 13px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+}
+.btn-xs {
+  height: 26px !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+}
+
+.path-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  align-items: center;
+  width: 100%;
+}
+.path-row input {
+  flex: 1;
+  height: 34px;
+  padding: 0 12px;
+  border: 1.5px solid var(--pink-light);
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-family: var(--font);
+  outline: none;
+  box-sizing: border-box;
+}
+
+small, .pref-desc {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   第二套：正常模式專屬排版（整體版面重構，大字粗體，告別虛胖與重疊）
+   ───────────────────────────────────────────────────────────── */
+html.font-normal, body.font-normal {
+  font-size: 14.5px;
+}
+
+/* 1. 頁面容器與全域文字階梯 */
+body.font-normal .pages {
+  padding: 18px 24px !important;
+}
+body.font-normal h2 {
+  font-size: 22px !important;
+  margin-bottom: 14px !important;
+}
+body.font-normal h3 {
+  font-size: 17.5px !important;
+}
+body.font-normal h4 {
+  font-size: 15px !important;
+}
+body.font-normal .section {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  margin: 22px 0 10px !important;
+}
+
+/* 2. 設定頁面佈局重構（解決虛胖與重疊） */
+body.font-normal .path-row {
+  gap: 8px !important;
+  margin-bottom: 14px !important;
+}
+body.font-normal .path-row input {
+  height: 38px !important;
+  padding: 0 14px !important;
+  font-size: 14.5px !important;
+  font-weight: 600 !important;
+  border-radius: 10px !important;
+}
+body.font-normal .path-row .btn,
+body.font-normal .path-row .btn-s {
+  height: 38px !important;
+  padding: 0 16px !important;
+  font-size: 14.5px !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  letter-spacing: 0.3px !important;
+}
+
+/* 環境檢查按鈕組（換行具備充足間距，絕不壓線） */
+body.font-normal #p-settings > div[style*="flex-wrap:wrap"] {
+  gap: 10px !important;
+  margin-top: 10px !important;
+  margin-bottom: 16px !important;
+}
+body.font-normal #p-settings > div[style*="flex-wrap:wrap"] .btn,
+body.font-normal #p-settings > div[style*="flex-wrap:wrap"] .btn-s {
+  height: 38px !important;
+  padding: 0 16px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+}
+
+/* 正常模式 Toggle 行與滑桿區塊 */
+body.font-normal .toggle {
+  padding: 12px 0 !important;
+  min-height: 48px !important;
+}
+body.font-normal .toggle .l {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+body.font-normal .setting-slider-row {
+  margin-bottom: 18px !important;
+}
+body.font-normal .setting-slider-header .l {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+body.font-normal .setting-slider-header .val {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}
+
+/* 說明小字全面清晰放大 */
+body.font-normal small,
+body.font-normal .pref-desc,
+body.font-normal .toggle small,
+body.font-normal .setting-slider-header small,
+body.font-normal .cred-platform-sub,
+body.font-normal .cred-account-list-sub,
+body.font-normal .cred-strategy-sub,
+body.font-normal .cloud-dest-sub,
+body.font-normal .dt-source-gid-lbl,
+body.font-normal .detail-section-sub,
+body.font-normal .dt-meta,
+body.font-normal .of-desc {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+/* 3. 按鈕系統全域標準化（緊緻飽滿，字大粗體） */
+body.font-normal .btn {
+  height: 38px !important;
+  padding: 0 20px !important;
+  font-size: 14.5px !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+}
+body.font-normal .btn-s {
+  height: 36px !important;
+  padding: 0 15px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+}
+body.font-normal .btn-xs {
+  height: 30px !important;
+  padding: 0 12px !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+}
+body.font-normal .search-row input {
+  height: 44px !important;
+  padding: 0 18px !important;
+  font-size: 15.5px !important;
+  font-weight: 500 !important;
+  border-radius: 22px !important;
+}
+
+/* 4. 憑證與多帳號池排版重構（徹底杜絕卡片與按鈕重疊） */
+body.font-normal .cred-unified-grid {
+  grid-template-columns: 1fr 1fr !important;
+  gap: 16px !important;
+  align-items: start !important;
+}
+body.font-normal .cred-col-panel {
+  padding: 16px !important;
+  border-radius: 14px !important;
+}
+body.font-normal .cred-account-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  max-height: 360px !important;
+  overflow-y: auto !important;
+  padding-right: 4px !important;
+}
+body.font-normal .cred-account-item {
+  min-height: 64px !important;
+  height: auto !important;
+  padding: 10px 14px !important;
+  gap: 10px !important;
+  border-radius: 12px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+}
+body.font-normal .cred-rank-badge {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  flex-shrink: 0 !important;
+}
+body.font-normal .cred-acc-avatar {
+  width: 36px !important;
+  height: 36px !important;
+  flex-shrink: 0 !important;
+}
+body.font-normal .cred-acc-info {
+  flex: 1 !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  overflow: hidden !important;
+}
+body.font-normal .cred-acc-header-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+  line-height: 1.2 !important;
+}
+body.font-normal .cred-acc-name {
+  font-size: 14.5px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+body.font-normal .cred-acc-meta {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  font-size: 12.5px !important;
+  line-height: 1.2 !important;
+  min-width: 0 !important;
+}
+body.font-normal .cred-priority-badge {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  padding: 2.5px 9px !important;
+  flex-shrink: 0 !important;
+}
+body.font-normal .cred-badge-not-in-server {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  width: 82px !important;
+  height: 23px !important;
+  line-height: 21px !important;
+  text-align: center !important;
+  flex-shrink: 0 !important;
+  margin-left: auto !important;
+}
+body.font-normal .btn-cred-quick-join {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  width: 82px !important;
+  height: 23px !important;
+  line-height: 21px !important;
+  text-align: center !important;
+  flex-shrink: 0 !important;
+  margin-left: auto !important;
+}
+body.font-normal .cred-acc-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  width: 78px !important;
+  justify-content: flex-end !important;
+  flex-shrink: 0 !important;
+}
+body.font-normal .btn-order {
+  width: 26px !important;
+  height: 26px !important;
+  font-size: 12px !important;
+  flex-shrink: 0 !important;
+}
+
+/* 5. 遊戲卡片佈局適配（管理頁與首頁瀏覽全部） */
+body.font-normal #results.browse-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: 14px !important;
+}
+body.font-normal #results.browse-grid .card img {
+  height: 100px !important;
+}
+body.font-normal #glist {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+  gap: 12px !important;
+}
+body.font-normal #glist .card img {
+  height: 80px !important;
+}
+body.font-normal #glist .card .name,
+body.font-normal #results.browse-grid .card .name {
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  padding: 8px 10px 4px !important;
+}
+body.font-normal #glist .card .aid,
+body.font-normal #results.browse-grid .card .aid {
+  font-size: 12px !important;
+  padding: 3px 10px 8px !important;
+}
+body.font-normal #glist.list .card {
+  min-height: 82px !important;
+  padding: 12px 16px !important;
+}
+body.font-normal #glist.list .card .name {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+}
+body.font-normal #glist.list .card .aid {
+  font-size: 12.5px !important;
+}
+
+/* 6. 工具區、關於頁與彈窗排版適配 */
+body.font-normal .tool-card {
+  width: 240px !important;
+  height: 210px !important;
+}
+body.font-normal .tool-card .tt {
+  font-size: 15px !important;
+}
+body.font-normal .tool-card .ds {
+  font-size: 12.5px !important;
+}
+body.font-normal .about-card h4 {
+  font-size: 15px !important;
+}
+body.font-normal .about-card p {
+  font-size: 13px !important;
+  line-height: 1.75 !important;
+}
+body.font-normal .tool-block .tb-name {
+  font-size: 15px !important;
+}
+body.font-normal .tool-block .tb-desc {
+  font-size: 13px !important;
+}
+body.font-normal .modal-box {
+  max-height: calc(100vh - 40px) !important;
+  overflow-y: auto !important;
+}
+body.font-normal .modal h3 {
+  font-size: 17px !important;
+}
+body.font-normal .modal p {
+  font-size: 13.5px !important;
+}
+body.font-normal .toast {
+  font-size: 14px !important;
+  padding: 10px 26px !important;
+}
