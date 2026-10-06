@@ -15,8 +15,9 @@ from pathlib import Path
 import requests
 
 from utils.payload_crypto import compress_and_encrypt, decompress_and_decrypt
+from managers.party_logger import get_party_logger, report_party_error, log_party_event
 
-logger = logging.getLogger("party_manager")
+logger = get_party_logger("manager")
 
 _PARTY_COMPACT_SECRET = "SMU_PARTY_PAYLOAD_V1_KEY"
 
@@ -1572,16 +1573,21 @@ class PartyManager:
                     self._execute_party_one_click_install(room_id, app_id, str(target_zip))
                     return
                 else:
-                    self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載整合包失敗 (HTTP {resp.status_code})")
+                    err_msg = f"下載整合包失敗 (HTTP {resp.status_code})"
+                    report_party_error("下載整合包失敗", err_msg, context=f"房間 #{room_id} AppID {app_id}")
+                    self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=err_msg)
                     return
             else:
                 err_msg = f"房間配給的下載鏈結無效或協議不受支援: {download_url[:30]}..."
                 logger.error(f"[PARTY] {err_msg}")
+                report_party_error("下載鏈結無效", err_msg, context=f"房間 #{room_id} AppID {app_id}")
                 self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=err_msg)
                 return
 
         except Exception as e:
+            err_str = str(e)
             logger.error(f"同步下載過程發生錯誤: {e}", exc_info=True)
+            report_party_error("同步下載例外", err_str, context=f"房間 #{room_id} AppID {app_id}")
             self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載或部署過程異常: {e}")
 
     def _execute_party_one_click_install(self, room_id: str, app_id: str, target_zip_path: str):
@@ -1600,11 +1606,14 @@ class PartyManager:
 
         try:
             # 步驟 1: 部署實體 Manifest 清單與 Lua 腳本
+            logger.info(f"[PARTY] 步驟 1/4: 開始部署 AppID {app_id} 之 Manifest 清單與 Lua 腳本...")
             self.update_member_progress("部署清單與腳本中: 30%", 30, deploy_status="deploying")
             init_res = packager.extract_and_apply_package(target_zip_path, app_id)
             logger.info(f"[PARTY] 整合包 Manifest/Lua 部署結果: {init_res}")
             if not init_res.get("ok"):
-                self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=init_res.get("msg", "Manifest/Lua 部署失敗"))
+                err_msg = init_res.get("msg", "Manifest/Lua 部署失敗")
+                report_party_error("Manifest/Lua 部署失敗", err_msg, context=f"房間 #{room_id} AppID {app_id}")
+                self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=err_msg)
                 return
 
             # 步驟 2: 精準檢查本地 Steam 遊戲主程式是否已真正安裝完成
@@ -1616,22 +1625,30 @@ class PartyManager:
             is_installed = bool(st_info.get("is_installed", False))
 
             if not is_installed:
-                logger.info(f"[PARTY] 檢測到本地尚未真正安裝遊戲 {app_id} 主程式 (等待下載中)，喚起 Steam 下載...")
+                logger.info(f"[PARTY] 步驟 2/4: 檢測到本地尚未安裝遊戲 {app_id} 主程式 (等待下載)，喚起 Steam 下載...")
                 self.update_member_progress("正在喚起 Steam 下載遊戲...", 35, steam_installed=False, deploy_status="downloading")
 
-                # 喚起 Steam 下載安裝
+                # 喚起 Steam 下載安裝 (優先使用 os.startfile 原生協議)
                 try:
-                    import webbrowser
-                    webbrowser.open(f"steam://install/{app_id}")
-                except Exception as we:
-                    logger.warning(f"喚起 steam://install 異常: {we}")
+                    import os
+                    os.startfile(f"steam://install/{app_id}")
+                except Exception:
+                    try:
+                        import webbrowser
+                        webbrowser.open(f"steam://install/{app_id}")
+                    except Exception as we:
+                        logger.warning(f"喚起 steam://install 異常: {we}")
 
                 # 輪詢監聽 Steam 下載進度
                 download_done = False
                 poll_count = 0
+                cancelled_strike_count = 0
+                install_launch_time = time.time()
+
                 while not download_done and poll_count < 7200:
                     if self.current_room_id != room_id:
-                        return  # 隊員已離開房間
+                        logger.info(f"[PARTY] 隊員已離開房間 #{room_id}，終止下載監控。")
+                        return
                     time.sleep(2.5)
                     poll_count += 1
 
@@ -1640,13 +1657,14 @@ class PartyManager:
                     pct_from_steam = float(rep.get("progress_pct", 0) or 0)
                     speed_str = rep.get("speed_str") or ""
 
-                    # 複查 ACF 狀態
+                    # 複查 ACF 與檔案安裝狀態
                     chk = WebApi().check_game_installed_status(app_id)
                     if chk.get("is_installed") or st == "COMPLETED":
                         download_done = True
                         logger.info(f"[PARTY] Steam 遊戲 {app_id} 主程式下載安裝完畢！")
                         break
                     elif st in ("DOWNLOADING", "PAUSED") or chk.get("is_downloading"):
+                        cancelled_strike_count = 0
                         mapped_pct = min(90, max(35, 35 + int(pct_from_steam * 0.55)))
                         status_str = f"Steam下載中: {pct_from_steam:.1f}%"
                         if speed_str:
@@ -1654,16 +1672,32 @@ class PartyManager:
                         self.update_member_progress(status_str, mapped_pct, steam_installed=False, deploy_status="downloading")
                     elif st == "ERROR":
                         err_msg = rep.get("error_msg") or "Steam 回報下載中斷"
+                        logger.error(f"[PARTY] Steam 回報錯誤: {err_msg}")
+                        report_party_error("Steam 下載中斷", err_msg, context=f"AppID {app_id}")
                         self.update_member_progress("Steam下載錯誤", 35, steam_installed=False, deploy_status="failed", deploy_error=err_msg)
                         return
                     elif st == "CANCELLED":
-                        self.update_member_progress("未下載", 0, steam_installed=False, deploy_status="failed", deploy_error="Steam 下載已取消")
-                        return
+                        # 🌟 防誤判：剛發起下載前 15 秒內忽略歷史取消日誌，需連續 3 次檢測且已過緩衝期才確認取消
+                        elapsed_since_launch = time.time() - install_launch_time
+                        if elapsed_since_launch < 15.0:
+                            logger.info(f"[PARTY] 啟動前 15 秒內偵測到歷史取消狀態，忽略歷史干擾 (已過 {elapsed_since_launch:.1f}s)...")
+                            self.update_member_progress("等待 Steam 下載開始...", 35, steam_installed=False, deploy_status="downloading")
+                        else:
+                            cancelled_strike_count += 1
+                            if cancelled_strike_count >= 3:
+                                err_msg = "Steam 下載已取消或未獲授權"
+                                logger.warning(f"[PARTY] {err_msg} (AppID: {app_id})")
+                                report_party_error("Steam 下載取消", err_msg, context=f"AppID {app_id}")
+                                self.update_member_progress("未下載", 0, steam_installed=False, deploy_status="failed", deploy_error=err_msg)
+                                return
+                            else:
+                                self.update_member_progress("等待 Steam 響應中...", 35, steam_installed=False, deploy_status="downloading")
                     else:
                         # 仍處於等待下載狀態
                         self.update_member_progress("等待 Steam 下載完成...", 35, steam_installed=False, deploy_status="downloading")
 
             # 步驟 3: 套用整合包內的線上補丁 (此時遊戲主程式已就緒)
+            logger.info(f"[PARTY] 步驟 3/4: 遊戲主程式已就緒，開始部署線上補丁...")
             self.update_member_progress("部署線上補丁中: 92%", 92, steam_installed=True, deploy_status="deploying")
             patch_res = packager.apply_patch_files(target_zip_path, app_id)
             logger.info(f"[PARTY] 線上補丁套用結果: {patch_res}")
@@ -1685,9 +1719,12 @@ class PartyManager:
                 else:
                     err_detail = patch_res.get("msg") or "線上補丁套用失敗"
                 logger.error(f"房間 #{room_id} 遊戲 {app_id} 補丁套用失敗: {err_detail}")
+                report_party_error("線上補丁套用失敗", err_detail, context=f"房間 #{room_id} AppID {app_id}")
                 self.update_member_progress("待部署補丁", 90, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=str(err_detail))
         except Exception as e:
+            err_str = str(e)
             logger.error(f"[PARTY] 一鍵安裝流程發生例外: {e}", exc_info=True)
+            report_party_error("一鍵安裝流程例外", err_str, context=f"房間 #{room_id} AppID {app_id}")
             self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=f"一鍵安裝異常: {e}")
 
 _global_party_manager = None

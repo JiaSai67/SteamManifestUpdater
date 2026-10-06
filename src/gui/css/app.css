@@ -5803,6 +5803,18 @@ body.font-normal .quota-chip {
 .app.dark .my-status-badge.not_downloaded {
   background: rgba(255, 255, 255, 0.08);
 }
+.my-status-badge.pending_patch {
+  background: rgba(255, 167, 38, 0.2);
+  color: #FB8C00;
+  border: 1px solid rgba(255, 167, 38, 0.4);
+}
+.app.dark .my-status-badge.pending_patch {
+  color: #FFA726;
+  border: 1px solid rgba(255, 167, 38, 0.3);
+}
+.member-inline-progress-bar.pending {
+  background: linear-gradient(90deg, #FFB74D, #FFA726);
+}
 
 /* 🌟 本機底部進度條容器 (填補狀態與按鈕間的長空白區域) */
 .party-my-progress-container {

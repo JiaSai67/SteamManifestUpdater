@@ -5073,6 +5073,19 @@ class WebApi:
         except Exception as e:
             return {"ok": False, "msg": f"提交失敗: {e}"}
 
+    def get_party_logs(self, lines: int = 200) -> Dict[str, Any]:
+        """讀取組隊與一鍵安裝日誌 logs/party.log 最新內容"""
+        try:
+            from managers.party_logger import get_recent_party_logs
+            return {"ok": True, "logs": get_recent_party_logs(lines)}
+        except Exception as e:
+            return {"ok": False, "msg": f"讀取組隊日誌失敗: {e}"}
 
-
-
+    def open_party_log(self) -> Dict[str, Any]:
+        """在作業系統預設文字編輯器中開啟 logs/party.log"""
+        try:
+            from managers.party_logger import open_party_log_file
+            ok = open_party_log_file()
+            return {"ok": ok, "msg": "已開啟 logs/party.log" if ok else "開啟失敗"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}

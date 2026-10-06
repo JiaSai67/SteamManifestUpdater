@@ -18,8 +18,9 @@ from typing import Dict, Any, List, Optional, Tuple
 from managers import config_manager
 from managers import steam_manager
 from managers import onlinefix_manager
+from managers.party_logger import get_party_logger, report_party_error
 
-logger = logging.getLogger("party_packager")
+logger = get_party_logger("packager")
 
 class PartyPackager:
     def __init__(self):
@@ -339,6 +340,7 @@ class PartyPackager:
 
                 # 1. 部署實體 Manifest 清單至 Steam/depotcache 與 Steam/config/depotcache
                 manifest_files = [n for n in namelist if n.startswith("manifest/") and n.endswith(".manifest")]
+                extracted_manifests = {}
                 if manifest_files and steam_path:
                     sp_depot = Path(steam_path) / "depotcache"
                     sp_config_depot = Path(steam_path) / "config" / "depotcache"
@@ -360,13 +362,18 @@ class PartyPackager:
                         with zf.open(mf) as src, open(target_depot, "wb") as dst:
                             shutil.copyfileobj(src, dst)
 
-                        # 取消唯讀，並永久備份至金庫
+                        # depotcache 運行目錄永遠保持可讀寫，config/depotcache 作為黃金備份
                         try:
                             os.chmod(target_depot, stat.S_IWRITE | stat.S_IREAD)
                             shutil.copy2(target_depot, target_backup)
                             os.chmod(target_backup, stat.S_IWRITE | stat.S_IREAD)
                         except Exception:
                             pass
+
+                        # 解析 DepotID 與 Manifest GID
+                        m_parts = fn.replace(".manifest", "").split("_")
+                        if len(m_parts) == 2:
+                            extracted_manifests[m_parts[0]] = m_parts[1]
 
                         applied["manifest_count"] += 1
                         logger.info(f"[Packager] 已解壓套用實體 Manifest 並同步金庫備份: {fn}")
@@ -379,7 +386,7 @@ class PartyPackager:
                 if acf_files:
                     logger.info(f"[Packager] 嚴格安全策略生效：偵測到壓縮包含有 {len(acf_files)} 個歷史 ACF 檔案，已主動略過絕不部署，確保隊員本地狀態與 Steam 下載機制完全乾淨。")
 
-                # 3. 部署 Lua 腳本
+                # 3. 部署 Lua 腳本 (全面覆蓋 stplug-in, lua, stplugins, 自訂目錄)
                 lua_files = [n for n in namelist if n.startswith("lua/") and n.endswith(".lua")]
                 if lua_files and steam_path:
                     cfg_lua_dir = None
@@ -387,7 +394,11 @@ class PartyPackager:
                         cfg_lua_dir = config_manager.get_config().get("lua_dir")
                     except Exception:
                         pass
-                    target_dirs = [Path(steam_path) / "config" / "stplug-in", Path(steam_path) / "config" / "lua"]
+                    target_dirs = [
+                        Path(steam_path) / "config" / "stplug-in",
+                        Path(steam_path) / "config" / "lua",
+                        Path(steam_path) / "config" / "stplugins",
+                    ]
                     if cfg_lua_dir:
                         target_dirs.append(Path(cfg_lua_dir))
 
@@ -401,11 +412,43 @@ class PartyPackager:
                                 except Exception: pass
                             with zf.open(lf) as src, open(target_f, "wb") as dst:
                                 shutil.copyfileobj(src, dst)
+                            # 🌟 關鍵修復：將 Lua 腳本設定為唯讀保護，避免 Steam 客戶端重開或啟動時將其刪除或沖刷
+                            try:
+                                os.chmod(target_f, stat.S_IREAD)
+                            except Exception:
+                                pass
 
                     applied["lua"] = True
-                    logger.info(f"[Packager] 已解壓套用 Lua 腳本至 {len(target_dirs)} 個目錄")
+                    logger.info(f"[Packager] 已解壓套用 Lua 腳本至 {len(target_dirs)} 個外掛目錄並設定唯讀保護")
 
-                # 4. 部署線上補丁 (若遊戲主程式目錄已存在)
+                # 🌟 4. 閉環校準：將剛解壓的真實 Manifest 檔案與本地 Lua 閉環校準並鎖定版本
+                if steam_path:
+                    try:
+                        if extracted_manifests:
+                            steam_manager.sync_lua_with_deployed_manifests(
+                                app_id, manifests_dict=extracted_manifests, lua_dir=Path(steam_path) / "config" / "stplug-in"
+                            )
+                        steam_manager.verify_and_sync_local_manifests(
+                            app_id, steam_path=steam_path, target_manifests=extracted_manifests
+                        )
+                        steam_manager.sanitize_lua_manifests(app_id, steam_path)
+                        steam_manager.lock_game_version(app_id, steam_path, set_readonly=True)
+                        logger.info(f"[Packager] 已完成 AppID {app_id} 之 Lua 與實體清單閉環校準與版本鎖定")
+                    except Exception as cl_err:
+                        logger.warning(f"[Packager] 閉環校準過程異常 (非阻斷): {cl_err}")
+
+                    # 🌟 5. 若遊戲本體尚未安裝，由 SMU 本機產生合法乾淨的預引導 ACF (StateFlags: 1026)
+                    # 徹底解決正在運行的 Steam 客戶端因未重啟/未熱載入 Lua 而彈出「無授權 (No licenses)」問題！
+                    try:
+                        from web_api import WebApi
+                        st_info = WebApi().check_game_installed_status(app_id)
+                        if not st_info.get("is_installed"):
+                            ok_boot, msg_boot = steam_manager.ensure_download_bootstrap_acf(app_id, steam_path=steam_path)
+                            logger.info(f"[Packager] 本機預引導 ACF 建立狀態: {ok_boot} ({msg_boot})")
+                    except Exception as be:
+                        logger.warning(f"[Packager] 生成本機預引導 ACF 異常: {be}")
+
+                # 6. 部署線上補丁 (若遊戲主程式目錄已存在)
                 patch_files = [n for n in namelist if n.startswith("patch/files/") and not n.endswith("/")]
                 if patch_files:
                     game_dir = onlinefix_manager._find_steam_game_dir(app_id)
@@ -464,6 +507,7 @@ class PartyPackager:
                         if quarantined_files:
                             err_msg = f"檔案遭防毒軟體 (Windows Defender) 即時隔離: {', '.join(quarantined_files[:3])}"
                             logger.warning(f"[Packager] {err_msg}")
+                            report_party_error("補丁遭防毒隔離", err_msg, context=f"AppID {app_id}")
                             return {
                                 "ok": False,
                                 "is_antivirus_blocked": True,
@@ -476,6 +520,7 @@ class PartyPackager:
         except Exception as e:
             err_str = str(e)
             logger.error(f"[Packager] 解壓部署整合包失敗: {e}", exc_info=True)
+            report_party_error("整合包部署異常", err_str, context=f"AppID {app_id}")
             # 判斷是否為 Windows Defender WinError 225 或權限阻擋
             is_av = False
             gdir = str(game_dir) if ('game_dir' in locals() and game_dir) else ""
@@ -577,10 +622,11 @@ class PartyPackager:
         except Exception as e:
             err_str = str(e)
             is_av = ("225" in err_str or "virus" in err_str.lower() or isinstance(e, PermissionError))
+            report_party_error("線上補丁套用失敗", err_str, context=f"AppID {app_id}")
             return {
                 "ok": False,
                 "is_antivirus_blocked": is_av,
-                "game_dir": str(g_path),
+                "game_dir": str(g_path) if 'g_path' in locals() else "",
                 "msg": f"補丁套用失敗: {e}"
             }
 
