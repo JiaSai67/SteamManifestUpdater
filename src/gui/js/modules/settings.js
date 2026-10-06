@@ -198,6 +198,7 @@ async function ts(key){
       document.documentElement.classList.remove('dark');
       try { localStorage.removeItem('dark_mode'); } catch(e){}
     }
+    if(typeof updateCardTextBg === 'function') updateCardTextBg();
     try { await pywebview.api.set_config('dark_mode', v); } catch(e){}
     try { await pywebview.api.set_config('dark', v); } catch(e){}
     return;

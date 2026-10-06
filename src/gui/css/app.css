@@ -74,11 +74,11 @@ html.dark select option, .app.dark select option, body.dark select option {
 #glist{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:12px}
 #glist .card{flex-direction:column;align-items:stretch;text-align:center;padding:0;overflow:visible!important;border-radius:14px;min-height:auto;position:relative;gap:0}
 #glist .card img{width:100%;height:85px;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.08);border-top-left-radius:13px;border-top-right-radius:13px;display:block}
-#glist .card .name{font-size:12px;font-weight:600;padding:7px 10px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;background:var(--card-text-bg, rgba(0,0,0,.65));color:#fff;border-top-left-radius:13px;border-top-right-radius:13px;transition:background .15s}
-#glist .card .aid{font-size:11px;color:#ddd;padding:3px 32px 5px 10px;margin:0;font-variant-numeric:tabular-nums;background:var(--card-text-bg, rgba(0,0,0,.65));border-bottom-left-radius:13px;border-bottom-right-radius:13px;transition:background .15s;display:flex;align-items:center;justify-content:center;min-height:24px;box-sizing:border-box;position:relative}
+#glist .card .name{font-size:12px;font-weight:700;padding:7px 10px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;background:var(--card-text-bg, rgba(255,255,255,.75));color:#2D2528;border-top-left-radius:13px;border-top-right-radius:13px;transition:background .15s, color .15s}
+#glist .card .aid{font-size:11px;color:#75696D;padding:3px 32px 5px 10px;margin:0;font-variant-numeric:tabular-nums;background:var(--card-text-bg, rgba(255,255,255,.75));border-bottom-left-radius:13px;border-bottom-right-radius:13px;transition:background .15s, color .15s;display:flex;align-items:center;justify-content:center;min-height:24px;box-sizing:border-box;position:relative}
 
-#glist .card .aid .aid-num{font-size:11px;color:#ddd;font-variant-numeric:tabular-nums;letter-spacing:0.2px}
-#glist .card.needs-update .aid .aid-num{color:#FFE066 !important;font-weight:700}
+#glist .card .aid .aid-num{font-size:11px;color:#75696D;font-variant-numeric:tabular-nums;letter-spacing:0.2px}
+#glist .card.needs-update .aid .aid-num{color:#D81B60 !important;font-weight:700}
 #glist .card .card-dd, #results .card-dd{position:absolute;bottom:34px;top:auto;right:6px;background:rgba(255,255,255,.98);border-radius:10px;border:1px solid rgba(0,0,0,.12);box-shadow:0 10px 30px rgba(0,0,0,.25),0 2px 8px rgba(0,0,0,.1);padding:5px 0;z-index:1000!important;display:none;min-width:130px;max-height:240px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 #glist .card .card-dd.show, #results .card-dd.show{display:block!important;animation:fadeInMenu .15s cubic-bezier(0.16,1,0.3,1)}
 @keyframes fadeInMenu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -87,15 +87,15 @@ html.dark select option, .app.dark select option, body.dark select option {
 .card-dd::-webkit-scrollbar{width:4px}
 .card-dd::-webkit-scrollbar-thumb{background:rgba(0,0,0,.22);border-radius:4px}
 .app.dark .card-dd::-webkit-scrollbar-thumb{background:rgba(255,255,255,.25)}
-#glist .card .card-menu{position:absolute;bottom:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;cursor:pointer;border:none;z-index:4;display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;line-height:1;transition:background .2s,transform .15s}
-#glist .card .card-menu:hover{background:var(--pink-deep);transform:scale(1.08)}
+#glist .card .card-menu{position:absolute;bottom:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.08);color:#2D2528;cursor:pointer;border:none;z-index:4;display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;line-height:1;transition:background .2s,transform .15s}
+#glist .card .card-menu:hover{background:var(--pink-deep);color:#FFF;transform:scale(1.08)}
 #glist .card .card-menu svg{display:block;pointer-events:none;margin:auto}
-/* 首頁瀏覽全部（網格）— 尺寸放大，框線與管理頁網格對齐，文字黑色底色 */
+/* 首頁瀏覽全部（網格）— 尺寸放大，框線與管理頁網格對齐 */
 #results.browse-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:14px}
 #results.browse-grid .card{flex-direction:column;align-items:stretch;text-align:center;padding:0;overflow:visible!important;border-radius:14px;min-height:auto;position:relative;gap:0;height:auto}
 #results.browse-grid .card img{width:100%;height:105px;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.08);border-top-left-radius:13px;border-top-right-radius:13px;display:block}
-#results.browse-grid .card .name{font-size:12.5px;font-weight:600;padding:7px 10px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;background:var(--card-text-bg, rgba(0,0,0,.65));color:#fff;border-top-left-radius:13px;border-top-right-radius:13px;transition:background .15s}
-#results.browse-grid .card .aid{font-size:11px;color:#ddd;padding:3px 32px 5px 10px;margin:0;font-variant-numeric:tabular-nums;background:var(--card-text-bg, rgba(0,0,0,.65));border-bottom-left-radius:13px;border-bottom-right-radius:13px;transition:background .15s;display:flex;align-items:center;justify-content:center;min-height:24px;box-sizing:border-box;position:relative}
+#results.browse-grid .card .name{font-size:12.5px;font-weight:700;padding:7px 10px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;background:var(--card-text-bg, rgba(255,255,255,.75));color:#2D2528;border-top-left-radius:13px;border-top-right-radius:13px;transition:background .15s, color .15s}
+#results.browse-grid .card .aid{font-size:11px;color:#75696D;padding:3px 32px 5px 10px;margin:0;font-variant-numeric:tabular-nums;background:var(--card-text-bg, rgba(255,255,255,.75));border-bottom-left-radius:13px;border-bottom-right-radius:13px;transition:background .15s, color .15s;display:flex;align-items:center;justify-content:center;min-height:24px;box-sizing:border-box;position:relative}
 
 /* 🌟 全域防護：頂部遊戲名稱與卡片頂部圓角 100% 貼合，消除任何直角底色溢出 */
 .card .name:first-child,
@@ -1292,56 +1292,56 @@ body.dark .card.has-onlinefix,
 /* 左側：使用者 Profile 大卡片 */
 .cred-user-card{background:rgba(255,255,255,.88);border:1.5px solid rgba(255,183,197,.55);border-radius:20px;padding:20px;box-shadow:0 6px 24px rgba(61,44,46,.06);backdrop-filter:blur(24px) saturate(1.2);-webkit-backdrop-filter:blur(24px) saturate(1.2);display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;overflow:hidden;transition:all .25s ease}
 .cred-user-card:hover{border-color:var(--pink);box-shadow:0 8px 30px rgba(255,143,167,.25);transform:translateY(-1px)}
-.app.dark .cred-user-card, .app.has-bg .cred-user-card{background:rgba(28,21,25,.92);border-color:rgba(255,183,197,.2);box-shadow:0 6px 26px rgba(0,0,0,.45)}
+.app.dark .cred-user-card, .app.dark.has-bg .cred-user-card{background:rgba(28,21,25,.92);border-color:rgba(255,183,197,.2);box-shadow:0 6px 26px rgba(0,0,0,.45)}
 
 .cred-user-avatar-wrap{position:relative;margin-bottom:12px}
 .cred-user-avatar{width:76px;height:76px;border-radius:50%;object-fit:cover;border:3px solid #FFF;box-shadow:0 0 0 2px var(--pink), 0 6px 18px rgba(255,102,153,.35);background:linear-gradient(135deg,#FFE5EC,#FFD1DC);display:flex;align-items:center;justify-content:center;font-size:36px;color:var(--pink-deep)}
-.app.dark .cred-user-avatar, .app.has-bg .cred-user-avatar{border-color:rgba(255,255,255,.2);box-shadow:0 0 0 2px rgba(255,143,167,.6), 0 6px 20px rgba(0,0,0,.6)}
+.app.dark .cred-user-avatar, .app.dark.has-bg .cred-user-avatar{border-color:rgba(255,255,255,.2);box-shadow:0 0 0 2px rgba(255,143,167,.6), 0 6px 20px rgba(0,0,0,.6)}
 
 .cred-user-status-dot{position:absolute;bottom:2px;right:4px;width:15px;height:15px;border-radius:50%;background:#4CAF50;border:2.5px solid #FFF;box-shadow:0 2px 6px rgba(76,175,80,.4)}
-.app.dark .cred-user-status-dot, .app.has-bg .cred-user-status-dot{border-color:#1E1519}
+.app.dark .cred-user-status-dot, .app.dark.has-bg .cred-user-status-dot{border-color:#1E1519}
 
 .cred-user-name{font-size:16px;font-weight:800;color:var(--dark);margin-bottom:3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.app.dark .cred-user-name, .app.has-bg .cred-user-name{color:#FFFFFF}
+.app.dark .cred-user-name, .app.dark.has-bg .cred-user-name{color:#FFFFFF}
 .cred-user-sub{font-size:11px;color:var(--gray);margin-bottom:12px;font-weight:600;display:flex;align-items:center;gap:5px;justify-content:center}
-.app.dark .cred-user-sub, .app.has-bg .cred-user-sub{color:#C8BDC1}
+.app.dark .cred-user-sub, .app.dark.has-bg .cred-user-sub{color:#C8BDC1}
 
 .cred-user-badge{font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:99px;background:rgba(255,102,153,.12);color:var(--pink-deep);border:1px solid rgba(255,102,153,.25);display:inline-flex;align-items:center;gap:4px;margin-bottom:14px}
-.app.dark .cred-user-badge, .app.has-bg .cred-user-badge{background:rgba(255,102,153,.2);color:#FFAEC0;border-color:rgba(255,102,153,.35)}
+.app.dark .cred-user-badge, .app.dark.has-bg .cred-user-badge{background:rgba(255,102,153,.2);color:#FFAEC0;border-color:rgba(255,102,153,.35)}
 
 /* 左側：總配額概覽面板 */
 .cred-total-quota-box{width:100%;background:linear-gradient(135deg,rgba(255,242,246,.8),rgba(255,255,255,.9));border:1.5px solid rgba(255,183,197,.5);border-radius:14px;padding:12px 14px;box-sizing:border-box;margin-bottom:12px;text-align:left}
-.app.dark .cred-total-quota-box, .app.has-bg .cred-total-quota-box{background:rgba(18,12,15,.95);border-color:rgba(255,183,197,.2);box-shadow:inset 0 1px 4px rgba(0,0,0,.5)}
+.app.dark .cred-total-quota-box, .app.dark.has-bg .cred-total-quota-box{background:rgba(18,12,15,.95);border-color:rgba(255,183,197,.2);box-shadow:inset 0 1px 4px rgba(0,0,0,.5)}
 
 .cred-tq-header{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;font-weight:700;color:var(--dark);margin-bottom:6px}
-.app.dark .cred-tq-header, .app.has-bg .cred-tq-header{color:#FFF}
+.app.dark .cred-tq-header, .app.dark.has-bg .cred-tq-header{color:#FFF}
 .cred-tq-num{font-size:22px;font-weight:900;color:#D81B60;line-height:1}
-.app.dark .cred-tq-num, .app.has-bg .cred-tq-num{color:#FF7597}
+.app.dark .cred-tq-num, .app.dark.has-bg .cred-tq-num{color:#FF7597}
 .cred-tq-total{font-size:12px;font-weight:600;color:var(--gray)}
 
 .cred-tq-breakdown{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px;padding-top:8px;border-top:1px dashed rgba(255,183,197,.4)}
 .cred-tq-item{display:flex;flex-direction:column;align-items:center;font-size:10px;color:var(--gray)}
 .cred-tq-item b{font-size:12px;color:var(--dark);font-weight:800}
-.app.dark .cred-tq-item b, .app.has-bg .cred-tq-item b{color:#FFF}
+.app.dark .cred-tq-item b, .app.dark.has-bg .cred-tq-item b{color:#FFF}
 
 /* 左側：偏好設定與功能卡片 */
 .cred-side-card{background:rgba(255,255,255,.85);border:1.5px solid rgba(255,183,197,.5);border-radius:18px;padding:16px;box-shadow:0 4px 18px rgba(61,44,46,.04);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);display:flex;flex-direction:column;gap:12px}
-.app.dark .cred-side-card, .app.has-bg .cred-side-card{background:rgba(28,21,25,.9);border-color:rgba(255,183,197,.2);box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.app.dark .cred-side-card, .app.dark.has-bg .cred-side-card{background:rgba(28,21,25,.9);border-color:rgba(255,183,197,.2);box-shadow:0 4px 20px rgba(0,0,0,.4)}
 
 /* 右側：三大平台通用卡片 */
 .cred-platform-card{background:rgba(255,255,255,.88);border:1.5px solid rgba(255,183,197,.55);border-radius:18px;padding:18px 20px;box-shadow:0 4px 18px rgba(61,44,46,.04);backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);transition:all .2s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;gap:12px}
 .cred-platform-card:hover{border-color:var(--pink);box-shadow:0 8px 24px rgba(255,143,167,.2);transform:translateY(-1px)}
-.app.dark .cred-platform-card, .app.has-bg .cred-platform-card{background:rgba(26,19,23,.92);border-color:rgba(255,183,197,.2);color:#FFF;box-shadow:0 4px 20px rgba(0,0,0,.45)}
-.app.dark .cred-platform-card:hover, .app.has-bg .cred-platform-card:hover{border-color:#FFAEC0;box-shadow:0 8px 26px rgba(0,0,0,.6)}
+.app.dark .cred-platform-card, .app.dark.has-bg .cred-platform-card{background:rgba(26,19,23,.92);border-color:rgba(255,183,197,.2);color:#FFF;box-shadow:0 4px 20px rgba(0,0,0,.45)}
+.app.dark .cred-platform-card:hover, .app.dark.has-bg .cred-platform-card:hover{border-color:#FFAEC0;box-shadow:0 8px 26px rgba(0,0,0,.6)}
 
 .cred-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
 .cred-title-wrap{display:flex;align-items:center;gap:12px}
 .cred-platform-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,rgba(255,183,197,.3),rgba(255,102,153,.15));border:1px solid rgba(255,183,197,.4);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
-.app.dark .cred-platform-icon, .app.has-bg .cred-platform-icon{background:rgba(255,255,255,.08);border-color:rgba(255,183,197,.25)}
+.app.dark .cred-platform-icon, .app.dark.has-bg .cred-platform-icon{background:rgba(255,255,255,.08);border-color:rgba(255,183,197,.25)}
 .cred-platform-name{font-size:15px;font-weight:800;color:var(--dark);line-height:1.2}
-.app.dark .cred-platform-name, .app.has-bg .cred-platform-name{color:#FFFFFF}
+.app.dark .cred-platform-name, .app.dark.has-bg .cred-platform-name{color:#FFFFFF}
 .cred-platform-sub{font-size:11px;color:var(--gray);margin-top:2px}
-.app.dark .cred-platform-sub, .app.has-bg .cred-platform-sub{color:#C8BDC1}
+.app.dark .cred-platform-sub, .app.dark.has-bg .cred-platform-sub{color:#C8BDC1}
 
 .cred-status-badge{font-size:11px;font-weight:700;padding:3.5px 11px;border-radius:99px;letter-spacing:.3px;white-space:nowrap}
 .cred-status-badge.ok{background:#E5F6E0;color:#2E7D32;border:1px solid rgba(46,125,50,.25)}
@@ -1355,26 +1355,26 @@ body.dark .card.has-onlinefix,
 
 /* 配額進度條與數值展示 */
 .cred-pool-summary{display:flex;flex-direction:column;gap:6px;background:rgba(255,255,255,.75);border:1.5px solid rgba(255,183,197,.45);border-radius:13px;padding:11px 14px;box-shadow:0 2px 8px rgba(61,44,46,.02)}
-.app.dark .cred-pool-summary, .app.has-bg .cred-pool-summary{background:rgba(15,10,13,.92);border-color:rgba(255,183,197,.2);box-shadow:inset 0 1px 4px rgba(0,0,0,.5)}
+.app.dark .cred-pool-summary, .app.dark.has-bg .cred-pool-summary{background:rgba(15,10,13,.92);border-color:rgba(255,183,197,.2);box-shadow:inset 0 1px 4px rgba(0,0,0,.5)}
 
 .cred-info-row{display:flex;align-items:center;justify-content:space-between;font-size:12px}
 .cred-label{color:#75696D;font-weight:600;letter-spacing:.3px}
-.app.dark .cred-label, .app.has-bg .cred-label{color:#C8BDC1}
+.app.dark .cred-label, .app.dark.has-bg .cred-label{color:#C8BDC1}
 .cred-val{font-weight:700;color:#2D2528 !important;letter-spacing:.3px}
-.app.dark .cred-val, .app.has-bg .cred-val{color:#FFFFFF !important;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.app.dark .cred-val, .app.dark.has-bg .cred-val{color:#FFFFFF !important;text-shadow:0 1px 2px rgba(0,0,0,.5)}
 .cred-val small{color:#D81B60 !important;font-weight:600}
-.app.dark .cred-val small, .app.has-bg .cred-val small{color:#FFB2C3 !important}
+.app.dark .cred-val small, .app.dark.has-bg .cred-val small{color:#FFB2C3 !important}
 
 .cred-progress-bar{height:8px;background:rgba(0,0,0,.08);border-radius:99px;overflow:hidden;margin-top:3px}
-.app.dark .cred-progress-bar, .app.has-bg .cred-progress-bar{background:rgba(255,255,255,.15)}
+.app.dark .cred-progress-bar, .app.dark.has-bg .cred-progress-bar{background:rgba(255,255,255,.15)}
 .cred-progress-fill{height:100%;background:linear-gradient(90deg,#FF8DA7,#FF4081);border-radius:99px;box-shadow:0 0 8px rgba(255,64,129,.4);transition:width .4s ease}
 .cred-progress-fill.hubcap-fill{background:linear-gradient(90deg,#00bcd4,#00838f);box-shadow:0 0 8px rgba(0,188,212,.4)}
 
 /* HubcapDB 專用 Key 面板 */
 .cred-hubcap-key-box{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.75);border:1.5px dashed rgba(255,183,197,.6);border-radius:12px;padding:10px 14px;gap:12px}
-.app.dark .cred-hubcap-key-box, .app.has-bg .cred-hubcap-key-box{background:rgba(18,13,16,.92);border-color:rgba(255,183,197,.25)}
+.app.dark .cred-hubcap-key-box, .app.dark.has-bg .cred-hubcap-key-box{background:rgba(18,13,16,.92);border-color:rgba(255,183,197,.25)}
 .cred-key-preview{font-family:Consolas,monospace;font-size:12px;font-weight:700;color:var(--dark);letter-spacing:1px;background:rgba(0,0,0,.04);padding:4px 8px;border-radius:6px;border:1px solid rgba(0,0,0,.06)}
-.app.dark .cred-key-preview, .app.has-bg .cred-key-preview{background:rgba(255,255,255,.08);color:#80deea;border-color:rgba(255,255,255,.1)}
+.app.dark .cred-key-preview, .app.dark.has-bg .cred-key-preview{background:rgba(255,255,255,.08);color:#80deea;border-color:rgba(255,255,255,.1)}
 
 /* 優先級與排序樣式 */
 .cred-rank-badge{font-size:11px;font-weight:800;width:24px;height:24px;border-radius:6px;background:rgba(0,0,0,.06);color:var(--dark);display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -1397,70 +1397,70 @@ body.dark .card.has-onlinefix,
 .cred-actions button{flex:1;min-width:80px;justify-content:center;padding:7px 10px;font-size:11.5px;font-weight:600}
 
 .cred-strategy-title{font-size:12px;font-weight:700;color:#2D2528}
-.app.dark .cred-strategy-title, .app.has-bg .cred-strategy-title{color:#FFFFFF}
+.app.dark .cred-strategy-title, .app.dark.has-bg .cred-strategy-title{color:#FFFFFF}
 .cred-strategy-sub{font-size:10.5px;color:#75696D;margin-top:2px}
-.app.dark .cred-strategy-sub, .app.has-bg .cred-strategy-sub{color:#C8BDC1}
+.app.dark .cred-strategy-sub, .app.dark.has-bg .cred-strategy-sub{color:#C8BDC1}
 #pref-source-select{padding:7px 12px;border:1.5px solid rgba(255,183,197,.6);border-radius:8px;font-size:11.5px;font-weight:600;background:#FFF;color:#2D2528;outline:none;cursor:pointer;width:100%}
-.app.dark #pref-source-select, .app.has-bg #pref-source-select{background:rgba(35,26,30,.95);color:#FFF;border-color:rgba(255,183,197,.45)}
+.app.dark #pref-source-select, .app.dark.has-bg #pref-source-select{background:rgba(35,26,30,.95);color:#FFF;border-color:rgba(255,183,197,.45)}
 
 /* 多帳號清單標題列（深/淺色模式自適應） */
 .cred-account-list-header{margin:4px 0 6px 0;display:flex;align-items:center;justify-content:space-between}
 .cred-account-list-title{font-size:11.5px;font-weight:700;color:var(--dark);transition:color .2s}
 .cred-account-list-sub{font-size:10px;color:var(--gray);transition:color .2s}
-.app.dark .cred-account-list-title, .app.has-bg .cred-account-list-title{color:#FFFFFF !important;text-shadow:0 1px 2px rgba(0,0,0,.5)}
-.app.dark .cred-account-list-sub, .app.has-bg .cred-account-list-sub{color:#C8BDC1 !important}
+.app.dark .cred-account-list-title, .app.dark.has-bg .cred-account-list-title{color:#FFFFFF !important;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.app.dark .cred-account-list-sub, .app.dark.has-bg .cred-account-list-sub{color:#C8BDC1 !important}
 
 /* 多帳號清單區塊 */
 .cred-account-list{display:flex;flex-direction:column;gap:8px;max-height:220px;min-height:70px;overflow-y:auto;padding-right:3px}
 .cred-account-item{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.85);border:1.5px solid rgba(255,183,197,.4);border-radius:11px;padding:8px 12px;min-height:54px;box-shadow:0 2px 6px rgba(61,44,46,.03);transition:all .2s ease;box-sizing:border-box;width:100%;overflow:hidden}
 .cred-account-item:hover{border-color:var(--pink);transform:translateY(-1px)}
 .cred-account-item.active{border-color:#FF4081;background:rgba(255,242,246,.95);box-shadow:0 0 0 1.5px rgba(255,64,129,.25),0 4px 12px rgba(255,64,129,.15)}
-.app.dark .cred-account-item, .app.has-bg .cred-account-item{background:rgba(24,18,21,.92);border-color:rgba(255,183,197,.18);box-shadow:0 2px 8px rgba(0,0,0,.4)}
-.app.dark .cred-account-item:hover, .app.has-bg .cred-account-item:hover{border-color:#FFAEC0}
-.app.dark .cred-account-item.active, .app.has-bg .cred-account-item.active{background:rgba(42,24,32,.95);border-color:#FFAEC0;box-shadow:0 0 0 1.5px rgba(255,174,192,.35),0 4px 14px rgba(0,0,0,.6)}
+.app.dark .cred-account-item, .app.dark.has-bg .cred-account-item{background:rgba(24,18,21,.92);border-color:rgba(255,183,197,.18);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.app.dark .cred-account-item:hover, .app.dark.has-bg .cred-account-item:hover{border-color:#FFAEC0}
+.app.dark .cred-account-item.active, .app.dark.has-bg .cred-account-item.active{background:rgba(42,24,32,.95);border-color:#FFAEC0;box-shadow:0 0 0 1.5px rgba(255,174,192,.35),0 4px 14px rgba(0,0,0,.6)}
 
 .cred-acc-avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;border:1.5px solid rgba(255,183,197,.6);flex-shrink:0}
 .cred-acc-avatar-placeholder{width:32px;height:32px;border-radius:50%;background:rgba(255,183,197,.25);border:1.5px solid rgba(255,183,197,.4);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
 .cred-acc-info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px;overflow:hidden}
 .cred-acc-header-row{display:flex;align-items:center;gap:6px;min-width:0;line-height:1.2}
 .cred-acc-name{font-weight:700;font-size:12px;line-height:1.2;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
-.app.dark .cred-acc-name, .app.has-bg .cred-acc-name{color:#FFFFFF}
+.app.dark .cred-acc-name, .app.dark.has-bg .cred-acc-name{color:#FFFFFF}
 .cred-acc-meta{font-size:10.5px;color:#75696D;display:flex;align-items:center;gap:5px;flex-wrap:nowrap !important;white-space:nowrap !important;min-width:0;line-height:1.2;overflow:hidden}
-.app.dark .cred-acc-meta, .app.has-bg .cred-acc-meta{color:#C8BDC1}
+.app.dark .cred-acc-meta, .app.dark.has-bg .cred-acc-meta{color:#C8BDC1}
 .cred-acc-email-row{display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:#0284c7;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.app.dark .cred-acc-email-row, .app.has-bg .cred-acc-email-row{color:#38bdf8}
+.app.dark .cred-acc-email-row, .app.dark.has-bg .cred-acc-email-row{color:#38bdf8}
 .cred-acc-email-icon{font-size:10.5px;opacity:.85;flex-shrink:0}
 .cred-acc-email-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cred-acc-sub{font-size:9.5px;color:var(--gray);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:1}
 .cred-acc-quota-text{font-weight:700;color:#D81B60;flex-shrink:0}
-.app.dark .cred-acc-quota-text, .app.has-bg .cred-acc-quota-text{color:#FF94B2}
+.app.dark .cred-acc-quota-text, .app.dark.has-bg .cred-acc-quota-text{color:#FF94B2}
 .cred-acc-actions{display:flex;align-items:center;gap:4px;flex-shrink:0;width:78px;justify-content:flex-end}
 
 /* 未加官方群狀態徽章與一鍵解決按鈕 */
 .cred-badge-not-in-server{font-size:9.5px;padding:2px 0;width:74px;text-align:center;border-radius:4px;background:#FFEBEE;color:#D32F2F;font-weight:700;border:1px solid rgba(211,47,47,.35);white-space:nowrap !important;flex-shrink:0 !important;line-height:14px;margin-left:auto;box-sizing:border-box}
-.app.dark .cred-badge-not-in-server, .app.has-bg .cred-badge-not-in-server{background:rgba(211,47,47,.22);color:#FF8A80;border-color:rgba(255,138,128,.4)}
+.app.dark .cred-badge-not-in-server, .app.dark.has-bg .cred-badge-not-in-server{background:rgba(211,47,47,.22);color:#FF8A80;border-color:rgba(255,138,128,.4)}
 .btn-cred-quick{font-size:9.5px;padding:2px 0;width:74px;text-align:center;border-radius:4px;cursor:pointer;white-space:nowrap !important;flex-shrink:0 !important;line-height:14px;border:none;outline:none;font-weight:700;margin-left:auto;box-sizing:border-box;transition:all .15s}
 .btn-cred-quick-join{color:#E65100;border:1px solid #FFB74D;background:rgba(255,183,77,.15)}
 .btn-cred-quick-join:hover{background:rgba(255,183,77,.35);color:#D84315}
-.app.dark .btn-cred-quick-join, .app.has-bg .btn-cred-quick-join{color:#FFB74D;border-color:rgba(255,183,77,.45);background:rgba(255,183,77,.18)}
-.app.dark .btn-cred-quick-join:hover, .app.has-bg .btn-cred-quick-join:hover{background:rgba(255,183,77,.35);color:#FFF}
+.app.dark .btn-cred-quick-join, .app.dark.has-bg .btn-cred-quick-join{color:#FFB74D;border-color:rgba(255,183,77,.45);background:rgba(255,183,77,.18)}
+.app.dark .btn-cred-quick-join:hover, .app.dark.has-bg .btn-cred-quick-join:hover{background:rgba(255,183,77,.35);color:#FFF}
 
 .cred-empty-state{padding:16px 12px;text-align:center;color:var(--gray);font-size:11px;border:1.5px dashed rgba(255,183,197,.4);border-radius:12px;background:rgba(255,255,255,.35)}
-.app.dark .cred-empty-state, .app.has-bg .cred-empty-state{background:rgba(25,18,22,.4);border-color:rgba(255,183,197,.2);color:#A89B9F}
+.app.dark .cred-empty-state, .app.dark.has-bg .cred-empty-state{background:rgba(25,18,22,.4);border-color:rgba(255,183,197,.2);color:#A89B9F}
 
 /* 深色模式 / 自訂桌布背景：維持黑底白字高對比，且平常無白邊、Hover時才顯示頂部白邊 */
-.app.dark .cred-card, .app.has-bg .cred-card{background:rgba(30,24,27,.88);border-color:rgba(255,183,197,.18);color:#FFF;box-shadow:0 4px 20px rgba(0,0,0,.35)}
-.app.dark .cred-card:hover, .app.has-bg .cred-card:hover{border-color:#FFAEC0;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 8px 26px rgba(0,0,0,.5),0 0 12px rgba(255,183,197,.2)}
-.app.dark .cred-platform-name, .app.has-bg .cred-platform-name{color:#FFFFFF}
-.app.dark .cred-platform-sub, .app.has-bg .cred-platform-sub{color:#C8BDC1}
-.app.dark .cred-card-body, .app.has-bg .cred-card-body{background:rgba(14,10,12,.94);border-color:rgba(255,183,197,.22);box-shadow:inset 0 1px 4px rgba(0,0,0,.5)}
-.app.dark .cred-label, .app.has-bg .cred-label{color:#C8BDC1}
-.app.dark .cred-val, .app.has-bg .cred-val{color:#FFFFFF !important;text-shadow:0 1px 2px rgba(0,0,0,.5)}
-.app.dark .cred-val small, .app.has-bg .cred-val small{color:#FFB2C3 !important}
-.app.dark .cred-progress-bar, .app.has-bg .cred-progress-bar{background:rgba(255,255,255,.18)}
-.app.dark .cred-strategy-title, .app.has-bg .cred-strategy-title{color:#FFFFFF}
-.app.dark .cred-strategy-sub, .app.has-bg .cred-strategy-sub{color:#C8BDC1}
-.app.dark #pref-source-select, .app.has-bg #pref-source-select{background:rgba(35,26,30,.95);color:#FFF;border-color:rgba(255,183,197,.45)}
+.app.dark .cred-card, .app.dark.has-bg .cred-card{background:rgba(30,24,27,.88);border-color:rgba(255,183,197,.18);color:#FFF;box-shadow:0 4px 20px rgba(0,0,0,.35)}
+.app.dark .cred-card:hover, .app.dark.has-bg .cred-card:hover{border-color:#FFAEC0;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 8px 26px rgba(0,0,0,.5),0 0 12px rgba(255,183,197,.2)}
+.app.dark .cred-platform-name, .app.dark.has-bg .cred-platform-name{color:#FFFFFF}
+.app.dark .cred-platform-sub, .app.dark.has-bg .cred-platform-sub{color:#C8BDC1}
+.app.dark .cred-card-body, .app.dark.has-bg .cred-card-body{background:rgba(14,10,12,.94);border-color:rgba(255,183,197,.22);box-shadow:inset 0 1px 4px rgba(0,0,0,.5)}
+.app.dark .cred-label, .app.dark.has-bg .cred-label{color:#C8BDC1}
+.app.dark .cred-val, .app.dark.has-bg .cred-val{color:#FFFFFF !important;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.app.dark .cred-val small, .app.dark.has-bg .cred-val small{color:#FFB2C3 !important}
+.app.dark .cred-progress-bar, .app.dark.has-bg .cred-progress-bar{background:rgba(255,255,255,.18)}
+.app.dark .cred-strategy-title, .app.dark.has-bg .cred-strategy-title{color:#FFFFFF}
+.app.dark .cred-strategy-sub, .app.dark.has-bg .cred-strategy-sub{color:#C8BDC1}
+.app.dark #pref-source-select, .app.dark.has-bg #pref-source-select{background:rgba(35,26,30,.95);color:#FFF;border-color:rgba(255,183,197,.45)}
 
 /* 狀態檢查面板 (Ryuu + Google Drive + Online-Fix + ZeiGames 4 域狀態) */
 .detail-sources-box{margin-top:8px;background:rgba(255,255,255,.55);border:1px solid var(--border);border-radius:12px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;box-shadow:0 2px 8px rgba(0,0,0,.03);width:100%;box-sizing:border-box}
@@ -1767,7 +1767,7 @@ body.dark .card.has-onlinefix,
 /* ═══════════════════════════════════════════════════════
    深色模式 (Dark Mode 黑底白字)
    ═══════════════════════════════════════════════════════ */
-.app.dark .modal-box, .app.dark.has-bg .modal-box, .app.has-bg .modal-box {
+.app.dark .modal-box, .app.dark.has-bg .modal-box {
   background: #251D21 !important;
   color: #FFFFFF !important;
   border: 1.5px solid rgba(255,183,197,0.25) !important;
@@ -3159,7 +3159,7 @@ small, .pref-desc {
   position: relative !important;
   overflow: hidden !important;
 }
-.app.dark .cred-account-item, .app.has-bg .cred-account-item {
+.app.dark .cred-account-item, .app.dark.has-bg .cred-account-item {
   background: rgba(24, 18, 21, .92);
   border-color: rgba(255, 183, 197, .18);
 }
@@ -3215,7 +3215,7 @@ small, .pref-desc {
   flex: 1 1 auto !important;
   min-width: 0 !important;
 }
-.app.dark .cred-acc-name, .app.has-bg .cred-acc-name {
+.app.dark .cred-acc-name, .app.dark.has-bg .cred-acc-name {
   color: #FFF !important;
 }
 .cred-acc-status-box {
@@ -3254,7 +3254,7 @@ small, .pref-desc {
   flex-shrink: 0 !important;
   color: #75696D !important;
 }
-.app.dark .cred-acc-quota, .app.has-bg .cred-acc-quota {
+.app.dark .cred-acc-quota, .app.dark.has-bg .cred-acc-quota {
   color: #E2D7DA !important;
 }
 .cred-acc-quick-box {
@@ -3341,7 +3341,7 @@ small, .pref-desc {
   box-sizing: border-box !important;
   line-height: 14px !important;
 }
-.app.dark .cred-badge-not-in-server, .app.has-bg .cred-badge-not-in-server {
+.app.dark .cred-badge-not-in-server, .app.dark.has-bg .cred-badge-not-in-server {
   background: rgba(211, 47, 47, .22) !important;
   color: #FF8A80 !important;
   border-color: rgba(255, 138, 128, .4) !important;
@@ -3362,7 +3362,7 @@ small, .pref-desc {
   font-weight: 700 !important;
   box-sizing: border-box !important;
 }
-.app.dark .btn-cred-quick-join, .app.has-bg .btn-cred-quick-join {
+.app.dark .btn-cred-quick-join, .app.dark.has-bg .btn-cred-quick-join {
   color: #FFB74D !important;
   border-color: rgba(255, 183, 77, .45) !important;
   background: rgba(255, 183, 77, .18) !important;
@@ -3976,7 +3976,7 @@ body.font-normal .cred-acc-actions .btn-cred-del {
   color: #E65100 !important;
   border-color: rgba(255, 152, 0, 0.45) !important;
 }
-.app.dark .quota-chip-ryuu, .app.has-bg .quota-chip-ryuu {
+.app.dark .quota-chip-ryuu, .app.dark.has-bg .quota-chip-ryuu {
   background: rgba(230, 81, 0, 0.25) !important;
   color: #FFA726 !important;
   border-color: rgba(255, 167, 38, 0.45) !important;
@@ -3986,7 +3986,7 @@ body.font-normal .cred-acc-actions .btn-cred-del {
   color: #7B1FA2 !important;
   border-color: rgba(186, 104, 200, 0.45) !important;
 }
-.app.dark .quota-chip-lua, .app.has-bg .quota-chip-lua {
+.app.dark .quota-chip-lua, .app.dark.has-bg .quota-chip-lua {
   background: rgba(123, 31, 162, 0.25) !important;
   color: #BA68C8 !important;
   border-color: rgba(186, 104, 200, 0.45) !important;
@@ -3996,7 +3996,7 @@ body.font-normal .cred-acc-actions .btn-cred-del {
   color: #00838F !important;
   border-color: rgba(77, 208, 225, 0.45) !important;
 }
-.app.dark .quota-chip-hubcap, .app.has-bg .quota-chip-hubcap {
+.app.dark .quota-chip-hubcap, .app.dark.has-bg .quota-chip-hubcap {
   background: rgba(0, 151, 167, 0.25) !important;
   color: #4DD0E1 !important;
   border-color: rgba(77, 208, 225, 0.45) !important;
@@ -4007,7 +4007,7 @@ body.font-normal .cred-acc-actions .btn-cred-del {
   color: #E65100 !important;
   border-color: rgba(255, 179, 0, 0.5) !important;
 }
-.app.dark .quota-chip-unlogin, .app.has-bg .quota-chip-unlogin {
+.app.dark .quota-chip-unlogin, .app.dark.has-bg .quota-chip-unlogin {
   background: rgba(255, 160, 0, 0.24) !important;
   color: #FFD54F !important;
   border-color: rgba(255, 213, 79, 0.55) !important;
@@ -4018,7 +4018,7 @@ body.font-normal .cred-acc-actions .btn-cred-del {
   color: #D32F2F !important;
   border-color: rgba(244, 67, 54, 0.5) !important;
 }
-.app.dark .quota-chip-expired, .app.has-bg .quota-chip-expired {
+.app.dark .quota-chip-expired, .app.dark.has-bg .quota-chip-expired {
   background: rgba(244, 67, 54, 0.25) !important;
   color: #FF8A80 !important;
   border-color: rgba(255, 138, 128, 0.55) !important;
@@ -4029,7 +4029,7 @@ body.font-normal .cred-acc-actions .btn-cred-del {
   color: #8E24AA !important;
   border-color: rgba(186, 104, 200, 0.45) !important;
 }
-.app.dark .quota-chip-exhausted, .app.has-bg .quota-chip-exhausted {
+.app.dark .quota-chip-exhausted, .app.dark.has-bg .quota-chip-exhausted {
   background: rgba(142, 36, 170, 0.25) !important;
   color: #CE93D8 !important;
   border-color: rgba(206, 147, 216, 0.5) !important;
@@ -4424,10 +4424,56 @@ body.font-normal .quota-chip {
   overflow-x: auto;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.app.dark .cred-matrix-card, .app.has-bg .cred-matrix-card {
+.app.dark .cred-matrix-card, .app.dark.has-bg .cred-matrix-card {
   background: rgba(28, 22, 25, 0.88);
   border-color: rgba(255, 183, 197, 0.15);
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+}
+
+/* 🌟 淺色模式有背景圖時：維持晶瑩透亮白底毛玻璃與深色文字，嚴禁深色黑化 */
+.app.has-bg:not(.dark) .cred-user-card,
+.app.has-bg:not(.dark) .cred-platform-card,
+.app.has-bg:not(.dark) .cred-matrix-card,
+.app.has-bg:not(.dark) .cred-side-card,
+.app.has-bg:not(.dark) .cred-total-quota-box,
+.app.has-bg:not(.dark) .cred-pool-summary,
+.app.has-bg:not(.dark) .cred-account-item {
+  background: rgba(255, 255, 255, 0.88) !important;
+  border-color: rgba(255, 183, 197, 0.55) !important;
+  color: var(--dark) !important;
+  box-shadow: 0 6px 24px rgba(61, 44, 46, 0.08) !important;
+  backdrop-filter: blur(20px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.2) !important;
+}
+
+.app.has-bg:not(.dark) .matrix-card-title,
+.app.has-bg:not(.dark) .cred-user-name,
+.app.has-bg:not(.dark) .cred-platform-name,
+.app.has-bg:not(.dark) .cred-strategy-title,
+.app.has-bg:not(.dark) .cred-account-list-title,
+.app.has-bg:not(.dark) .cred-acc-name {
+  color: #2D2528 !important;
+  text-shadow: none !important;
+}
+
+.app.has-bg:not(.dark) .cred-matrix-table thead th {
+  color: #2D2528 !important;
+  border-bottom: 2px solid rgba(255, 183, 197, 0.45) !important;
+}
+
+.app.has-bg:not(.dark) .cred-user-sub,
+.app.has-bg:not(.dark) .cred-platform-sub,
+.app.has-bg:not(.dark) .cred-label,
+.app.has-bg:not(.dark) .cred-strategy-sub,
+.app.has-bg:not(.dark) .cred-account-list-sub,
+.app.has-bg:not(.dark) .cred-acc-meta {
+  color: #75696D !important;
+  text-shadow: none !important;
+}
+
+.app.has-bg:not(.dark) .cred-val {
+  color: #2D2528 !important;
+  text-shadow: none !important;
 }
 
 /* 標題純白無光暈 */
@@ -4442,7 +4488,7 @@ body.font-normal .quota-chip {
   letter-spacing: 0.3px;
 }
 .app.dark .matrix-card-title,
-.app.has-bg .matrix-card-title {
+.app.dark.has-bg .matrix-card-title {
   color: #FFFFFF !important;
   text-shadow: none !important;
 }
@@ -4484,7 +4530,7 @@ body.font-normal .quota-chip {
   overflow: visible;
 }
 .app.dark .cred-matrix-table thead th,
-.app.has-bg .cred-matrix-table thead th {
+.app.dark.has-bg .cred-matrix-table thead th {
   color: #FFF;
   border-bottom: 2px solid rgba(255, 255, 255, 0.15) !important;
 }
@@ -6828,4 +6874,4 @@ body.party-mode .pages,
   border-color: rgba(255, 71, 87, 0.7) transparent transparent transparent;
 }
 
-
+

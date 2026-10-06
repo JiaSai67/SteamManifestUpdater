@@ -739,13 +739,26 @@ function onWinOpacityChange(v){
   try{ pywebview.api.set_config('win_opacity', n); }catch(e){}
 }
 
+function updateCardTextBg(n){
+  if(n === undefined){
+    var sl = document.getElementById('slider-text-bg-opacity');
+    n = sl ? parseInt(sl.value, 10) : 65;
+  }
+  if(isNaN(n)) n = 65;
+  var alpha = (n / 100).toFixed(2);
+  var isDark = document.documentElement.classList.contains('dark') || 
+               (document.getElementById('app') && document.getElementById('app').classList.contains('dark'));
+  var bgVal = isDark ? ('rgba(0, 0, 0, ' + alpha + ')') : ('rgba(255, 255, 255, ' + alpha + ')');
+  document.documentElement.style.setProperty('--card-text-opacity', alpha);
+  document.documentElement.style.setProperty('--card-text-bg', bgVal);
+}
+
 function onTextBgOpacityChange(v){
   var n = parseInt(v, 10);
   if(isNaN(n)) n = 65;
   var valEl = document.getElementById('val-text-bg-opacity');
   if(valEl) valEl.textContent = n + '%';
-  var alpha = (n / 100).toFixed(2);
-  document.documentElement.style.setProperty('--card-text-bg', 'rgba(0, 0, 0, ' + alpha + ')');
+  updateCardTextBg(n);
   try{ pywebview.api.set_config('card_text_bg_opacity', n); }catch(e){}
 }
 
@@ -782,7 +795,7 @@ function initVisualSettings(cfg){
   document.documentElement.style.setProperty('--bg-blur', blur + 'px');
   document.documentElement.style.setProperty('--bg-opacity', (bop / 100).toFixed(2));
   document.documentElement.style.setProperty('--win-opacity', (wop / 100).toFixed(2));
-  document.documentElement.style.setProperty('--card-text-bg', 'rgba(0, 0, 0, ' + (top / 100).toFixed(2) + ')');
+  updateCardTextBg(top);
 
   // 套用作業系統級真實視窗半透明
   try{ pywebview.api.set_window_opacity(wop); }catch(e){}
