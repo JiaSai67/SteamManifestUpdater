@@ -431,22 +431,30 @@ class PartyPackager:
                         steam_manager.verify_and_sync_local_manifests(
                             app_id, steam_path=steam_path, target_manifests=extracted_manifests
                         )
-                        steam_manager.sanitize_lua_manifests(app_id, steam_path)
-                        steam_manager.lock_game_version(app_id, steam_path, set_readonly=True)
-                        logger.info(f"[Packager] 已完成 AppID {app_id} 之 Lua 與實體清單閉環校準與版本鎖定")
+                        # 確保檔案為可讀寫狀態，供 Steam 客戶端下載時順利寫入
+                        steam_manager.unlock_game_version(app_id, steam_path)
+                        logger.info(f"[Packager] 已完成 AppID {app_id} 之 Lua 與實體清單閉環校準 (保持可讀寫狀態)")
                     except Exception as cl_err:
                         logger.warning(f"[Packager] 閉環校準過程異常 (非阻斷): {cl_err}")
 
-                    # 🌟 5. 若遊戲本體尚未安裝，由 SMU 本機產生合法乾淨的預引導 ACF (StateFlags: 1026)
-                    # 徹底解決正在運行的 Steam 客戶端因未重啟/未熱載入 Lua 而彈出「無授權 (No licenses)」問題！
+                    # 🌟 5. 遵照純淨入庫三要素標準 (Lua + Manifest + 補丁)，不產生任何預引導假 ACF。
+                    # 若本地存在未安裝完成之殘留 ACF，主動清理以防干擾 Steam 原生熱載入授權
                     try:
                         from web_api import WebApi
                         st_info = WebApi().check_game_installed_status(app_id)
                         if not st_info.get("is_installed"):
-                            ok_boot, msg_boot = steam_manager.ensure_download_bootstrap_acf(app_id, steam_path=steam_path)
-                            logger.info(f"[Packager] 本機預引導 ACF 建立狀態: {ok_boot} ({msg_boot})")
+                            acf_path = steam_manager.find_appmanifest(app_id, steam_path)
+                            if acf_path and acf_path.exists():
+                                try:
+                                    c_txt = acf_path.read_text(encoding="utf-8", errors="ignore")
+                                    if '"StateFlags"\t\t"4"' not in c_txt and '"StateFlags" "4"' not in c_txt:
+                                        steam_manager.unlock_game_version(app_id, steam_path)
+                                        acf_path.unlink(missing_ok=True)
+                                        logger.info(f"[Packager] 已安全清理本地未完成之殘留 ACF: {acf_path.name}")
+                                except Exception as ue:
+                                    logger.warning(f"[Packager] 清理殘留 ACF 異常: {ue}")
                     except Exception as be:
-                        logger.warning(f"[Packager] 生成本機預引導 ACF 異常: {be}")
+                        logger.warning(f"[Packager] 檢查清理 ACF 狀態異常: {be}")
 
                 # 6. 部署線上補丁 (若遊戲主程式目錄已存在)
                 patch_files = [n for n in namelist if n.startswith("patch/files/") and not n.endswith("/")]

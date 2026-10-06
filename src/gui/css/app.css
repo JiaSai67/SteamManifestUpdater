@@ -3926,53 +3926,92 @@ body.font-normal .cred-acc-actions .btn-cred-del {
 .quota-chip {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 4px !important;
-  padding: 2.5px 8px !important;
-  border-radius: 6px !important;
-  font-size: 11px !important;
+  gap: 5px !important;
+  padding: 3px 10px !important;
+  border-radius: 8px !important;
+  font-size: 11.5px !important;
   font-weight: 600 !important;
   white-space: nowrap !important;
   line-height: 18px !important;
   border: 1px solid transparent !important;
   box-sizing: border-box !important;
   user-select: none !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.quota-chip:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16) !important;
 }
 .quota-chip b {
   font-weight: 800 !important;
 }
 .quota-chip-ryuu {
-  background: rgba(230, 81, 0, 0.12) !important;
+  background: rgba(230, 81, 0, 0.14) !important;
   color: #E65100 !important;
-  border-color: rgba(255, 183, 77, 0.4) !important;
+  border-color: rgba(255, 152, 0, 0.45) !important;
 }
 .app.dark .quota-chip-ryuu, .app.has-bg .quota-chip-ryuu {
-  background: rgba(230, 81, 0, 0.22) !important;
-  color: #FFB74D !important;
-  border-color: rgba(255, 183, 77, 0.35) !important;
+  background: rgba(230, 81, 0, 0.25) !important;
+  color: #FFA726 !important;
+  border-color: rgba(255, 167, 38, 0.45) !important;
 }
 .quota-chip-lua {
-  background: rgba(123, 31, 162, 0.12) !important;
+  background: rgba(123, 31, 162, 0.14) !important;
   color: #7B1FA2 !important;
-  border-color: rgba(206, 147, 216, 0.4) !important;
+  border-color: rgba(186, 104, 200, 0.45) !important;
 }
 .app.dark .quota-chip-lua, .app.has-bg .quota-chip-lua {
-  background: rgba(123, 31, 162, 0.22) !important;
-  color: #CE93D8 !important;
-  border-color: rgba(206, 147, 216, 0.35) !important;
+  background: rgba(123, 31, 162, 0.25) !important;
+  color: #BA68C8 !important;
+  border-color: rgba(186, 104, 200, 0.45) !important;
 }
 .quota-chip-hubcap {
-  background: rgba(0, 151, 167, 0.12) !important;
+  background: rgba(0, 151, 167, 0.14) !important;
   color: #00838F !important;
-  border-color: rgba(128, 222, 234, 0.4) !important;
+  border-color: rgba(77, 208, 225, 0.45) !important;
 }
 .app.dark .quota-chip-hubcap, .app.has-bg .quota-chip-hubcap {
-  background: rgba(0, 151, 167, 0.22) !important;
-  color: #80DEEA !important;
-  border-color: rgba(128, 222, 234, 0.35) !important;
+  background: rgba(0, 151, 167, 0.25) !important;
+  color: #4DD0E1 !important;
+  border-color: rgba(77, 208, 225, 0.45) !important;
+}
+/* 🌟 狀態特化徽章：未登入 (活力琥珀金)、已過期 (醒目珊瑚紅)、額度用罄 (深邃紫粉) */
+.quota-chip-unlogin {
+  background: rgba(255, 160, 0, 0.15) !important;
+  color: #E65100 !important;
+  border-color: rgba(255, 179, 0, 0.5) !important;
+}
+.app.dark .quota-chip-unlogin, .app.has-bg .quota-chip-unlogin {
+  background: rgba(255, 160, 0, 0.24) !important;
+  color: #FFD54F !important;
+  border-color: rgba(255, 213, 79, 0.55) !important;
+  box-shadow: 0 0 10px rgba(255, 160, 0, 0.18) !important;
+}
+.quota-chip-expired {
+  background: rgba(244, 67, 54, 0.15) !important;
+  color: #D32F2F !important;
+  border-color: rgba(244, 67, 54, 0.5) !important;
+}
+.app.dark .quota-chip-expired, .app.has-bg .quota-chip-expired {
+  background: rgba(244, 67, 54, 0.25) !important;
+  color: #FF8A80 !important;
+  border-color: rgba(255, 138, 128, 0.55) !important;
+  box-shadow: 0 0 10px rgba(244, 67, 54, 0.2) !important;
+}
+.quota-chip-exhausted {
+  background: rgba(142, 36, 170, 0.15) !important;
+  color: #8E24AA !important;
+  border-color: rgba(186, 104, 200, 0.45) !important;
+}
+.app.dark .quota-chip-exhausted, .app.has-bg .quota-chip-exhausted {
+  background: rgba(142, 36, 170, 0.25) !important;
+  color: #CE93D8 !important;
+  border-color: rgba(206, 147, 216, 0.5) !important;
 }
 body.font-normal .quota-chip {
   font-size: 12px !important;
-  padding: 3px 10px !important;
+  padding: 3.5px 12px !important;
   line-height: 20px !important;
 }
 

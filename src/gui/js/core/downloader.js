@@ -108,11 +108,206 @@
     },
 
     // ─────────────────────────────────────────────────────────────────
+    // 🌟 專屬憑證與額度防護對話框 (無灰化、高對比現代彈窗、三級精確診斷與引導)
+    // ─────────────────────────────────────────────────────────────────
+    showCredentialGuardModal: function(opts){
+      opts = opts || {};
+      var modalId = 'modal-credential-guard';
+      var existing = document.getElementById(modalId);
+      if(existing) existing.remove();
+
+      var isDark = document.documentElement.classList.contains('dark') || !!document.querySelector('.app.dark') || !!document.querySelector('.app.has-bg');
+      var icon = '🔑';
+      var iconBg = isDark ? 'rgba(255, 171, 0, 0.2)' : 'rgba(255, 171, 0, 0.12)';
+      var iconBorder = isDark ? 'rgba(255, 171, 0, 0.45)' : 'rgba(255, 171, 0, 0.35)';
+      var btnBg = 'linear-gradient(135deg, #FFB300, #F57C00)';
+      var titleColor = isDark ? '#FFD54F' : '#E65100';
+
+      if(opts.type === 'expired'){
+        icon = '⚠️';
+        iconBg = isDark ? 'rgba(244, 67, 54, 0.22)' : 'rgba(244, 67, 54, 0.12)';
+        iconBorder = isDark ? 'rgba(244, 67, 54, 0.55)' : 'rgba(244, 67, 54, 0.35)';
+        btnBg = 'linear-gradient(135deg, #EF5350, #D32F2F)';
+        titleColor = isDark ? '#FF8A80' : '#D32F2F';
+      } else if(opts.type === 'exhausted'){
+        icon = '⏳';
+        iconBg = isDark ? 'rgba(156, 39, 176, 0.22)' : 'rgba(156, 39, 176, 0.12)';
+        iconBorder = isDark ? 'rgba(156, 39, 176, 0.55)' : 'rgba(156, 39, 176, 0.35)';
+        btnBg = 'linear-gradient(135deg, #AB47BC, #7B1FA2)';
+        titleColor = isDark ? '#CE93D8' : '#7B1FA2';
+      }
+
+      var modal = document.createElement('div');
+      modal.id = modalId;
+      modal.className = 'modal-overlay';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.68);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:100099;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeInModal 0.2s cubic-bezier(0.16,1,0.3,1)';
+
+      var boxBg = isDark ? 'linear-gradient(145deg, #251D20, #1E1719)' : '#FFFFFF';
+      var boxBorder = isDark ? '1.5px solid rgba(255, 183, 197, 0.25)' : '1.5px solid rgba(0, 0, 0, 0.1)';
+      var textColor = isDark ? '#F0E6E8' : '#2D2124';
+      var descColor = isDark ? '#A89B9E' : '#6B5E62';
+
+      var html = 
+        '<div class="modal-box" style="max-width:440px;width:100%;background:' + boxBg + ';border:' + boxBorder + ';border-radius:18px;padding:24px;box-shadow:0 24px 64px rgba(0,0,0,0.48);box-sizing:border-box;color:' + textColor + ';position:relative">' +
+          '<div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:16px">' +
+            '<div style="width:48px;height:48px;border-radius:14px;background:' + iconBg + ';border:1px solid ' + iconBorder + ';display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">' +
+              icon +
+            '</div>' +
+            '<div style="flex:1">' +
+              '<h3 style="margin:0 0 6px 0;font-size:16px;font-weight:700;color:' + titleColor + '">' + (opts.title || '憑證檢查') + '</h3>' +
+              '<div style="font-size:12.5px;color:' + descColor + ';line-height:1.55">' + opts.message + '</div>' +
+            '</div>' +
+            '<button type="button" id="guard-modal-close" style="background:transparent;border:none;color:' + descColor + ';font-size:18px;cursor:pointer;padding:0;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:background 0.15s">✕</button>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">' +
+            '<button type="button" id="guard-modal-cancel" class="btn btn-o" style="padding:7px 16px;font-size:12.5px;border-radius:8px">取消</button>' +
+            '<button type="button" id="guard-modal-primary" class="btn" style="padding:7px 18px;font-size:12.5px;font-weight:700;border-radius:8px;border:none;color:#fff;background:' + btnBg + ';box-shadow:0 4px 14px rgba(0,0,0,0.25)">' + (opts.primaryBtnText || '前往處理') + '</button>' +
+          '</div>' +
+        '</div>';
+
+      modal.innerHTML = html;
+      document.body.appendChild(modal);
+
+      var closeModal = function(){
+        modal.style.opacity = '0';
+        modal.style.transition = 'opacity 0.15s ease';
+        setTimeout(function(){ if(modal.parentNode) modal.parentNode.removeChild(modal); }, 150);
+      };
+
+      var btnClose = modal.querySelector('#guard-modal-close');
+      if(btnClose) btnClose.onclick = closeModal;
+
+      var btnCancel = modal.querySelector('#guard-modal-cancel');
+      if(btnCancel) btnCancel.onclick = closeModal;
+
+      var btnPrimary = modal.querySelector('#guard-modal-primary');
+      if(btnPrimary){
+        btnPrimary.onclick = function(){
+          closeModal();
+          if(opts.onPrimary) opts.onPrimary();
+        };
+      }
+
+      modal.onclick = function(e){
+        if(e.target === modal) closeModal();
+      };
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // 🌟 核心防護守衛：三級精準憑證與額度檢查 (入庫與更新專用咽喉)
+    // ─────────────────────────────────────────────────────────────────
+    validateCredentialsAndQuota: async function(actionName){
+      actionName = actionName || '操作';
+      if(!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_credentials_status){
+        return true;
+      }
+
+      var st;
+      try {
+        st = await pywebview.api.get_credentials_status();
+      } catch(e){
+        console.warn('[Downloader] 檢查憑證狀態時發生例外:', e);
+        return true;
+      }
+      if(!st || !st.ok) return true;
+
+      var isAccValid = function(acc){
+        if(!acc) return false;
+        return acc.has_valid_credentials === true && !acc.is_expired && !acc.needs_relogin &&
+               acc.status_badge !== '憑證無效' && acc.status_badge !== '憑證已過期' && acc.status_badge !== '未登入/憑證缺失';
+      };
+
+      var rAccs = (st.ryuu && st.ryuu.accounts) || [];
+      var ltAccs = (st.lua_tools && st.lua_tools.accounts) || [];
+      var hc = st.hubcap || {};
+
+      var validRAccs = rAccs.filter(isAccValid);
+      var validLtAccs = ltAccs.filter(isAccValid);
+      var isHcValid = !!hc.is_valid;
+      var isHcConfigured = !!hc.is_configured;
+
+      var rLeft = 0;
+      for(var i = 0; i < validRAccs.length; i++){
+        var limit = parseInt(validRAccs[i].daily_limit) || 50;
+        var used = parseInt(validRAccs[i].quota_used_today) || 0;
+        rLeft += Math.max(0, limit - used);
+      }
+
+      var ltLeft = 0;
+      for(var j = 0; j < validLtAccs.length; j++){
+        var llimit = parseInt(validLtAccs[j].daily_limit) || 25;
+        var lused = parseInt(validLtAccs[j].quota_used_today) || 0;
+        ltLeft += Math.max(0, llimit - lused);
+      }
+
+      var hcLeft = isHcValid ? (hc.remaining || 0) : 0;
+      var totalQuota = rLeft + ltLeft + hcLeft;
+
+      // 🌟 1. 額度充足，直接放行
+      if(totalQuota > 0){
+        return true;
+      }
+
+      // 🌟 2. 發現無額度，層層精準判定憑證狀態
+      var totalAccounts = rAccs.length + ltAccs.length + (isHcConfigured ? 1 : 0);
+      var validAccounts = validRAccs.length + validLtAccs.length + (isHcValid ? 1 : 0);
+
+      // (A) 沒有憑證 (未登入任何帳號) -> 提示需要登入帳號
+      if(totalAccounts === 0){
+        this.showCredentialGuardModal({
+          type: 'unlogin',
+          actionName: actionName,
+          title: '🔑 需要登入帳號',
+          message: '執行「' + actionName + '」需要使用 Ryuu 或 Lua.tools 配額憑證。<br><br>您目前尚未登入任何帳號，請先登入後再繼續。',
+          primaryBtnText: '🔑 前往登入帳號',
+          onPrimary: function(){
+            if(window.switchPage) switchPage('credentials');
+          }
+        });
+        return false;
+      }
+
+      // (B) 憑證過期 (已設定帳號但全都失效/需重登) -> 提示重新登入
+      if(validAccounts === 0){
+        this.showCredentialGuardModal({
+          type: 'expired',
+          actionName: actionName,
+          title: '⚠️ 授權憑證已過期',
+          message: '檢測到您綁定的帳號憑證已過期或失效，導致無可用配額。<br><br>請重新登入帳號以恢復額度後，再繼續執行「' + actionName + '」。',
+          primaryBtnText: '🔄 前往重新登入',
+          onPrimary: function(){
+            if(window.switchPage) switchPage('credentials');
+          }
+        });
+        return false;
+      }
+
+      // (C) 額度不足 (憑證有效，但今日額度用罄) -> 通知額度不足
+      this.showCredentialGuardModal({
+        type: 'exhausted',
+        actionName: actionName,
+        title: '⏳ 本日額度不足',
+        message: '您的帳號憑證正常有效，但今日所有配額已全數用罄（剩餘 0 次）。<br><br>請等待明日每日額度重設，或新增其他備用帳號。',
+        primaryBtnText: '👥 管理帳號 / 查看配額',
+        onPrimary: function(){
+          if(window.switchPage) switchPage('credentials');
+        }
+      });
+      return false;
+    },
+
+    // ─────────────────────────────────────────────────────────────────
     // 2. 一鍵入庫調度入口 (包含 DLL 自檢、核心下載、網盤補丁與安裝監控)
     // ─────────────────────────────────────────────────────────────────
     installGame: async function(appid, name){
       var aidStr = String(appid).trim();
       var gameTitle = name || ('AppID ' + aidStr);
+
+      // 🌟 核心防護守衛：一鍵入庫前檢查憑證與額度
+      var canProceed = await this.validateCredentialsAndQuota('一鍵入庫');
+      if(!canProceed){
+        return;
+      }
 
       try {
         // 階段 1: 0% ~ 4% 【Steam 環境與 DLL 核心自檢】
@@ -299,6 +494,14 @@
         return false;
       }
 
+      // 🌟 核心防護守衛：更新前檢查憑證與額度 (非批次靜默模式時進行前置驗證)
+      if(!options.silentBatch){
+        var canProceed = await this.validateCredentialsAndQuota('更新 Manifest');
+        if(!canProceed){
+          return false;
+        }
+      }
+
       var card = document.querySelector('#glist .card[data-appid="'+aidStr+'"]') || document.querySelector('#results .card[data-appid="'+aidStr+'"]');
       var ov = null;
       if(card){
@@ -363,6 +566,12 @@
     // 4. 全部批次自動升級調度入口 (防漏隊列二次校準 · 全鏈路批次調度診斷日誌)
     // ─────────────────────────────────────────────────────────────────
     updateAllGames: async function(){
+      // 🌟 核心防護守衛：批次更新前先檢查憑證與額度
+      var canProceed = await this.validateCredentialsAndQuota('批次更新');
+      if(!canProceed){
+        return;
+      }
+
       // 🌟 核心防漏機制：直接向後端磁碟資料庫請求最新待更新清單，杜絕前端快照時序差導致遺漏！
       var updatables = [];
       try {

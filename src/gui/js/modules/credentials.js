@@ -987,6 +987,9 @@ async function loadCredentialsStatus(showToast){
 
     if(showToast) tt('憑證與配額狀態已更新', 'ok');
 
+    // 🌟 同步更新管理頁面頂部配額晶片狀態
+    if(typeof updateManageQuota === 'function') updateManageQuota();
+
     // 若啟動環境檢測彈窗當前處於開啟可見狀態，才連動靜默更新字卡資訊
     var modalWiz = document.getElementById('modal-startup-wizard');
     if(modalWiz && !modalWiz.classList.contains('hidden') && modalWiz.style.display !== 'none'){

@@ -8,20 +8,15 @@ var _hasPassedPrereq = true; // 🌟 樂觀就緒策略：啟動時預設放行�
 var _hasRedirectedOnStartup = false;
 
 function updateSidebarLockState(isPassed){
+  // 🌟 依使用者規範：遊戲入庫與管理入庫永遠保持解鎖與可瀏覽，絕不因憑證狀態反灰或鎖定
   var lockTabs = ['search', 'manage'];
   lockTabs.forEach(function(p){
     var btn = document.querySelector('.sidebar button[data-p="' + p + '"]');
     if(btn){
-      if(!isPassed){
-        btn.classList.add('locked');
-        btn.setAttribute('title', '請先登入獲得憑證');
-        btn.setAttribute('data-tooltip', '請先登入獲得憑證');
-      } else {
-        btn.classList.remove('locked');
-        btn.removeAttribute('data-tooltip');
-        var titles = { search: '遊戲入庫', manage: '管理入庫' };
-        btn.setAttribute('title', titles[p] || '');
-      }
+      btn.classList.remove('locked');
+      btn.removeAttribute('data-tooltip');
+      var titles = { search: '遊戲入庫', manage: '管理入庫' };
+      btn.setAttribute('title', titles[p] || '');
     }
   });
 }

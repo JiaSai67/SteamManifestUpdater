@@ -1625,13 +1625,39 @@ class PartyManager:
             is_installed = bool(st_info.get("is_installed", False))
 
             if not is_installed:
-                logger.info(f"[PARTY] 步驟 2/4: 檢測到本地尚未安裝遊戲 {app_id} 主程式 (等待下載)，喚起 Steam 下載...")
-                self.update_member_progress("正在喚起 Steam 下載遊戲...", 35, steam_installed=False, deploy_status="downloading")
+                logger.info(f"[PARTY] 步驟 2/4: 檢測到本地尚未安裝遊戲 {app_id} 主程式 (等待下載)，準備喚起 Steam 下載...")
+                self.update_member_progress("正在準備 Steam 下載授權...", 35, steam_installed=False, deploy_status="downloading")
+
+                # 🌟 關鍵修復 1：喚起 Steam 前必須解除唯讀鎖定，確保 Steam 有權限讀寫 depotcache 與 ACF
+                from managers import steam_manager
+                sp = steam_manager.find_steam_path()
+                if sp:
+                    try:
+                        steam_manager.unlock_game_version(str(app_id), sp)
+                        acf = steam_manager.find_appmanifest(str(app_id), sp)
+                        if acf and acf.exists():
+                            c = acf.read_text(encoding="utf-8", errors="ignore")
+                            # 🌟 若遊戲尚未完全安裝完成 (StateFlags != 4)，清理殘留的假/損壞 ACF，避免 Steam 檢驗 Owner 失敗報無授權
+                            if '"StateFlags"\t\t"4"' not in c and '"StateFlags" "4"' not in c:
+                                try:
+                                    acf.unlink(missing_ok=True)
+                                    logger.info(f"[PARTY] 喚起前已清理未完成之殘留 ACF: {acf.name}，由 Steam 原生建立")
+                                except Exception:
+                                    pass
+                            elif re.search(r'"UpdateResult"\s+"[^0"]+"', c):
+                                c = re.sub(r'"UpdateResult"\s+"[^"]*"', '"UpdateResult"\t\t"0"', c)
+                                acf.write_text(c, encoding="utf-8")
+                    except Exception as ue:
+                        logger.warning(f"[PARTY] 喚起前解鎖 ACF/Depotcache 異常 (非阻斷): {ue}")
+
+                # 🌟 關鍵修復 2：給予 2.5 秒緩衝期，確保 OpenSteamTools 檔案監視器完成 Lua 授權熱加載
+                time.sleep(2.5)
 
                 # 喚起 Steam 下載安裝 (優先使用 os.startfile 原生協議)
                 try:
                     import os
                     os.startfile(f"steam://install/{app_id}")
+                    logger.info(f"[PARTY] 已向 Steam 發送安裝指令: steam://install/{app_id}")
                 except Exception:
                     try:
                         import webbrowser
@@ -1663,7 +1689,7 @@ class PartyManager:
                         download_done = True
                         logger.info(f"[PARTY] Steam 遊戲 {app_id} 主程式下載安裝完畢！")
                         break
-                    elif st in ("DOWNLOADING", "PAUSED") or chk.get("is_downloading"):
+                    elif st in ("DOWNLOADING", "PAUSED") or chk.get("is_downloading") or pct_from_steam > 0:
                         cancelled_strike_count = 0
                         mapped_pct = min(90, max(35, 35 + int(pct_from_steam * 0.55)))
                         status_str = f"Steam下載中: {pct_from_steam:.1f}%"
@@ -1677,21 +1703,22 @@ class PartyManager:
                         self.update_member_progress("Steam下載錯誤", 35, steam_installed=False, deploy_status="failed", deploy_error=err_msg)
                         return
                     elif st == "CANCELLED":
-                        # 🌟 防誤判：剛發起下載前 15 秒內忽略歷史取消日誌，需連續 3 次檢測且已過緩衝期才確認取消
+                        # 🌟 智慧容錯：給予 45 秒等待期，並支援使用者在 Steam 客戶端手動點擊「下載」無縫接管
                         elapsed_since_launch = time.time() - install_launch_time
-                        if elapsed_since_launch < 15.0:
-                            logger.info(f"[PARTY] 啟動前 15 秒內偵測到歷史取消狀態，忽略歷史干擾 (已過 {elapsed_since_launch:.1f}s)...")
-                            self.update_member_progress("等待 Steam 下載開始...", 35, steam_installed=False, deploy_status="downloading")
+                        if elapsed_since_launch < 45.0:
+                            cancelled_strike_count = 0
+                            logger.info(f"[PARTY] 等待 Steam 回應授權或手動開始下載 (已過 {elapsed_since_launch:.1f}s)...")
+                            self.update_member_progress("請在 Steam 點擊下載遊戲...", 35, steam_installed=False, deploy_status="downloading")
                         else:
                             cancelled_strike_count += 1
-                            if cancelled_strike_count >= 3:
-                                err_msg = "Steam 下載已取消或未獲授權"
+                            if cancelled_strike_count >= 5:
+                                err_msg = "Steam 下載已取消或未獲授權 (可在 Steam 客戶端點擊「下載」後重試)"
                                 logger.warning(f"[PARTY] {err_msg} (AppID: {app_id})")
                                 report_party_error("Steam 下載取消", err_msg, context=f"AppID {app_id}")
                                 self.update_member_progress("未下載", 0, steam_installed=False, deploy_status="failed", deploy_error=err_msg)
                                 return
                             else:
-                                self.update_member_progress("等待 Steam 響應中...", 35, steam_installed=False, deploy_status="downloading")
+                                self.update_member_progress("等待在 Steam 點擊下載...", 35, steam_installed=False, deploy_status="downloading")
                     else:
                         # 仍處於等待下載狀態
                         self.update_member_progress("等待 Steam 下載完成...", 35, steam_installed=False, deploy_status="downloading")

@@ -2,58 +2,90 @@
 // ═══════════════════════════════════════════════════════
 // 管理入庫頁面：即時計算並展示 Ryuu, HubcapDB 與 Lua.tools 剩餘總配額
 // ═══════════════════════════════════════════════════════
+function _checkAccountValidHelper(platform, acc){
+  if(!acc) return false;
+  if(typeof _isAccValid === 'function'){
+    return _isAccValid(platform, acc);
+  }
+  return acc.has_valid_credentials === true && !acc.is_expired && !acc.needs_relogin &&
+         acc.status_badge !== '憑證無效' && acc.status_badge !== '憑證已過期' && acc.status_badge !== '未登入/憑證缺失';
+}
+
 async function updateManageQuota(){
   try {
     if(!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_credentials_status) return;
     var res = await pywebview.api.get_credentials_status();
     if(!res || !res.ok) return;
 
-    // 1. 計算 Ryuu 有效帳號剩餘總配額
+    var box = document.getElementById('manage-quota-box');
+    if(!box) return;
+
+    // 1. Ryuu 配額與狀態計算
     var rAccounts = (res.ryuu && res.ryuu.accounts) || [];
+    var rValidAccs = rAccounts.filter(function(a){ return _checkAccountValidHelper('ryuu', a); });
     var rTotalLeft = 0;
     var rTotalLimit = 0;
-    for(var i = 0; i < rAccounts.length; i++){
-      var acc = rAccounts[i];
-      if(_isAccValid('ryuu', acc)){
-        var limit = parseInt(acc.daily_limit) || 50;
-        var used = parseInt(acc.quota_used_today) || 0;
-        rTotalLeft += Math.max(0, limit - used);
-        rTotalLimit += limit;
-      }
+    for(var i = 0; i < rValidAccs.length; i++){
+      var acc = rValidAccs[i];
+      var limit = parseInt(acc.daily_limit) || 50;
+      var used = parseInt(acc.quota_used_today) || 0;
+      rTotalLeft += Math.max(0, limit - used);
+      rTotalLimit += limit;
     }
 
-    // 2. 取得 HubcapDB 官方即時配額
+    var rChipHtml = '';
+    if(rAccounts.length === 0){
+      rChipHtml = '<span class="quota-chip quota-chip-unlogin" onclick="switchPage(\'credentials\')" title="尚未登入 Ryuu 帳號，點擊前往登入">🐉 Ryuu: <b>🔑 未登入</b></span>';
+    } else if(rValidAccs.length === 0){
+      rChipHtml = '<span class="quota-chip quota-chip-expired" onclick="switchPage(\'credentials\')" title="Ryuu 憑證已過期，點擊重新登入">🐉 Ryuu: <b>⚠️ 待重登</b></span>';
+    } else if(rTotalLeft <= 0){
+      rChipHtml = '<span class="quota-chip quota-chip-exhausted" onclick="switchPage(\'credentials\')" title="今日配額已用罄，點擊查看">🐉 Ryuu: <b>0 次 (今日滿)</b></span>';
+    } else {
+      var rTitle = '🐉 Ryuu 今日剩餘配額: ' + rTotalLeft + ' / ' + rTotalLimit + ' 次 (' + rValidAccs.length + ' 個有效帳號)';
+      rChipHtml = '<span class="quota-chip quota-chip-ryuu" onclick="switchPage(\'credentials\')" title="' + rTitle + '">🐉 Ryuu: <b>' + rTotalLeft + '</b> 次</span>';
+    }
+
+    // 2. HubcapDB 官方配額與狀態計算
     var hc = res.hubcap || {};
     var hcLeft = hc.remaining || 0;
     var hcLimit = hc.daily_limit || (hc.is_configured ? 50 : 0);
     var hcIsValid = !!hc.is_valid;
-
-    // 3. 計算 Lua.tools 有效帳號剩餘總配額
-    var ltAccounts = (res.lua_tools && res.lua_tools.accounts) || [];
-    var ltTotalLeft = 0;
-    var ltTotalLimit = 0;
-    for(var j = 0; j < ltAccounts.length; j++){
-      var lacc = ltAccounts[j];
-      if(_isAccValid('lua_tools', lacc)){
-        var llimit = parseInt(lacc.daily_limit) || 25;
-        var lused = parseInt(lacc.quota_used_today) || 0;
-        ltTotalLeft += Math.max(0, llimit - lused);
-        ltTotalLimit += llimit;
+    var hcChipHtml = '';
+    if(hc.is_configured){
+      if(hcIsValid){
+        var hcTitle = '🧢 HubcapDB 今日剩餘配額: ' + hcLeft + ' / ' + hcLimit + ' 次 (已授權)';
+        hcChipHtml = '<span class="quota-chip quota-chip-hubcap" onclick="switchPage(\'credentials\')" title="' + hcTitle + '">🧢 Hubcap: <b>' + hcLeft + '</b> 次</span>';
+      } else {
+        hcChipHtml = '<span class="quota-chip quota-chip-expired" onclick="switchPage(\'credentials\')" title="Hubcap 金鑰過期或無效，點擊設定">🧢 Hubcap: <b>⚠️ 待設定</b></span>';
       }
     }
 
-    var box = document.getElementById('manage-quota-box');
-    if(box){
-      var rTitle = '🐉 Ryuu 今日剩餘總配額: ' + rTotalLeft + ' / ' + rTotalLimit + ' 次 (' + rAccounts.length + ' 個帳號)';
-      var hcTitle = '🧢 HubcapDB 今日剩餘配額: ' + hcLeft + ' / ' + hcLimit + ' 次' + (hcIsValid ? ' (已授權)' : ' (未授權/過期)');
-      var ltTitle = '🌙 Lua.tools 今日剩餘總配額: ' + ltTotalLeft + ' / ' + ltTotalLimit + ' 次 (' + ltAccounts.length + ' 個帳號)';
-      
-      var chipsHtml = 
-        '<span class="quota-chip quota-chip-ryuu" title="' + rTitle + '">🐉 Ryuu: <b>' + rTotalLeft + '</b> 次</span>' +
-        (hcIsValid ? '<span class="quota-chip quota-chip-hubcap" title="' + hcTitle + '">🧢 Hubcap: <b>' + hcLeft + '</b> 次</span>' : '') +
-        '<span class="quota-chip quota-chip-lua" title="' + ltTitle + '">🌙 Lua: <b>' + ltTotalLeft + '</b> 次</span>';
-      box.innerHTML = chipsHtml;
+    // 3. Lua.tools 配額與狀態計算
+    var ltAccounts = (res.lua_tools && res.lua_tools.accounts) || [];
+    var ltValidAccs = ltAccounts.filter(function(a){ return _checkAccountValidHelper('lua_tools', a); });
+    var ltTotalLeft = 0;
+    var ltTotalLimit = 0;
+    for(var j = 0; j < ltValidAccs.length; j++){
+      var lacc = ltValidAccs[j];
+      var llimit = parseInt(lacc.daily_limit) || 25;
+      var lused = parseInt(lacc.quota_used_today) || 0;
+      ltTotalLeft += Math.max(0, llimit - lused);
+      ltTotalLimit += llimit;
     }
+
+    var ltChipHtml = '';
+    if(ltAccounts.length === 0){
+      ltChipHtml = '<span class="quota-chip quota-chip-unlogin" onclick="switchPage(\'credentials\')" title="尚未登入 Lua.tools 帳號，點擊前往登入">🌙 Lua: <b>🔑 未登入</b></span>';
+    } else if(ltValidAccs.length === 0){
+      ltChipHtml = '<span class="quota-chip quota-chip-expired" onclick="switchPage(\'credentials\')" title="Lua.tools 憑證已過期，點擊重新登入">🌙 Lua: <b>⚠️ 待重登</b></span>';
+    } else if(ltTotalLeft <= 0){
+      ltChipHtml = '<span class="quota-chip quota-chip-exhausted" onclick="switchPage(\'credentials\')" title="今日配額已用罄，點擊查看">🌙 Lua: <b>0 次 (今日滿)</b></span>';
+    } else {
+      var ltTitle = '🌙 Lua.tools 今日剩餘配額: ' + ltTotalLeft + ' / ' + ltTotalLimit + ' 次 (' + ltValidAccs.length + ' 個有效帳號)';
+      ltChipHtml = '<span class="quota-chip quota-chip-lua" onclick="switchPage(\'credentials\')" title="' + ltTitle + '">🌙 Lua: <b>' + ltTotalLeft + '</b> 次</span>';
+    }
+
+    box.innerHTML = rChipHtml + hcChipHtml + ltChipHtml;
   } catch(e){}
 }
 
