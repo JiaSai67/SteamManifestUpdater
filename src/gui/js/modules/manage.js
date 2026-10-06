@@ -537,6 +537,7 @@ function renderGames(games, filter){
       baseIdx += dlcs.length;
     }
     fixImgs(c); bindCardMenus(c); staggerCards(c);
+    if(window.syncPendingSteamDBCards) window.syncPendingSteamDBCards();
   } catch(e){ document.getElementById('glist').innerHTML = '<div class=empty><p>ERR: '+(e.message||e)+'</p></div>'; }
 }
 // ═══════════════════════════════════════════════════════

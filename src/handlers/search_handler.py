@@ -24,6 +24,8 @@ from managers import name_resolver
 
 # 全域背景 Cloudflare / SteamDB 爬取任務鎖定集合，防止重複線程併發
 _bg_crawling_apps = set()
+# 🌟 Cloudflare 防風控保護：最大同時併發穿透上限
+MAX_CONCURRENT_STEAMDB_TASKS = 3
 
 class SearchHandler:
     def search(self, q: str) -> List[Dict[str, Any]]:
@@ -245,33 +247,51 @@ class SearchHandler:
         from managers import steamdb_crawler
         first_gid = next(iter(steamdb_manifests.values()), "") if steamdb_manifests else ""
         is_fresh = steamdb_crawler.is_steamdb_cache_fresh(appid_str, steamcmd_latest_gid=first_gid)
-        is_loading = (not is_fresh) or (appid_str in _bg_crawling_apps)
-        res["is_steamdb_loading"] = is_loading
+        
+        is_already_crawling = appid_str in _bg_crawling_apps
+        cur_crawling_count = len(_bg_crawling_apps)
 
-        if not is_fresh and appid_str not in _bg_crawling_apps:
-            all_depot_keys = list(steamdb_manifests.keys())
-            if all_depot_keys:
-                _bg_crawling_apps.add(appid_str)
-                def _bg_steamdb_sync():
-                    try:
-                        print(f"[web_api] App {appid_str} 開始背景非同步獲取 SteamDB 完整歷史鏈 (穿透 Cloudflare)...")
-                        steamdb_crawler.update_app_steamdb_history(
-                            appid_str,
-                            all_depot_keys,
-                            steamdb_manifests,
-                            steamdb_date_str
-                        )
-                        print(f"[web_api] App {appid_str} SteamDB 歷史鏈背景同步完成！通知前端熱更新...")
-                        if getattr(self, "_window", None):
-                            self._window.evaluate_js(f"window.onSteamDBLoaded && window.onSteamDBLoaded('{appid_str}', true);")
-                    except Exception as ce:
-                        print(f"[web_api] App {appid_str} SteamDB 背景更新異常: {ce}")
-                        if getattr(self, "_window", None):
-                            self._window.evaluate_js(f"window.onSteamDBLoaded && window.onSteamDBLoaded('{appid_str}', false);")
-                    finally:
-                        _bg_crawling_apps.discard(appid_str)
+        res["is_steamdb_loading"] = False
+        res["is_steamdb_limit_reached"] = False
+        res["current_crawling_count"] = cur_crawling_count
+        res["max_crawling_limit"] = MAX_CONCURRENT_STEAMDB_TASKS
 
-                threading.Thread(target=_bg_steamdb_sync, daemon=True).start()
+        if is_already_crawling:
+            # 該遊戲本身正在背景穿透中
+            res["is_steamdb_loading"] = True
+        elif not is_fresh:
+            # 需發起穿透，檢查是否達到 Cloudflare 防風控上限
+            if cur_crawling_count >= MAX_CONCURRENT_STEAMDB_TASKS:
+                res["is_steamdb_limit_reached"] = True
+                res["limit_message"] = f"已達穿透上限({cur_crawling_count}/{MAX_CONCURRENT_STEAMDB_TASKS})，請等待其他穿透任務結束再開啟遊戲小卡"
+                print(f"[web_api] App {appid_str} 觸發 SteamDB 穿透上限保護: 目前有 {cur_crawling_count} 個任務正在穿透 (上限 {MAX_CONCURRENT_STEAMDB_TASKS})")
+            else:
+                all_depot_keys = list(steamdb_manifests.keys())
+                if all_depot_keys:
+                    _bg_crawling_apps.add(appid_str)
+                    res["is_steamdb_loading"] = True
+                    res["current_crawling_count"] = len(_bg_crawling_apps)
+
+                    def _bg_steamdb_sync():
+                        try:
+                            print(f"[web_api] App {appid_str} 開始背景非同步獲取 SteamDB 完整歷史鏈 (穿透 Cloudflare)... (目前併發: {len(_bg_crawling_apps)}/{MAX_CONCURRENT_STEAMDB_TASKS})")
+                            steamdb_crawler.update_app_steamdb_history(
+                                appid_str,
+                                all_depot_keys,
+                                steamdb_manifests,
+                                steamdb_date_str
+                            )
+                            print(f"[web_api] App {appid_str} SteamDB 歷史鏈背景同步完成！通知前端熱更新...")
+                            if getattr(self, "_window", None):
+                                self._window.evaluate_js(f"window.onSteamDBLoaded && window.onSteamDBLoaded('{appid_str}', true);")
+                        except Exception as ce:
+                            print(f"[web_api] App {appid_str} SteamDB 背景更新異常: {ce}")
+                            if getattr(self, "_window", None):
+                                self._window.evaluate_js(f"window.onSteamDBLoaded && window.onSteamDBLoaded('{appid_str}', false);")
+                        finally:
+                            _bg_crawling_apps.discard(appid_str)
+
+                    threading.Thread(target=_bg_steamdb_sync, daemon=True).start()
 
         res["steamdb_timeout"] = False
         res["steamdb_error"] = ""

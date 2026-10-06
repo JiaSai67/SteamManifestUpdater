@@ -10,6 +10,54 @@ var _curDepotsData = [];
 var _curSelectedDepotIdx = 0;
 var _detailReqCounter = 0; // 異步請求計數器，徹底杜絕快速切換時舊請求回調覆蓋新遊戲欄位的競態問題
 
+// 🌟 SteamDB Cloudflare 背景穿透任務集合與卡片黃色光圈控制器
+var _pendingSteamDBAppids = new Set();
+window._pendingSteamDBAppids = _pendingSteamDBAppids;
+
+function attachCardCrawlingOverlay(appid){
+  var aidStr = String(appid).trim();
+  if(!aidStr) return;
+  _pendingSteamDBAppids.add(aidStr);
+  var cardEls = document.querySelectorAll('.card[data-appid="' + aidStr + '"]');
+  cardEls.forEach(function(cardEl){
+    cardEl.classList.add('is-crawling-steamdb');
+    if(!cardEl.querySelector('.card-crawling-steamdb-ov')){
+      var ov = document.createElement('div');
+      ov.className = 'card-crawling-steamdb-ov';
+      ov.innerHTML = '<div class="card-spinner-yellow"></div><div class="card-status-yellow">SteamDB 載入中...</div>';
+      cardEl.appendChild(ov);
+    }
+  });
+}
+window.attachCardCrawlingOverlay = attachCardCrawlingOverlay;
+
+function removeCardCrawlingOverlay(appid){
+  var aidStr = String(appid).trim();
+  if(!aidStr) return;
+  _pendingSteamDBAppids.delete(aidStr);
+  var cardEls = document.querySelectorAll('.card[data-appid="' + aidStr + '"]');
+  cardEls.forEach(function(cardEl){
+    cardEl.classList.remove('is-crawling-steamdb');
+    var ov = cardEl.querySelector('.card-crawling-steamdb-ov');
+    if(ov){
+      ov.style.transition = 'opacity 0.25s ease';
+      ov.style.opacity = '0';
+      setTimeout(function(){ if(ov && ov.parentNode) ov.remove(); }, 250);
+    }
+  });
+}
+window.removeCardCrawlingOverlay = removeCardCrawlingOverlay;
+
+// 當列表重繪時，自動同步恢復既有的黃色載入圈
+function syncPendingSteamDBCards(){
+  if(_pendingSteamDBAppids && _pendingSteamDBAppids.size){
+    _pendingSteamDBAppids.forEach(function(aid){
+      attachCardCrawlingOverlay(aid);
+    });
+  }
+}
+window.syncPendingSteamDBCards = syncPendingSteamDBCards;
+
 function renderDepotHistory(idx){
   _curSelectedDepotIdx = idx;
   var listEl = document.getElementById('dt-manifest-list');
@@ -341,12 +389,20 @@ async function openGameDetail(appid, name, image){
     '</div>';
   }
 
-  // 先預設隱藏 SteamDB 背景載入提示橫幅
+  // 先預設狀態：若本遊戲已在背景穿透隊列中，秒開時直接展示黃字載入橫幅
   var sdbLoadingBanner = document.getElementById('dt-steamdb-loading');
   if(sdbLoadingBanner){
-    sdbLoadingBanner.style.display = 'none';
-    sdbLoadingBanner.style.opacity = '1';
-    sdbLoadingBanner.style.transform = 'none';
+    if(_pendingSteamDBAppids.has(targetAppid)){
+      sdbLoadingBanner.className = 'dt-steamdb-loading-banner';
+      sdbLoadingBanner.innerHTML = '<div class="dt-sdb-pulse-dot"></div><div class="dt-sdb-spinner"></div><span class="dt-sdb-text">SteamDB資料載入中...</span><span class="dt-sdb-subtext">(正在背景穿透 Cloudflare 獲取完整版本鏈)</span>';
+      sdbLoadingBanner.style.display = 'flex';
+      sdbLoadingBanner.style.opacity = '1';
+      sdbLoadingBanner.style.transform = 'none';
+    } else {
+      sdbLoadingBanner.style.display = 'none';
+      sdbLoadingBanner.style.opacity = '1';
+      sdbLoadingBanner.style.transform = 'none';
+    }
   }
 
   // 🚀 遊戲小卡秒開！立即開啟彈窗，絕不拖泥帶水！
@@ -363,11 +419,32 @@ async function openGameDetail(appid, name, image){
       return;
     }
 
-    // 🌟 控制 SteamDB Cloudflare 背景載入橫幅 (黃字 + 動畫)
-    if(sdbLoadingBanner){
-      if(data && data.is_steamdb_loading){
+    // 🌟 控制 SteamDB Cloudflare 背景載入橫幅、卡片黃色光圈與穿透上限紅字警示
+    if(data && data.is_steamdb_limit_reached){
+      // 🚨 達到 Cloudflare 穿透併發上限：紅字提示！
+      var limitMsg = data.limit_message || ('已達穿透上限(' + data.current_crawling_count + '/' + data.max_crawling_limit + ')，請等待其他穿透任務結束再開啟遊戲小卡');
+      if(window.tt) tt(limitMsg, 'er', 5000);
+      if(sdbLoadingBanner){
+        sdbLoadingBanner.className = 'dt-steamdb-loading-banner dt-sdb-banner-limit';
+        sdbLoadingBanner.innerHTML = '<span style="font-size:13px">🚫</span>' +
+          '<span class="dt-sdb-text" style="color:#EF4444 !important;font-weight:700">已達穿透上限(' + data.current_crawling_count + '/' + data.max_crawling_limit + ')，請等待其他穿透任務結束再開啟遊戲小卡</span>';
         sdbLoadingBanner.style.display = 'flex';
-      } else {
+        sdbLoadingBanner.style.opacity = '1';
+      }
+      removeCardCrawlingOverlay(targetAppid);
+    } else if(data && data.is_steamdb_loading){
+      // ⚡ 正在背景穿透：掛載卡片黃色載入光圈與小卡黃字橫幅
+      attachCardCrawlingOverlay(targetAppid);
+      if(sdbLoadingBanner){
+        sdbLoadingBanner.className = 'dt-steamdb-loading-banner';
+        sdbLoadingBanner.innerHTML = '<div class="dt-sdb-pulse-dot"></div><div class="dt-sdb-spinner"></div><span class="dt-sdb-text">SteamDB資料載入中...</span><span class="dt-sdb-subtext">(正在背景穿透 Cloudflare 獲取完整版本鏈)</span>';
+        sdbLoadingBanner.style.display = 'flex';
+        sdbLoadingBanner.style.opacity = '1';
+      }
+    } else {
+      // ✅ 無須穿透或快取已最新：清除卡片光圈與橫幅
+      removeCardCrawlingOverlay(targetAppid);
+      if(sdbLoadingBanner){
         sdbLoadingBanner.style.display = 'none';
       }
     }
@@ -557,6 +634,9 @@ async function openGameDetail(appid, name, image){
 window.onSteamDBLoaded = async function(appid, success){
   var aidStr = String(appid).trim();
   console.log('[SteamDB] 收到背景載入完成通知:', aidStr, success);
+  // 🌟 1. 無論小卡是否開啟，只要穿透結束，立即平滑移除卡片黃色光圈！
+  removeCardCrawlingOverlay(aidStr);
+
   var modal = document.getElementById('game-detail-modal');
   if(_curDetailAppid === aidStr && modal && modal.classList.contains('active')){
     try {

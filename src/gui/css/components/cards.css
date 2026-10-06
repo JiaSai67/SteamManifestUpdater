@@ -52,6 +52,45 @@ body.dark #results .card:not(.needs-update) .name {
 .card-preloading-detail-ov{background:rgba(0,0,0,0.72) !important;backdrop-filter:blur(3px) !important}
 .card-updating-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.76);backdrop-filter:blur(4px);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;color:#fff;padding:8px 10px;text-align:center;animation:fadeIn .2s}
 .card-spinner{width:24px;height:24px;border:2.5px solid rgba(255,255,255,0.2);border-top-color:var(--pink-deep);border-radius:50%;animation:cardSpin .75s linear infinite;margin-bottom:8px}
+
+/* 🌟 SteamDB Cloudflare 背景穿透中之卡片黃色旋轉光圈 (不阻擋卡片點擊秒開) */
+.card.is-crawling-steamdb {
+  border: 2px solid #F59E0B !important;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.45) !important;
+  transition: border .2s ease, box-shadow .2s ease;
+}
+.card-crawling-steamdb-ov {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62) !important;
+  backdrop-filter: blur(2.5px) !important;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: 8px 10px;
+  text-align: center;
+  animation: fadeIn .2s;
+  pointer-events: none !important; /* 🌟 核心：穿透點擊，絕不限制使用者點開小卡！ */
+}
+.card-spinner-yellow {
+  width: 24px;
+  height: 24px;
+  border: 2.5px solid rgba(245, 158, 11, 0.25) !important;
+  border-top-color: #F59E0B !important;
+  border-radius: 50%;
+  animation: cardSpin .75s linear infinite;
+  margin-bottom: 6px;
+}
+.card-status-yellow {
+  color: #FBBF24 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8) !important;
+}
 @keyframes cardSpin{to{transform:rotate(360deg)}}
 /* 🌟 依需求：「在 Steam 商店查看」僅在文字上可點擊，禁止整行擴展 */
 .card .link-wrap{display:inline-flex;align-self:flex-start;width:max-content;margin-top:2px}
