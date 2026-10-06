@@ -14,6 +14,9 @@ _src_dir = Path(__file__).resolve().parent
 if str(_src_dir) not in sys.path:
     sys.path.insert(0, str(_src_dir))
 
+VERSION = "2.0.2"
+__version__ = "2.0.2"
+
 # 註冊專屬 Windows AppUserModelID (杜絕任務欄 Python 預設圖標)
 if sys.platform == "win32":
     try:
