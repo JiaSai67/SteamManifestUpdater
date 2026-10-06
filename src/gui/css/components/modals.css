@@ -175,8 +175,8 @@
 .dt-item:hover{background:rgba(255,255,255,.95);transform:translateX(3px);border-color:rgba(255,183,197,.6)}
 .dt-item-left{display:flex;align-items:center;min-width:0}
 .dt-gid{font-family:Consolas,Monaco,monospace;font-size:12.5px;font-weight:700;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dt-gid-date{font-size:11px;color:#718096;margin-left:8px;font-family:Consolas,Monaco,monospace;font-weight:600;display:inline-flex;align-items:center;opacity:0.9}
-.app.dark .dt-gid-date{color:#A0AEC0}
+.dt-gid-date{font-size:11px;color:#1F2937 !important;margin-left:8px;font-family:Consolas,Monaco,monospace;font-weight:600;display:inline-flex;align-items:center;opacity:0.95;letter-spacing:0.3px}
+.app.dark .dt-gid-date{color:#CBD5E1 !important}
 .dt-tag{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:6px;white-space:nowrap;flex-shrink:0}
 /* 藍色標註：當前本地儲存的 manifest 版本 */
 .dt-item.dt-current{background:rgba(227,242,253,.85);border:1.5px solid #42A5F5;box-shadow:0 2px 8px rgba(33,150,243,.18)}

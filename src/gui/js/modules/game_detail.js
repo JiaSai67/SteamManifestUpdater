@@ -82,7 +82,7 @@ function renderDepotHistory(idx){
     }
 
     var tip = 'Manifest GID: ' + (item.manifest_id || '') + (cleanMeta ? '\n資訊: ' + cleanMeta : '') + '\n(點擊複製 Manifest ID)';
-    var dateBadge = itemDate ? '<span class="dt-gid-date" style="font-size:11px;color:rgba(255,255,255,0.45);margin-left:8px;font-family:monospace;font-weight:normal;letter-spacing:0.3px">📅 ' + escHtml(itemDate) + '</span>' : '';
+    var dateBadge = itemDate ? '<span class="dt-gid-date">📅 ' + escHtml(itemDate) + '</span>' : '';
 
     html += '<div class="' + cls + '" onclick="copyManifestId(\'' + item.manifest_id + '\')" title="' + escHtml(tip) + '">' +
               '<div class="dt-item-left">' +
