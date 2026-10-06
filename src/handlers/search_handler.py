@@ -22,6 +22,9 @@ from managers import steam_manager
 from managers import unified_manifest_manager
 from managers import name_resolver
 
+# 全域背景 Cloudflare / SteamDB 爬取任務鎖定集合，防止重複線程併發
+_bg_crawling_apps = set()
+
 class SearchHandler:
     def search(self, q: str) -> List[Dict[str, Any]]:
         """
@@ -241,20 +244,33 @@ class SearchHandler:
         # 🌟 智慧探針比對：若本地快取尚未建立或有新版本，在背景非同步啟動 SteamDB 更新，UI 即時零延遲呈現
         from managers import steamdb_crawler
         first_gid = next(iter(steamdb_manifests.values()), "") if steamdb_manifests else ""
-        if not steamdb_crawler.is_steamdb_cache_fresh(appid_str, steamcmd_latest_gid=first_gid):
+        is_fresh = steamdb_crawler.is_steamdb_cache_fresh(appid_str, steamcmd_latest_gid=first_gid)
+        is_loading = (not is_fresh) or (appid_str in _bg_crawling_apps)
+        res["is_steamdb_loading"] = is_loading
+
+        if not is_fresh and appid_str not in _bg_crawling_apps:
             all_depot_keys = list(steamdb_manifests.keys())
             if all_depot_keys:
-                import threading
+                _bg_crawling_apps.add(appid_str)
                 def _bg_steamdb_sync():
                     try:
+                        print(f"[web_api] App {appid_str} 開始背景非同步獲取 SteamDB 完整歷史鏈 (穿透 Cloudflare)...")
                         steamdb_crawler.update_app_steamdb_history(
                             appid_str,
                             all_depot_keys,
                             steamdb_manifests,
-                            steamcmd_date_str
+                            steamdb_date_str
                         )
+                        print(f"[web_api] App {appid_str} SteamDB 歷史鏈背景同步完成！通知前端熱更新...")
+                        if getattr(self, "_window", None):
+                            self._window.evaluate_js(f"window.onSteamDBLoaded && window.onSteamDBLoaded('{appid_str}', true);")
                     except Exception as ce:
                         print(f"[web_api] App {appid_str} SteamDB 背景更新異常: {ce}")
+                        if getattr(self, "_window", None):
+                            self._window.evaluate_js(f"window.onSteamDBLoaded && window.onSteamDBLoaded('{appid_str}', false);")
+                    finally:
+                        _bg_crawling_apps.discard(appid_str)
+
                 threading.Thread(target=_bg_steamdb_sync, daemon=True).start()
 
         res["steamdb_timeout"] = False

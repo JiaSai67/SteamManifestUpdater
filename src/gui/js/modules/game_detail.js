@@ -278,11 +278,8 @@ async function openGameDetail(appid, name, image){
   var modal = document.getElementById('game-detail-modal');
   var verifyOverlay = document.getElementById('detail-verify-overlay');
   
-  // 🛡️ 防重複點擊守衛：若同一個遊戲小卡已經處於開啟狀態或正在預載，避免二次點擊造成重置與競態
+  // 🛡️ 防重複點擊守衛：若同一個遊戲小卡已經處於開啟狀態，避免二次點擊造成重置與競態
   if(_curDetailAppid === targetAppid && modal && modal.classList.contains('active')){
-    return;
-  }
-  if(_isPreloadingDetail){
     return;
   }
 
@@ -297,81 +294,95 @@ async function openGameDetail(appid, name, image){
   _curDetailHasUpdate = false;
   if(!modal) return;
 
-  // 🌟 1. 於卡片上掛載「正在預載 SteamDB」微狀態，暫時不開啟 Modal 彈窗
-  _isPreloadingDetail = true;
-  var cardEl = document.querySelector('#glist .card[data-appid="' + targetAppid + '"]') ||
-               document.querySelector('#results .card[data-appid="' + targetAppid + '"]') ||
-               document.querySelector('.card[data-appid="' + targetAppid + '"]');
-  var preOv = null;
-  if(cardEl){
-    cardEl.classList.add('is-preloading-detail');
-    preOv = document.createElement('div');
-    preOv.className = 'card-updating-overlay card-preloading-detail-ov';
-    preOv.innerHTML = '<div class="card-spinner" style="border-top-color:#64B5F6;width:22px;height:22px;margin-bottom:6px"></div><div class="card-update-status" style="color:#90CAF9;font-size:10.5px">正在預載 SteamDB...</div>';
-    cardEl.appendChild(preOv);
-  } else {
-    if(window.tt) tt('🔍 正在預載「' + _curDetailName + '」SteamDB 數據…', 'in', 2500);
+  // 🌟 1. 遊戲小卡秒開：立即設定左側基礎資訊 (0ms 零延遲呈現封面、名稱與 AppID)
+  var nameEl = document.getElementById('dt-name');
+  if(nameEl) nameEl.textContent = _curDetailName;
+  var aidEl = document.getElementById('dt-aid');
+  if(aidEl) aidEl.textContent = targetAppid;
+  var imgEl = document.getElementById('dt-img');
+  if(imgEl) imgEl.src = image || ('https://cdn.cloudflare.steamstatic.com/steam/apps/' + targetAppid + '/header.jpg');
+  
+  var isInstalled = _installedAppids && _installedAppids.has(targetAppid);
+  var actBtn = document.getElementById('dt-btn-action');
+  if(actBtn){
+    if(!isInstalled){
+      actBtn.textContent = '🚀 一鍵入庫此遊戲';
+      actBtn.className = 'btn btn-p btn-s';
+      actBtn.style.display = 'inline-flex';
+      actBtn.onclick = function(){ closeGameDetail(); Downloader.installGame(targetAppid, _curDetailName); };
+    } else {
+      actBtn.style.display = 'none';
+      actBtn.onclick = null;
+    }
   }
 
-  // 2. 呼叫後端 API 獲取 Depot 分組歷史與 4 域狀態檢查 (同步預載完成才開卡)
+  // 狀態檢查重置為「檢測中」
+  var rStatus = document.getElementById('dt-ryuu-status'), rGid = document.getElementById('dt-ryuu-gid');
+  var gStatus = document.getElementById('dt-gdrive-status'), gVal = document.getElementById('dt-gdrive-val');
+  var ofStatus = document.getElementById('dt-of-status'), ofVal = document.getElementById('dt-of-val');
+  var zgStatus = document.getElementById('dt-zg-status'), zgVal = document.getElementById('dt-zg-val');
+  if(rStatus){ rStatus.className = 'chip gray'; rStatus.textContent = '檢測中'; }
+  if(rGid){ rGid.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
+  if(gStatus){ gStatus.className = 'chip gray'; gStatus.textContent = '檢測中'; }
+  if(gVal){ gVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
+  if(ofStatus){ ofStatus.className = 'chip gray'; ofStatus.textContent = '檢測中'; }
+  if(ofVal){ ofVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
+  if(zgStatus){ zgStatus.className = 'chip gray'; zgStatus.textContent = '檢測中'; }
+  if(zgVal){ zgVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
+
+  // 清空 Tabs，右側清單顯示極速流光骨架屏
+  var tabsEl = document.getElementById('dt-depot-tabs');
+  if(tabsEl) tabsEl.innerHTML = '';
+  var listEl = document.getElementById('dt-manifest-list');
+  if(listEl){
+    listEl.innerHTML = '<div class="dt-loading-skeleton" style="padding:32px 0;display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--gray);font-size:12px">' +
+      '<div class="dt-sdb-spinner" style="width:20px;height:20px;border-width:2px;border-top-color:#F59E0B"></div>' +
+      '<div>正在連線獲取版本數據…</div>' +
+    '</div>';
+  }
+
+  // 先預設隱藏 SteamDB 背景載入提示橫幅
+  var sdbLoadingBanner = document.getElementById('dt-steamdb-loading');
+  if(sdbLoadingBanner){
+    sdbLoadingBanner.style.display = 'none';
+    sdbLoadingBanner.style.opacity = '1';
+    sdbLoadingBanner.style.transform = 'none';
+  }
+
+  // 🚀 遊戲小卡秒開！立即開啟彈窗，絕不拖泥帶水！
+  if(verifyOverlay) verifyOverlay.classList.add('hidden-overlay');
+  modal.classList.add('active');
+
+  // 🌟 2. 背景非同步呼叫後端 API 獲取 Depot 分組歷史與 4 域狀態檢查
   try {
     var data = await pywebview.api.get_manifest_history(targetAppid);
     _curDetailData = data;
-
-    // 清除卡片預載遮罩
-    if(preOv) preOv.remove();
-    if(cardEl) cardEl.classList.remove('is-preloading-detail');
-    _isPreloadingDetail = false;
     
     // 🛡️ 核心競態守衛：如果使用者在此期間切換了其他遊戲或關閉視窗，直接丟棄過期結果！
     if(myReqId !== _detailReqCounter || _curDetailAppid !== targetAppid){
       return;
     }
 
-    // 🌟 3. 檢查 SteamDB 是否逾時或連線異常：若逾時呈現報錯提示，但一樣開起小卡！
+    // 🌟 控制 SteamDB Cloudflare 背景載入橫幅 (黃字 + 動畫)
+    if(sdbLoadingBanner){
+      if(data && data.is_steamdb_loading){
+        sdbLoadingBanner.style.display = 'flex';
+      } else {
+        sdbLoadingBanner.style.display = 'none';
+      }
+    }
+
+    // 3. 檢查 SteamDB 是否逾時或連線異常
     if(data && (data.steamdb_timeout || data.steamdb_error)){
       var tipMsg = data.steamdb_error ? ('⚠️ SteamDB 連線異常 (' + data.steamdb_error + ')，已載入本地最新資料') : '⚠️ SteamDB 資料連線逾時，已載入本地最新版本資料';
       if(window.tt) tt(tipMsg, 'wn', 5000);
     }
 
-    // 設定左側基礎資訊
-    document.getElementById('dt-name').textContent = _curDetailName;
-    document.getElementById('dt-aid').textContent = targetAppid;
-    var imgEl = document.getElementById('dt-img');
-    imgEl.src = image || ('https://cdn.cloudflare.steamstatic.com/steam/apps/' + targetAppid + '/header.jpg');
-    
-    var isInstalled = _installedAppids && _installedAppids.has(targetAppid);
-    var actBtn = document.getElementById('dt-btn-action');
-    
-    if(!isInstalled){
-      actBtn.textContent = '🚀 一鍵入庫此遊戲';
-      actBtn.className = 'btn btn-p btn-s';
-      actBtn.style.display = 'inline-flex';
-    } else {
-      actBtn.style.display = 'none';
-    }
-
-    var rStatus = document.getElementById('dt-ryuu-status'), rGid = document.getElementById('dt-ryuu-gid');
-    var gStatus = document.getElementById('dt-gdrive-status'), gVal = document.getElementById('dt-gdrive-val');
-    var ofStatus = document.getElementById('dt-of-status'), ofVal = document.getElementById('dt-of-val');
-    var zgStatus = document.getElementById('dt-zg-status'), zgVal = document.getElementById('dt-zg-val');
-    if(rStatus){ rStatus.className = 'chip gray'; rStatus.textContent = '檢測中'; }
-    if(rGid){ rGid.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
-    if(gStatus){ gStatus.className = 'chip gray'; gStatus.textContent = '檢測中'; }
-    if(gVal){ gVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
-    if(ofStatus){ ofStatus.className = 'chip gray'; ofStatus.textContent = '檢測中'; }
-    if(ofVal){ ofVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
-    if(zgStatus){ zgStatus.className = 'chip gray'; zgStatus.textContent = '檢測中'; }
-    if(zgVal){ zgVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
-
-    var tabsEl = document.getElementById('dt-depot-tabs');
-    if(tabsEl) tabsEl.innerHTML = '';
-    var listEl = document.getElementById('dt-manifest-list');
+    // 更新遊戲名稱 (若有最新繁體名稱)
+    if(nameEl && data && data.name) nameEl.textContent = data.name;
 
     if(!data || !data.depots || !data.depots.length){
       if(listEl) listEl.innerHTML = '<div class="empty" style="padding:20px 0"><p>暫無可用版本歷史記錄</p></div>';
-      if(verifyOverlay) verifyOverlay.classList.add('hidden-overlay');
-      modal.classList.add('active');
       return;
     }
 
@@ -383,25 +394,27 @@ async function openGameDetail(appid, name, image){
     _knownUpdates[targetAppid] = { appid: targetAppid, has_update: _curDetailHasUpdate, version_status: _curDetailHasUpdate ? '舊 1 版' : '最新版' };
     
     // 依更新狀態決定一鍵按鈕 (統一接入 Downloader 調度中心)
-    if(!isInstalled){
-      actBtn.textContent = '🚀 一鍵入庫此遊戲';
-      actBtn.className = 'btn btn-p btn-s';
-      actBtn.style.display = 'inline-flex';
-      actBtn.onclick = function(){ closeGameDetail(); Downloader.installGame(targetAppid, _curDetailName); };
-    } else if(_curDetailHasUpdate){
-      if(data.needs_topology_migration){
-        var repBtnText = data.replaced_by ? (' (Depot ' + data.replaced_by + ')') : '';
-        actBtn.textContent = '⚡ 立即遷移至新架構' + repBtnText;
+    if(actBtn){
+      if(!isInstalled){
+        actBtn.textContent = '🚀 一鍵入庫此遊戲';
+        actBtn.className = 'btn btn-p btn-s';
+        actBtn.style.display = 'inline-flex';
+        actBtn.onclick = function(){ closeGameDetail(); Downloader.installGame(targetAppid, _curDetailName); };
+      } else if(_curDetailHasUpdate){
+        if(data.needs_topology_migration){
+          var repBtnText = data.replaced_by ? (' (Depot ' + data.replaced_by + ')') : '';
+          actBtn.textContent = '⚡ 立即遷移至新架構' + repBtnText;
+        } else {
+          actBtn.textContent = '⚡ 立即更新至官方最新版';
+        }
+        actBtn.className = 'btn btn-p btn-s';
+        actBtn.style.display = 'inline-flex';
+        actBtn.onclick = function(){ closeGameDetail(); Downloader.updateGame(targetAppid, _curDetailName); };
       } else {
-        actBtn.textContent = '⚡ 立即更新至官方最新版';
+        // 本地已是最新版或雲端未收錄：隱藏更新按鈕
+        actBtn.style.display = 'none';
+        actBtn.onclick = null;
       }
-      actBtn.className = 'btn btn-p btn-s';
-      actBtn.style.display = 'inline-flex';
-      actBtn.onclick = function(){ closeGameDetail(); Downloader.updateGame(targetAppid, _curDetailName); };
-    } else {
-      // 本地已是最新版或雲端未收錄：隱藏更新按鈕
-      actBtn.style.display = 'none';
-      actBtn.onclick = null;
     }
 
     _curDepotsData = data.depots;
@@ -530,34 +543,66 @@ async function openGameDetail(appid, name, image){
 
     // 預設渲染第一個 Depot
     renderDepotHistory(0);
-
-    // 🌟 資料已在預載階段完全獲取完畢，直接隱藏內部遮罩並以完整數據開啟小卡！
-    if(verifyOverlay) verifyOverlay.classList.add('hidden-overlay');
-    modal.classList.add('active');
   } catch(err) {
-    // 異常時徹底清理卡片預載狀態
-    if(preOv) preOv.remove();
-    if(cardEl) cardEl.classList.remove('is-preloading-detail');
-    _isPreloadingDetail = false;
     if(myReqId !== _detailReqCounter || _curDetailAppid !== targetAppid) return;
-
-    if(window.tt) tt('⚠️ 載入 SteamDB 資料異常: ' + (err.message || err) + '，已為您開啟小卡', 'er', 4500);
-
-    // 設定左側基礎資訊避免介面全空白
-    var nameEl = document.getElementById('dt-name');
-    if(nameEl) nameEl.textContent = _curDetailName;
-    var aidEl = document.getElementById('dt-aid');
-    if(aidEl) aidEl.textContent = targetAppid;
-    var imgEl = document.getElementById('dt-img');
-    if(imgEl) imgEl.src = image || ('https://cdn.cloudflare.steamstatic.com/steam/apps/' + targetAppid + '/header.jpg');
-
-    if(verifyOverlay) verifyOverlay.classList.add('hidden-overlay');
+    if(window.tt) tt('⚠️ 載入版本資料異常: ' + (err.message || err), 'er', 4500);
+    if(sdbLoadingBanner) sdbLoadingBanner.style.display = 'none';
     if(listEl) listEl.innerHTML = '<div class="empty" style="padding:20px 0"><p>獲取版本清單失敗: ' + escHtml(err.message || String(err)) + '</p></div>';
-    modal.classList.add('active');
   }
 }
 
 // ═══════════════════════════════════════════════════════
+// 🌟 SteamDB Cloudflare 背景穿透載入完成回調 (自動平滑熱更新版本鏈與隱藏黃字)
+// ═══════════════════════════════════════════════════════
+window.onSteamDBLoaded = async function(appid, success){
+  var aidStr = String(appid).trim();
+  console.log('[SteamDB] 收到背景載入完成通知:', aidStr, success);
+  var modal = document.getElementById('game-detail-modal');
+  if(_curDetailAppid === aidStr && modal && modal.classList.contains('active')){
+    try {
+      var freshData = await pywebview.api.get_manifest_history(aidStr);
+      if(_curDetailAppid !== aidStr) return;
+      _curDetailData = freshData;
+      _curDepotsData = freshData.depots || [];
+
+      // 平滑隱藏 SteamDB 黃字載入橫幅
+      var sdbBanner = document.getElementById('dt-steamdb-loading');
+      if(sdbBanner){
+        sdbBanner.style.opacity = '0';
+        sdbBanner.style.transform = 'translateY(-4px)';
+        sdbBanner.style.transition = 'all 0.3s ease';
+        setTimeout(function(){
+          if(_curDetailAppid === aidStr && sdbBanner){
+            sdbBanner.style.display = 'none';
+            sdbBanner.style.opacity = '1';
+            sdbBanner.style.transform = 'none';
+          }
+        }, 300);
+      }
+
+      // 重新渲染 Depot 子分類按鈕與 Manifest 清單
+      var tabsEl = document.getElementById('dt-depot-tabs');
+      if(tabsEl && _curDepotsData.length){
+        var tabHtml = '';
+        _curDepotsData.forEach(function(d, i){
+          var actClass = (i === _curSelectedDepotIdx) ? ' active' : '';
+          if(d.is_deprecated){
+            tabHtml += '<button class="dt-depot-btn dt-depot-deprecated' + actClass + '" onclick="renderDepotHistory(' + i + ')">' +
+                       '<span style="text-decoration:line-through;opacity:0.75;">' + escHtml(d.depot_name) + '</span> ' +
+                       '<span style="font-size:10.5px;text-decoration:none;opacity:0.9;font-weight:700;">(已棄置)</span>' +
+                       '</button>';
+          } else {
+            tabHtml += '<button class="dt-depot-btn' + actClass + '" onclick="renderDepotHistory(' + i + ')">' + escHtml(d.depot_name) + '</button>';
+          }
+        });
+        tabsEl.innerHTML = tabHtml;
+      }
+      renderDepotHistory(_curSelectedDepotIdx || 0);
+    } catch(e){
+      console.warn('[SteamDB] 背景熱更新失敗:', e);
+    }
+  }
+};
 // 入庫 + DLC (五大真實進度階段動畫與即時狀態回饋)
 // ═══════════════════════════════════════════════════════
 var _needRestart = false;

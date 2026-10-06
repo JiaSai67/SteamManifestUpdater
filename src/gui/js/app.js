@@ -121,6 +121,12 @@ function closeGameDetail(e){
   }
   var ov = document.getElementById('detail-verify-overlay');
   if(ov) ov.classList.add('hidden-overlay');
+  var sdbBanner = document.getElementById('dt-steamdb-loading');
+  if(sdbBanner){
+    sdbBanner.style.display = 'none';
+    sdbBanner.style.opacity = '1';
+    sdbBanner.style.transform = 'none';
+  }
   var modal = document.getElementById('game-detail-modal');
   if(modal) modal.classList.remove('active');
 }

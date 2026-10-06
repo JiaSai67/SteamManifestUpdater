@@ -117,6 +117,13 @@
       </div>
       <!-- 右側欄：近期 10 個 Manifest 版本列表 -->
       <div class="detail-right-col">
+        <!-- 🌟 SteamDB Cloudflare 背景載入提示列 (等待 Cloudflare 時呈現黃字動效) -->
+        <div id="dt-steamdb-loading" class="dt-steamdb-loading-banner" style="display:none;">
+          <div class="dt-sdb-pulse-dot"></div>
+          <div class="dt-sdb-spinner"></div>
+          <span class="dt-sdb-text">SteamDB資料載入中...</span>
+          <span class="dt-sdb-subtext">(正在背景穿透 Cloudflare 獲取完整版本鏈)</span>
+        </div>
         <div class="detail-right-header">
           <div class="detail-section-title">📋 Manifest 版本狀態 (對齊 SteamDB 官方數據)</div>
           <div class="detail-section-sub">點擊版本可複製 Manifest ID · 頂部為官方最新 · 藍色為本地當前 · 黃色為可更新 · 來源標註為 (SteamCMD) 或 (SteamDB)</div>
