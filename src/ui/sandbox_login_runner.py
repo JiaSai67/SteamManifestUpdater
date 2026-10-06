@@ -75,6 +75,18 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                             console.warn('[Sandbox] 🛡️ 已成功阻斷喚醒外部 Discord 應用程式協定:', href);
                             return false;
                         }
+
+                        // 🚨 步驟 2 (Lua.tools)：Lua.tools 完全無需加入 Discord 伺服器，嚴格阻斷任何邀請連結點擊
+                        var curStep = window._sm_current_step || 1;
+                        var isLtDomain = window.location.hostname.indexOf('lua.tools') !== -1;
+                        if (curStep === 2 || isLtDomain) {
+                            if (hLower.indexOf('discord.gg') !== -1 || hLower.indexOf('discord.com/invite') !== -1) {
+                                e.preventDefault();
+                                e.stopImmediatePropagation();
+                                console.warn('[Sandbox] 🛡️ 步驟 2 無需加入伺服器，已徹底阻斷 Lua.tools 邀請點擊:', href);
+                                return false;
+                            }
+                        }
                     }
                     el = el.parentNode;
                 }
@@ -89,6 +101,14 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                     if (uLower.indexOf('discord://') === 0 || uLower.indexOf('intent://') === 0) {
                         console.warn('[Sandbox] 🛡️ 已阻斷 window.open 喚醒外部 Discord 協定:', urlStr);
                         return null;
+                    }
+                    var curStep = window._sm_current_step || 1;
+                    var isLtDomain = window.location.hostname.indexOf('lua.tools') !== -1;
+                    if (curStep === 2 || isLtDomain) {
+                        if (uLower.indexOf('discord.gg') !== -1 || uLower.indexOf('discord.com/invite') !== -1) {
+                            console.warn('[Sandbox] 🛡️ 步驟 2 阻斷 window.open 開啟 Lua.tools 邀請:', urlStr);
+                            return null;
+                        }
                     }
                     try {
                         window.location.href = urlStr;
@@ -384,15 +404,34 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                 }, 3500);
             }
 
-            // 精確探測並觸發 Lua.tools Discord 登入按鈕
+            // 精確探測並觸發 Lua.tools Discord 登入按鈕 (嚴格排除任何社群/邀請連結)
             function clickLtButtons() {
+                if (window._lt_is_logged_in) return false;
+                var hasCookie = document.cookie.match(/sb-db-auth-token(\.\d+)?=/) !== null;
+                if (hasCookie) return false;
+
                 var found = false;
                 var btns = document.querySelectorAll('button, a, [role="button"]');
                 for (var i = 0; i < btns.length; i++) {
                     var el = btns[i];
                     var txt = (el.textContent || '').toLowerCase().trim();
                     var href = (el.getAttribute && el.getAttribute('href')) || '';
-                    if (txt.indexOf('login with discord') !== -1 || (txt.indexOf('login') !== -1 && txt.indexOf('discord') !== -1) || href.indexOf('discord') !== -1) {
+                    var hLower = href.toLowerCase();
+
+                    // 🚨 徹底排除任何 Discord 邀請或社群連結！
+                    if (hLower.indexOf('discord.gg') !== -1 || hLower.indexOf('/invite') !== -1 ||
+                        txt.indexOf('join') !== -1 || txt.indexOf('community') !== -1 || txt.indexOf('server') !== -1) {
+                        continue;
+                    }
+
+                    // 只匹配真正的授權/登入按鈕
+                    var isLoginText = (txt.indexOf('login with discord') !== -1 || 
+                                       (txt.indexOf('login') !== -1 && txt.indexOf('discord') !== -1) ||
+                                       txt.indexOf('sign in with discord') !== -1 ||
+                                       (txt === 'login' || txt === 'sign in'));
+                    var isLoginHref = (hLower.indexOf('oauth2/authorize') !== -1 || hLower.indexOf('/auth/discord') !== -1 || hLower.indexOf('discord.com/oauth2') !== -1);
+
+                    if (isLoginText || isLoginHref) {
                         try {
                             el.click();
                             found = true;
@@ -401,7 +440,7 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                     }
                 }
                 if (!found) {
-                    var sel = document.querySelector('button.login-btn, a[href*="login"], a[href*="discord"], button[class*="discord"]');
+                    var sel = document.querySelector('button.login-btn, a[href*="oauth2/authorize"], a[href*="/auth/discord"]');
                     if (sel) {
                         try { sel.click(); found = true; } catch(e) {}
                     }
@@ -496,6 +535,26 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                         window.location.href = "https://discord.com/invite/hubcapsmanifest";
                     }, 400);
                 }
+            }
+        }
+
+        // 10. HubcapDB 授權成功自動導航至 API Keys 統計頁取得 Key
+        if (isHc && !needHcJoin) {
+            var path = window.location.pathname || '';
+            var isStatsPage = path.indexOf('/api-keys/stats') !== -1;
+            var isIndex = (path === '/' || path === '');
+            var hasLoginBtn = isIndex && !!document.querySelector('a[href*="/auth/discord"]');
+            var isCallbackOrAuthed = path.indexOf('/auth/') !== -1 || path.indexOf('/dashboard') !== -1 || path.indexOf('/user') !== -1 || (!hasLoginBtn && !isIndex);
+
+            if (!isStatsPage && isCallbackOrAuthed && !window._hc_redirected_to_stats) {
+                window._hc_redirected_to_stats = true;
+                var msgEl = document.getElementById('_sm_nav_msg');
+                if (msgEl) {
+                    msgEl.innerHTML = '<span style="color:#06b6d4;font-weight:bold;">🚀 授權已確認！正在自動前往 API Keys 統計頁獲取金鑰...</span>';
+                }
+                setTimeout(function() {
+                    window.location.href = "https://hubcapmanifest.com/api-keys/stats";
+                }, 400);
             }
         }
 
@@ -1296,11 +1355,15 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                 elif state["step"] == 3 and not state["is_saving"]:
                     js_hc = """
                     (function() {
+                        var curUrl = window.location.href;
                         var isHubcap = window.location.hostname.indexOf('hubcapmanifest.com') !== -1;
                         var isDiscord = window.location.hostname.indexOf('discord.com') !== -1;
+                        var pathname = window.location.pathname || '';
+                        var isStatsPage = isHubcap && (pathname.indexOf('/api-keys/stats') !== -1);
+                        var bodyText = document.body ? (document.body.innerText || '') : '';
                         
                         // 1. 若在首頁且有 Discord 登入按鈕，自動輔助點擊
-                        if (isHubcap && (window.location.pathname === '/' || window.location.pathname === '')) {
+                        if (isHubcap && (pathname === '/' || pathname === '')) {
                             var loginBtn = document.querySelector('a[href*="/auth/discord"], a[href*="discord"]');
                             if (loginBtn && !window._clicked_hc_login) {
                                 window._clicked_hc_login = true;
@@ -1308,7 +1371,31 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             }
                         }
 
-                        // 2. 若在 Hubcap 且尚未完成非同步探測，發起前端 fetch
+                        // 2. 檢查是否有尚未加入伺服器報錯
+                        var needsJoinHc = bodyText.indexOf('You must be a member of our Discord server') !== -1 ||
+                                          bodyText.indexOf('member of our Discord server') !== -1 ||
+                                          bodyText.indexOf('hubcapsmanifest') !== -1 ||
+                                          (bodyText.indexOf('Discord server') !== -1 && (bodyText.indexOf('member') !== -1 || bodyText.indexOf('access') !== -1));
+
+                        // 3. 核心自動跳轉：若在 Hubcap 且授權通過（無報錯），且不在 stats 頁面，自動跳轉至 stats 頁
+                        var isIndex = (pathname === '/' || pathname === '');
+                        var hasLoginBtn = isIndex && !!document.querySelector('a[href*="/auth/discord"]');
+                        var isAuthed = isHubcap && !needsJoinHc && (
+                            pathname.indexOf('/auth/') !== -1 ||
+                            pathname.indexOf('/dashboard') !== -1 ||
+                            pathname.indexOf('/user') !== -1 ||
+                            pathname.indexOf('/api-keys') !== -1 ||
+                            (!hasLoginBtn && !isIndex)
+                        );
+
+                        if (isAuthed && !isStatsPage && !window._hc_redirected_to_stats_js) {
+                            window._hc_redirected_to_stats_js = true;
+                            setTimeout(function() {
+                                window.location.href = "https://hubcapmanifest.com/api-keys/stats";
+                            }, 350);
+                        }
+
+                        // 4. 若在 Hubcap 且尚未發起非同步探測，發起前端 fetch
                         if (isHubcap && !window._hc_fetching) {
                             window._hc_fetching = true;
                             fetch('/auth/me', { credentials: 'include' })
@@ -1316,41 +1403,51 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                                 .then(function(res) {
                                     if (res && res.success && res.user) {
                                         window._hc_user = res.user;
-                                        return fetch('/api-keys/my-key-info', { credentials: 'include' })
-                                            .then(function(r2) { return r2.json(); })
-                                            .then(function(kres) {
-                                                if (kres && kres.api_key) {
-                                                    window._hc_api_key = kres.api_key;
-                                                } else {
-                                                    return fetch('/api-keys/generate-key', {
-                                                        method: 'POST',
-                                                        headers: { 'Content-Type': 'application/json' },
-                                                        credentials: 'include'
-                                                    }).then(function(r3) { return r3.json(); })
-                                                      .then(function(gres) {
-                                                          if (gres && gres.api_key) {
-                                                              window._hc_api_key = gres.api_key;
-                                                          }
-                                                      });
-                                                }
-                                            });
                                     }
+                                    return fetch('/api-keys/my-key-info', { credentials: 'include' })
+                                        .then(function(r2) { return r2.json(); })
+                                        .then(function(kres) {
+                                            if (kres && (kres.api_key || kres.key)) {
+                                                window._hc_api_key = kres.api_key || kres.key;
+                                            } else if (isStatsPage && !window._hc_tried_gen) {
+                                                window._hc_tried_gen = true;
+                                                return fetch('/api-keys/generate-key', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    credentials: 'include'
+                                                }).then(function(r3) { return r3.json(); })
+                                                  .then(function(gres) {
+                                                      if (gres && (gres.api_key || gres.key)) {
+                                                          window._hc_api_key = gres.api_key || gres.key;
+                                                      }
+                                                  });
+                                            }
+                                        });
                                 })
                                 .catch(function(e) {})
                                 .finally(function() {
-                                    setTimeout(function() { window._hc_fetching = false; }, 2500);
+                                    setTimeout(function() { window._hc_fetching = false; }, 2000);
                                 });
                         }
 
-                        // 3. 掃描 DOM 中可能出現的 API Key
+                        // 5. 全方位正則掃描 DOM 中的 API Key (支援 smm_ 開頭金鑰)
                         var domKey = "";
+                        var smmRegex = /\\b(smm_[a-zA-Z0-9_\\-]{20,})\\b/;
                         if (isHubcap) {
-                            var els = document.querySelectorAll('input, code, span, pre, div');
+                            var els = document.querySelectorAll('input, textarea, code, span, pre, div, td, p, h1, h2, h3, h4');
                             for (var i = 0; i < els.length; i++) {
-                                var t = (els[i].value || els[i].textContent || '').trim();
-                                if (t.indexOf('smm_') === 0 && t.length >= 30) {
-                                    domKey = t;
+                                var val = els[i].value || '';
+                                var txt = els[i].textContent || '';
+                                var m = val.match(smmRegex) || txt.match(smmRegex);
+                                if (m && m[1]) {
+                                    domKey = m[1];
                                     break;
+                                }
+                            }
+                            if (!domKey && bodyText) {
+                                var mb = bodyText.match(smmRegex);
+                                if (mb && mb[1]) {
+                                    domKey = mb[1];
                                 }
                             }
                         }
@@ -1358,16 +1455,24 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         var finalKey = window._hc_api_key || domKey || "";
                         var userObj = window._hc_user || null;
 
-                        var bodyText = document.body ? (document.body.innerText || '') : '';
-                        var needsJoinHc = bodyText.indexOf('You must be a member of our Discord server') !== -1 ||
-                                          bodyText.indexOf('member of our Discord server') !== -1 ||
-                                          bodyText.indexOf('hubcapsmanifest') !== -1 ||
-                                          (bodyText.indexOf('Discord server') !== -1 && (bodyText.indexOf('member') !== -1 || bodyText.indexOf('access') !== -1));
+                        // 即時更新頂部 Navbar 提示訊息
+                        var msgEl = document.getElementById('_sm_nav_msg');
+                        if (msgEl) {
+                            if (finalKey) {
+                                msgEl.innerHTML = '<span style="color:#10b981;font-weight:bold;">🎉 成功獲取 API Key: ' + finalKey.substring(0, 10) + '... 正在自動綁定儲存！</span>';
+                            } else if (isStatsPage) {
+                                msgEl.innerHTML = '<span style="color:#06b6d4;font-weight:600;">🔍 已進入 API Keys 統計頁，正在讀取金鑰...</span>';
+                            } else if (isAuthed) {
+                                msgEl.innerHTML = '<span style="color:#06b6d4;font-weight:600;">🚀 授權已確認！正在自動前往 API Keys 統計頁...</span>';
+                            }
+                        }
 
                         return JSON.stringify({
                             is_hubcap: isHubcap,
+                            is_stats_page: isStatsPage,
                             is_discord: isDiscord,
-                            logged_in: !!userObj || !!finalKey,
+                            is_authed: isAuthed,
+                            logged_in: !!userObj || !!finalKey || isStatsPage || isAuthed,
                             api_key: finalKey,
                             needs_join_server: needsJoinHc,
                             user: userObj
@@ -1396,6 +1501,19 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         time.sleep(1.0)
                         continue
 
+                    # 🌟 核心修復：授權完成後如果已在 Hubcap 網域，自動跳轉至 https://hubcapmanifest.com/api-keys/stats
+                    cur_hc_url = str(window.get_current_url() or "")
+                    is_in_stats = ("/api-keys/stats" in cur_hc_url) or data_hc.get("is_stats_page")
+                    if data_hc.get("is_hubcap") and not data_hc.get("needs_join_server") and not is_in_stats:
+                        # 排除剛載入首頁正在點擊登入的過渡期
+                        if data_hc.get("is_authed") or ("/auth/discord" not in cur_hc_url and cur_hc_url.rstrip("/") != "https://hubcapmanifest.com"):
+                            if not state.get("_redirected_to_stats"):
+                                state["_redirected_to_stats"] = True
+                                print("[Sandbox] 🚀 授權成功，自動跳轉至 https://hubcapmanifest.com/api-keys/stats 獲取 API Key...")
+                                window.load_url("https://hubcapmanifest.com/api-keys/stats")
+                                time.sleep(1.2)
+                                continue
+
                     api_key = str(data_hc.get("api_key") or "").strip()
                     hc_user = data_hc.get("user") or {}
                     hc_logged = bool(data_hc.get("logged_in") or api_key or manual_save)
@@ -1410,7 +1528,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             if not api_key:
                                 api_key = hubcap_manager.get_api_key()
 
-                            print(f"[Sandbox] Step 3 HubcapDB Auth OK! API Key found: {bool(api_key)}")
+                            print(f"[Sandbox] Step 3 HubcapDB Auth OK! API Key found: {bool(api_key)} ({api_key[:10]}...)")
 
                             try:
                                 window.evaluate_js("""
@@ -1419,7 +1537,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                                     var b = document.createElement('div');
                                     b.id = '_sm_auth_success_banner_hc';
                                     b.style.cssText = 'position:fixed;top:18px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg, #00bcd4, #0097a7);color:#ffffff;padding:12px 28px;border-radius:30px;font-size:15px;font-weight:bold;box-shadow:0 10px 32px rgba(0,0,0,0.6);z-index:99999999;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;gap:10px;';
-                                    b.innerHTML = '<span style="font-size:20px;">🎉</span> <span>HubcapDB 授權成功！API Key 已自動捕獲並綁定完成！</span>';
+                                    b.innerHTML = '<span style="font-size:20px;">🎉</span> <span>HubcapDB 授權成功！API Key 已自動獲取並綁定完成！</span>';
                                     document.body.appendChild(b);
                                 })();
                                 """)
@@ -1430,11 +1548,13 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             hc_name = str(hc_user.get("username") or state["ryuu_info"].get("name") or "").strip()
                             hc_email = str(hc_user.get("email") or state.get("captured_email") or "").strip()
 
-                            target_id = state["target_account_id"] or hc_uid or hc_name or hc_email
+                            target_id = state["target_account_id"] or hc_uid or hc_name or hc_email or "hubcap_default"
                             if target_id and api_key:
                                 mgr.set_hubcap_key(target_id, api_key, discord_id=hc_uid)
                                 if not hubcap_manager.get_api_key():
                                     hubcap_manager.set_api_key(api_key)
+                                mgr.update_realtime_quota("hubcap", 25, daily_limit=25, account_id=target_id)
+                                mgr.save_data()
 
                             # 帳密記憶
                             user_pwd = state.get("captured_pwd") or auto_pwd or ""
@@ -1451,10 +1571,13 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             window.destroy()
                             return
                         else:
-                            # 已在 Hubcap 登入狀態但尚未回傳 key，嘗試跳轉至 /user 頁面觸發生成/讀取
-                            if data_hc.get("is_hubcap") and not state.get("_redirected_to_user"):
-                                state["_redirected_to_user"] = True
-                                window.load_url("https://hubcapmanifest.com/user")
+                            # 已在 Hubcap 但尚未取得 key，若尚未跳轉 stats 頁面，執行跳轉
+                            if data_hc.get("is_hubcap") and not state.get("_redirected_to_stats"):
+                                state["_redirected_to_stats"] = True
+                                print("[Sandbox] 正在自動跳轉至 https://hubcapmanifest.com/api-keys/stats 讀取 API Key...")
+                                window.load_url("https://hubcapmanifest.com/api-keys/stats")
+                                time.sleep(1.2)
+                                continue
 
             except Exception as e:
                 print(f"[Sandbox] Monitor loop exception: {e}")
