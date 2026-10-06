@@ -1178,6 +1178,29 @@ class AccountManager:
         self.registry_updated.emit()
         return True
 
+    def clear_all_accounts(self) -> bool:
+        """清空所有已綁定的帳號憑證並清理本機 Profile 資料夾與 Hubcap API Key"""
+        try:
+            for p in ["ryuu", "lua_tools"]:
+                for acc in list(self.data.get(p, [])):
+                    p_dir = Path(acc.get("profile_dir", ""))
+                    if p_dir.exists() and p_dir != _ROOT_DIR / "data" / "credentials" / "lua_tools_profile":
+                        try:
+                            shutil.rmtree(p_dir, ignore_errors=True)
+                        except Exception:
+                            pass
+                self.data[p] = []
+            self.data["active_account_ryuu"] = None
+            self.data["active_account_lt"] = None
+            if "hubcap" in self.data:
+                self.data["hubcap"] = {}
+            self.save_data()
+            self.registry_updated.emit()
+            return True
+        except Exception as e:
+            print(f"[account_manager] clear_all_accounts error: {e}")
+            return False
+
     def _remove_single_account(self, platform: str, acc: dict):
         """內部輔助方法：移除單一帳號條目並清理對應之 Profile 憑證資料夾"""
         accounts = self.data.get(platform, [])

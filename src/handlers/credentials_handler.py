@@ -491,14 +491,31 @@ class CredentialsHandler:
             return {"ok": False, "msg": str(e)}
 
     def delete_credential_account(self, platform: str, account_id: str) -> Dict[str, Any]:
-        """刪除指定平台的單一帳號"""
+        """刪除指定平台帳號（支援 platform='all' 一鍵徹底同步雙平台刪除）"""
         try:
             from managers import account_manager
             mgr = account_manager.get_account_manager()
-            success = mgr.delete_account(platform, account_id)
+            success = False
+            plat_str = str(platform or "").lower()
+            if plat_str in ["all", "any", ""]:
+                success = mgr.delete_account("ryuu", account_id) or mgr.delete_account("lua_tools", account_id)
+            else:
+                success = mgr.delete_account(platform, account_id)
             if success:
                 return {"ok": True, "msg": "已成功刪除該帳號憑證"}
             return {"ok": False, "msg": "找不到指定的帳號 ID"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def clear_all_credential_accounts(self) -> Dict[str, Any]:
+        """清空所有平台已綁定之帳號憑證與本機快取檔案"""
+        try:
+            from managers import account_manager
+            mgr = account_manager.get_account_manager()
+            success = mgr.clear_all_accounts()
+            if success:
+                return {"ok": True, "msg": "已成功清空所有平台帳號憑證！"}
+            return {"ok": False, "msg": "清空憑證失敗"}
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 

@@ -719,12 +719,18 @@ function renderQuotaMatrix(res) {
     var accTargetId = acc.discord_id || acc.raw_id || acc.key;
     var accTargetName = acc.name || acc.discord_id || '該帳號';
     
-    var userCell = '<div class="user-cell-wrap">' +
-      '<img class="user-cell-avatar" src="' + avatarSrc + '" onerror="this.src=\'' + defaultAvatar + '\'" alt="avatar" />' +
-      '<div class="user-cell-info">' +
-        '<div class="user-cell-discord-id">' + dIdDisplay + '</div>' +
-        '<div class="user-cell-email">' + emailDisplay + '</div>' +
+    var deleteAccId = (acc.ryuu && acc.ryuu.id) || (acc.lua && acc.lua.id) || acc.raw_id || accTargetId;
+    var userCell = '<div class="user-cell-wrap" style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px">' +
+      '<div style="display:flex;align-items:center;gap:9px;min-width:0;flex:1">' +
+        '<img class="user-cell-avatar" src="' + avatarSrc + '" onerror="this.src=\'' + defaultAvatar + '\'" alt="avatar" />' +
+        '<div class="user-cell-info" style="min-width:0">' +
+          '<div class="user-cell-discord-id">' + dIdDisplay + '</div>' +
+          '<div class="user-cell-email">' + emailDisplay + '</div>' +
+        '</div>' +
       '</div>' +
+      '<button class="btn-del-matrix-acc" onclick="event.stopPropagation();deleteAccount(\'all\',\'' + escHtml(deleteAccId) + '\',\'' + escHtml(accTargetName).replace(/'/g, "\\'") + '\')" title="刪除此帳號綁定與憑證" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:6px;padding:3px 7px;cursor:pointer;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;flex-shrink:0;transition:all 0.2s ease;">' +
+        '<span>🗑️</span><span>刪除</span>' +
+      '</button>' +
     '</div>';
     
     html += '<tr data-row-idx="' + rIdx + '">';
@@ -1145,7 +1151,7 @@ async function switchActiveAccount(platform, accountId){
 async function deleteAccount(platform, accountId, accountName){
   if(!confirm('確定要刪除帳號憑證 [' + accountName + '] 嗎？\n系統將直接同步刪除雙平台（Ryuu 與 Lua.tools）的關聯憑證。')) return;
   try {
-    var res = await pywebview.api.delete_credential_account(platform, accountId);
+    var res = await pywebview.api.delete_credential_account(platform || 'all', accountId);
     if(res && res.ok){
       tt('已成功同步刪除雙平台帳號憑證', 'ok');
       loadCredentialsStatus(false);
@@ -1154,6 +1160,22 @@ async function deleteAccount(platform, accountId, accountName){
     }
   } catch(e){
     tt('刪除帳號異常: ' + e, 'err');
+  }
+}
+
+async function confirmClearAllAccounts(){
+  if(!confirm('⚠️ 警告：確定要清空所有已綁定的帳號憑證嗎？\n\n此操作將解除所有平台（Ryuu、Lua.tools、HubcapDB）的帳號綁定並刪除本機快取檔案，需要重新登入。')) return;
+  try {
+    tt('正在清空所有帳號憑證…', 'warn');
+    var res = await pywebview.api.clear_all_credential_accounts();
+    if(res && res.ok){
+      tt('已成功清空所有帳號憑證！', 'ok');
+      loadCredentialsStatus(true);
+    } else {
+      tt((res && res.msg) || '清空失敗', 'err');
+    }
+  } catch(e){
+    tt('清空憑證異常: ' + e, 'err');
   }
 }
 

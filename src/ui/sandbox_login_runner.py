@@ -39,62 +39,62 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
     1. 阻斷本機 Discord RPC (6463) 探測
     2. 即時動態捕獲使用者在登入框輸入/修改的帳號密碼
     3. 若本機已有儲存帳密，自動使用 React 原生 Setter 預填入輸入框
-    4. 提供手動即時儲存與強制完成浮動按鈕
+    4. 頂部常駐全域多功能導航列 (步驟指示、加入 Discord 伺服器、返回授權頁、跳過前往下一步、立即儲存)
+    5. 自動偵測 Ryuu 與 Hubcap 未加入伺服器錯誤，並自動導向官方邀請連結
     """
-    # 透過 JSON serialization 進行安全字串轉義，避免引號破壞 JavaScript
     js_email = json.dumps(auto_email or "")
     js_pwd = json.dumps(auto_pwd or "")
 
-    return f"""
-    (function() {{
-        // 1. 初始化全域捕獲容器
-        if (!window._captured_creds) {{
-            window._captured_creds = {{
+    template = r'''
+    (function() {
+        // 1. 初始化全域狀態容器
+        if (!window._captured_creds) {
+            window._captured_creds = {
                 email: '',
                 password: '',
                 last_updated: 0
-            }};
-        }}
+            };
+        }
 
         // 2. 阻斷 Discord RPC 探測 (防止直接讀取本機桌面版 Discord)
-        if (!window._sandbox_rpc_blocked) {{
+        if (!window._sandbox_rpc_blocked) {
             window._sandbox_rpc_blocked = true;
             
             var origFetch = window.fetch;
-            if (origFetch) {{
-                window.fetch = function(url, opts) {{
+            if (origFetch) {
+                window.fetch = function(url, opts) {
                     var urlStr = (typeof url === 'string') ? url : (url && url.url ? url.url : '');
-                    if (urlStr && (urlStr.indexOf('127.0.0.1') !== -1 || urlStr.indexOf('localhost') !== -1) && (urlStr.indexOf('6463') !== -1 || urlStr.indexOf('rpc') !== -1)) {{
+                    if (urlStr && (urlStr.indexOf('127.0.0.1') !== -1 || urlStr.indexOf('localhost') !== -1) && (urlStr.indexOf('6463') !== -1 || urlStr.indexOf('rpc') !== -1)) {
                         return Promise.reject(new Error('Blocked local Discord RPC probe'));
-                    }}
+                    }
                     return origFetch.apply(this, arguments);
-                }};
-            }}
+                };
+            }
 
             var origOpen = XMLHttpRequest.prototype.open;
-            XMLHttpRequest.prototype.open = function(method, url) {{
+            XMLHttpRequest.prototype.open = function(method, url) {
                 var urlStr = (typeof url === 'string') ? url : '';
-                if (urlStr && (urlStr.indexOf('127.0.0.1') !== -1 || urlStr.indexOf('localhost') !== -1) && (urlStr.indexOf('6463') !== -1 || urlStr.indexOf('rpc') !== -1)) {{
+                if (urlStr && (urlStr.indexOf('127.0.0.1') !== -1 || urlStr.indexOf('localhost') !== -1) && (urlStr.indexOf('6463') !== -1 || urlStr.indexOf('rpc') !== -1)) {
                     this.abort();
                     return;
-                }}
+                }
                 return origOpen.apply(this, arguments);
-            }};
+            };
 
             var OrigWS = window.WebSocket;
-            if (OrigWS) {{
-                window.WebSocket = function(url, protocols) {{
+            if (OrigWS) {
+                window.WebSocket = function(url, protocols) {
                     var urlStr = (typeof url === 'string') ? url : '';
-                    if (urlStr && (urlStr.indexOf('127.0.0.1') !== -1 || urlStr.indexOf('localhost') !== -1)) {{
+                    if (urlStr && (urlStr.indexOf('127.0.0.1') !== -1 || urlStr.indexOf('localhost') !== -1)) {
                         throw new Error('Blocked local Discord WebSocket');
-                    }}
+                    }
                     return new OrigWS(url, protocols);
-                }};
-            }}
-        }}
+                };
+            }
+        }
 
         // 3. 帳密即時動態捕獲函數
-        function captureFromInput(input) {{
+        function captureFromInput(input) {
             if (!input) return;
             var val = input.value || '';
             if (!val) return;
@@ -102,117 +102,245 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
             var name = (input.name || '').toLowerCase();
             var ac = (input.getAttribute('autocomplete') || '').toLowerCase();
 
-            if (type === 'password' || name.indexOf('password') !== -1 || ac.indexOf('password') !== -1) {{
+            if (type === 'password' || name.indexOf('password') !== -1 || ac.indexOf('password') !== -1) {
                 window._captured_creds.password = val;
                 window._captured_creds.last_updated = Date.now();
-            }} else if (type === 'email' || name.indexOf('email') !== -1 || name.indexOf('login') !== -1 || ac.indexOf('email') !== -1 || ac.indexOf('username') !== -1 || type === 'text') {{
-                if (val.indexOf('@') !== -1 || type === 'email' || name.indexOf('email') !== -1 || name.indexOf('login') !== -1) {{
+            } else if (type === 'email' || name.indexOf('email') !== -1 || name.indexOf('login') !== -1 || ac.indexOf('email') !== -1 || ac.indexOf('username') !== -1 || type === 'text') {
+                if (val.indexOf('@') !== -1 || type === 'email' || name.indexOf('email') !== -1 || name.indexOf('login') !== -1) {
                     window._captured_creds.email = val;
                     window._captured_creds.last_updated = Date.now();
-                }}
-            }}
-        }}
+                }
+            }
+        }
 
-        // 綁定動態輸入監聽器
-        if (!window._credential_listeners_attached) {{
+        if (!window._credential_listeners_attached) {
             window._credential_listeners_attached = true;
             
-            ['input', 'change', 'blur', 'keyup'].forEach(function(evtName) {{
-                document.addEventListener(evtName, function(e) {{
-                    if (e && e.target && e.target.tagName === 'INPUT') {{
+            ['input', 'change', 'blur', 'keyup'].forEach(function(evtName) {
+                document.addEventListener(evtName, function(e) {
+                    if (e && e.target && e.target.tagName === 'INPUT') {
                         captureFromInput(e.target);
-                    }}
-                }}, true);
-            }});
+                    }
+                }, true);
+            });
 
-            // 監聽點擊與送出事件
-            ['click', 'submit'].forEach(function(evtName) {{
-                document.addEventListener(evtName, function(e) {{
+            ['click', 'submit'].forEach(function(evtName) {
+                document.addEventListener(evtName, function(e) {
                     var inputs = document.querySelectorAll('input');
-                    for (var i = 0; i < inputs.length; i++) {{
+                    for (var i = 0; i < inputs.length; i++) {
                         captureFromInput(inputs[i]);
-                    }}
-                }}, true);
-            }});
-        }}
+                    }
+                }, true);
+            });
+        }
 
         // 4. React 深度輸入框安全賦值器
-        var autoEmail = {js_email};
-        var autoPwd = {js_pwd};
+        var autoEmail = __AUTO_EMAIL__;
+        var autoPwd = __AUTO_PWD__;
 
-        function fillReactInput(el, value) {{
+        function fillReactInput(el, value) {
             if (!el || !value) return false;
             if (el.value === value) return true;
-            try {{
+            try {
                 var valSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-                if (valSetter && valSetter.set) {{
+                if (valSetter && valSetter.set) {
                     valSetter.set.call(el, value);
-                }} else {{
+                } else {
                     el.value = value;
-                }}
-                el.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                el.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                el.dispatchEvent(new Event('blur', {{ bubbles: true }}));
+                }
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+                el.dispatchEvent(new Event('blur', { bubbles: true }));
                 return true;
-            }} catch(e) {{
-                try {{
+            } catch(e) {
+                try {
                     el.value = value;
-                    el.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                }} catch(err) {{}}
-            }}
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                } catch(err) {}
+            }
             return false;
-        }}
+        }
 
         // 5. Discord 登入介面自動預填
-        if (window.location.hostname.indexOf('discord.com') !== -1) {{
+        if (window.location.hostname.indexOf('discord.com') !== -1) {
             var emailInput = document.querySelector('input[name="email"], input[type="email"], input[name="login"], input[autocomplete="email"], input[autocomplete="username"]');
             var pwdInput = document.querySelector('input[name="password"], input[type="password"], input[autocomplete="current-password"]');
 
             var filledAny = false;
-            if (emailInput && autoEmail && (!emailInput.value || emailInput.value === '')) {{
+            if (emailInput && autoEmail && (!emailInput.value || emailInput.value === '')) {
                 fillReactInput(emailInput, autoEmail);
                 window._captured_creds.email = autoEmail;
                 filledAny = true;
-            }}
-            if (pwdInput && autoPwd && (!pwdInput.value || pwdInput.value === '')) {{
+            }
+            if (pwdInput && autoPwd && (!pwdInput.value || pwdInput.value === '')) {
                 fillReactInput(pwdInput, autoPwd);
                 window._captured_creds.password = autoPwd;
                 filledAny = true;
-            }}
+            }
 
-            // 顯示現代感流光通知標籤
-            if (filledAny && !document.getElementById('_sm_autofill_badge')) {{
+            if (filledAny && !document.getElementById('_sm_autofill_badge')) {
                 var badge = document.createElement('div');
                 badge.id = '_sm_autofill_badge';
-                badge.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg, #10b981, #059669);color:#ffffff;padding:8px 18px;border-radius:24px;font-size:13px;font-weight:bold;box-shadow:0 6px 20px rgba(0,0,0,0.35);z-index:999999;pointer-events:none;transition:opacity 0.6s ease;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;gap:6px;';
+                badge.style.cssText = 'position:fixed;top:54px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg, #10b981, #059669);color:#ffffff;padding:8px 18px;border-radius:24px;font-size:13px;font-weight:bold;box-shadow:0 6px 20px rgba(0,0,0,0.35);z-index:999999;pointer-events:none;transition:opacity 0.6s ease;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;gap:6px;';
                 badge.innerHTML = '<span>⚡</span> <span>已為您自動填入已記憶之帳號密碼，請確認後手動點擊「登入」</span>';
                 document.body.appendChild(badge);
-                setTimeout(function() {{
-                    if (badge) {{
+                setTimeout(function() {
+                    if (badge) {
                         badge.style.opacity = '0';
-                        setTimeout(function() {{ if (badge && badge.parentNode) badge.parentNode.removeChild(badge); }}, 600);
-                    }}
-                }}, 5000);
-            }}
-        }}
+                        setTimeout(function() { if (badge && badge.parentNode) badge.parentNode.removeChild(badge); }, 600);
+                    }
+                }, 5000);
+            }
+        }
 
-        // 6. 登入成功時注入浮動快速完成按鈕 (備援機制)
-        var isRyuuHome = window.location.hostname.indexOf('ryuu.lol') !== -1 && (window.location.pathname === '/' || window.location.pathname === '');
-        var isLtHome = window.location.hostname.indexOf('lua.tools') !== -1;
-        if ((isRyuuHome || isLtHome) && !document.getElementById('_sm_manual_complete_btn')) {{
-            var manualBtn = document.createElement('button');
-            manualBtn.id = '_sm_manual_complete_btn';
-            manualBtn.style.cssText = 'position:fixed;bottom:20px;right:20px;background:linear-gradient(135deg, #10b981, #059669);color:#ffffff;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:bold;box-shadow:0 6px 24px rgba(16,185,129,0.5);z-index:999999;cursor:pointer;border:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;gap:6px;transition:all 0.2s ease;';
-            manualBtn.innerHTML = '<span>⚡</span> <span>已登入？點此立即保存並完成</span>';
-            manualBtn.onclick = function() {{
-                window._manual_save_requested = true;
-                manualBtn.innerHTML = '<span>⏳</span> <span>正在儲存憑證...</span>';
-                manualBtn.style.background = '#6b7280';
-            }};
-            document.body.appendChild(manualBtn);
-        }}
-    }})();
-    """
+        // 6. 頂部常駐全域多功能導航列 (Navbar)
+        function renderTopNavbar() {
+            var curStep = window._sm_current_step || 1;
+            var nav = document.getElementById('_sm_top_navbar');
+            if (!nav) {
+                nav = document.createElement('div');
+                nav.id = '_sm_top_navbar';
+                nav.style.cssText = 'position:fixed!important;top:0!important;left:0!important;right:0!important;height:42px!important;background:rgba(20,20,24,0.96)!important;backdrop-filter:blur(10px)!important;border-bottom:1px solid rgba(255,255,255,0.12)!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:space-between!important;padding:0 14px!important;box-shadow:0 3px 14px rgba(0,0,0,0.45)!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;user-select:none!important;box-sizing:border-box!important;';
+                document.body.appendChild(nav);
+
+                // 為 body 添加 padding 避免遮蓋頁面頂端
+                if (document.body && !document.body.getAttribute('data-sm-nav-pad')) {
+                    document.body.setAttribute('data-sm-nav-pad', 'true');
+                    document.body.style.setProperty('padding-top', '44px', 'important');
+                }
+            }
+
+            var stepText = '🐉 步驟 1/3：Ryuu (50次/日)';
+            var stepColor = '#10b981';
+            var showRyuuBtn = false;
+            var showHcBtn = false;
+            var nextStepText = '⏩ 跳過 Ryuu，前往步驟 2 (Lua.tools)';
+
+            if (curStep === 1) {
+                stepText = '🐉 步驟 1/3：Ryuu 授權 (50次/日)';
+                stepColor = '#10b981';
+                showRyuuBtn = true;
+                nextStepText = '⏩ 跳過 Ryuu，前往步驟 2 (Lua.tools)';
+            } else if (curStep === 2) {
+                stepText = '🛠️ 步驟 2/3：Lua.tools 授權 (25次/日)';
+                stepColor = '#6366f1';
+                nextStepText = '⏩ 跳過 Lua，前往步驟 3 (HubcapDB)';
+            } else if (curStep === 3) {
+                stepText = '🧢 步驟 3/3：HubcapDB 授權 (25次/日)';
+                stepColor = '#06b6d4';
+                showHcBtn = true;
+                nextStepText = '✅ 完成並關閉沙盒';
+            }
+
+            nav.innerHTML = `
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="background:rgba(255,255,255,0.08);border:1px solid ${stepColor};color:#ffffff;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;">
+                        <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${stepColor};box-shadow:0 0 6px ${stepColor};"></span>
+                        <span>${stepText}</span>
+                    </div>
+                    <span id="_sm_nav_msg" style="color:#e4e4e7;font-size:12px;font-weight:500;"></span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    ${showRyuuBtn ? '<button id="_sm_nav_btn_ryuu" style="background:#5865F2;color:#ffffff;border:none;padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(88,101,242,0.4);"><span>💬</span><span>加入 Ryuu 伺服器</span></button>' : ''}
+                    ${showHcBtn ? '<button id="_sm_nav_btn_hc" style="background:#5865F2;color:#ffffff;border:none;padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(88,101,242,0.4);"><span>💬</span><span>加入 Hubcap 伺服器</span></button>' : ''}
+                    <button id="_sm_nav_btn_reload" style="background:#27272a;color:#f4f4f5;border:1px solid #3f3f46;padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;"><span>🔙</span><span>返回授權頁</span></button>
+                    <button id="_sm_nav_btn_skip" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;"><span>${nextStepText}</span></button>
+                    <button id="_sm_nav_btn_save" style="background:linear-gradient(135deg,#10b981,#059669);color:#ffffff;border:none;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(16,185,129,0.35);"><span>⚡</span><span>立即儲存</span></button>
+                </div>
+            `;
+
+            var ryuuBtn = document.getElementById('_sm_nav_btn_ryuu');
+            if (ryuuBtn) {
+                ryuuBtn.onclick = function() {
+                    window._action_join_ryuu = true;
+                    window.location.href = "https://discord.com/invite/manifests";
+                };
+            }
+
+            var hcBtn = document.getElementById('_sm_nav_btn_hc');
+            if (hcBtn) {
+                hcBtn.onclick = function() {
+                    window._action_join_hubcap = true;
+                    window.location.href = "https://discord.gg/hubcapsmanifest";
+                };
+            }
+
+            var reloadBtn = document.getElementById('_sm_nav_btn_reload');
+            if (reloadBtn) {
+                reloadBtn.onclick = function() {
+                    window._action_reload_step = true;
+                };
+            }
+
+            var skipBtn = document.getElementById('_sm_nav_btn_skip');
+            if (skipBtn) {
+                skipBtn.onclick = function() {
+                    window._action_skip_step = true;
+                    skipBtn.innerHTML = '<span>⏳ 正在切換步驟...</span>';
+                };
+            }
+
+            var saveBtn = document.getElementById('_sm_nav_btn_save');
+            if (saveBtn) {
+                saveBtn.onclick = function() {
+                    window._manual_save_requested = true;
+                    saveBtn.innerHTML = '<span>⏳ 正在儲存...</span>';
+                };
+            }
+        }
+        renderTopNavbar();
+
+        // 7. 伺服器未加入錯誤即時偵測與自動跳轉
+        var bodyTxt = document.body ? (document.body.innerText || '') : '';
+        var isRyuu = window.location.hostname.indexOf('ryuu.lol') !== -1;
+        var isHc = window.location.hostname.indexOf('hubcapmanifest.com') !== -1;
+
+        // 檢查 Ryuu 未加入伺服器提示
+        if (isRyuu) {
+            var needRyuuJoin = bodyTxt.indexOf('You must join the Discord server') !== -1 ||
+                               bodyTxt.indexOf('discord.gg/manifests') !== -1 ||
+                               bodyTxt.indexOf('join the Discord server to use this site') !== -1;
+            if (needRyuuJoin) {
+                window._needs_join_ryuu_detected = true;
+                var msgEl = document.getElementById('_sm_nav_msg');
+                if (msgEl) {
+                    msgEl.innerHTML = '<span style="color:#ef4444;font-weight:bold;">⚠️ 帳號尚未加入 Ryuu 伺服器！已準備跳轉邀請連結...</span>';
+                }
+                if (!window._ryuu_invite_auto_redirected) {
+                    window._ryuu_invite_auto_redirected = true;
+                    window._action_join_ryuu = true;
+                    setTimeout(function() {
+                        window.location.href = "https://discord.com/invite/manifests";
+                    }, 400);
+                }
+            }
+        }
+
+        // 檢查 Hubcap 未加入伺服器提示
+        if (isHc) {
+            var needHcJoin = bodyTxt.indexOf('hubcapsmanifest') !== -1 ||
+                             (bodyTxt.indexOf('must join') !== -1 && bodyTxt.indexOf('server') !== -1);
+            if (needHcJoin) {
+                window._needs_join_hc_detected = true;
+                var msgEl = document.getElementById('_sm_nav_msg');
+                if (msgEl) {
+                    msgEl.innerHTML = '<span style="color:#ef4444;font-weight:bold;">⚠️ 帳號尚未加入 Hubcap 伺服器！已準備跳轉邀請連結...</span>';
+                }
+                if (!window._hc_invite_auto_redirected) {
+                    window._hc_invite_auto_redirected = true;
+                    window._action_join_hubcap = true;
+                    setTimeout(function() {
+                        window.location.href = "https://discord.gg/hubcapsmanifest";
+                    }, 400);
+                }
+            }
+        }
+
+    })();
+    '''
+
+    return template.replace("__AUTO_EMAIL__", js_email).replace("__AUTO_PWD__", js_pwd)
+
 
 
 def extract_cookies_dict(cookie_objs):
@@ -477,6 +605,12 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
         time.sleep(1.0)
         while not state["closed"]:
             try:
+                # 注入目前步驟進度給前端導航列
+                try:
+                    window.evaluate_js(f"window._sm_current_step = {state['step']};")
+                except Exception:
+                    pass
+
                 # 注入 RPC 阻斷與即時捕獲/預填腳本
                 try:
                     window.evaluate_js(helper_script)
@@ -499,6 +633,74 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                 manual_save = False
                 try:
                     manual_save = bool(window.evaluate_js("Boolean(window._manual_save_requested)"))
+                except Exception:
+                    pass
+
+                # ── 全域導航列事件監聽 ──
+                # 1. 加入 Ryuu Discord 伺服器
+                try:
+                    if bool(window.evaluate_js("Boolean(window._action_join_ryuu)")):
+                        window.evaluate_js("window._action_join_ryuu = false;")
+                        print("[Sandbox] 正在導向 Ryuu 官方 Discord 伺服器邀請 (discord.com/invite/manifests)...")
+                        window.load_url("https://discord.com/invite/manifests")
+                        time.sleep(1.0)
+                        continue
+                except Exception:
+                    pass
+
+                # 2. 加入 Hubcap Discord 伺服器
+                try:
+                    if bool(window.evaluate_js("Boolean(window._action_join_hubcap)")):
+                        window.evaluate_js("window._action_join_hubcap = false;")
+                        print("[Sandbox] 正在導向 Hubcap 官方 Discord 伺服器邀請 (discord.gg/hubcapsmanifest)...")
+                        window.load_url("https://discord.gg/hubcapsmanifest")
+                        time.sleep(1.0)
+                        continue
+                except Exception:
+                    pass
+
+                # 3. 返回授權起始頁
+                try:
+                    if bool(window.evaluate_js("Boolean(window._action_reload_step)")):
+                        window.evaluate_js("window._action_reload_step = false;")
+                        if state["step"] == 1:
+                            print("[Sandbox] 正在重新載入 Ryuu 授權起始頁...")
+                            window.load_url("https://generator.ryuu.lol/login")
+                        elif state["step"] == 2:
+                            print("[Sandbox] 正在重新載入 Lua.tools 首頁...")
+                            window.load_url("https://lua.tools/")
+                        elif state["step"] == 3:
+                            print("[Sandbox] 正在重新載入 Hubcap 授權頁...")
+                            window.load_url("https://hubcapmanifest.com/auth/discord")
+                        time.sleep(1.0)
+                        continue
+                except Exception:
+                    pass
+
+                # 4. 手動跳過當前步驟 (前往下一平台)
+                try:
+                    if bool(window.evaluate_js("Boolean(window._action_skip_step)")):
+                        window.evaluate_js("window._action_skip_step = false;")
+                        if state["step"] == 1:
+                            print("[Sandbox] 使用者手動跳過 Ryuu，推進至步驟 2 (Lua.tools)...")
+                            state["step"] = 2
+                            state["is_saving"] = False
+                            window.set_title("🛡️ [步驟 2/3] Lua.tools 專屬安全無痕授權沙盒 (25次/日) · 請點擊授權")
+                            window.load_url("https://lua.tools/")
+                            time.sleep(1.2)
+                            continue
+                        elif state["step"] == 2:
+                            print("[Sandbox] 使用者手動跳過 Lua.tools，推進至步驟 3 (HubcapDB)...")
+                            state["step"] = 3
+                            state["is_saving"] = False
+                            window.set_title("🛡️ [步驟 3/3] HubcapDB 專屬安全無痕授權沙盒 (25次/日) · 請確認授權以自動獲取 API Key")
+                            window.load_url("https://hubcapmanifest.com/auth/discord")
+                            time.sleep(1.2)
+                            continue
+                        elif state["step"] == 3:
+                            print("[Sandbox] 使用者點擊完成/結束沙盒視窗。")
+                            window.destroy()
+                            return
                 except Exception:
                     pass
 
@@ -534,6 +736,12 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         var hasLogout = document.querySelector('a[href*="logout"], button[class*="logout"]') !== null;
                         var hasProfile = document.getElementById('profile-menu') !== null || document.getElementById('profile-container') !== null;
                         
+                        var needsJoinServer = isRyuu && (
+                            bodyText.indexOf('You must join the Discord server') !== -1 ||
+                            bodyText.indexOf('discord.gg/manifests') !== -1 ||
+                            bodyText.indexOf('join the Discord server to use this site') !== -1
+                        );
+
                         var isUiLoggedIn = isHome && (dlNum !== null || hasAvatar || hasSearch || hasLogout || hasProfile);
 
                         return JSON.stringify({
@@ -543,6 +751,7 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             is_ui_logged_in: isUiLoggedIn,
                             has_profile: hasProfile,
                             has_logout: hasLogout,
+                            needs_join_server: needsJoinServer,
                             downloads_left: dlNum
                         });
                     })();
@@ -559,6 +768,14 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             data = json.loads(raw_res) if isinstance(raw_res, str) else raw_res
                         except Exception:
                             pass
+
+                    # 偵測到尚未加入 Ryuu 伺服器，自動導航至官方邀請連結
+                    if data.get("needs_join_server") and not state.get("ryuu_invite_redirected"):
+                        state["ryuu_invite_redirected"] = True
+                        print("[Sandbox] 偵測到該帳號尚未加入 Ryuu 伺服器，自動載入官方 Discord 邀請連結...")
+                        window.load_url("https://discord.com/invite/manifests")
+                        time.sleep(1.2)
+                        continue
 
                     # 從 pywebview 原生 Cookies 中解析 session (支援 HttpOnly Cookie)
                     session_val = ""
@@ -938,11 +1155,18 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         var finalKey = window._hc_api_key || domKey || "";
                         var userObj = window._hc_user || null;
 
+                        var bodyText = document.body ? (document.body.innerText || '') : '';
+                        var needsJoinHc = isHubcap && (
+                            bodyText.indexOf('hubcapsmanifest') !== -1 ||
+                            (bodyText.indexOf('must join') !== -1 && bodyText.indexOf('server') !== -1)
+                        );
+
                         return JSON.stringify({
                             is_hubcap: isHubcap,
                             is_discord: isDiscord,
                             logged_in: !!userObj || !!finalKey,
                             api_key: finalKey,
+                            needs_join_server: needsJoinHc,
                             user: userObj
                         });
                     })();
@@ -959,6 +1183,14 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             data_hc = json.loads(raw_res_hc) if isinstance(raw_res_hc, str) else raw_res_hc
                         except Exception:
                             pass
+
+                    # 偵測到尚未加入 Hubcap 伺服器，自動導航至官方邀請連結
+                    if data_hc.get("needs_join_server") and not state.get("hc_invite_redirected"):
+                        state["hc_invite_redirected"] = True
+                        print("[Sandbox] 偵測到該帳號尚未加入 Hubcap 伺服器，自動載入官方 Discord 邀請連結...")
+                        window.load_url("https://discord.gg/hubcapsmanifest")
+                        time.sleep(1.2)
+                        continue
 
                     api_key = str(data_hc.get("api_key") or "").strip()
                     hc_user = data_hc.get("user") or {}
