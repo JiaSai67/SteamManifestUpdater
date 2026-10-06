@@ -20,6 +20,7 @@ import concurrent.futures
 from managers import config_manager
 from managers import steam_manager
 from managers import unified_manifest_manager
+from managers import name_resolver
 
 class SearchHandler:
     def search(self, q: str) -> List[Dict[str, Any]]:

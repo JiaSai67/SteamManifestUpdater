@@ -508,12 +508,12 @@ class CredentialsHandler:
         """
         try:
             import subprocess
-            runner_script = Path(__file__).parent / "ui" / "sandbox_login_runner.py"
+            runner_script = Path(__file__).parent.parent / "ui" / "sandbox_login_runner.py"
             if runner_script.exists():
                 plat = "lua_tools" if "lua" in platform.lower() else "ryuu"
                 subprocess.Popen(
                     [sys.executable, str(runner_script), "--platform", plat],
-                    cwd=str(Path(__file__).parent.parent),
+                    cwd=str(Path(__file__).parent.parent.parent),
                     creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
                 )
                 return {"ok": True, "msg": f"已啟動 {platform.upper()} 專屬安全沙盒登入視窗！"}
@@ -529,11 +529,11 @@ class CredentialsHandler:
         """
         try:
             import subprocess
-            runner_script = Path(__file__).parent / "ui" / "sandbox_login_runner.py"
+            runner_script = Path(__file__).parent.parent / "ui" / "sandbox_login_runner.py"
             if runner_script.exists():
                 subprocess.Popen(
                     [sys.executable, str(runner_script), "--platform", "all"],
-                    cwd=str(Path(__file__).parent.parent),
+                    cwd=str(Path(__file__).parent.parent.parent),
                     creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
                 )
                 return {"ok": True, "msg": "已啟動雙平台連貫安全沙盒登入視窗！"}
@@ -589,14 +589,14 @@ class CredentialsHandler:
         """
         try:
             import subprocess
-            runner_script = Path(__file__).parent / "ui" / "sandbox_login_runner.py"
+            runner_script = Path(__file__).parent.parent / "ui" / "sandbox_login_runner.py"
             if runner_script.exists():
                 cmd = [sys.executable, str(runner_script), "--platform", "hubcap"]
                 if target_account_id:
                     cmd.extend(["--account-id", str(target_account_id)])
                 subprocess.Popen(
                     cmd,
-                    cwd=str(Path(__file__).parent.parent),
+                    cwd=str(Path(__file__).parent.parent.parent),
                     creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
                 )
                 return {"ok": True, "msg": "已啟動 HubcapDB 專屬無痕沙盒登入視窗！"}
@@ -610,7 +610,7 @@ class CredentialsHandler:
         """
         try:
             import subprocess
-            runner_script = Path(__file__).parent / "ui" / "sandbox_login_runner.py"
+            runner_script = Path(__file__).parent.parent / "ui" / "sandbox_login_runner.py"
             if runner_script.exists():
                 p_lower = str(platform or "").lower()
                 if "hubcap" in p_lower:
@@ -621,7 +621,7 @@ class CredentialsHandler:
                     plat = "ryuu"
                 subprocess.Popen(
                     [sys.executable, str(runner_script), "--platform", plat, "--account-id", str(account_id)],
-                    cwd=str(Path(__file__).parent.parent),
+                    cwd=str(Path(__file__).parent.parent.parent),
                     creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
                 )
                 return {"ok": True, "msg": "已開啟該帳號專屬重登視窗，請在完成授權後返回！"}
@@ -753,7 +753,7 @@ class CredentialsHandler:
         try:
             import webbrowser
             from pathlib import Path
-            guide_file = Path(__file__).resolve().parent / "gui" / "gas_guide.html"
+            guide_file = Path(__file__).resolve().parent.parent / "gui" / "gas_guide.html"
             if guide_file.exists():
                 webbrowser.open(guide_file.as_uri())
                 return {"ok": True}
@@ -806,7 +806,7 @@ class CredentialsHandler:
                 chrome_path = shutil.which("chrome") or shutil.which("google-chrome")
 
             # 3. 定位擴充套件資料夾 (絕對路徑)
-            ext_dir = Path(__file__).resolve().parent / "browser_extension"
+            ext_dir = Path(__file__).resolve().parent.parent / "browser_extension"
             target_url = "https://script.google.com/home"
 
             # 4. 準備剪貼簿：若 Chrome 已在運行，預先複製高亮腳本方便 F12 Console 一鍵貼上；若非運行則複製 GAS 腳本
@@ -855,7 +855,7 @@ class CredentialsHandler:
         try:
             import os
             from pathlib import Path
-            ext_dir = Path(__file__).resolve().parent / "browser_extension"
+            ext_dir = Path(__file__).resolve().parent.parent / "browser_extension"
             if ext_dir.exists():
                 os.startfile(str(ext_dir.resolve()))
                 return {"ok": True, "path": str(ext_dir.resolve())}

@@ -85,4 +85,6 @@
 .app.has-bg .tool-card{background:rgba(255,255,255,.45)}
 .app.has-bg .about-card{background:rgba(255,255,255,.45)}
 .app.has-bg .titlebar{background:transparent;}
-.app.has-bg .pages{text-shadow:0 0 2px rgba(255,255,255,.6)}
+.app.has-bg:not(.dark) .pages{text-shadow:0 0 2px rgba(255,255,255,.6)}
+.app.dark.has-bg .pages{text-shadow:none !important}
+

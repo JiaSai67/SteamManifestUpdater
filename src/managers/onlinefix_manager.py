@@ -5,6 +5,9 @@ from pathlib import Path
 import json
 import sys
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 from managers import config_manager
 _config = config_manager.get_config()

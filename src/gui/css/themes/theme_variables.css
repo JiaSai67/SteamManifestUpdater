@@ -1,17 +1,18 @@
 :root {
   --bg:#FFFFFF;
-  --fg:#3D2C2E;
+  --fg:#1A1A1A;
   --pink:#FFB7C5;
   --pink-deep:#FF8FA7;
   --pink-light:#FFD1DC;
   --pink-pale:#FFF0F3;
   --white:#FFF;
-  --dark:#3D2C2E;
-  --gray:#9B8E8F;
+  --dark:#1A1A1A;
+  --gray:#222222;
   --err:#FF6B6B;
   --succ:#6ECB63;
   --card:rgba(255,255,255,0.15);
   --border:rgba(240,224,227,0.6);
+  --card-text-bg:rgba(255,255,255,0.75);
   --font:'Microsoft YaHei',sans-serif;
   --r:12px;
   --rs:8px}

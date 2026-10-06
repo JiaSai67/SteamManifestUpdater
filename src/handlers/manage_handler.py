@@ -9,6 +9,7 @@ import re
 import json
 import time
 import shutil
+import stat
 import urllib.request
 import urllib.parse
 import subprocess
@@ -20,6 +21,8 @@ import concurrent.futures
 from managers import config_manager
 from managers import steam_manager
 from managers import unified_manifest_manager
+from managers import onlinefix_manager
+from managers import version_resolver
 
 class ManageHandler:
     def get_updatable_games(self) -> List[Dict[str, Any]]:
@@ -114,7 +117,7 @@ class ManageHandler:
                 pass
 
             # 讀取遊戲快取（優先載入倉庫內建快取，確保初次抓取 0 延遲秒開）
-            builtin_cache_file = Path(__file__).parent / "resources" / "builtin_game_cache.json"
+            builtin_cache_file = Path(__file__).parent.parent / "resources" / "builtin_game_cache.json"
             cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
             game_cache = {}
             cache_dirty = False
@@ -286,7 +289,7 @@ class ManageHandler:
             return {"ok": True, "count": 0, "games": []}
 
         # 1. 載入當前快取（內建快取 + data/game_cache.json）
-        builtin_cache_file = Path(__file__).parent / "resources" / "builtin_game_cache.json"
+        builtin_cache_file = Path(__file__).parent.parent / "resources" / "builtin_game_cache.json"
         cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
         game_cache = {}
         if builtin_cache_file.exists():

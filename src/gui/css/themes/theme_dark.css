@@ -8,6 +8,7 @@ html.dark, html.dark body, body.dark, .app.dark {
   --text-muted: #D1C5C9;
   --gray: #C8BDC1;
   --border: rgba(255, 183, 197, 0.25);
+  --card-text-bg: rgba(0, 0, 0, 0.65);
   background: linear-gradient(135deg, #231C1E 0%, #2A2124 35%, #1E1719 70%, #251D20 100%) !important;
   color: #F8F9FA !important;
 }
@@ -19,15 +20,75 @@ html.dark .splash-overlay {
   background: linear-gradient(135deg, #231C1E 0%, #2A2124 35%, #1E1719 70%, #251D20 100%) !important;
 }
 
-/* 深色模式全局標題與數量標籤高對比度規範 */
-.app.dark h1, .app.dark h2, .app.dark h3, .app.dark h4,
+/* 🌟 深色模式全局標題與數量標籤高對比白字規範 */
 html.dark h1, html.dark h2, html.dark h3, html.dark h4,
-body.dark h1, body.dark h2, body.dark h3, body.dark h4 {
+body.dark h1, body.dark h2, body.dark h3, body.dark h4,
+.app.dark h1, .app.dark h2, .app.dark h3, .app.dark h4 {
   color: #FFFFFF !important;
   font-weight: 700 !important;
 }
-.app.dark #mc, html.dark #mc, body.dark #mc {
+
+/* 🌟 深色模式設定頁分區標題、開關標題、滑桿標題全面純白 */
+html.dark .section, body.dark .section, .app.dark .section,
+html.dark .toggle .l, body.dark .toggle .l, .app.dark .toggle .l,
+html.dark .setting-slider-header .l, body.dark .setting-slider-header .l, .app.dark .setting-slider-header .l {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+}
+
+/* 🌟 深色模式說明小字與滑桿括號提示全面亮白 */
+html.dark small, body.dark small, .app.dark small,
+html.dark .pref-desc, body.dark .pref-desc, .app.dark .pref-desc,
+html.dark .setting-slider-header small, body.dark .setting-slider-header small, .app.dark .setting-slider-header small,
+html.dark .toggle small, body.dark .toggle small, .app.dark .toggle small {
   color: #E2D7DA !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+}
+
+/* 🌟 深色模式桌布選擇區標籤全面純白 */
+html.dark #bg-g > div, body.dark #bg-g > div, .app.dark #bg-g > div {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+}
+
+/* 🌟 深色模式提示條與數量標籤高對比純白 */
+html.dark #mc, body.dark #mc, .app.dark #mc,
+html.dark #browse-info, body.dark #browse-info, .app.dark #browse-info {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+}
+
+/* 🌟 深色模式小卡與列表卡片高對比亮白規範 */
+html.dark .card:not(.needs-update) .name,
+body.dark .card:not(.needs-update) .name,
+.app.dark .card:not(.needs-update) .name {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+html.dark .card:not(.needs-update) .aid,
+html.dark .card:not(.needs-update) .aid-num,
+body.dark .card:not(.needs-update) .aid,
+body.dark .card:not(.needs-update) .aid-num,
+.app.dark .card:not(.needs-update) .aid,
+.app.dark .card:not(.needs-update) .aid-num {
+  color: #E6DEE0 !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+
+/* 🌟 深色模式列表模式卡片 */
+html.dark #glist.list .card:not(.needs-update) .name,
+body.dark #glist.list .card:not(.needs-update) .name,
+.app.dark #glist.list .card:not(.needs-update) .name {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+}
+html.dark #glist.list .card:not(.needs-update) .aid,
+body.dark #glist.list .card:not(.needs-update) .aid,
+.app.dark #glist.list .card:not(.needs-update) .aid {
+  color: #E6DEE0 !important;
   font-weight: 600 !important;
 }
 
@@ -159,6 +220,41 @@ html.dark .modal .btn-o:hover, html.dark .modal-box .btn-o:hover,
 .app.dark .empty{color:#C2B8BC}
 .app.dark .card .aid{color:#E6DEE0}
 .app.dark .link{color:var(--pink-deep)}
+
+/* 🌟 深色模式遊戲小卡標題文字純白規範 (消除黑色文字與模糊白光暈) */
+html.dark .card:not(.needs-update) .name,
+body.dark .card:not(.needs-update) .name,
+.app.dark .card:not(.needs-update) .name,
+.app.dark.has-bg .card:not(.needs-update) .name,
+html.dark #glist .card:not(.needs-update) .name,
+body.dark #glist .card:not(.needs-update) .name,
+.app.dark #glist .card:not(.needs-update) .name,
+.app.dark.has-bg #glist .card:not(.needs-update) .name,
+html.dark #results .card:not(.needs-update) .name,
+body.dark #results .card:not(.needs-update) .name,
+.app.dark #results .card:not(.needs-update) .name,
+.app.dark.has-bg #results .card:not(.needs-update) .name,
+body.font-normal .app.dark #glist .card:not(.needs-update) .name,
+body.font-normal .app.dark #results .card:not(.needs-update) .name {
+  color: #FFFFFF !important;
+  text-shadow: none !important;
+}
+
+/* 消除深色模式下遊戲小卡所有文字的白光暈，確保文字清爽銳利 */
+html.dark .card:not(.needs-update),
+html.dark .card:not(.needs-update) *,
+body.dark .card:not(.needs-update),
+body.dark .card:not(.needs-update) *,
+.app.dark .card:not(.needs-update),
+.app.dark .card:not(.needs-update) *,
+.app.dark.has-bg .card:not(.needs-update),
+.app.dark.has-bg .card:not(.needs-update) * {
+  text-shadow: none !important;
+}
+
+.app.dark.has-bg .pages {
+  text-shadow: none !important;
+}
 /* 深色+毛玻璃叠加 */
 .app.dark.has-bg .sidebar{background:transparent!important}
 .app.dark.has-bg .card{background:rgba(20,15,17,.15)}

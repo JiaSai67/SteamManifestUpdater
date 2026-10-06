@@ -39,6 +39,13 @@
 }
 .card .info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px;text-align:left}
 .card .name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.app.dark .card:not(.needs-update) .name,
+.app.dark.has-bg .card:not(.needs-update) .name,
+html.dark .card:not(.needs-update) .name,
+body.dark .card:not(.needs-update) .name {
+  color: #FFFFFF !important;
+  text-shadow: none !important;
+}
 .card .info .aid{font-size:11px!important;color:var(--gray,#888)!important;margin:0!important;background:transparent!important;border-radius:0!important;min-height:auto!important;padding:0!important;display:inline-block!important;text-align:left!important;letter-spacing:0.2px!important;font-variant-numeric:tabular-nums!important}
 .card .ver-info{font-size:10px;color:var(--pink-deep);margin:0 6px 3px;cursor:default;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
@@ -556,23 +563,6 @@ body.font-normal .titlebar .tt {
   font-size: 12.5px !important;
 }
 
-/* 正常模式：遊戲卡片（管理頁 & 首頁網格 & 清單） */
-body.font-normal #glist .card .name,
-body.font-normal #results.browse-grid .card .name {
-  font-size: 13.5px !important;
-  padding: 8px 10px 4px !important;
-}
-body.font-normal #glist .card .aid,
-body.font-normal #results.browse-grid .card .aid {
-  font-size: 12px !important;
-  padding: 3px 10px 8px !important;
-}
-body.font-normal #glist.list .card .name {
-  font-size: 15px !important;
-}
-body.font-normal #glist.list .card .aid {
-  font-size: 12.5px !important;
-}
 body.font-normal .card .ver-info,
 body.font-normal .card .link {
   font-size: 12px !important;

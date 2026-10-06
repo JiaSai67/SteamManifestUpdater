@@ -282,12 +282,14 @@ async function init(){
     if(tDark) tDark.checked = isDark;
     if(isDark){
       document.documentElement.classList.add('dark');
+      if(document.body) document.body.classList.add('dark');
       document.getElementById('app').classList.add('dark');
       var spOver = document.getElementById('splash-overlay');
       if(spOver) spOver.classList.add('dark');
       try { localStorage.setItem('dark_mode', '1'); } catch(e){}
     } else {
       document.documentElement.classList.remove('dark');
+      if(document.body) document.body.classList.remove('dark');
       document.getElementById('app').classList.remove('dark');
       var spOver = document.getElementById('splash-overlay');
       if(spOver) spOver.classList.remove('dark');

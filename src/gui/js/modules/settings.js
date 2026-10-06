@@ -191,11 +191,13 @@ async function ts(key){
       app.classList.add('dark');
       if(spOver) spOver.classList.add('dark');
       document.documentElement.classList.add('dark');
+      if(document.body) document.body.classList.add('dark');
       try { localStorage.setItem('dark_mode', '1'); } catch(e){}
     } else {
       app.classList.remove('dark');
       if(spOver) spOver.classList.remove('dark');
       document.documentElement.classList.remove('dark');
+      if(document.body) document.body.classList.remove('dark');
       try { localStorage.removeItem('dark_mode'); } catch(e){}
     }
     if(typeof updateCardTextBg === 'function') updateCardTextBg();

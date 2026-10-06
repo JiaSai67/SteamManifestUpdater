@@ -5,6 +5,7 @@ PartyManager - SMU 官方無伺服器組隊大廳與聯機同步管理器
 
 import json
 import os
+import re
 import time
 import uuid
 import logging

@@ -278,3 +278,87 @@
   filter: none !important;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   🌟 淺色模式全局高對比深黑字規範（全面消除發灰、發白、難辨識問題）
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* 1. 全局標題、視圖大字、設定標題與開關列 (僅在淺色模式生效) */
+html:not(.dark) h1,
+html:not(.dark) h2,
+html:not(.dark) h3,
+html:not(.dark) h4 {
+  color: #1A1A1A !important;
+  font-weight: 700 !important;
+}
+html:not(.dark) .section,
+html:not(.dark) .toggle .l,
+html:not(.dark) .setting-slider-header .l {
+  color: #1A1A1A !important;
+  font-weight: 700 !important;
+}
+
+/* 2. 首頁搜尋與瀏覽提示條（淺色模式黑字） */
+html:not(.dark) #browse-info {
+  color: #1A1A1A !important;
+  font-weight: 700 !important;
+}
+
+/* 3. 管理入庫遊戲數量標籤（淺色模式黑字） */
+html:not(.dark) #mc {
+  color: #1A1A1A !important;
+  font-weight: 700 !important;
+}
+
+/* 4. 遊戲卡片名稱與底部 AppID（淺色模式黑字） */
+html:not(.dark) .card:not(.needs-update) .name {
+  color: #1A1A1A !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+html:not(.dark) .card:not(.needs-update) .aid,
+html:not(.dark) .card:not(.needs-update) .aid-num,
+html:not(.dark) #glist .card:not(.needs-update) .aid,
+html:not(.dark) #glist .card:not(.needs-update) .aid-num,
+html:not(.dark) #results.browse-grid .card:not(.needs-update) .aid,
+html:not(.dark) #results.browse-grid .card:not(.needs-update) .aid-num {
+  color: #1A1A1A !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+
+/* 管理頁列表視圖下的遊戲卡片項目 (淺色模式黑字) */
+html:not(.dark) #glist.list .card:not(.needs-update) .name {
+  color: #1A1A1A !important;
+  font-weight: 700 !important;
+}
+html:not(.dark) #glist.list .card:not(.needs-update) .aid {
+  color: #1A1A1A !important;
+  font-weight: 600 !important;
+}
+
+/* 5. 設定頁滑桿與開關說明文字 (淺色模式黑字) */
+html:not(.dark) small,
+html:not(.dark) .pref-desc,
+html:not(.dark) .setting-slider-header small,
+html:not(.dark) .toggle small {
+  color: #1A1A1A !important;
+  font-weight: 600 !important;
+  opacity: 0.95 !important;
+}
+
+/* 6. 桌布選擇區文字標籤 (淺色模式黑字) */
+html:not(.dark) #bg-g > div {
+  color: #1A1A1A !important;
+  font-weight: 700 !important;
+}
+
+/* 7. 其他頁面次要提示與表格說明黑字化 (淺色模式黑字) */
+html:not(.dark) .empty,
+html:not(.dark) .empty p,
+html:not(.dark) .about-card p,
+html:not(.dark) .tool-block .tb-desc,
+html:not(.dark) .of-desc {
+  color: #1A1A1A !important;
+}
+
+

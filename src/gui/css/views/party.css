@@ -1292,15 +1292,19 @@ body.party-mode .pages,
   position: relative;
 }
 
-/* 左側 MOBA 垂直側欄 (頂天立地，完全貼齊左邊界，自帶向右漸變流光過渡) */
+/* ══════════════════════════════════════════════════════════════════════
+   🌸 左側 MOBA 垂直側欄：淺色模式櫻花粉色系 vs 深色模式曜石星海藍
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. 淺色模式基礎樣式 (粉色櫻花風格) ── */
 .party-moba-sidebar {
   width: 98px;
   min-width: 98px;
   height: 100% !important;
   flex-shrink: 0;
-  background: linear-gradient(180deg, rgba(16, 26, 44, 0.98) 0%, rgba(10, 16, 28, 0.99) 100%);
-  border-right: 1px solid rgba(77, 166, 255, 0.2);
-  box-shadow: 6px 0 25px -4px rgba(5, 12, 24, 0.75), 2px 0 10px rgba(30, 115, 232, 0.2);
+  background: linear-gradient(180deg, rgba(255, 238, 243, 0.96) 0%, rgba(255, 226, 234, 0.98) 100%);
+  border-right: 1.5px solid rgba(255, 143, 167, 0.35);
+  box-shadow: 6px 0 24px -4px rgba(255, 143, 167, 0.22), 2px 0 8px rgba(255, 183, 197, 0.18);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1313,7 +1317,14 @@ body.party-mode .pages,
   box-sizing: border-box;
 }
 
-/* 🌟 邊條右側流光漸變光幕：向右側顯示區域柔和暈染，消除側欄與主視圖的突兀斷層 */
+/* 淺色模式 + 自訂桌布背景：櫻花粉毛玻璃通透感 */
+.app.has-bg .party-moba-sidebar:not(.dark) {
+  background: linear-gradient(180deg, rgba(255, 240, 244, 0.88) 0%, rgba(255, 228, 235, 0.92) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* 🌟 邊條右側櫻花粉流光漸變光幕：向右側顯示區域柔和暈染延伸，消除斷層 */
 .party-moba-sidebar::after {
   content: '';
   position: absolute;
@@ -1322,11 +1333,11 @@ body.party-mode .pages,
   bottom: 0;
   width: 24px;
   pointer-events: none;
-  background: linear-gradient(90deg, rgba(30, 115, 232, 0.14) 0%, rgba(30, 115, 232, 0.04) 55%, transparent 100%);
+  background: linear-gradient(90deg, rgba(255, 143, 167, 0.22) 0%, rgba(255, 183, 197, 0.08) 55%, transparent 100%);
   z-index: 9;
 }
 
-/* 頂部返回箭頭 (如圖一頂部圖標) */
+/* 頂部返回箭頭 (淺色櫻花粉) */
 .moba-sidebar-back-wrap {
   width: 38px;
   height: 38px;
@@ -1334,23 +1345,23 @@ body.party-mode .pages,
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #8EB7ED;
+  color: #D81B60;
   margin-bottom: 12px;
   border-radius: 10px;
   transition: all 0.2s ease;
 }
 .moba-sidebar-back-wrap:hover {
-  color: #FFFFFF;
-  background: rgba(80, 140, 230, 0.15);
+  color: #C2185B;
+  background: rgba(255, 143, 167, 0.2);
   transform: scale(1.08);
 }
 .moba-back-arrow-svg {
   width: 24px;
   height: 24px;
-  filter: drop-shadow(0 0 6px rgba(80, 140, 230, 0.5));
+  filter: drop-shadow(0 0 6px rgba(255, 143, 167, 0.45));
 }
 
-/* 側欄標籤項 (如圖一：隊伍大廳、招募隊友) */
+/* 側欄標籤項 (如：隊伍大廳、我的房間) */
 .moba-tab-item {
   width: 100%;
   height: 70px;
@@ -1360,7 +1371,7 @@ body.party-mode .pages,
   justify-content: center;
   cursor: pointer;
   position: relative;
-  color: rgba(180, 205, 240, 0.65);
+  color: #5D4046;
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 0.5px;
@@ -1370,17 +1381,17 @@ body.party-mode .pages,
 }
 
 .moba-tab-item:hover:not(.active) {
-  color: #FFFFFF;
-  background: rgba(80, 140, 230, 0.08);
+  color: #D81B60;
+  background: rgba(255, 143, 167, 0.12);
 }
 
-/* 🌟 圖一核心選中特效：科技藍星海流光底色 + 內發光 */
+/* 🌟 淺色櫻花核心選中特效：櫻花粉流光底色 + 內發光 + 高對比深桃粉 */
 .moba-tab-item.active {
-  color: #FFFFFF !important;
-  border-left-color: #4DA6FF;
-  background: linear-gradient(90deg, rgba(30, 115, 232, 0.45) 0%, rgba(66, 165, 245, 0.18) 75%, transparent 100%);
-  box-shadow: inset 0 0 20px rgba(45, 140, 255, 0.3);
-  text-shadow: 0 0 8px rgba(88, 166, 255, 0.7);
+  color: #C2185B !important;
+  border-left-color: #FF4081;
+  background: linear-gradient(90deg, rgba(255, 143, 167, 0.38) 0%, rgba(255, 183, 197, 0.18) 75%, transparent 100%);
+  box-shadow: inset 0 0 16px rgba(255, 143, 167, 0.25);
+  text-shadow: 0 0 6px rgba(255, 143, 167, 0.35);
 }
 
 .moba-tab-icon {
@@ -1419,7 +1430,7 @@ body.party-mode .pages,
   animation: pulse-green 2s infinite;
 }
 
-/* 側欄中間收折箭頭按鈕 (圖一中間的小圓圈 < ) */
+/* 側欄中間收折箭頭按鈕 (淺色白底櫻花粉) */
 .moba-sidebar-collapse-btn {
   position: absolute;
   right: -12px;
@@ -1428,23 +1439,93 @@ body.party-mode .pages,
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #182236;
-  border: 1.5px solid #3F5B85;
-  color: #9EC0E8;
+  background: #FFFFFF;
+  border: 1.5px solid #FF8FA7;
+  color: #D81B60;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
   cursor: pointer;
   z-index: 30;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 10px rgba(255, 143, 167, 0.35);
   transition: all 0.2s ease;
 }
 .moba-sidebar-collapse-btn:hover {
-  background: #22324E;
-  color: #FFFFFF;
-  border-color: #58A6FF;
+  background: #FFF0F3;
+  color: #C2185B;
+  border-color: #FF4081;
   transform: translateY(-50%) scale(1.12);
+}
+
+/* ── 2. 深色模式專屬樣式覆蓋 (沉浸式曜石星海深藍) ── */
+.app.dark .party-moba-sidebar,
+html.dark .party-moba-sidebar,
+body.dark .party-moba-sidebar {
+  background: linear-gradient(180deg, rgba(16, 26, 44, 0.98) 0%, rgba(10, 16, 28, 0.99) 100%) !important;
+  border-right: 1px solid rgba(77, 166, 255, 0.2) !important;
+  box-shadow: 6px 0 25px -4px rgba(5, 12, 24, 0.75), 2px 0 10px rgba(30, 115, 232, 0.2) !important;
+}
+
+.app.dark .party-moba-sidebar::after,
+html.dark .party-moba-sidebar::after,
+body.dark .party-moba-sidebar::after {
+  background: linear-gradient(90deg, rgba(30, 115, 232, 0.14) 0%, rgba(30, 115, 232, 0.04) 55%, transparent 100%) !important;
+}
+
+.app.dark .moba-sidebar-back-wrap,
+html.dark .moba-sidebar-back-wrap,
+body.dark .moba-sidebar-back-wrap {
+  color: #8EB7ED !important;
+}
+.app.dark .moba-sidebar-back-wrap:hover,
+html.dark .moba-sidebar-back-wrap:hover,
+body.dark .moba-sidebar-back-wrap:hover {
+  color: #FFFFFF !important;
+  background: rgba(80, 140, 230, 0.15) !important;
+}
+.app.dark .moba-back-arrow-svg,
+html.dark .moba-back-arrow-svg,
+body.dark .moba-back-arrow-svg {
+  filter: drop-shadow(0 0 6px rgba(80, 140, 230, 0.5)) !important;
+}
+
+.app.dark .moba-tab-item,
+html.dark .moba-tab-item,
+body.dark .moba-tab-item {
+  color: rgba(180, 205, 240, 0.65) !important;
+}
+.app.dark .moba-tab-item:hover:not(.active),
+html.dark .moba-tab-item:hover:not(.active),
+body.dark .moba-tab-item:hover:not(.active) {
+  color: #FFFFFF !important;
+  background: rgba(80, 140, 230, 0.08) !important;
+}
+
+.app.dark .moba-tab-item.active,
+html.dark .moba-tab-item.active,
+body.dark .moba-tab-item.active {
+  color: #FFFFFF !important;
+  border-left-color: #4DA6FF !important;
+  background: linear-gradient(90deg, rgba(30, 115, 232, 0.45) 0%, rgba(66, 165, 245, 0.18) 75%, transparent 100%) !important;
+  box-shadow: inset 0 0 20px rgba(45, 140, 255, 0.3) !important;
+  text-shadow: 0 0 8px rgba(88, 166, 255, 0.7) !important;
+}
+
+.app.dark .moba-sidebar-collapse-btn,
+html.dark .moba-sidebar-collapse-btn,
+body.dark .moba-sidebar-collapse-btn {
+  background: #182236 !important;
+  border: 1.5px solid #3F5B85 !important;
+  color: #9EC0E8 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5) !important;
+}
+.app.dark .moba-sidebar-collapse-btn:hover,
+html.dark .moba-sidebar-collapse-btn:hover,
+body.dark .moba-sidebar-collapse-btn:hover {
+  background: #22324E !important;
+  color: #FFFFFF !important;
+  border-color: #58A6FF !important;
 }
 
 /* 🌟 右上角專屬電競紅色「創建房間 / 招募隊友」按鈕 (高飽和度熱血紅，醒目質感) */
@@ -1573,6 +1654,46 @@ body.party-mode .pages,
   overflow: hidden !important;
   gap: 8px;
   position: relative;
+  /* 🌟 淺色模式右側主視圖：與左側同源的柔美櫻花粉漸變延伸底色，自然融合無割裂斷層 */
+  background: radial-gradient(circle at 6% 20%, rgba(255, 236, 241, 0.94) 0%, rgba(255, 242, 246, 0.82) 45%, rgba(255, 248, 250, 0.72) 100%);
+}
+
+/* 淺色模式 + 自訂桌布背景：維持櫻花粉透光毛玻璃半透明質感，與側欄完美呼應延伸 */
+.app.has-bg .party-moba-viewport:not(.dark) {
+  background: radial-gradient(circle at 6% 20%, rgba(255, 236, 241, 0.75) 0%, rgba(255, 242, 246, 0.60) 45%, rgba(255, 248, 250, 0.45) 100%) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+}
+
+/* 頂部個人狀態橫幅：淺色模式下透光白櫻花粉玻璃質感 */
+.party-moba-viewport .party-header-bar {
+  flex-shrink: 0 !important;
+  margin-bottom: 0 !important;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1.5px solid rgba(255, 183, 197, 0.55);
+  box-shadow: 0 4px 18px rgba(255, 143, 167, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+/* 搜尋與快速加入列淺色模式櫻花適配 */
+.party-moba-viewport .party-search-wrap input,
+.party-moba-viewport .party-quick-join-wrap input {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1.5px solid rgba(255, 183, 197, 0.6);
+  color: #1A1A1A;
+}
+.party-moba-viewport .party-search-wrap input:focus,
+.party-moba-viewport .party-quick-join-wrap input:focus {
+  border-color: #FF6699;
+  box-shadow: 0 0 12px rgba(255, 102, 153, 0.35);
+}
+
+/* 淺色模式空房間提示 */
+.party-moba-viewport .empty .icon {
+  filter: drop-shadow(0 0 16px rgba(255, 102, 153, 0.4));
+}
+.party-moba-viewport .empty p {
+  color: #2D2528 !important;
+  font-weight: 600;
 }
 
 /* 🌟 深色模式右側主視圖：套用與左側同源的沉浸式曜石星海深藍漸變，告別暖紅棕割裂感 */
@@ -1588,10 +1709,6 @@ body.party-mode .pages,
 }
 
 /* 頂部個人狀態橫幅：固定不動，深色模式電競深藍透明玻璃卡片 */
-.party-moba-viewport .party-header-bar {
-  flex-shrink: 0 !important;
-  margin-bottom: 0 !important;
-}
 .app.dark .party-moba-viewport .party-header-bar {
   background: rgba(16, 26, 44, 0.72) !important;
   border: 1px solid rgba(77, 166, 255, 0.22) !important;
