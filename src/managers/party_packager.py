@@ -37,7 +37,6 @@ class PartyPackager:
         status = {
             "app_id": app_id,
             "manifest": {"ready": False, "found": False, "files": [], "missing_files": [], "count": 0, "size": 0},
-            "acf": {"ready": False, "found": False, "path": "", "size": 0},
             "lua": {"ready": False, "found": False, "path": "", "size": 0},
             "patch": {"ready": False, "found": False, "source": "", "files_count": 0, "size": 0, "archive_path": ""},
             "all_ready": False,
@@ -152,26 +151,7 @@ class PartyPackager:
             status["manifest"]["count"] = len(manifest_files_found)
             status["manifest"]["size"] = total_mf_size
 
-        # 3. 偵測 appmanifest_<appid>.acf (作為輔助設定檔，非實體清單)
-        if steam_path:
-            acf_path = Path(steam_path) / "steamapps" / f"appmanifest_{app_id}.acf"
-            if acf_path.exists():
-                status["acf"]["ready"] = True
-                status["acf"]["found"] = True
-                status["acf"]["path"] = str(acf_path)
-                status["acf"]["size"] = acf_path.stat().st_size
-            else:
-                libs = self._get_library_folders(steam_path)
-                for lib in libs:
-                    cand = Path(lib) / "steamapps" / f"appmanifest_{app_id}.acf"
-                    if cand.exists():
-                        status["acf"]["ready"] = True
-                        status["acf"]["found"] = True
-                        status["acf"]["path"] = str(cand)
-                        status["acf"]["size"] = cand.stat().st_size
-                        break
-
-        # 4. 偵測線上補丁 (OnlineFix / 聯機檔案)
+        # 3. 偵測線上補丁 (OnlineFix / 聯機檔案)
         app_cache_dir = onlinefix_manager.get_app_cache_dir(app_id)
         if app_cache_dir and app_cache_dir.exists():
             for f in app_cache_dir.iterdir():
@@ -261,14 +241,7 @@ class PartyPackager:
                             zf.write(m_path, arcname=f"manifest/{m_path.name}")
                             logger.info(f"[Packager] 已打包實體 Manifest: {m_path.name}")
 
-                # 2. 寫入輔助 ACF 設定檔 (若有)
-                if res_info["acf"]["ready"] and res_info["acf"]["path"]:
-                    acf_p = Path(res_info["acf"]["path"])
-                    if acf_p.exists():
-                        zf.write(acf_p, arcname=f"acf/{acf_p.name}")
-                        logger.info(f"[Packager] 已打包輔助 ACF: {acf_p.name}")
-
-                # 3. 寫入 Lua 腳本
+                # 2. 寫入 Lua 腳本
                 if res_info["lua"]["ready"] and res_info["lua"]["path"]:
                     l_path = Path(res_info["lua"]["path"])
                     if l_path.exists():
@@ -348,9 +321,9 @@ class PartyPackager:
         """
         隊員端：解壓並套用房主的三檔整合包：
         1. 實體 .manifest 檔案解壓部署至 Steam/depotcache 與 Steam/config/depotcache (防護金庫)
-        2. 輔助 ACF 部署至 Steam/steamapps
-        3. Lua 腳本部署至 Steam/config/stplug-in 與 Steam/config/lua
-        4. 線上聯機補丁套用至遊戲目錄 (若遊戲已就緒)
+        2. Lua 腳本部署至 Steam/config/stplug-in 與 Steam/config/lua
+        3. 線上聯機補丁套用至遊戲目錄 (若遊戲已就緒)
+        嚴格遵循入庫三要素原則，絕不包含也不部署任何 .acf 設定檔，由隊員本機 Steam 自行生成。
         """
         import stat
         p = Path(zip_path)
@@ -401,20 +374,10 @@ class PartyPackager:
                     if applied["manifest_count"] > 0:
                         applied["manifest"] = True
 
-                # 2. 部署 ACF 遊戲設定檔 (若有)
+                # 2. 嚴格安全防護：主動忽略並阻擋任何 .acf 檔案，絕不將房主狀態覆蓋至隊員端
                 acf_files = [n for n in namelist if (n.startswith("acf/") or n.startswith("manifest/")) and n.endswith(".acf")]
-                if acf_files and steam_path:
-                    sp_apps = Path(steam_path) / "steamapps"
-                    sp_apps.mkdir(parents=True, exist_ok=True)
-                    for af in acf_files:
-                        fn = Path(af).name
-                        target_acf = sp_apps / fn
-                        if target_acf.exists():
-                            try: os.chmod(target_acf, stat.S_IWRITE | stat.S_IREAD)
-                            except Exception: pass
-                        with zf.open(af) as src, open(target_acf, "wb") as dst:
-                            shutil.copyfileobj(src, dst)
-                        logger.info(f"[Packager] 已解壓套用輔助 ACF: {target_acf}")
+                if acf_files:
+                    logger.info(f"[Packager] 嚴格安全策略生效：偵測到壓縮包含有 {len(acf_files)} 個歷史 ACF 檔案，已主動略過絕不部署，確保隊員本地狀態與 Steam 下載機制完全乾淨。")
 
                 # 3. 部署 Lua 腳本
                 lua_files = [n for n in namelist if n.startswith("lua/") and n.endswith(".lua")]
