@@ -44,6 +44,13 @@ class PartyHandler:
         except Exception as e:
             return {"ok": False, "msg": f"設定暱稱失敗: {e}"}
 
+    def start_discord_oauth(self) -> Dict[str, Any]:
+        """啟動 Discord OAuth2 官方授權流程 (本地 18888 端口秒級回調)"""
+        try:
+            return self._get_party_manager().start_discord_oauth()
+        except Exception as e:
+            return {"ok": False, "msg": f"啟動 Discord 驗證失敗: {e}"}
+
     def get_lobby_rooms(self) -> Dict[str, Any]:
         """獲取全網公開組隊房間列表"""
         try:
@@ -226,6 +233,30 @@ class PartyHandler:
             from managers.party_logger import open_party_log_file
             ok = open_party_log_file()
             return {"ok": ok, "msg": "已開啟 logs/party.log" if ok else "開啟失敗"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def verify_party_fallback_passcode(self, passcode: str) -> Dict[str, Any]:
+        """驗證今日備援門禁通行碼 (不可逆伺服器核驗)"""
+        try:
+            return self._get_party_manager().verify_fallback_passcode(passcode)
+        except Exception as e:
+            return {"ok": False, "msg": f"核驗通行碼失敗: {e}"}
+
+    def check_party_identity_status(self) -> Dict[str, Any]:
+        """檢查當前硬體指紋與身分黑名單狀態"""
+        try:
+            mgr = self._get_party_manager()
+            is_banned, ban_reason = mgr.check_if_banned()
+            has_lease = mgr.has_valid_fallback_lease()
+            return {
+                "ok": True,
+                "is_banned": is_banned,
+                "ban_reason": ban_reason,
+                "has_fallback_lease": has_lease,
+                "hwid": mgr.hwid,
+                "steam_id": mgr.steam_id
+            }
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 

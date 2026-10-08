@@ -485,4 +485,27 @@ body.dark .card:not(.needs-update) *,
   text-shadow: none !important;
 }
 
+/* ═══════════════════════════════════════════════════════
+   右下角 Toast 提示深色模式維持高對比純白字規範
+   ═══════════════════════════════════════════════════════ */
+html.dark .toast,
+body.dark .toast,
+.app.dark .toast {
+  color: #FFFFFF !important;
+  background: rgba(38, 30, 34, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5) !important;
+}
+html.dark .toast.in,
+html.dark .toast.info,
+body.dark .toast.in,
+body.dark .toast.info,
+.app.dark .toast.in,
+.app.dark .toast.info {
+  color: #FFFFFF !important;
+  background: rgba(38, 30, 34, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+}
+
+
 

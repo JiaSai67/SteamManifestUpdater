@@ -111,10 +111,11 @@
         <div class="splash-step-dot" data-step="2" title="Steam 環境"></div>
         <div class="splash-step-dot" data-step="3" title="視覺主題"></div>
         <div class="splash-step-dot" data-step="4" title="內核自檢"></div>
-        <div class="splash-step-dot" data-step="5" title="平台憑證"></div>
-        <div class="splash-step-dot" data-step="6" title="雲端網盤"></div>
-        <div class="splash-step-dot" data-step="7" title="入庫掃描"></div>
-        <div class="splash-step-dot" data-step="8" title="完成就緒"></div>
+        <div class="splash-step-dot" data-step="5" title="隊伍認證"></div>
+        <div class="splash-step-dot" data-step="6" title="平台憑證"></div>
+        <div class="splash-step-dot" data-step="7" title="遊戲封面"></div>
+        <div class="splash-step-dot" data-step="8" title="入庫掃描"></div>
+        <div class="splash-step-dot" data-step="9" title="完成就緒"></div>
       </div>
     </div>
   </div>
@@ -221,29 +222,33 @@
     <div class="party-moba-viewport">
       <!-- 頂部個人狀態與雲端配額橫幅 (固定頂部，不隨滾輪滾動) -->
       <div class="party-header-bar">
-        <div class="party-profile-pill">
-          <div class="party-avatar-icon">🎮</div>
+        <div class="party-profile-pill" id="party-profile-pill">
+          <div class="party-avatar-wrap">
+            <img id="party-avatar-img" class="party-avatar-img" src="" alt="avatar" style="display:none;" />
+            <div class="party-avatar-icon" id="party-avatar-fallback">🎮</div>
+          </div>
           <div class="party-profile-info">
-            <!-- 顯示模式 -->
-            <div class="party-name-row" id="party-name-display-wrap">
+            <div class="party-name-row">
               <span class="party-nickname" id="party-my-name">載入中…</span>
-              <button class="party-btn-edit-name" id="party-btn-edit-name" onclick="startInlineEditName()" title="點擊直接修改暱稱">✏️</button>
+              <span class="party-verified-badge" id="party-verified-badge" style="display:none;" title="Discord 官方不可篡改安全身分">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                官方認證
+              </span>
             </div>
-            <!-- 行內編輯模式 (預設隱藏) -->
-            <div class="party-name-row" id="party-name-edit-wrap" style="display:none">
-              <input type="text" id="input-inline-nickname" class="party-inline-input" maxlength="24" placeholder="輸入組隊暱稱…" onkeydown="handleInlineNicknameKey(event)">
-              <button class="party-inline-btn btn-save" onclick="saveInlineNickname()" title="儲存 (Enter)">✓</button>
-              <button class="party-inline-btn btn-cancel" onclick="cancelInlineEditName()" title="取消 (Esc)">✕</button>
+            <div class="party-discord-subtext" id="party-discord-subtext">
+              <span id="party-discord-tag-display">尚未完成 Discord 官方認證</span>
             </div>
+          </div>
+          <div class="party-oauth-action">
+            <button class="btn-discord-oauth" id="btn-discord-oauth" onclick="startDiscordOAuthFlow()" title="前往 Discord 官方網頁進行 1 秒安全授權">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+              </svg>
+              <span>綁定 Discord 認證</span>
+            </button>
           </div>
         </div>
 
-        <!-- 雲端大廳配額監控徽章 -->
-        <div class="party-quota-badge" id="party-quota-badge" title="Supabase 全球高速雲端資料庫 (高可用叢集 · 充沛)">
-          <span class="quota-dot green"></span>
-          <span class="quota-title">雲端大廳</span>
-          <span class="quota-val" id="party-quota-text">Supabase · 充沛</span>
-        </div>
 
         <div class="party-header-actions">
           <button class="btn btn-party-create btn-s" id="btn-party-create-room" onclick="handlePartyCreateOrRecruit()" title="創建專屬組隊房間並開始招募隊友">➕ 創建房間</button>
@@ -1238,6 +1243,7 @@
 <script src="js/modules/game_detail.js"></script>
 <script src="js/modules/manage.js"></script>
 <script src="js/modules/credentials.js"></script>
+<script src="js/modules/party_p2p.js"></script>
 <script src="js/modules/party.js"></script>
 <script src="js/modules/startup_wizard.js"></script>
 <script src="js/modules/download_diag.js"></script>

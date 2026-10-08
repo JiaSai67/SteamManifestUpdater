@@ -66,9 +66,15 @@ function tt(msg, type, duration){
     try { document.body.appendChild(e); } catch(err){}
   }
   e.textContent=msg;
-  e.className='toast '+(type||'in')+' show';
+  var rawType = type || 'in';
+  var t = rawType;
+  if(t === 'warn') t = 'wn';
+  else if(t === 'err' || t === 'error') t = 'er';
+  else if(t === 'succ' || t === 'success') t = 'ok';
+  else if(t === 'info') t = 'in';
+  e.className = 'toast ' + t + (rawType !== t ? (' ' + rawType) : '') + ' show';
   clearTimeout(e._t);
-  var ms = duration || (type === 'er' ? 5000 : (type === 'wn' ? 4500 : 2600));
+  var ms = duration || (t === 'er' ? 5000 : (t === 'wn' ? 4500 : 2600));
   e._t=setTimeout(function(){e.classList.remove('show')}, ms);
 }
 
@@ -205,7 +211,7 @@ function setSplashProgress(targetPct, title, desc, stepIdx){
 }
 
 async function dismissSplashScreen(){
-  setSplashProgress(100, '✨ 系統初始化就緒！', '所有系統服務與視覺配置準備完畢', 8);
+  setSplashProgress(100, '✨ 系統初始化就緒！', '所有系統服務與視覺配置準備完畢', 9);
   var numEl = document.getElementById('splash-percent-num');
   if(numEl) numEl.textContent = '100';
   var barEl = document.getElementById('splash-ring-bar');
@@ -231,8 +237,8 @@ window.on_game_resolved_progress = function(data){
   var cur = data.current || 0;
   var tot = data.total || 0;
   var nm = data.name || ('App_' + data.appid);
-  var pct = 85 + Math.round((cur / Math.max(1, tot)) * 10);
-  setSplashProgress(pct, '正在確認入庫遊戲資訊與官方封面 (' + cur + '/' + tot + ')...', nm, 6);
+  var pct = 86 + Math.round((cur / Math.max(1, tot)) * 8);
+  setSplashProgress(pct, '正在確認入庫遊戲資訊與官方封面 (' + cur + '/' + tot + ')...', nm, 7);
 };
 
 async function init(){
@@ -247,7 +253,7 @@ async function init(){
 
   try {
     // ══════════════════════════════════════════════════
-    // 🌟 核心突破：第 0 毫秒立即並行啟動「四大重度資料預載入 Promise」
+    // 🌟 核心突破：第 0 毫秒立即並行啟動「五大重度資料預載入 Promise」
     // 充分利用 Splash Screen 的等待時間，在背景並行拉取，絕不卡頓主執行緒
     // ══════════════════════════════════════════════════
     console.log('[INIT] Parallel preloading core data...');
@@ -271,8 +277,12 @@ async function init(){
       ? pywebview.api.get_latest_system_health().catch(function(e){ console.warn('[PRELOAD] health error:', e); return null; })
       : Promise.resolve(null);
 
+    var pParty = (window.pywebview && pywebview.api && pywebview.api.get_party_profile)
+      ? pywebview.api.get_party_profile().catch(function(e){ console.warn('[PRELOAD] party error:', e); return null; })
+      : Promise.resolve(null);
+
     // ══════════════════════════════════════════════════
-    // Step 1 (15%): 讀取偏好設置與主題設定
+    // Step 1 (12%): 讀取偏好設置與主題設定
     // ══════════════════════════════════════════════════
     console.log('[INIT] Starting Step 1 - get_config');
     var config = await pywebview.api.get_config();
@@ -296,7 +306,7 @@ async function init(){
       try { localStorage.removeItem('dark_mode'); } catch(e){}
     }
 
-    setSplashProgress(15, '載入使用者設定檔與個人化設置...', '讀取本機偏好設置、主題色調與視窗幾何尺寸', 1);
+    setSplashProgress(12, '載入使用者設定檔與個人化設置...', '讀取本機偏好設置、主題色調與視窗幾何尺寸', 1);
     await yieldToUI(80);
     var tRand = document.getElementById('t-random');
     if(tRand) tRand.checked = !!config.random_browse;
@@ -311,10 +321,10 @@ async function init(){
     }
 
     // ══════════════════════════════════════════════════
-    // Step 2 (30%): 檢測 Steam 安裝目錄與版本鎖定狀態
+    // Step 2 (24%): 檢測 Steam 安裝目錄與版本鎖定狀態
     // ══════════════════════════════════════════════════
     console.log('[INIT] Starting Step 2');
-    setSplashProgress(30, '檢測 Steam 安裝目錄與版本鎖定...', '驗證 Steam 實體路徑與 ACF 檔案鎖定狀態', 2);
+    setSplashProgress(24, '檢測 Steam 安裝目錄與版本鎖定...', '驗證 Steam 實體路徑與 ACF 檔案鎖定狀態', 2);
     await yieldToUI(80);
 
     var _sp = "";
@@ -328,10 +338,10 @@ async function init(){
     checkSteamLock();
 
     // ══════════════════════════════════════════════════
-    // Step 3 (45%): 加載背景主題、縮圖與視圖配置
+    // Step 3 (36%): 加載背景主題、縮圖與視圖配置
     // ══════════════════════════════════════════════════
     console.log('[INIT] Starting Step 3');
-    setSplashProgress(45, '加載背景主題與視覺快取...', '載入自定義桌布、縮圖與網格排版快取', 3);
+    setSplashProgress(36, '加載背景主題與視覺快取...', '載入自定義桌布、縮圖與網格排版快取', 3);
     await yieldToUI(80);
 
     loadBgThumbs();
@@ -347,10 +357,10 @@ async function init(){
     bindWindowResize();
 
     // ══════════════════════════════════════════════════
-    // Step 4 (60%): 自檢核心環境與 OpenSteamTools 內核
+    // Step 4 (48%): 自檢核心環境與 OpenSteamTools 內核
     // ══════════════════════════════════════════════════
     console.log('[INIT] Starting Step 4');
-    setSplashProgress(60, '自檢核心環境與 OpenSteamTools 內核...', '校驗 SteamTools DLL 模組與前置運行環境', 4);
+    setSplashProgress(48, '自檢核心環境與 OpenSteamTools 內核...', '校驗 SteamTools DLL 模組與前置運行環境', 4);
     await yieldToUI(80);
 
     try {
@@ -359,10 +369,29 @@ async function init(){
     } catch(e){}
 
     // ══════════════════════════════════════════════════
-    // Step 5 (75%): 🌟 真實預載入憑證與多平台配額矩陣 (徹底杜絕切換等待)
+    // Step 5 (62%): 🌟 隊伍大廳身分認證與安全憑證預載入 (秒開組隊大廳)
     // ══════════════════════════════════════════════════
-    console.log('[INIT] Starting Step 5 - Real Credentials Preload');
-    setSplashProgress(75, '同步多平台帳號憑證與配額矩陣...', '預載入 Ryuu / Hubcap / LuaTools 授權與即時額度', 5);
+    console.log('[INIT] Starting Step 5 - Party Profile Preload');
+    setSplashProgress(62, '核驗隊伍大廳身分認證與安全憑證...', '校驗 Discord 官方身分、DPAPI 硬體密鑰與組隊權限', 5);
+    await yieldToUI(80);
+
+    try {
+      var partyRes = await pParty;
+      if (partyRes) {
+        _partyProfile = partyRes;
+        if (typeof loadPartyProfile === 'function') {
+          loadPartyProfile();
+        }
+      }
+    } catch(e) {
+      console.warn('[INIT] Step 5 party profile render error:', e);
+    }
+
+    // ══════════════════════════════════════════════════
+    // Step 6 (75%): 🌟 真實預載入憑證與多平台配額矩陣 (徹底杜絕切換等待)
+    // ══════════════════════════════════════════════════
+    console.log('[INIT] Starting Step 6 - Real Credentials Preload');
+    setSplashProgress(75, '同步多平台帳號憑證與配額矩陣...', '預載入 Ryuu / Hubcap / LuaTools 授權與即時額度', 6);
     await yieldToUI(80);
 
     try {
@@ -376,14 +405,14 @@ async function init(){
         }
       }
     } catch(e){
-      console.warn('[INIT] Step 5 credentials render error:', e);
+      console.warn('[INIT] Step 6 credentials render error:', e);
     }
 
     // ══════════════════════════════════════════════════
-    // Step 6 (88%): 🌟 深度確認入庫遊戲真實名稱與高畫質封面（絕不搶著進系統）
+    // Step 7 (86%): 🌟 深度確認入庫遊戲真實名稱與高畫質封面（絕不搶著進系統）
     // ══════════════════════════════════════════════════
-    console.log('[INIT] Starting Step 6 - Ensure Installed Games Resolved');
-    setSplashProgress(85, '校驗本機已入庫遊戲與官方封面...', '對齊本機遊戲清單，確保繁中名稱與高畫質圖片就緒', 6);
+    console.log('[INIT] Starting Step 7 - Ensure Installed Games Resolved');
+    setSplashProgress(86, '校驗本機已入庫遊戲與官方封面...', '對齊本機遊戲清單，確保繁中名稱與高畫質圖片就緒', 7);
     await yieldToUI(80);
 
     try {
@@ -405,7 +434,7 @@ async function init(){
         _pre._rendered = true;
       }
     } catch(e){
-      console.warn('[INIT] Step 6 games resolve error:', e);
+      console.warn('[INIT] Step 7 games resolve error:', e);
       try {
         var gamesFallback = await pGames;
         _pre._games = gamesFallback || [];
@@ -417,9 +446,9 @@ async function init(){
     }
 
     // ══════════════════════════════════════════════════
-    // Step 7 (96%): 預載入已安裝 AppID 與網盤本機配置
+    // Step 8 (96%): 預載入已安裝 AppID 與網盤本機配置
     // ══════════════════════════════════════════════════
-    setSplashProgress(96, '初始化已安裝遊戲與網盤配置...', '檢測本機 AppID 映射與多源資料庫緩存', 7);
+    setSplashProgress(96, '初始化已安裝遊戲與網盤配置...', '檢測本機 AppID 映射與多源資料庫緩存', 8);
     await yieldToUI(80);
 
     try{
@@ -440,9 +469,9 @@ async function init(){
     }catch(e){}
 
     // ══════════════════════════════════════════════════
-    // Step 8 (100%): 全模組預載入就緒！滿幀揭開主介面
+    // Step 9 (100%): 全模組預載入就緒！滿幀揭開主介面
     // ══════════════════════════════════════════════════
-    setSplashProgress(100, '系統全模組預載入就緒！', '所有核心功能與資料已準備完畢，歡迎使用', 8);
+    setSplashProgress(100, '系統全模組預載入就緒！', '所有核心功能與資料已準備完畢，歡迎使用', 9);
     await yieldToUI(180);
 
     clearTimeout(safetyTimer);

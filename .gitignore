@@ -49,6 +49,27 @@ v1.0/
 dlls/
 assets/wallpapers/
 
+# 測試相關 Python 腳本與目錄 (全部排除)
+tests/
+test/
+test_*.py
+*_test.py
+
+# 個性化設置與設定檔 (避免個人配置覆蓋或外洩)
+*.env
+*.env.*
+config.json
+settings.json
+user_settings.json
+local_settings.json
+preferences.json
+data/secrets/
+secrets/
+*.secrets
+*.key
+*.pem
+
 # IDE 相關
 .vscode/
 .idea/
+.cursor/

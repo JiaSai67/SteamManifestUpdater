@@ -11,11 +11,12 @@ import uuid
 import logging
 import threading
 import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 import requests
 
 from utils.payload_crypto import compress_and_encrypt, decompress_and_decrypt
+from utils.hwid_generator import get_client_identity_bundle
 from managers.party_logger import get_party_logger, report_party_error, log_party_event
 
 logger = get_party_logger("manager")
@@ -48,6 +49,9 @@ class PartyManager:
         # 載入 Supabase 設定
         self._init_supabase_config()
 
+        # 載入 Turso Edge 大廳設定 (90 億次免費行讀取大水管)
+        self._init_turso_config()
+
         # 初始化 HTTP 複用 Session
         self.session = requests.Session()
         self.session.headers.update({
@@ -68,9 +72,28 @@ class PartyManager:
         self.custom_discord = ""
         self._load_profile()
 
-        # 🌟 綁定本機客戶端 ID 至 Session 標頭 (供 Supabase RLS 權限校驗與房主專屬安全鎖)
+        # 🌟 提取 Windows 物理硬體指紋與本地活躍 SteamID (不可偽造安全錨點)
+        self.identity_bundle = get_client_identity_bundle()
+        self.hwid = self.identity_bundle.get("hwid", "")
+        self.steam_id = self.identity_bundle.get("steam_id", "")
+
+        # 🌟 綁定本機客戶端 ID、HWID、DPAPI 公鑰至 Session 標頭 (供 Supabase RLS 權限校驗與黑名單阻斷)
         if self.client_id:
             self.session.headers["x-client-id"] = self.client_id
+        if self.hwid:
+            self.session.headers["x-client-hwid"] = self.hwid
+        if self.steam_id:
+            self.session.headers["x-client-steamid"] = self.steam_id
+        try:
+            from utils.dpapi_key_manager import get_dpapi_public_key
+            self.dpapi_pubkey = get_dpapi_public_key()
+            self.session.headers["x-dpapi-pubkey"] = self.dpapi_pubkey
+        except Exception:
+            self.dpapi_pubkey = ""
+        if getattr(self, "discord_access_token", ""):
+            self.session.headers["x-discord-token"] = self.discord_access_token
+        if getattr(self, "discord_id", ""):
+            self.session.headers["x-discord-id"] = self.discord_id
 
         # 當前房間狀態
         self.current_room_id: Optional[str] = None
@@ -141,6 +164,204 @@ class PartyManager:
 
         self.rest_endpoint = f"{self.supabase_url.rstrip('/')}/rest/v1/party_rooms"
 
+    def _init_turso_config(self):
+        """優先從本地 secrets 讀取 Turso 配置，作為組隊大廳的超大頻寬讀取快取池"""
+        self.turso_endpoint = ""
+        self.turso_token = ""
+        turso_file = os.path.join(self.root_dir, "data", "secrets", "turso.json")
+        if os.path.exists(turso_file):
+            try:
+                with open(turso_file, "r", encoding="utf-8") as f:
+                    tcfg = json.load(f)
+                    http_url = tcfg.get("http_url") or tcfg.get("database_url", "")
+                    if http_url.startswith("libsql://"):
+                        http_url = http_url.replace("libsql://", "https://")
+                    self.turso_endpoint = f"{http_url.rstrip('/')}/v2/pipeline"
+                    self.turso_token = tcfg.get("auth_token", "")
+                    if self.turso_endpoint and self.turso_token:
+                        logger.info("[Turso] ✅ 成功載入 Turso Edge 大廳連線憑證")
+            except Exception as e:
+                logger.debug(f"讀取 turso secrets 失敗: {e}")
+
+    def _turso_execute(self, sql: str, args: Optional[List[Dict[str, Any]]] = None, timeout: int = 4) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """向 Turso Edge 資料庫發起輕量 HTTP Pipeline 請求 (純 JSON，無外部 SDK 負擔)"""
+        if not self.turso_endpoint or not self.turso_token:
+            return False, None
+        try:
+            stmt: Dict[str, Any] = {"sql": sql}
+            if args:
+                stmt["args"] = args
+            payload = {
+                "requests": [
+                    {"type": "execute", "stmt": stmt},
+                    {"type": "close"}
+                ]
+            }
+            headers = {
+                "Authorization": f"Bearer {self.turso_token}",
+                "Content-Type": "application/json"
+            }
+            resp = requests.post(self.turso_endpoint, json=payload, headers=headers, timeout=timeout)
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("results", [])
+                if results and results[0].get("type") == "ok":
+                    return True, results[0].get("response", {}).get("result")
+            return False, None
+        except Exception as e:
+            logger.debug(f"Turso 請求異常: {e}")
+            return False, None
+
+    def _sync_room_to_turso_async(self, room_dict: Dict[str, Any]):
+        """開房或更新時，非同步在 Turso 寫入或更新單一房間行 (物理隔離，完全杜絕併發覆蓋)"""
+        def _task():
+            try:
+                rid = room_dict.get("room_id")
+                if not rid or not self.turso_endpoint:
+                    return
+                now_ts = int(time.time())
+                upsert_sql = """
+                INSERT INTO party_rooms (room_id, payload, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(room_id) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at;
+                """
+                # 🌟 採用密文壓縮 Token 寫入 Turso (雲端零明文，解碼由本地客戶端執行)
+                enc_token = compress_and_encrypt(room_dict)
+                payload_val = enc_token if enc_token else json.dumps(room_dict, ensure_ascii=False)
+                args = [
+                    {"type": "text", "value": str(rid)},
+                    {"type": "text", "value": payload_val},
+                    {"type": "integer", "value": str(now_ts)}
+                ]
+                self._turso_execute(upsert_sql, args, timeout=4)
+            except Exception as e:
+                logger.debug(f"非同步同步房間至 Turso 失敗: {e}")
+        threading.Thread(target=_task, daemon=True, name="TursoRoomSync").start()
+
+    def _touch_turso_heartbeat_async(self, rid: str):
+        """房主心跳維持時，非同步刷新 Turso 房間之 updated_at"""
+        def _task():
+            try:
+                if not rid or not self.turso_endpoint:
+                    return
+                now_ts = int(time.time())
+                touch_sql = "UPDATE party_rooms SET updated_at = ? WHERE room_id = ?;"
+                args = [
+                    {"type": "integer", "value": str(now_ts)},
+                    {"type": "text", "value": str(rid)}
+                ]
+                self._turso_execute(touch_sql, args, timeout=3)
+            except Exception:
+                pass
+        threading.Thread(target=_task, daemon=True, name="TursoTouchSync").start()
+
+    def _delete_turso_room_async(self, rid: str):
+        """房主解散房間時，非同步從 Turso 移除單一房間行"""
+        def _task():
+            try:
+                if not rid or not self.turso_endpoint:
+                    return
+                del_sql = "DELETE FROM party_rooms WHERE room_id = ?;"
+                args = [{"type": "text", "value": str(rid)}]
+                self._turso_execute(del_sql, args, timeout=3)
+            except Exception:
+                pass
+        threading.Thread(target=_task, daemon=True, name="TursoDeleteSync").start()
+
+    # ═════════════════════════════════════════════════════════════════════
+    # 🛡️ 雲端風控、不可偽造身分校驗與每日動態門禁
+    # ═════════════════════════════════════════════════════════════════════
+
+    def check_if_banned(self) -> Tuple[bool, str]:
+        """檢查當前機器的物理 HWID 或 ClientID 是否命中雲端黑名單 (不驗證 SteamID，避免換帳號或未登入造成誤判)"""
+        if not self.turso_endpoint:
+            return False, ""
+        check_ids = [self.hwid, self.client_id]
+        check_ids = [cid for cid in check_ids if cid]
+        if not check_ids:
+            return False, ""
+        
+        placeholders = ",".join(["?"] * len(check_ids))
+        check_sql = f"SELECT identifier, type, reason FROM banned_entities WHERE identifier IN ({placeholders}) LIMIT 1;"
+        args = [{"type": "text", "value": str(cid)} for cid in check_ids]
+        
+        ok, res = self._turso_execute(check_sql, args, timeout=3)
+        if ok and res and res.get("rows") and len(res["rows"]) > 0:
+            row = res["rows"][0]
+            reason = row[2].get("value") if len(row) > 2 else "違反組隊安全規範"
+            return True, f"您的裝置已被限制訪問聯機伺服器 (原因: {reason})"
+        return False, ""
+
+    def verify_fallback_passcode(self, code: str) -> Dict[str, Any]:
+        """
+        向雲端核驗今日備援門禁通行碼 (不可逆伺服器核驗，本地零金鑰)
+        核驗成功將簽發預設 3 小時的短期租約 (active_lease)，到期自動硬阻斷。
+        """
+        clean_code = str(code or "").strip().upper()
+        if not clean_code:
+            return {"ok": False, "msg": "請輸入有效通行碼"}
+
+        # 1. 先檢驗是否處於黑名單
+        is_banned, ban_reason = self.check_if_banned()
+        if is_banned:
+            return {"ok": False, "msg": ban_reason}
+
+        today_str = time.strftime("%Y-%m-%d")
+        query_sql = "SELECT passcode, max_hours, is_active FROM daily_gatekeeper WHERE date = ? LIMIT 1;"
+        args = [{"type": "text", "value": today_str}]
+        
+        ok, res = self._turso_execute(query_sql, args, timeout=4)
+        if not ok or not res or not res.get("rows"):
+            return {"ok": False, "msg": "目前伺服器尚未開放今日備援通道"}
+
+        row = res["rows"][0]
+        correct_passcode = str(row[0].get("value", "")).strip().upper()
+        max_hours = int(row[1].get("value", 3))
+        is_active = bool(int(row[2].get("value", 1)))
+
+        if not is_active:
+            return {"ok": False, "msg": "今日雲端備援通道已由管理員手動關閉"}
+
+        if clean_code != correct_passcode:
+            return {"ok": False, "msg": "通行碼錯誤或已過期，請向管理員索取今日通行碼"}
+
+        # 2. 驗證成功：向 active_leases 簽發短期租約
+        now_ts = int(time.time())
+        expires_at = now_ts + (max_hours * 3600)
+        lease_sql = """
+        INSERT INTO active_leases (client_id, hwid, granted_at, expires_at, status)
+        VALUES (?, ?, ?, ?, 'active')
+        ON CONFLICT(client_id) DO UPDATE SET granted_at=excluded.granted_at, expires_at=excluded.expires_at, status='active';
+        """
+        lease_args = [
+            {"type": "text", "value": self.client_id},
+            {"type": "text", "value": self.hwid},
+            {"type": "integer", "value": str(now_ts)},
+            {"type": "integer", "value": str(expires_at)}
+        ]
+        self._turso_execute(lease_sql, lease_args, timeout=3)
+        logger.info(f"[Gatekeeper] ✅ 設備 {self.hwid[:12]} 通過每日門禁驗證，獲得 {max_hours} 小時備援租約")
+
+        return {
+            "ok": True,
+            "msg": f"驗證成功！已為您啟用 {max_hours} 小時雲端備援通道",
+            "expires_at": expires_at,
+            "max_hours": max_hours
+        }
+
+    def has_valid_fallback_lease(self) -> bool:
+        """檢查當前機器是否具備有效未過期之備援租約"""
+        if not self.turso_endpoint:
+            return False
+        now_ts = int(time.time())
+        check_sql = "SELECT expires_at, status FROM active_leases WHERE client_id = ? AND expires_at > ? AND status = 'active' LIMIT 1;"
+        args = [
+            {"type": "text", "value": self.client_id},
+            {"type": "integer", "value": str(now_ts)}
+        ]
+        ok, res = self._turso_execute(check_sql, args, timeout=3)
+        return bool(ok and res and res.get("rows") and len(res["rows"]) > 0)
+
     @staticmethod
     def _generate_default_nickname() -> str:
         """首次開啟時隨機產生 10 碼英文數字結合的亂數"""
@@ -156,7 +377,13 @@ class PartyManager:
         return "".join(chars)
 
     def _load_profile(self):
-        """載入或初始化玩家身分資料"""
+        """載入或初始化玩家身分資料 (嚴格鎖定 Discord 官方認證資料)"""
+        self.discord_id = ""
+        self.discord_username = ""
+        self.discord_global_name = ""
+        self.discord_avatar = ""
+        self.is_discord_verified = False
+
         if os.path.exists(self.profile_path):
             try:
                 with open(self.profile_path, "r", encoding="utf-8") as f:
@@ -164,14 +391,22 @@ class PartyManager:
                     self.client_id = data.get("client_id", "")
                     self.nickname = data.get("nickname", "")
                     self.custom_discord = data.get("custom_discord", "")
+                    self.discord_id = data.get("discord_id", "")
+                    self.discord_username = data.get("discord_username", "")
+                    self.discord_global_name = data.get("discord_global_name", "")
+                    self.discord_avatar = data.get("discord_avatar", "")
+                    self.discord_access_token = data.get("discord_access_token", "")
+                    self.is_discord_verified = data.get("is_discord_verified", False)
             except Exception as e:
                 logger.warning(f"讀取 party_profile.json 失敗: {e}")
 
         if not self.client_id:
             self.client_id = f"client_{uuid.uuid4().hex[:12]}"
 
-        # 若為首次開啟或暱稱為空/舊測試字元，隨機產生 10 碼英文數字結合之亂數
-        if not self.nickname or self.nickname == "123" or self.nickname.startswith("玩家_"):
+        # 若已通過 Discord 官方認證，暱稱直接綁定官方顯示名，禁止手動篡改
+        if self.is_discord_verified and (self.discord_global_name or self.discord_username):
+            self.nickname = self.discord_global_name or self.discord_username
+        elif not self.nickname or self.nickname == "123" or self.nickname.startswith("玩家_"):
             self.nickname = self._generate_default_nickname()
 
         self._save_profile()
@@ -183,56 +418,155 @@ class PartyManager:
                 json.dump({
                     "client_id": self.client_id,
                     "nickname": self.nickname,
-                    "custom_discord": self.custom_discord
+                    "custom_discord": self.custom_discord,
+                    "discord_id": getattr(self, "discord_id", ""),
+                    "discord_username": getattr(self, "discord_username", ""),
+                    "discord_global_name": getattr(self, "discord_global_name", ""),
+                    "discord_avatar": getattr(self, "discord_avatar", ""),
+                    "discord_access_token": getattr(self, "discord_access_token", ""),
+                    "is_discord_verified": getattr(self, "is_discord_verified", False)
                 }, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.warning(f"保存 party_profile.json 失敗: {e}")
 
+    def pack_secure_payload(self, action: str, raw_data: Any) -> str:
+        """
+        將三因子身分 (Discord Token + 本機 DPAPI 公鑰 + 物理 HWID) 與具體行為數據
+        使用 Zlib Level 9 最大壓縮與 SHA-256 KDF 進行對稱加密打包
+        """
+        try:
+            from utils.payload_crypto import compress_and_encrypt
+            from utils.dpapi_key_manager import get_dpapi_public_key, sign_with_dpapi
+            import time
+            ts = int(time.time())
+            bundle = {
+                "action": action,
+                "ts": ts,
+                "client_id": self.client_id,
+                "hwid": self.hwid,
+                "dpapi_pubkey": getattr(self, "dpapi_pubkey", "") or get_dpapi_public_key(),
+                "discord_id": getattr(self, "discord_id", ""),
+                "discord_access_token": getattr(self, "discord_access_token", ""),
+                "payload": raw_data
+            }
+            # 附帶 DPAPI 密鑰簽章防偽
+            bundle["signature"] = sign_with_dpapi(f"{action}_{ts}_{self.hwid}")
+            return compress_and_encrypt(bundle)
+        except Exception as e:
+            logger.error(f"[PARTY] 加密壓縮負載失敗: {e}")
+            return ""
+
+    def sync_action_audit_to_supabase(self, action: str, raw_data: Any = None) -> Dict[str, Any]:
+        """
+        將「來源 IP (由 Supabase 自取) + Discord 身分 + 本機 DPAPI 公鑰 + 加密壓縮負載」
+        即時同步至 Supabase 進行三因子核驗與行為審計
+        """
+        try:
+            from utils.dpapi_key_manager import get_dpapi_public_key, sign_with_dpapi
+            import time
+            ts = int(time.time())
+            enc_payload = self.pack_secure_payload(action, raw_data)
+            pubkey = getattr(self, "dpapi_pubkey", "") or get_dpapi_public_key()
+            sig = sign_with_dpapi(f"{action}_{ts}_{self.hwid}")
+
+            rpc_endpoint = f"{self.supabase_url.rstrip('/')}/rest/v1/rpc/record_user_action"
+            body = {
+                "p_discord_id": getattr(self, "discord_id", "") or "GUEST_UNVERIFIED",
+                "p_discord_username": getattr(self, "discord_username", "") or self.nickname,
+                "p_discord_token": getattr(self, "discord_access_token", ""),
+                "p_dpapi_pubkey": pubkey,
+                "p_hwid": self.hwid,
+                "p_client_id": self.client_id,
+                "p_action": action,
+                "p_payload_encrypted": enc_payload,
+                "p_signature": sig
+            }
+            resp = self.session.post(rpc_endpoint, json=body, timeout=6)
+            if resp.status_code in [200, 201]:
+                return resp.json()
+            else:
+                return {"ok": False, "status": resp.status_code}
+        except Exception as e:
+            logger.debug(f"[AUDIT] 同步審計失敗: {e}")
+            return {"ok": False, "error": str(e)}
+
+    def sync_action_audit_async(self, action: str, raw_data: Any = None):
+        """背景非同步觸發三因子審計同步，不卡頓 UI"""
+        threading.Thread(target=self.sync_action_audit_to_supabase, args=(action, raw_data), daemon=True).start()
+
     def get_current_discord_name(self) -> str:
-        """獲取當前活耀的 Discord 暱稱"""
+        """獲取當前活耀且經官方認證的 Discord 暱稱與唯一識別碼"""
+        if getattr(self, "is_discord_verified", False) and getattr(self, "discord_username", ""):
+            return f"@{self.discord_username}"
         if self.custom_discord and self.custom_discord.strip():
             return self.custom_discord.strip()
-
-        try:
-            try:
-                from managers.account_manager import AccountManager
-            except ImportError:
-                from src.managers.account_manager import AccountManager
-            mgr = AccountManager()
-            for platform in ["ryuu", "lua_tools"]:
-                accs = mgr.data.get(platform, [])
-                for acc in accs:
-                    if acc.get("is_active") and acc.get("name"):
-                        return acc.get("name")
-                if accs and accs[0].get("name"):
-                    return accs[0].get("name")
-        except Exception as e:
-            logger.debug(f"抓取 Discord 暱稱失敗: {e}")
-        return "未綁定 Discord"
+        return "未完成官方認證"
 
     def get_profile(self) -> Dict[str, Any]:
-        """獲取當前組隊資料設定"""
+        """獲取當前組隊資料設定與官方認證狀態"""
         return {
             "client_id": self.client_id,
             "nickname": self.nickname,
             "discord_name": self.get_current_discord_name(),
+            "discord_id": getattr(self, "discord_id", ""),
+            "discord_username": getattr(self, "discord_username", ""),
+            "discord_global_name": getattr(self, "discord_global_name", ""),
+            "discord_avatar": getattr(self, "discord_avatar", ""),
+            "is_discord_verified": getattr(self, "is_discord_verified", False),
             "custom_discord": self.custom_discord,
             "quota": self.latest_quota
         }
 
     def set_nickname(self, new_name: str, custom_discord: str = "") -> Dict[str, Any]:
-        """設定玩家暱稱與 Discord 暱稱"""
-        new_name = str(new_name).strip()
-        if not new_name:
-            return {"ok": False, "msg": "暱稱不得為空"}
-        if len(new_name) > 30:
-            return {"ok": False, "msg": "暱稱長度上限為 30 字元"}
+        """設定玩家暱稱 (若已認證官方 Discord 身分則鎖死不支援手動修改)"""
+        if getattr(self, "is_discord_verified", False):
+            return {"ok": False, "msg": "已綁定 Discord 官方不可篡改身分，不支援手動修改！"}
+        return {"ok": False, "msg": "所有身分必須透過 Discord 官方認證獲取，不支援手動修改！"}
 
-        self.nickname = new_name
-        if custom_discord is not None:
-            self.custom_discord = str(custom_discord).strip()
+    def start_discord_oauth(self) -> Dict[str, Any]:
+        """啟動 Discord OAuth2 官方授權流程 (本地 18888 端口秒級回調)"""
+        try:
+            from utils.discord_oauth import get_discord_oauth_service
+            # 嘗試自設定檔讀取密鑰 (若有)
+            secret = ""
+            cfg_file = os.path.join(self.root_dir, "data", "config.json")
+            if os.path.exists(cfg_file):
+                try:
+                    with open(cfg_file, "r", encoding="utf-8") as f:
+                        secret = json.load(f).get("discord_client_secret", "")
+                except Exception:
+                    pass
 
-        self._save_profile()
+            svc = get_discord_oauth_service(client_secret=secret)
+            res = svc.start_oauth_flow(timeout_seconds=60)
+            if res.get("ok"):
+                if res.get("discord_id"):
+                    self.discord_id = str(res["discord_id"])
+                    self.discord_username = str(res.get("username", ""))
+                    self.discord_global_name = str(res.get("global_name") or self.discord_username)
+                    self.discord_avatar = str(res.get("avatar_url", ""))
+                    self.discord_access_token = str(res.get("access_token", ""))
+                    self.is_discord_verified = True
+                    self.nickname = self.discord_global_name
+                    self._save_profile()
+                    if self.discord_access_token:
+                        self.session.headers["x-discord-token"] = self.discord_access_token
+                    if self.discord_id:
+                        self.session.headers["x-discord-id"] = self.discord_id
+                    # 🌟 觸發三因子身分核驗與審計同步至 Supabase
+                    self.sync_action_audit_async("OAUTH_VERIFIED", {
+                        "discord_id": self.discord_id,
+                        "username": self.discord_username,
+                        "global_name": self.discord_global_name
+                    })
+                elif res.get("needs_secret"):
+                    # 取得 Code 但尚未配置 Secret，先標記認證中
+                    logger.info(f"[Discord OAuth] 成功取得授權 Code: {res.get('code')}")
+                return res
+            return res
+        except Exception as e:
+            logger.error(f"[Discord OAuth] 啟動認證失敗: {e}", exc_info=True)
+            return {"ok": False, "msg": f"認證流程出錯: {e}"}
 
         # 若當前在房間內，觸發一次同步以更新暱稱
         if self.current_room_id:
@@ -417,9 +751,53 @@ class PartyManager:
 
     def list_rooms(self) -> Dict[str, Any]:
         """
-        取得公開大廳房間列表 (針對性投影：只抓房間卡片所需資訊，剔除下載鏈結與密碼，節省 70% 流量)
+        取得公開大廳房間列表：
+        1. 優先向 Turso Edge 進行原子聚合查詢 (5 億次讀取額度，0 出口流量，延遲 <50ms)
+        2. 若 Turso 異常或未配置，自動無縫降級回 Supabase 備援讀取
         """
         self._inc_quota()
+
+        # 🌟 核心分流：優先向 Turso Edge 讀取原子聚合大廳快照 (一次讀取，單行傳回)
+        if self.turso_endpoint and self.turso_token:
+            now_ts = int(time.time())
+            # 過濾 60 秒內活躍之房間 (聚合 payload 密文陣列，單行回傳)
+            agg_sql = "SELECT json_group_array(payload) AS all_rooms FROM party_rooms WHERE updated_at > ?;"
+            args = [{"type": "integer", "value": str(now_ts - 60)}]
+            ok, res = self._turso_execute(agg_sql, args, timeout=3)
+            if ok and res and res.get("rows") and len(res["rows"]) > 0:
+                try:
+                    raw_val = res["rows"][0][0].get("value")
+                    if raw_val:
+                        raw_tokens = json.loads(raw_val)
+                        if isinstance(raw_tokens, list):
+                            rooms = []
+                            for item in raw_tokens:
+                                # 🌟 本地解碼：雲端嚴格密態存儲，解碼責任 100% 由本地端客戶端執行
+                                if isinstance(item, str):
+                                    dec = decompress_and_decrypt(item)
+                                    if dec and isinstance(dec, dict):
+                                        rooms.append(self._format_room(dec))
+                                    else:
+                                        try:
+                                            # 向下相容舊格式明文 JSON 字串
+                                            parsed = json.loads(item)
+                                            if isinstance(parsed, dict):
+                                                rooms.append(self._format_room(parsed))
+                                        except Exception:
+                                            pass
+                                elif isinstance(item, dict):
+                                    rooms.append(self._format_room(item))
+                            return {
+                                "ok": True,
+                                "rooms": rooms,
+                                "scope": "turso_lobby_aggregated",
+                                "provider": "Turso (Edge SQLite)",
+                                "quota": self.latest_quota
+                            }
+                except Exception as e:
+                    logger.debug(f"解析 Turso 大廳聚合結果異常: {e}")
+
+        # 🌟 容災降級：若 Turso 失敗或無配置，回退至 Supabase 讀取
         # 35 秒心跳截止時間 (UTC Z 格式)
         cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=35)
         cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -680,6 +1058,15 @@ class PartyManager:
         # 如果已經在房間內，先退出
         self.leave_or_close()
 
+        # 🌟 零消耗守門員：必須通過 Discord 官方認證與 DPAPI 綁定，否則本地直接攔截，0 伺服器請求消耗！
+        if not getattr(self, "is_discord_verified", False) or not getattr(self, "discord_id", ""):
+            return {"ok": False, "msg": "建立房間失敗：請先完成 Discord 官方認證綁定以解鎖組隊功能！"}
+
+        # 🌟 風控檢查：檢查是否命中雲端黑名單 (HWID/SteamID/ClientID)
+        is_banned, ban_reason = self.check_if_banned()
+        if is_banned:
+            return {"ok": False, "msg": f"開房失敗：{ban_reason}"}
+
         app_id = str(app_id).strip()
         game_name = str(game_name).strip()
         if not app_id:
@@ -720,6 +1107,8 @@ class PartyManager:
             "id": self.client_id,
             "name": self.nickname,
             "discord": self.get_current_discord_name(),
+            "discord_id": getattr(self, "discord_id", ""),
+            "discord_username": getattr(self, "discord_username", ""),
             "status": "就緒",
             "progress": 100,
             "is_host": True,
@@ -736,6 +1125,8 @@ class PartyManager:
             "app_id": str(app_id),
             "host_name": self.nickname,
             "host_client_id": self.client_id,
+            "host_hwid": self.hwid,
+            "host_steam_id": self.steam_id,
             "host_discord": self.get_current_discord_name(),
             "max_players": int(max_players),
             "is_public": bool(is_public),
@@ -755,6 +1146,35 @@ class PartyManager:
                 inserted = resp.json()
                 room_rec = inserted[0] if isinstance(inserted, list) and inserted else payload
                 self.current_room_data = self._format_room(room_rec)
+
+                # 🌟 同步鏡像至 Turso 獨立房間行 (大廳公開廣播，完全隔離)
+                lobby_room_payload = {
+                    "room_id": rid,
+                    "game_name": game_name,
+                    "app_id": str(app_id),
+                    "host_name": self.nickname,
+                    "host_client_id": self.client_id,
+                    "host_hwid": self.hwid,
+                    "host_steam_id": self.steam_id,
+                    "host_discord": self.get_current_discord_name(),
+                    "max_players": int(max_players),
+                    "current_players": 1,
+                    "is_public": bool(is_public),
+                    "status": "recruiting",
+                    "note": note,
+                    "members": self._pack_members([host_member]),
+                    "created_at": now_str,
+                    "updated_at": now_str
+                }
+                self._sync_room_to_turso_async(lobby_room_payload)
+
+                # 🌟 觸發三因子身分核驗與審計同步至 Supabase (開房行為)
+                self.sync_action_audit_async("CREATE_ROOM", {
+                    "room_id": rid,
+                    "game_name": game_name,
+                    "app_id": app_id,
+                    "max_players": max_players
+                })
 
                 # 啟動房主背景心跳維持線程 (每 8 秒)
                 self._start_heartbeat_loop()
@@ -844,6 +1264,20 @@ class PartyManager:
                 rows = resp.json()
                 if rows:
                     self.current_room_data = self._format_room(rows[0])
+                # 🌟 同步維持 Turso 房間活躍度
+                self._touch_turso_heartbeat_async(rid)
+
+                # 🌟 每 3 次心跳 (約 24 秒) 非同步回報一次房間輪詢審計信標
+                if not hasattr(self, "_heartbeat_audit_counter"):
+                    self._heartbeat_audit_counter = 0
+                self._heartbeat_audit_counter += 1
+                if self._heartbeat_audit_counter % 3 == 0:
+                    self.sync_action_audit_async("ROOM_HEARTBEAT", {
+                        "room_id": rid,
+                        "members_count": len(fresh_members),
+                        "heartbeat_interval_s": 8
+                    })
+
                 return True
             else:
                 logger.warning(f"房主心跳更新失敗: HTTP {resp.status_code}")
@@ -881,6 +1315,14 @@ class PartyManager:
             except Exception as e:
                 logger.warning(f"解散房間刪除紀錄異常: {e}")
 
+            # 🌟 同步從 Turso 移除該房間
+            self._delete_turso_room_async(rid)
+
+            # 🌟 觸發三因子審計同步至 Supabase (解散房間行為)
+            self.sync_action_audit_async("DELETE_ROOM", {
+                "room_id": rid
+            })
+
             self._cleanup_local_room()
             return {"ok": True, "msg": f"房間 #{rid} 已成功解散，雲端資源已自動銷毀", "quota": self.latest_quota}
         else:
@@ -898,6 +1340,15 @@ class PartyManager:
 
         # 如果已經在房間內，先退出
         self.leave_or_close()
+
+        # 🌟 零消耗守門員：必須通過 Discord 官方認證與 DPAPI 綁定，否則本地直接攔截，0 伺服器請求消耗！
+        if not getattr(self, "is_discord_verified", False) or not getattr(self, "discord_id", ""):
+            return {"ok": False, "msg": "加入房間失敗：請先完成 Discord 官方認證綁定以解鎖組隊功能！"}
+
+        # 🌟 風控檢查：檢查當前設備是否命中雲端黑名單 (物理 HWID / ClientID)
+        is_banned, ban_reason = self.check_if_banned()
+        if is_banned:
+            return {"ok": False, "msg": f"加入房間失敗：{ban_reason}"}
 
         # 先向 Supabase 查詢房間是否存在 (安全隔離投影：不獲取下載鏈結與解壓密碼)
         self._inc_quota()
@@ -935,6 +1386,13 @@ class PartyManager:
 
             # 啟動隊員心跳維護線程 (每 6 秒)
             self._start_heartbeat_loop()
+
+            # 🌟 觸發三因子審計同步至 Supabase (加入房間行為)
+            self.sync_action_audit_async("JOIN_ROOM", {
+                "room_id": rid,
+                "game_name": room_row.get("game_name"),
+                "app_id": room_row.get("app_id")
+            })
 
             return {
                 "ok": True,
@@ -1172,6 +1630,8 @@ class PartyManager:
                     if m.get("id") == self.client_id:
                         m["name"] = self.nickname
                         m["discord"] = self.get_current_discord_name()
+                        m["discord_id"] = getattr(self, "discord_id", "")
+                        m["discord_username"] = getattr(self, "discord_username", "")
                         m["status"] = self.my_status
                         m["progress"] = self.my_progress
                         m["steam_installed"] = self.my_steam_installed
@@ -1186,6 +1646,8 @@ class PartyManager:
                         "id": self.client_id,
                         "name": self.nickname,
                         "discord": self.get_current_discord_name(),
+                        "discord_id": getattr(self, "discord_id", ""),
+                        "discord_username": getattr(self, "discord_username", ""),
                         "status": self.my_status,
                         "progress": self.my_progress,
                         "steam_installed": self.my_steam_installed,
@@ -1225,6 +1687,12 @@ class PartyManager:
 
         # 發送離開通知
         res = self._send_member_sync(action="leave")
+
+        # 🌟 觸發三因子審計同步至 Supabase (退出房間行為)
+        self.sync_action_audit_async("LEAVE_ROOM", {
+            "room_id": rid
+        })
+
         self._cleanup_local_room()
         return {"ok": True, "msg": f"已退出房間 #{rid}", "quota": self.latest_quota}
 

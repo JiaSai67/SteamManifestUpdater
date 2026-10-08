@@ -361,4 +361,25 @@ html:not(.dark) .of-desc {
   color: #1A1A1A !important;
 }
 
+/* ═══════════════════════════════════════════════════════
+   8. 右下角 Toast 提示淺色模式黑字規範 (白底粉邊黑字)
+   ═══════════════════════════════════════════════════════ */
+html:not(.dark) .toast,
+body:not(.dark) .toast,
+.toast {
+  color: #2D2327 !important;
+  background: rgba(255, 245, 247, 0.96) !important;
+  border: 1.5px solid rgba(255, 143, 167, 0.45) !important;
+  box-shadow: 0 8px 24px rgba(61, 44, 46, 0.16) !important;
+}
+html:not(.dark) .toast.in,
+html:not(.dark) .toast.info,
+body:not(.dark) .toast.in,
+body:not(.dark) .toast.info {
+  color: #2D2327 !important;
+  background: rgba(255, 245, 247, 0.96) !important;
+  border: 1.5px solid rgba(255, 143, 167, 0.45) !important;
+}
+
+
 
