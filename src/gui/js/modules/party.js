@@ -3268,3 +3268,172 @@ window.fetchAndRefreshCloudMetrics = fetchAndRefreshCloudMetrics;
 
 window.updateCreateRoomBtnState = updateCreateRoomBtnState;
 
+// ═════════════════════════════════════════════════════════════════════
+// 全鏈路資料流即時診斷與 LOG 監視視窗 (Telemetry Diagnostics Modal)
+// ═════════════════════════════════════════════════════════════════════
+
+var _telemetryAutoRefreshTimer = null;
+
+function openPartyTelemetryModal() {
+  var modal = document.getElementById('party-telemetry-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  refreshPartyTelemetryLogs(false);
+  
+  // 開啟時啟動每 3 秒自動刷新
+  if (_telemetryAutoRefreshTimer) clearInterval(_telemetryAutoRefreshTimer);
+  _telemetryAutoRefreshTimer = setInterval(function() {
+    var m = document.getElementById('party-telemetry-modal');
+    if (m && m.style.display !== 'none') {
+      refreshPartyTelemetryLogs(false);
+    } else {
+      clearInterval(_telemetryAutoRefreshTimer);
+      _telemetryAutoRefreshTimer = null;
+    }
+  }, 3000);
+}
+
+function closePartyTelemetryModal(e) {
+  if (e && e.target && e.target.classList && !e.target.classList.contains('detail-modal-overlay') && !e.target.classList.contains('detail-close-btn')) {
+    return;
+  }
+  var modal = document.getElementById('party-telemetry-modal');
+  if (modal) modal.style.display = 'none';
+  if (_telemetryAutoRefreshTimer) {
+    clearInterval(_telemetryAutoRefreshTimer);
+    _telemetryAutoRefreshTimer = null;
+  }
+}
+
+function refreshPartyTelemetryLogs(showToast) {
+  if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_party_telemetry_logs) {
+    var c = document.getElementById('party-telemetry-modal-content');
+    if (c) c.innerHTML = '<div style="color:#ff8585;text-align:center;padding:20px">API 尚未就緒</div>';
+    return;
+  }
+  
+  pywebview.api.get_party_telemetry_logs(150).then(function(res) {
+    var container = document.getElementById('party-telemetry-modal-content');
+    if (!container) return;
+    
+    if (!res || !res.ok || !res.logs || res.logs.length === 0) {
+      container.innerHTML = '<div style="color:var(--gray);text-align:center;padding:25px">尚無端到端資料流遙測記錄（請嘗試點擊綁定 Discord、創建房間或加入房間測試）</div>';
+      return;
+    }
+    
+    var html = '';
+    var logs = res.logs;
+    for (var i = 0; i < logs.length; i++) {
+      var item = logs[i];
+      var catColor = '#8892b0';
+      var catBg = 'rgba(255,255,255,0.06)';
+      if (item.category === 'OAUTH') { catColor = '#5865F2'; catBg = 'rgba(88,101,242,0.15)'; }
+      else if (item.category === 'DPAPI') { catColor = '#10b981'; catBg = 'rgba(16,185,129,0.15)'; }
+      else if (item.category === 'SUPABASE') { catColor = '#3ecf8e'; catBg = 'rgba(62,207,142,0.15)'; }
+      else if (item.category === 'TURSO') { catColor = '#00e5ff'; catBg = 'rgba(0,229,255,0.15)'; }
+      else if (item.category === 'WEBRTC') { catColor = '#f59e0b'; catBg = 'rgba(245,158,11,0.15)'; }
+      
+      var lvlColor = '#cbd5e1';
+      if (item.level === 'SUCCESS') lvlColor = '#4ade80';
+      else if (item.level === 'WARN') lvlColor = '#facc15';
+      else if (item.level === 'ERROR') lvlColor = '#f87171';
+      
+      var detailsHtml = '';
+      if (item.details && Object.keys(item.details).length > 0) {
+        var jsonStr = JSON.stringify(item.details);
+        if (jsonStr.length > 200) jsonStr = jsonStr.substring(0, 200) + '...';
+        detailsHtml = '<div style="margin-top:3px;color:#94a3b8;font-size:11px;padding-left:12px;border-left:2px solid rgba(255,255,255,0.1)">↳ ' + escapeHtml(jsonStr) + '</div>';
+      }
+      
+      html += '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);word-break:break-all;">'
+            + '<span style="color:#64748b;margin-right:8px;font-size:11px;">[' + item.timestamp + ']</span>'
+            + '<span style="color:' + catColor + ';background:' + catBg + ';padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;margin-right:8px;">' + item.category + '</span>'
+            + '<span style="color:' + lvlColor + ';font-weight:600;margin-right:8px;">' + escapeHtml(item.message) + '</span>'
+            + detailsHtml
+            + '</div>';
+    }
+    container.innerHTML = html;
+    container.scrollTop = container.scrollHeight;
+    
+    if (showToast) {
+      if (typeof tt === 'function') tt('已更新資料流診斷日誌 (' + logs.length + ' 條)', 'success');
+    }
+  }).catch(function(err) {
+    var c = document.getElementById('party-telemetry-modal-content');
+    if (c) c.innerHTML = '<div style="color:#ff8585;text-align:center;padding:20px">讀取異常: ' + escapeHtml(String(err)) + '</div>';
+  });
+}
+
+function copyPartyTelemetryLogText() {
+  if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_party_telemetry_text) {
+    if (typeof tt === 'function') tt('API 尚未就緒', 'warn');
+    return;
+  }
+  pywebview.api.get_party_telemetry_text(150).then(function(res) {
+    if (res && res.ok && res.text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(res.text).then(function() {
+          if (typeof tt === 'function') tt('📋 已複製完整資料流日誌至剪貼簿！', 'success');
+        }).catch(function() {
+          fallbackCopyText(res.text);
+        });
+      } else {
+        fallbackCopyText(res.text);
+      }
+    } else {
+      if (typeof tt === 'function') tt('尚無日誌可複製', 'info');
+    }
+  }).catch(function(err) {
+    if (typeof tt === 'function') tt('複製失敗: ' + err, 'error');
+  });
+}
+
+function fallbackCopyText(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    if (typeof tt === 'function') tt('📋 已複製完整資料流日誌至剪貼簿！', 'success');
+  } catch(e) {
+    if (typeof tt === 'function') tt('複製失敗，請手動複製', 'error');
+  }
+  document.body.removeChild(ta);
+}
+
+function openPartyTelemetryLogInEditor() {
+  if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.open_party_telemetry_file) {
+    return;
+  }
+  pywebview.api.open_party_telemetry_file().then(function(res) {
+    if (res && res.ok) {
+      if (typeof tt === 'function') tt('已在外部編輯器中開啟 party_telemetry.log', 'success');
+    } else {
+      if (typeof tt === 'function') tt(res.msg || '開啟日誌檔案失敗', 'warn');
+    }
+  });
+}
+
+function clearPartyTelemetryLogs() {
+  if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.clear_party_telemetry_logs) {
+    return;
+  }
+  pywebview.api.clear_party_telemetry_logs().then(function(res) {
+    if (res && res.ok) {
+      if (typeof tt === 'function') tt('已清空本地資料流日誌', 'success');
+      refreshPartyTelemetryLogs(false);
+    }
+  });
+}
+
+window.openPartyTelemetryModal = openPartyTelemetryModal;
+window.closePartyTelemetryModal = closePartyTelemetryModal;
+window.refreshPartyTelemetryLogs = refreshPartyTelemetryLogs;
+window.copyPartyTelemetryLogText = copyPartyTelemetryLogText;
+window.openPartyTelemetryLogInEditor = openPartyTelemetryLogInEditor;
+window.clearPartyTelemetryLogs = clearPartyTelemetryLogs;
+
+

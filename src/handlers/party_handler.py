@@ -260,3 +260,59 @@ class PartyHandler:
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 
+    # ═════════════════════════════════════════════════════════════════════
+    # 全鏈路資料流遙測與診斷 (Telemetry Logs)
+    # ═════════════════════════════════════════════════════════════════════
+
+    def get_party_telemetry_logs(self, limit: int = 150) -> Dict[str, Any]:
+        """獲取本機端到端資料流結構化日誌 (最新 150 筆)"""
+        try:
+            from utils.telemetry_logger import get_telemetry_logger
+            tlogger = get_telemetry_logger()
+            return {
+                "ok": True,
+                "logs": tlogger.get_logs(limit),
+                "log_file": tlogger.log_file
+            }
+        except Exception as e:
+            return {"ok": False, "msg": f"讀取遙測日誌失敗: {e}", "logs": []}
+
+    def get_party_telemetry_text(self, limit: int = 150) -> Dict[str, Any]:
+        """獲取適合一鍵複製之純文字格式日誌"""
+        try:
+            from utils.telemetry_logger import get_telemetry_logger
+            return {
+                "ok": True,
+                "text": get_telemetry_logger().get_formatted_text(limit)
+            }
+        except Exception as e:
+            return {"ok": False, "msg": f"產生日誌純文字失敗: {e}", "text": ""}
+
+    def open_party_telemetry_file(self) -> Dict[str, Any]:
+        """在作業系統中開啟 logs/party_telemetry.log"""
+        try:
+            from utils.telemetry_logger import get_telemetry_logger
+            ok = get_telemetry_logger().open_log_file()
+            return {"ok": ok, "msg": "已開啟資料流日誌檔案" if ok else "開啟日誌檔案失敗"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def open_party_telemetry_folder(self) -> Dict[str, Any]:
+        """在 Windows 檔案總管開啟日誌資料夾"""
+        try:
+            from utils.telemetry_logger import get_telemetry_logger
+            ok = get_telemetry_logger().open_log_folder()
+            return {"ok": ok, "msg": "已開啟 logs 資料夾" if ok else "開啟資料夾失敗"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+    def clear_party_telemetry_logs(self) -> Dict[str, Any]:
+        """清空遙測日誌隊列與檔案"""
+        try:
+            from utils.telemetry_logger import get_telemetry_logger
+            get_telemetry_logger().clear()
+            return {"ok": True, "msg": "已重置本地資料流遙測日誌"}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)}
+
+

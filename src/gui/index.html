@@ -252,6 +252,7 @@
 
         <div class="party-header-actions">
           <button class="btn btn-party-create btn-s" id="btn-party-create-room" onclick="handlePartyCreateOrRecruit()" title="創建專屬組隊房間並開始招募隊友">➕ 創建房間</button>
+          <button class="btn btn-o btn-s" id="party-btn-telemetry" onclick="openPartyTelemetryModal()" title="檢視本機端到端資料流即時診斷與 LOG" style="display:flex;align-items:center;gap:4px">📊 診斷 LOG</button>
           <button class="btn btn-o btn-s" id="party-btn-refresh" onclick="refreshPartyLobby(true)" title="立即刷新大廳">🔄 刷新</button>
         </div>
       </div>
@@ -356,6 +357,36 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     組隊大廳全鏈路資料流即時診斷與 LOG 監視視窗 (Cyberpunk Glass Modal)
+     ═══════════════════════════════════════════════════════ -->
+<div id="party-telemetry-modal" class="detail-modal-overlay" onclick="closePartyTelemetryModal(event)" style="display:none;z-index:100080">
+  <div class="detail-modal-box log-modal-box" onclick="event.stopPropagation()" style="max-width:860px;width:92vw;">
+    <div class="detail-modal-header" style="background:linear-gradient(135deg,rgba(88,101,242,0.18),rgba(120,80,220,0.08));border-bottom:1px solid rgba(88,101,242,0.25);">
+      <div class="detail-modal-title" style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:18px">📊</span>
+        <span style="font-weight:700">全鏈路資料流診斷與本機 LOG 監視中心</span>
+        <span id="party-telemetry-status-badge" class="chip green" style="font-size:11px;padding:2px 8px">即時監控中</span>
+      </div>
+      <button class="detail-close-btn" onclick="closePartyTelemetryModal()">✕</button>
+    </div>
+    <div class="log-modal-toolbar" style="background:rgba(0,0,0,0.08);border-bottom:1px solid rgba(255,255,255,0.06);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div class="log-modal-meta" style="font-size:11.5px;color:var(--gray)">
+        <span>本地監控管線：<strong style="color:var(--text)">OAuth ⭢ DPAPI ⭢ Supabase ⭢ Turso ⭢ WebRTC</strong></span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-s" onclick="refreshPartyTelemetryLogs()" style="background:rgba(88,101,242,0.2);border:1px solid rgba(88,101,242,0.4);font-size:11px;padding:3px 10px;cursor:pointer" title="立即刷新日誌清單">🔄 刷新</button>
+        <button class="btn btn-s" onclick="copyPartyTelemetryLogText()" style="background:rgba(88,101,242,0.2);border:1px solid rgba(88,101,242,0.4);font-size:11px;padding:3px 10px;cursor:pointer" title="複製純文字日誌至剪貼簿，可直接貼給工程師">📋 一鍵複製 LOG</button>
+        <button class="btn btn-s" onclick="openPartyTelemetryLogInEditor()" style="background:rgba(88,101,242,0.2);border:1px solid rgba(88,101,242,0.4);font-size:11px;padding:3px 10px;cursor:pointer" title="在系統預設編輯器中開啟 party_telemetry.log">📁 開啟 LOG 檔</button>
+        <button class="btn btn-s" onclick="clearPartyTelemetryLogs()" style="background:rgba(255,75,75,0.15);border:1px solid rgba(255,75,75,0.3);color:#ff8585;font-size:11px;padding:3px 10px;cursor:pointer" title="清空當前遙測記錄">🗑️ 清空</button>
+      </div>
+    </div>
+    <div class="log-modal-body" id="party-telemetry-modal-content" style="padding:14px 18px;max-height:60vh;overflow-y:auto;background:rgba(10,12,18,0.95);font-family:Consolas, 'Cascadia Code', monospace;font-size:12px;line-height:1.6;">
+      <div style="color:var(--gray);text-align:center;padding:20px">正在載入本地全鏈路遙測記錄…</div>
     </div>
   </div>
 </div>

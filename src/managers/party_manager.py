@@ -311,19 +311,30 @@ class PartyManager:
         args = [{"type": "text", "value": today_str}]
         
         ok, res = self._turso_execute(query_sql, args, timeout=4)
-        if not ok or not res or not res.get("rows"):
-            return {"ok": False, "msg": "目前伺服器尚未開放今日備援通道"}
-
-        row = res["rows"][0]
-        correct_passcode = str(row[0].get("value", "")).strip().upper()
-        max_hours = int(row[1].get("value", 3))
-        is_active = bool(int(row[2].get("value", 1)))
-
-        if not is_active:
-            return {"ok": False, "msg": "今日雲端備援通道已由管理員手動關閉"}
-
-        if clean_code != correct_passcode:
-            return {"ok": False, "msg": "通行碼錯誤或已過期，請向管理員索取今日通行碼"}
+        if ok and res and res.get("rows"):
+            row = res["rows"][0]
+            correct_passcode = str(row[0].get("value", "")).strip().upper()
+            max_hours = int(row[1].get("value", 3))
+            is_active = bool(int(row[2].get("value", 1)))
+            if not is_active:
+                return {"ok": False, "msg": "今日雲端備援通道已由管理員手動關閉"}
+            if clean_code != correct_passcode:
+                return {"ok": False, "msg": "通行碼錯誤或已過期，請向管理員索取今日通行碼"}
+        else:
+            # 🌟 容災備援：向 Supabase 呼叫 verify_fallback_passcode RPC 核驗
+            try:
+                rpc_url = f"{self.supabase_url.rstrip('/')}/rest/v1/rpc/verify_fallback_passcode"
+                sb_resp = requests.post(rpc_url, headers=self._get_supabase_headers(), json={"input_code": clean_code}, timeout=5)
+                if sb_resp.status_code == 200:
+                    sb_data = sb_resp.json()
+                    if not sb_data.get("ok"):
+                        return {"ok": False, "msg": sb_data.get("msg", "通行碼錯誤或已過期")}
+                    max_hours = int(sb_data.get("max_hours", 3))
+                else:
+                    return {"ok": False, "msg": "目前伺服器尚未開放今日備援通道"}
+            except Exception as sbe:
+                logger.error(f"[Gatekeeper] 備援向 Supabase 驗證通行碼失敗: {sbe}")
+                return {"ok": False, "msg": "目前伺服器尚未開放今日備援通道"}
 
         # 2. 驗證成功：向 active_leases 簽發短期租約
         now_ts = int(time.time())
@@ -463,11 +474,17 @@ class PartyManager:
         """
         try:
             from utils.dpapi_key_manager import get_dpapi_public_key, sign_with_dpapi
+            from utils.telemetry_logger import tlog
             import time
             ts = int(time.time())
             enc_payload = self.pack_secure_payload(action, raw_data)
             pubkey = getattr(self, "dpapi_pubkey", "") or get_dpapi_public_key()
             sig = sign_with_dpapi(f"{action}_{ts}_{self.hwid}")
+            tlog("DPAPI", f"本機 DPAPI 數位簽章生成完成 (Action: {action}, HWID: {self.hwid[:8]}...)", "INFO", {
+                "action": action,
+                "has_pubkey": bool(pubkey),
+                "hwid_prefix": self.hwid[:8]
+            })
 
             rpc_endpoint = f"{self.supabase_url.rstrip('/')}/rest/v1/rpc/record_user_action"
             body = {
@@ -481,13 +498,22 @@ class PartyManager:
                 "p_payload_encrypted": enc_payload,
                 "p_signature": sig
             }
+            tlog("SUPABASE", f"向 Supabase 發起三因子審計 RPC [record_user_action] (Action: {action})...", "INFO", {
+                "discord_id": body["p_discord_id"],
+                "username": body["p_discord_username"]
+            })
             resp = self.session.post(rpc_endpoint, json=body, timeout=6)
             if resp.status_code in [200, 201]:
-                return resp.json()
+                res_data = resp.json()
+                tlog("SUPABASE", f"三因子安全審計通過！Action: {action} (IP 自動記錄)", "SUCCESS", res_data)
+                return res_data
             else:
+                tlog("SUPABASE", f"Supabase 審計拒絕 HTTP {resp.status_code}: {resp.text[:120]}", "WARN")
                 return {"ok": False, "status": resp.status_code}
         except Exception as e:
             logger.debug(f"[AUDIT] 同步審計失敗: {e}")
+            from utils.telemetry_logger import tlog
+            tlog("SUPABASE", f"三因子審計連線異常: {e}", "ERROR")
             return {"ok": False, "error": str(e)}
 
     def sync_action_audit_async(self, action: str, raw_data: Any = None):
@@ -553,6 +579,8 @@ class PartyManager:
                         self.session.headers["x-discord-token"] = self.discord_access_token
                     if self.discord_id:
                         self.session.headers["x-discord-id"] = self.discord_id
+                    from utils.telemetry_logger import tlog
+                    tlog("OAUTH", f"本機官方身分綁定完成：@{self.discord_username} (ID: {self.discord_id})", "SUCCESS")
                     # 🌟 觸發三因子身分核驗與審計同步至 Supabase
                     self.sync_action_audit_async("OAUTH_VERIFIED", {
                         "discord_id": self.discord_id,
@@ -560,11 +588,14 @@ class PartyManager:
                         "global_name": self.discord_global_name
                     })
                 elif res.get("needs_secret"):
-                    # 取得 Code 但尚未配置 Secret，先標記認證中
+                    from utils.telemetry_logger import tlog
+                    tlog("OAUTH", "取得 Code 但缺少 Client Secret，流程受阻 (needs_secret)", "WARN")
                     logger.info(f"[Discord OAuth] 成功取得授權 Code: {res.get('code')}")
                 return res
             return res
         except Exception as e:
+            from utils.telemetry_logger import tlog
+            tlog("OAUTH", f"啟動認證異常失敗: {e}", "ERROR")
             logger.error(f"[Discord OAuth] 啟動認證失敗: {e}", exc_info=True)
             return {"ok": False, "msg": f"認證流程出錯: {e}"}
 

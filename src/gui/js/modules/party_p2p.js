@@ -213,8 +213,8 @@ var _partyP2P = {
                         若需啟用高成本的雲端伺服器備援通道，請輸入由管理員發放的<strong>【今日備援通行碼】</strong>。
                     </p>
                     <div style="margin-bottom: 18px;">
-                        <input id="input-fallback-passcode" type="text" placeholder="例如: PASS-8899" maxlength="20"
-                            style="width: 100%; box-sizing: border-box; background: #0f1013; border: 1px solid #374151; border-radius: 8px; padding: 10px 14px; color: #fff; font-size: 15px; font-family: monospace; text-transform: uppercase; outline: none;">
+                        <input id="input-fallback-passcode" type="text" placeholder="例如: 7 碼英數雜湊 (如 Q3R65GN)" maxlength="12"
+                            style="width: 100%; box-sizing: border-box; background: #0f1013; border: 1px solid #374151; border-radius: 8px; padding: 10px 14px; color: #fff; font-size: 15px; font-family: monospace; text-transform: uppercase; letter-spacing: 2px; outline: none;">
                         <div id="passcode-error-msg" style="color: #ef4444; font-size: 12px; margin-top: 6px; display: none;"></div>
                     </div>
                     <div style="display: flex; justify-content: flex-end; gap: 10px;">
