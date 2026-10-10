@@ -79,6 +79,111 @@ def get_extractor():
 EXTRACTOR = get_extractor()
 ARCHIVE_PASSWORDS = ["online-fix.me", "zeigames.com", ""]
 
+# 🌟 已知官方/熱門 Google Drive 補丁檔名至 AppID 精準映射字典 (杜絕純英文檔名無數字無法解析問題)
+KNOWN_CLOUD_PATCH_APPIDS = {
+    "dimraeth": "2402680",
+    "corekeeper": "1621690",
+    "core keeper": "1621690",
+    "escapethebackrooms": "1813330",
+    "escape the backrooms": "1813330",
+    "fastfoodsimulator": "2880780",
+    "fast food simulator": "2880780",
+    "grainrot": "3108640",
+    "grain rot": "3108640",
+    "minecraftdungeons": "1672970",
+    "minecraftdungeonsii": "1672970",
+    "pizzahousesimulator": "2862410",
+    "pizza house simulator": "2862410",
+    "scamline": "3107050",
+    "subnautica": "264710",
+    "ultimatechickenhorse": "386940",
+    "ultimate chicken horse": "386940",
+    "deepbluesushi": "3209800",
+    "deep blue sushi": "3209800",
+    "wraphousesimulator": "3257850",
+    "wrap house simulator": "3257850",
+}
+
+def resolve_appid_for_patch_file(file_name: str, folder_part: str = "") -> str:
+    """
+    從補丁檔名或目錄路徑智慧反解 Steam AppID：
+    1. 優先尋找 4~9 位純數字 AppID
+    2. 智能剝離修復標籤後綴 (_Fix_Repair_Steam_Generic, OnlineFix, ZeiGames 等)
+    3. 交叉比對 data/game_names.json、已知網盤補丁庫字典與本地 Steam 遊戲
+    """
+    import re
+    if not file_name:
+        return ""
+    
+    # 1. 檢查路徑與檔名中的純數字 (排除常見誤判如年份 2020-2029 或通用版本)
+    for candidate in [folder_part, file_name]:
+        if candidate:
+            m = re.findall(r'(?:^|[^0-9])(\d{4,9})(?:[^0-9]|$)', candidate)
+            for aid in m:
+                if str(aid) not in ("2023", "2024", "2025", "2026", "2027"):
+                    return str(aid)
+
+    # 2. 清理檔名修復標籤與後綴
+    clean_name = file_name
+    for ext in ['.rar', '.zip', '.7z', '.lua', '.tar', '.gz']:
+        if clean_name.lower().endswith(ext):
+            clean_name = clean_name[:-len(ext)]
+            break
+
+    tags_to_strip = [
+        '_Fix_Repair_Steam_V2_Generic', '_Fix_Repair_Steam_Generic', '_Fix_Repair_GDK',
+        '_Fix_Repair_Steam', '_Fix_Repair', 'Fix_Repair_Steam_Generic',
+        '.OnlineFix.ZeiGames.com', 'OnlineFix.ZeiGames.com', 'Online Fix.ZeiGames.com',
+        '.OnlineFix', 'OnlineFix', 'Online-Fix', 'Online Fix', 'ZeiGames.com', 'ZeiGames',
+        'Generic', '_Steam', 'Steam'
+    ]
+    for tag in tags_to_strip:
+        clean_name = re.sub(re.escape(tag), '', clean_name, flags=re.IGNORECASE)
+
+    clean_name = clean_name.replace('_', ' ').replace('.', ' ').strip()
+    norm_clean = re.sub(r'[^a-z0-9]', '', clean_name.lower())
+    if not norm_clean:
+        return ""
+
+    # 3. 比對已知網盤補丁庫高頻字典
+    if norm_clean in KNOWN_CLOUD_PATCH_APPIDS:
+        return KNOWN_CLOUD_PATCH_APPIDS[norm_clean]
+
+    for k, v in KNOWN_CLOUD_PATCH_APPIDS.items():
+        k_norm = re.sub(r'[^a-z0-9]', '', k.lower())
+        if k_norm and (k_norm in norm_clean or norm_clean in k_norm):
+            return v
+
+    # 4. 比對 data/game_names.json (使用者與系統已記錄之遊戲庫)
+    try:
+        gn_file = config_manager._root_dir / "data" / "game_names.json"
+        if gn_file.exists():
+            gn_data = json.loads(gn_file.read_text(encoding="utf-8"))
+            for aid, gname in gn_data.items():
+                g_norm = re.sub(r'[^a-z0-9]', '', str(gname).lower())
+                if g_norm and len(g_norm) >= 3 and (g_norm in norm_clean or norm_clean in g_norm):
+                    return str(aid)
+    except Exception:
+        pass
+
+    # 5. 比對 data/game_cache.json (若存在)
+    try:
+        gc_file = config_manager._root_dir / "data" / "game_cache.json"
+        if gc_file.exists():
+            gc_data = json.loads(gc_file.read_text(encoding="utf-8"))
+            for aid, ginfo in gc_data.items():
+                if isinstance(ginfo, dict):
+                    for nk in ['name', 'english_name', 'name_en']:
+                        g_val = ginfo.get(nk)
+                        if g_val:
+                            g_norm = re.sub(r'[^a-z0-9]', '', str(g_val).lower())
+                            if g_norm and len(g_norm) >= 3 and (g_norm in norm_clean or norm_clean in g_norm):
+                                return str(aid)
+    except Exception:
+        pass
+
+    return ""
+
 _cache_dir = Path(_config.get("cache_dir", str(config_manager._root_dir / "data" / "cache")))
 def get_app_cache_dir(app_id, app_name=None, create=False):
     app_id = str(app_id)
@@ -307,7 +412,23 @@ if _cloud_cache_file.exists():
     try:
         with open(_cloud_cache_file, "r", encoding="utf-8") as f:
             _cloud_cache = json.load(f)
-    except:
+            # 🌟 快取自我修復：若歷史快取中未填入 AppID，立即智慧補齊並持久化
+            if isinstance(_cloud_cache, list):
+                _patched_any = False
+                for item in _cloud_cache:
+                    if not item.get("app_id"):
+                        fname = item.get("name") or Path(item.get("path") or "").name
+                        aid = resolve_appid_for_patch_file(fname, item.get("path") or "")
+                        if aid:
+                            item["app_id"] = str(aid)
+                            _patched_any = True
+                if _patched_any:
+                    try:
+                        with open(_cloud_cache_file, "w", encoding="utf-8") as wf:
+                            json.dump(_cloud_cache, wf, ensure_ascii=False, indent=2)
+                    except Exception:
+                        pass
+    except Exception:
         _cloud_cache = None
 
 def get_cloud_drives():
@@ -431,16 +552,9 @@ def fetch_cloud_cache(force=False, min_interval=30):
                     parts = norm_path.split('\\')
                     file_name = parts[-1]
                     
-                    # 辨識 AppID
-                    app_id = None
-                    if len(parts) >= 2:
-                        m = re.search(r'(?:^|[^0-9])(\d{4,9})(?:[^0-9]|$)', parts[0])
-                        if m:
-                            app_id = m.group(1)
-                    if not app_id:
-                        m = re.search(r'(?:^|[^0-9])(\d{4,9})(?:[^0-9]|$)', file_name)
-                        if m:
-                            app_id = m.group(1)
+                    # 辨識 AppID (全域智慧多層反解，支援純英文無數字檔名)
+                    folder_part = parts[0] if len(parts) >= 2 else ""
+                    app_id = resolve_appid_for_patch_file(file_name, folder_part=folder_part)
                             
                     item_data = {
                         'path': f_path,
@@ -575,19 +689,11 @@ def get_patch_sources(target_apps=None, target_app_id=None, target_app_name=None
             drive_name = f.get('drive_name', '網盤 1')
             file_name = parts[-1]
             
-            # Extract app_id from path or filename
-            import re
-            app_id = None
-            if len(parts) >= 2:
-                # check folder name for digits
-                m = re.search(r'(?:^|[^0-9])(\d{4,9})(?:[^0-9]|$)', parts[0])
-                if m:
-                    app_id = m.group(1)
+            # Extract app_id from cached item or path/filename
+            app_id = f.get('app_id')
             if not app_id:
-                # check filename for digits
-                m = re.search(r'(?:^|[^0-9])(\d{4,9})(?:[^0-9]|$)', file_name)
-                if m:
-                    app_id = m.group(1)
+                folder_part = parts[0] if len(parts) >= 2 else ""
+                app_id = resolve_appid_for_patch_file(file_name, folder_part=folder_part)
                     
             if app_id:
                 if app_id not in sources:
@@ -1175,33 +1281,16 @@ def get_all_onlinefix_appids(force: bool = False):
                 game_cache = {}
 
         for f in cache:
-            p = (f.get('name') or f.get('path') or '').replace('/', '\\')
-            parts = p.split('\\')
-            fname = parts[-1].lower()
-            
-            # 必須是補丁壓縮檔或 lua 或 patch
-            if not fname.endswith(('.rar', '.zip', '.7z', '.lua')):
-                continue
-                
-            found_numeric_aid = False
-            # 從目錄名或檔名提取 appid
-            for part in parts:
-                m = re.findall(r'\b(\d{4,9})\b', part)
-                for aid in m:
-                    appids.add(str(aid))
-                    found_numeric_aid = True
-                    
-            # 若檔名無數字，則與已知的遊戲名稱進行嚴格子字串匹配
-            if not found_numeric_aid:
-                norm_fname = re.sub(r'[^a-z0-9]', '', fname)
-                for aid, g in game_cache.items():
-                    name_en = g.get('english_name') or g.get('name_en') or ''
-                    name_tc = g.get('name') or ''
-                    for n in [name_en, name_tc]:
-                        if n and len(n) >= 4:
-                            norm_n = re.sub(r'[^a-z0-9]', '', n.lower())
-                            if norm_n and len(norm_n) >= 4 and norm_n in norm_fname:
-                                appids.add(str(aid))
+            # 優先採用快取中已標記之 app_id
+            aid = f.get('app_id')
+            if not aid:
+                p = (f.get('name') or f.get('path') or '').replace('/', '\\')
+                parts = p.split('\\')
+                fname = parts[-1]
+                folder_part = parts[0] if len(parts) >= 2 else ""
+                aid = resolve_appid_for_patch_file(fname, folder_part=folder_part)
+            if aid:
+                appids.add(str(aid))
                     
     # 2. 讀取本地快取目錄中真正存在實體補丁檔案的資料夾
     if LOCAL_PATCH_DIR.exists():
@@ -1418,4 +1507,50 @@ class SteamDeployWatcher:
         return True
 
 _deploy_watcher = SteamDeployWatcher()
+
+
+# ═══════════════════════════════════════════════════════
+# 🌟 Google Drive 雲端補丁庫背景預載入與定時輪詢守護器
+# ═══════════════════════════════════════════════════════
+_scheduler_started = False
+_scheduler_lock = threading.Lock()
+
+def start_cloud_sync_scheduler(interval_sec=300):
+    """
+    啟動 Google Drive 雲端補丁庫背景預載入與定時輪詢守護執行緒。
+    1. 啟動即非同步預載入：軟體開啟時立即於背景向 Google Drive 確定數據，不阻塞 UI；
+    2. 定時週期性輪詢：每隔 interval_sec (預設 300 秒) 自動刷新 Google Drive 最新檔案清單；
+    3. 全域資料保鮮：確保小卡無論何時查詢，均走記憶體/本地快取，絕對不需等用戶點開小卡才主動連網 TRY。
+    """
+    global _scheduler_started
+    with _scheduler_lock:
+        if _scheduler_started:
+            return
+        _scheduler_started = True
+
+    def _worker():
+        # 1. 啟動首波非同步預載入 (延遲 0.8 秒避開視窗啟動尖峰)
+        time.sleep(0.8)
+        try:
+            print("[OnlineFix] 🚀 啟動背景預載入 Google Drive 雲端補丁庫...")
+            fetch_cloud_cache(force=False, min_interval=0)
+            aids = get_all_onlinefix_appids(force=True)
+            print(f"[OnlineFix] ✅ Google Drive 補丁庫預載入完成，目前收錄 {len(aids)} 款遊戲聯機補丁: {aids}")
+        except Exception as e:
+            print(f"[OnlineFix] 預載入異常: {e}")
+
+        # 2. 背景定時循環輪詢
+        while True:
+            time.sleep(interval_sec)
+            try:
+                print("[OnlineFix] 🔄 正在背景定時輪詢 Google Drive 補丁庫以保持最新數據...")
+                fetch_cloud_cache(force=True, min_interval=interval_sec - 10)
+                aids = get_all_onlinefix_appids(force=True)
+                print(f"[OnlineFix] 🔄 輪詢完成，目前收錄 {len(aids)} 款遊戲聯機補丁。")
+            except Exception as e:
+                print(f"[OnlineFix] 背景輪詢異常: {e}")
+
+    t = threading.Thread(target=_worker, name="GDriveSyncScheduler", daemon=True)
+    t.start()
+
 

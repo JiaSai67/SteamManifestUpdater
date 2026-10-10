@@ -20,15 +20,47 @@ var _isPartyActive = false;
 
 var _partySearchKeyword = '';
 var _partyCountdownTimer = null;
-var _partyCountdownSeconds = 30;
+var _partyCountdownSeconds = 60; // 🌟 預設給予 1 分鐘 (60 秒) 填寫資料或選擇發送/解散
+var _partyDelayCount = 0; // 🌟 房主延遲 5 分鐘計數 (最多 2 次)
 var _partyContactSubmitted = false;
 var _partyContactPollingTimer = null;
 var _partyReceivedContact = '';
 var _partyPostDestructTimer = null;
-var _partyDestructSeconds = 30;
 var _partyContactInputText = '';
+var _partyPreFilledContact = '';
+try {
+  _partyPreFilledContact = localStorage.getItem('smu_party_pre_contact') || '';
+  _partyContactInputText = _partyPreFilledContact;
+} catch (e) {}
 var _partyPollFailures = 0;
 
+/**
+ * 房主儲存或更新預填聯絡資訊 (支援建房彈窗與房間等待頁面雙向同步)
+ */
+function savePartyPreFilledContact(val) {
+  _partyPreFilledContact = (val !== undefined && val !== null) ? String(val).trim() : '';
+  _partyContactInputText = _partyPreFilledContact;
+  try {
+    if (_partyPreFilledContact) {
+      localStorage.setItem('smu_party_pre_contact', _partyPreFilledContact);
+    } else {
+      localStorage.removeItem('smu_party_pre_contact');
+    }
+  } catch (e) {}
+
+  var modalInput = document.getElementById('input-party-pre-contact');
+  if (modalInput && modalInput.value !== _partyPreFilledContact) {
+    modalInput.value = _partyPreFilledContact;
+  }
+  var roomInput = document.getElementById('party-room-pre-contact-input');
+  if (roomInput && roomInput.value !== _partyPreFilledContact) {
+    roomInput.value = _partyPreFilledContact;
+  }
+}
+
+/**
+ * 倒數重置與中斷保護：當全員就緒狀態改變或有成員退出時隨時停止倒數
+ */
 function resetPartyReadyCountdown() {
   if (_partyCountdownTimer) {
     clearInterval(_partyCountdownTimer);
@@ -42,11 +74,12 @@ function resetPartyReadyCountdown() {
     clearInterval(_partyPostDestructTimer);
     _partyPostDestructTimer = null;
   }
-  _partyCountdownSeconds = 30;
-  _partyDestructSeconds = 30;
+  _partyCountdownSeconds = 60;
+  _partyDelayCount = 0;
   _partyContactSubmitted = false;
   _partyReceivedContact = '';
-  _partyContactInputText = '';
+  // 🌟 保留預填聯絡資訊，不被未全員就緒時的定時心跳清空
+  _partyContactInputText = _partyPreFilledContact || localStorage.getItem('smu_party_pre_contact') || '';
   if (window.PartyP2P) {
     window.PartyP2P.close();
   }
@@ -497,9 +530,13 @@ function switchPartyNav(target) {
 
 function checkCurrentPartyRoom() {
 
+  if (window.__tutorialMockPartyActive) return; // 🌟 教學沙盒保護：教學進行中禁止真實後端狀態覆蓋
+
   if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_party_room_details) return;
 
   pywebview.api.get_party_room_details('').then(function(res) {
+
+    if (window.__tutorialMockPartyActive) return; // 🌟 非同步返回時再次保護
 
     if (res && res.ok && res.room) {
 
@@ -525,6 +562,8 @@ function checkCurrentPartyRoom() {
 
   }).catch(function() {
 
+    if (window.__tutorialMockPartyActive) return;
+
     _partyCurRoom = null;
 
     updateSidebarRoomInfo(null);
@@ -546,6 +585,8 @@ var _lastManualRefreshTime = 0;
  */
 
 function schedulePartyPolling(delay) {
+
+  if (window.__tutorialMockPartyActive) return; // 🌟 教學沙盒保護：教學進行中禁止真實後端輪詢
 
   if (!_isPartyActive) return;
 
@@ -686,7 +727,9 @@ function schedulePartyPolling(delay) {
  */
 
 function refreshPartyLobby(isUserClick) {
-
+  if (window.__tutorialMockPartyActive) {
+    return;
+  }
   if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_lobby_rooms) return;
 
   var now = Date.now();
@@ -789,7 +832,9 @@ function renderLobbyView() {
  */
 
 function renderLobbyRoomsGrid(rooms) {
-
+  if (window.__tutorialMockPartyActive) {
+    return;
+  }
   var navCount = document.getElementById('party-nav-lobby-count');
 
   if (navCount) {
@@ -852,7 +897,10 @@ function renderLobbyRoomsGrid(rooms) {
 
     var isFull = curPlayers >= maxPlayers;
 
-    var note = r.note ? ('<div class="party-room-card-note">' + escapeHtml(r.note) + '</div>') : '';
+    var cleanNote = (r.note || '').trim();
+    if (cleanNote.startsWith('[NOTE]:')) cleanNote = cleanNote.slice(7);
+    if (cleanNote.indexOf('[CONTACT]:') !== -1) cleanNote = cleanNote.split('[CONTACT]:')[0].trim();
+    var note = cleanNote ? ('<div class="party-room-card-note">' + escapeHtml(cleanNote) + '</div>') : '';
 
     
 
@@ -973,301 +1021,149 @@ function joinPartyRoom(roomId) {
   tt('🌸 正在加入房間 #' + roomId + '…', 'info');
 
   pywebview.api.join_party_room(roomId).then(function(res) {
-
     if (res && res.ok && res.room) {
-
       tt(res.msg || '成功進入房間 #' + roomId, 'ok');
-
       _partyCurRoom = res.room;
-
       updateSidebarRoomInfo(res.room);
-
       switchPartyNav('room');
-
-      schedulePartyPolling(3000);
-
+      renderRoomView(res.room);
+      startRoomSync();
     } else {
-
-      tt(res && res.msg ? res.msg : '加入房間失敗', 'err');
-
+      tt((res && res.msg) || '加入房間失敗', 'err');
     }
-
   }).catch(function(err) {
-
-    tt('加入房間出錯: ' + err, 'err');
-
+    tt('加入房間異常：' + err, 'err');
   });
-
 }
 
 /**
-
- * 切換至房間內部視圖並渲染成員清單
-
- * 嚴格遵循格式規範：
-
- * 'name' ('discord name')
-
- * '下載狀況(未下載/下載中： xx%/就緒)'
-
+ * 渲染房間詳情視圖
  */
-
 function renderRoomView(room) {
+  if (!room) return;
+  _partyCurRoom = room;
 
-  if (!room || !room.room_id) {
-
-    switchPartyNav('lobby');
-
-    return;
-
-  }
-
-  var lobbyView = document.getElementById('party-lobby-view');
-
-  var roomView = document.getElementById('party-room-view');
-
-  if (lobbyView) { lobbyView.style.display = 'none'; lobbyView.classList.remove('active'); }
-
-  if (roomView) { roomView.style.display = 'flex'; roomView.classList.add('active'); }
-
-  var rid = room.room_id || '';
-
-  var gameName = room.game_name || '未知遊戲';
-
-  var appid = room.appid ? String(room.appid).trim() : '';
-
-  var hostName = room.host_name || '房主';
-
-  var hostDiscord = room.host_discord || '';
-
+  var rid = room.id || room.room_id || '';
+  var hostName = room.host_name || room.host_player_name || '房主';
+  var hostDiscord = room.host_discord || room.host_discord_name || '';
+  var gameName = room.game_name || room.app_name || '未知遊戲';
   var maxPlayers = room.max_players || 4;
+  var members = room.members || [];
+  var myName = (_partyProfile && _partyProfile.player_name) || '';
+  var isHost = isHostUser(room);
 
-  var members = Array.isArray(room.members) ? room.members : [];
+  // 標題與基本資訊
+  var titleEl = document.getElementById('party-room-title');
+  if (titleEl) titleEl.textContent = '【' + gameName + '】專屬組隊房間';
 
-  // 判斷自己是否為房主
+  var codeEl = document.getElementById('party-room-code-display');
+  if (codeEl) codeEl.textContent = rid;
 
-  var myName = (_partyProfile && _partyProfile.nickname) || '';
-
-  var isHost = (hostName === myName);
-
-  // 頂部資料填充
-
-  var titleEl = document.getElementById('party-room-game-title');
-
-  if (titleEl) titleEl.textContent = gameName;
-
-  var appidBadge = document.getElementById('party-room-appid-badge');
-
-  if (appidBadge) {
-
-    appidBadge.textContent = appid ? ('AppID: ' + appid) : '無 AppID';
-
-    appidBadge.style.display = appid ? 'inline-block' : 'none';
-
-  }
-
-  var codeVal = document.getElementById('party-room-code-val');
-
-  if (codeVal) codeVal.textContent = rid;
+  var hostVal = document.getElementById('party-room-host-val');
+  if (hostVal) hostVal.textContent = '👑 ' + hostName + (hostDiscord ? ' (' + hostDiscord + ')' : '');
 
   var playersVal = document.getElementById('party-room-players-val');
 
-  if (playersVal) playersVal.textContent = '👥 ' + (members.length + 1) + ' / ' + maxPlayers + ' 人';
-
-  var roleVal = document.getElementById('party-room-role-val');
-
-  if (roleVal) {
-
-    roleVal.textContent = isHost ? '👑 房主' : '⚔️ 隊員';
-
-    roleVal.className = 'party-room-role-badge ' + (isHost ? 'host' : 'member');
-
-  }
-
-  // 封面圖
-
-  var coverImg = document.getElementById('party-room-cover-img');
-
-  var coverPlaceholder = document.getElementById('party-room-cover-placeholder');
-
-  if (coverImg && coverPlaceholder) {
-
-    if (appid) {
-
-      coverImg.src = 'https://cdn.cloudflare.steamstatic.com/steam/apps/' + appid + '/header.jpg';
-
-      coverImg.style.display = 'block';
-
-      coverPlaceholder.style.display = 'none';
-
-      coverImg.onerror = function() {
-
-        coverImg.style.display = 'none';
-
-        coverPlaceholder.style.display = 'flex';
-
-      };
-
-    } else {
-
-      coverImg.style.display = 'none';
-
-      coverPlaceholder.style.display = 'flex';
-
-    }
-
-  }
-
-  // 退出 / 解散按鈕標題
-
-  var leaveBtn = document.getElementById('party-btn-leave-or-close');
-
-  if (leaveBtn) {
-
-    leaveBtn.textContent = isHost ? '❌ 解散房間' : '🚪 退出房間';
-
-  }
-
-  // 備註展示
-
+  // 備註展示 (過濾掉 [NOTE]: 與 [CONTACT]: 避免被聯絡資訊污染)
   var noteEl = document.getElementById('party-room-note-val');
-
   if (noteEl) {
-
-    if (room.note) {
-
-      noteEl.textContent = '📢 招募備註：' + room.note;
-
+    var rawNote = (room.note || '').trim();
+    if (rawNote.startsWith('[NOTE]:')) rawNote = rawNote.slice(7);
+    if (rawNote.indexOf('[CONTACT]:') !== -1) rawNote = rawNote.split('[CONTACT]:')[0].trim();
+    if (rawNote) {
+      noteEl.textContent = '📢 招募備註：' + rawNote;
       noteEl.style.display = 'block';
-
     } else {
-
       noteEl.style.display = 'none';
-
     }
+  }
 
+  // 房主專屬：預填聯絡資訊卡片顯示與同步 (支援開房後隨時調整)
+  var preContactWrap = document.getElementById('party-room-pre-contact-wrap');
+  var preContactInput = document.getElementById('party-room-pre-contact-input');
+  if (preContactWrap) {
+    if (isHost && !_partyContactSubmitted) {
+      preContactWrap.style.display = 'block';
+      if (preContactInput && !preContactInput.value) {
+        var defaultContact = _partyPreFilledContact || localStorage.getItem('smu_party_pre_contact') || '';
+        if (defaultContact) {
+          savePartyPreFilledContact(defaultContact);
+        }
+      }
+    } else {
+      preContactWrap.style.display = 'none';
+    }
   }
 
   // 渲染所有成員列表 (以 members 陣列為單一真實來源，去重並置頂房主)
-
   var listContainer = document.getElementById('party-members-list');
-
   if (!listContainer) return;
 
   var allMembers = [];
-
   var seenIds = {};
 
   if (!members || members.length === 0) {
-
     allMembers.push({
-
       id: room.host_id || 'host',
-
       name: hostName,
-
       discord_name: hostDiscord,
-
       status: '就緒',
-
       progress: 100,
-
       is_host: true
-
     });
-
   } else {
-
     members.forEach(function(m) {
-
       var mId = m.id || m.name;
-
       if (seenIds[mId]) return; // 依唯一 ID 去重，徹底杜絕重複
-
       seenIds[mId] = true;
 
       var isHostMember = (m.is_host === true) || (m.id && room.host_id && m.id === room.host_id) || (m.name === hostName);
-
       allMembers.push({
-
         id: m.id || '',
-
         name: m.name || '玩家',
-
         discord_name: m.discord || m.discord_name || (isHostMember ? hostDiscord : ''),
-
         status: m.status || '未下載',
-
         progress: m.progress !== undefined ? m.progress : 0,
-
         is_host: isHostMember,
-
         steam_installed: !!m.steam_installed,
-
         deploy_status: m.deploy_status || 'pending',
-
         deploy_error: m.deploy_error || '',
-
         version_status: m.version_status || '最新'
-
       });
-
     });
-
   }
 
   // 確保房主置頂
-
   allMembers.sort(function(a, b) {
-
     if (a.is_host && !b.is_host) return -1;
-
     if (!a.is_host && b.is_host) return 1;
-
     return 0;
-
   });
 
   // 更新即時人數 (準確以 allMembers 總數呈現)
-
   if (playersVal) playersVal.textContent = '👥 ' + allMembers.length + ' / ' + maxPlayers + ' 人';
 
   // 檢查是否全員就緒 (房間人數 >= 2 且全部成員進度 100% 且部署成功)
-
   var isAllReady = (allMembers.length >= 2) && allMembers.every(function(m) {
-
     return (m.status === '就緒' || m.progress >= 100) && (m.deploy_status === 'success' || !m.deploy_status);
-
   });
 
   if (isAllReady) {
-
-    updateAllReadyBannerUI(isHost, rid, hostDiscord);
-
+    updateAllReadyBannerUI(isHost, rid, hostDiscord, allMembers);
   } else {
-
     resetPartyReadyCountdown();
-
     var allReadyBanner = document.getElementById('party-all-ready-banner');
-
     if (allReadyBanner) allReadyBanner.style.display = 'none';
-
   }
 
   // 取得自己的本機狀態展示
-
   var myId = (_partyProfile && _partyProfile.client_id) || '';
-
   var myMemberObj = allMembers.find(function(m) {
-
     return (m.id && myId && m.id === myId) || (m.name === myName);
-
   });
 
   var myStatusBadge = document.getElementById('party-my-status-badge');
-
   var syncBtnWrap = document.getElementById('party-sync-btn-wrap');
-
   var syncBtn = document.getElementById('party-btn-start-sync');
 
   var isMyReady = false;
@@ -1283,7 +1179,6 @@ function renderRoomView(room) {
     }
 
     // 🌟 嚴格判定動態進行中狀態：
-    // 若前端處於安裝鎖定，或後端回報 downloading/deploying，或進度大於0，皆保持進行中狀態
     isMyDownloading = !isMyReady && !isPendingPatch && (
       window._partyLocalInstalling === true ||
       myMemberObj.deploy_status === 'downloading' ||
@@ -1304,7 +1199,7 @@ function renderRoomView(room) {
       myStatusBadge.className = 'my-status-badge ' + (isMyReady ? 'ready' : (isMyDownloading ? 'downloading' : (isPendingPatch ? 'pending_patch' : 'not_downloaded')));
     }
 
-    // 🌟 更新「我的本機狀態」右側進度條 (填補很長的空白區域)
+    // 🌟 更新「我的本機狀態」右側進度條
     var myProgContainer = document.getElementById('party-my-progress-container');
     var myProgStage = document.getElementById('party-my-progress-stage');
     var myProgPct = document.getElementById('party-my-progress-pct');
@@ -1345,7 +1240,7 @@ function renderRoomView(room) {
     }
   }
 
-  // 1. 隊員端：未就緒時顯示按鈕；若動態下載中則鎖定並旋轉，若待部署補丁則允許點擊套用
+  // 1. 隊員端：未就緒時顯示按鈕
   var showInstallBtn = !isMyReady && !isHost;
   if (syncBtnWrap) {
     syncBtnWrap.style.display = showInstallBtn ? 'block' : 'none';
@@ -1366,21 +1261,19 @@ function renderRoomView(room) {
     }
   }
 
-  // 2. 徹底移除/隱藏額外手動下載整合包按鈕 (完全由一鍵安裝代勞)
+  // 2. 徹底移除/隱藏額外手動下載整合包按鈕
   var pkgWrap = document.getElementById('party-gdrive-pkg-wrap');
   if (pkgWrap) {
     pkgWrap.style.display = 'none';
   }
 
   var html = '';
-
   allMembers.forEach(function(m, idx) {
     var name = m.name || '玩家';
     var status = m.status || '未下載';
     var progress = m.progress || 0;
     var isMe = (m.id && myId && m.id === myId) || (m.name === myName);
 
-    // 格式化下載狀況文字與進度狀態
     var isReady = (status === '就緒' || progress >= 100 || m.deploy_status === 'success');
     var isMemberPendingPatch = (status === '待部署補丁' || (m.steam_installed && !isReady && m.deploy_status !== 'downloading' && m.deploy_status !== 'deploying'));
     var isDownloading = !isReady && status !== '未下載' && !isMemberPendingPatch && (
@@ -1410,7 +1303,6 @@ function renderRoomView(room) {
 
     var statusClass = isReady ? 'status-ready' : (isDownloading ? 'status-downloading' : (isMemberPendingPatch ? 'status-pending' : 'status-not-downloaded'));
 
-    // 🌟 在隊員名下「下載狀況」加入行內同步進度條
     var inlineBarHtml = '';
     if (isDownloading || isMemberPendingPatch) {
       var barPct = isMemberPendingPatch ? Math.max(90, progress || 90) : progress;
@@ -1426,7 +1318,6 @@ function renderRoomView(room) {
         '<span class="member-inline-progress-pct" style="color:#4CAF50">100%</span>';
     }
 
-    // 🌟 遊戲版本狀態 (最新 / 舊 x 版 / 未安裝)
     var verHtml = '';
     var vSt = m.version_status || '最新';
     if (vSt === '最新') {
@@ -1458,14 +1349,12 @@ function renderRoomView(room) {
           '<div class="member-avatar-icon">' + (m.is_host ? '👑' : '🎮') + '</div>' +
         '</div>' +
         '<div class="member-info-column">' +
-          '<!-- 第 1 行：玩家名稱 與 版本一致性徽章 -->' +
           '<div class="member-identity-row">' +
             '<span class="member-primary-name">' + escapeHtml(name) + '</span>' +
             verHtml +
             (m.is_host ? '<span class="member-badge-host">房主</span>' : '') +
             (isMe ? '<span class="member-badge-me">我</span>' : '') +
           '</div>' +
-          '<!-- 第 2 行：下載狀況與防毒攔截診斷 -->' +
           '<div class="member-status-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">' +
             statusTextHtml +
             inlineBarHtml +
@@ -1479,36 +1368,41 @@ function renderRoomView(room) {
         '</div>' +
       '</div>' +
     '</div>';
-
   });
 
   listContainer.innerHTML = html;
-
 }
 
 /**
- * 🌟 全員就緒 30 秒倒數與提示橫幅控制
+ * 🌟 全員就緒 1 分鐘倒數、+5 分鐘延遲 (限 2 次) 與提示橫幅控制
  */
-function updateAllReadyBannerUI(isHost, rid, hostDiscord) {
+function updateAllReadyBannerUI(isHost, rid, hostDiscord, allMembers) {
   var allReadyBanner = document.getElementById('party-all-ready-banner');
   if (!allReadyBanner) return;
 
   allReadyBanner.style.display = 'flex';
 
-  // 1. 若倒數未啟動，啟動 30 秒倒數
+  var preContact = (_partyPreFilledContact || '').trim();
+
+  // 1. 若倒數未啟動，啟動 1 分鐘 (60 秒) 倒數
   if (!_partyCountdownTimer && !_partyContactSubmitted) {
-    _partyCountdownSeconds = 30;
+    if (_partyCountdownSeconds <= 0) {
+      _partyCountdownSeconds = 60;
+    }
     _partyCountdownTimer = setInterval(function() {
       _partyCountdownSeconds--;
       var cdSecEl = document.getElementById('party-cd-sec');
-      if (cdSecEl) cdSecEl.textContent = _partyCountdownSeconds;
+      if (cdSecEl) cdSecEl.textContent = formatCountdownDisplay(_partyCountdownSeconds);
 
       if (_partyCountdownSeconds <= 0) {
         clearInterval(_partyCountdownTimer);
         _partyCountdownTimer = null;
         if (isHost && !_partyContactSubmitted) {
-          // 30 秒一到，自動取得輸入內容並上傳至伺服器
-          submitPartyContactInfo();
+          // 1 分鐘倒數結束，房主自動發布資訊並解散房間
+          finishPartyAndBroadcast();
+        } else if (!isHost) {
+          tt('隊伍組隊完成，房間已結束', 'info');
+          leaveOrCloseCurrentRoom(true);
         }
       }
     }, 1000);
@@ -1519,23 +1413,22 @@ function updateAllReadyBannerUI(isHost, rid, hostDiscord) {
     }
   }
 
-  // 2. 構建指定文案的三行 UI 結構 (防重繪機制：避免心跳輪詢銷毀 input 導致失焦或取消輸入法)
+  // 2. 構建 UI 結構 (防重繪機制：避免心跳輪詢銷毀 input 導致失焦或取消輸入法)
   var bannerContentEl = allReadyBanner.querySelector('.banner-content');
   if (!bannerContentEl) return;
 
-  var currentMode = '';
-  if (isHost) {
-    currentMode = _partyContactSubmitted ? 'host-submitted' : 'host-input';
-  } else {
-    currentMode = _partyReceivedContact ? 'member-received' : 'member-waiting';
-  }
+  var currentMode = isHost ? 'host-ready-panel' : 'member-ready-panel';
 
-  // 🌟 若模式未變，僅平滑更新秒數，絕不重寫 innerHTML，保證 input DOM 不被銷毀、焦點與輸入法不中斷
+  // 🌟 若模式未變，僅平滑更新秒數與延遲按鈕狀態，絕不重寫 innerHTML
   if (bannerContentEl.dataset.mode === currentMode) {
     var cdSecEl = document.getElementById('party-cd-sec');
-    if (cdSecEl) cdSecEl.textContent = _partyCountdownSeconds;
-    var destructSecEl = document.getElementById('party-cd-destruct-sec');
-    if (destructSecEl) destructSecEl.textContent = _partyDestructSeconds;
+    if (cdSecEl) cdSecEl.textContent = formatCountdownDisplay(_partyCountdownSeconds);
+    var delayBtn = document.getElementById('party-btn-delay-countdown');
+    if (delayBtn) {
+      var leftTimes = Math.max(0, 2 - _partyDelayCount);
+      delayBtn.textContent = '⏳ 延遲 5 分鐘 (剩餘 ' + leftTimes + ' 次)';
+      delayBtn.disabled = (_partyDelayCount >= 2);
+    }
     return;
   }
 
@@ -1543,60 +1436,86 @@ function updateAllReadyBannerUI(isHost, rid, hostDiscord) {
 
   var contentHtml = '';
   if (isHost) {
-    if (_partyContactSubmitted) {
-      // 聯絡資訊發送後，進入再保存 30 秒後自毀階段
-      contentHtml = 
-        '<div class="banner-title">🎉 聯絡資訊已成功發布！隊伍房間將於 <span id="party-cd-destruct-sec" class="banner-cd-sec">' + _partyDestructSeconds + '</span> 秒後自動解散自毀</div>' +
-        '<div class="banner-desc">已向全體隊員發布：<span class="contact-val" style="color:#1976D2;font-weight:800;font-size:13.5px">' + escapeHtml(_partyContactInputText) + '</span></div>' +
-        '<div style="font-size:11.5px;color:var(--gray)">💡 房間現保留 30 秒供隊員抄寫與複製，隨後系統將徹底刪除雲端紀錄。</div>';
-    } else {
-      // 第一行: 恭喜您完成組隊，隊伍房間將於30秒後關閉
-      // 第二行: 您可以提供聯絡資訊於下方
-      // 第三行: 輸入行，尚未填寫字元時呈現提示"+dc: qwe123"
-      contentHtml = 
-        '<div class="banner-title">恭喜您完成組隊，隊伍房間將於 <span id="party-cd-sec" class="banner-cd-sec">' + _partyCountdownSeconds + '</span> 秒後關閉</div>' +
-        '<div class="banner-desc">您可以提供聯絡資訊於下方</div>' +
-        '<div class="banner-contact-row">' +
-          '<input type="text" id="party-contact-input" class="party-contact-input" placeholder="+dc: qwe123" value="' + escapeHtml(_partyContactInputText) + '" oninput="_partyContactInputText=this.value" onkeydown="if(event.key===\'Enter\') submitPartyContactInfo()" autofocus />' +
-          '<button class="btn btn-p btn-s" id="party-btn-send-contact" onclick="submitPartyContactInfo()">🚀 發送聯絡資訊</button>' +
-        '</div>';
+    var leftTimes = Math.max(0, 2 - _partyDelayCount);
+    var prePromptHtml = '';
+    if (!preContact && !_partyContactInputText) {
+      prePromptHtml = '<div style="color:#E65100;font-size:11.5px;font-weight:700">⚠️ 您尚未填寫預填聯絡資訊，請填寫；若倒數結束未填寫，系統將自動附帶好友申請指引！</div>';
+    } else if (preContact) {
+      prePromptHtml = '<div style="color:#1976D2;font-size:11.5px">💡 已偵測到預填資訊：<strong>' + escapeHtml(preContact) + '</strong>，點擊右側按鈕即可一鍵發布並完成組隊！</div>';
     }
+
+    contentHtml = 
+      '<div class="banner-title">🎉 全員已就緒！等待房主發送聯絡資訊 (倒數 <span id="party-cd-sec" class="banner-cd-sec">' + formatCountdownDisplay(_partyCountdownSeconds) + '</span>)</div>' +
+      '<div class="banner-desc">' +
+        prePromptHtml +
+        '<div class="banner-contact-row" style="margin-top:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+          '<input type="text" id="party-contact-input" class="party-contact-input" placeholder="例如：+dc: username 或 語音群組/連線房號" value="' + escapeHtml(_partyContactInputText || preContact) + '" oninput="_partyContactInputText=this.value" onkeydown="if(event.key===\'Enter\') finishPartyAndBroadcast()" autofocus style="flex:1;min-width:220px;max-width:320px" />' +
+          '<button class="btn btn-p btn-s" id="party-btn-finish-party" onclick="finishPartyAndBroadcast()" style="font-weight:800;background:linear-gradient(135deg,#2EA043,#238636);box-shadow:0 2px 10px rgba(46,160,67,0.35)">🚀 完成組隊並發布資訊 (解散房間)</button>' +
+          '<button class="btn btn-o btn-s" id="party-btn-delay-countdown" onclick="delayPartyReadyCountdown()" ' + (_partyDelayCount >= 2 ? 'disabled' : '') + '>⏳ 延遲 5 分鐘 (剩餘 ' + leftTimes + ' 次)</button>' +
+        '</div>' +
+      '</div>';
   } else {
     // 隊員端 UI
-    if (_partyReceivedContact) {
-      contentHtml = 
-        '<div class="banner-title">恭喜您完成組隊，隊伍房間將於 <span id="party-cd-sec" class="banner-cd-sec">' + _partyCountdownSeconds + '</span> 秒後關閉</div>' +
-        '<div class="banner-desc" style="display:flex;align-items:center;gap:8px;margin-top:4px">' +
-          '<span>房主聯絡資訊：</span>' +
-          '<span class="contact-val" style="font-size:14px;font-weight:800;color:#1976D2">' + escapeHtml(_partyReceivedContact) + '</span>' +
-          '<button class="btn btn-o btn-xs" onclick="copyContactText(\'' + escapeHtml(_partyReceivedContact) + '\')">📋 一鍵複製</button>' +
-        '</div>' +
-        '<div style="font-size:11.5px;color:var(--gray);margin-top:4px">💡 房間將於保存期滿後自動關閉，請盡快加入好友或連線！</div>';
-    } else {
-      // 第一行: 恭喜您完成組隊，隊伍房間將於30秒後關閉
-      // 第二行: 請等待房主發送聯絡資訊
-      contentHtml = 
-        '<div class="banner-title">恭喜您完成組隊，隊伍房間將於 <span id="party-cd-sec" class="banner-cd-sec">' + _partyCountdownSeconds + '</span> 秒後關閉</div>' +
-        '<div class="banner-desc" id="party-wait-contact-text">請等待房主發送聯絡資訊</div>';
-    }
+    contentHtml = 
+      '<div class="banner-title">🎉 全員已就緒！等待房主發送聯絡資訊 (倒數 <span id="party-cd-sec" class="banner-cd-sec">' + formatCountdownDisplay(_partyCountdownSeconds) + '</span>)</div>' +
+      '<div class="banner-desc" id="party-wait-contact-text">房主正在確認或輸入聯絡資訊，請稍候… 資訊發布後將自動呈現於螢幕正中央！</div>';
   }
 
   bannerContentEl.innerHTML = contentHtml;
 }
 
 /**
- * 房主發布聯絡資訊 (手動或 30 秒倒數計時結束自動觸發)
+ * 格式化秒數顯示 (例如 60 -> 01:00, 350 -> 05:50, 45 -> 45 秒)
  */
-function submitPartyContactInfo() {
+function formatCountdownDisplay(totalSecs) {
+  var s = Math.max(0, totalSecs);
+  if (s >= 60) {
+    var m = Math.floor(s / 60);
+    var rem = s % 60;
+    return m + ' 分 ' + (rem < 10 ? '0' : '') + rem + ' 秒';
+  }
+  return s + ' 秒';
+}
+
+/**
+ * 房主手動延遲 5 分鐘 (+300 秒，最多 2 次)
+ */
+function delayPartyReadyCountdown() {
+  if (_partyDelayCount >= 2) {
+    tt('⚠️ 延遲次數已達上限 (最多支援 2 次)', 'warn');
+    return;
+  }
+  _partyDelayCount++;
+  _partyCountdownSeconds += 300;
+  tt('⏳ 已為房間延長 5 分鐘！當前剩餘延遲次數：' + (2 - _partyDelayCount) + ' 次', 'ok');
+  var cdSecEl = document.getElementById('party-cd-sec');
+  if (cdSecEl) cdSecEl.textContent = formatCountdownDisplay(_partyCountdownSeconds);
+  var delayBtn = document.getElementById('party-btn-delay-countdown');
+  if (delayBtn) {
+    var leftTimes = Math.max(0, 2 - _partyDelayCount);
+    delayBtn.textContent = '⏳ 延遲 5 分鐘 (剩餘 ' + leftTimes + ' 次)';
+    if (_partyDelayCount >= 2) delayBtn.disabled = true;
+  }
+}
+
+/**
+ * 房主點擊「🚀 完成組隊並發布資訊 (解散房間)」或倒數歸零自動執行
+ * 核心流程：發布聯絡資訊 -> 立即解散房間 -> 在 SMU 畫面正中央彈出房主端高亮慶祝卡片
+ */
+function finishPartyAndBroadcast() {
   if (!_partyCurRoom || _partyContactSubmitted) return;
   var rid = _partyCurRoom.room_id;
   var inputEl = document.getElementById('party-contact-input');
-  var text = (inputEl ? inputEl.value : _partyContactInputText) || '';
-  if (!text.trim()) {
-    var dc = (_partyProfile && _partyProfile.discord) || (_partyCurRoom.host_discord) || '';
-    text = dc ? ('+dc: ' + dc) : ('+dc: ' + ((_partyProfile && _partyProfile.nickname) || '房主'));
+  var text = (inputEl ? inputEl.value : '') || _partyContactInputText || _partyPreFilledContact || '';
+  text = text.trim();
+
+  // 🌟 若沒有填入任何預填入或是手動填入聯絡資訊，則向房間發送預設求友文案
+  if (!text) {
+    var hostDcId = (_partyProfile && (_partyProfile.discord_username || _partyProfile.discord)) || (_partyCurRoom.host_discord) || ((_partyProfile && _partyProfile.nickname) || '房主');
+    text = "房主未留任何資料，請自行申請好友DC+：'" + hostDcId + "'";
   }
-  _partyContactInputText = text.trim();
+
+  _partyContactInputText = text;
   _partyContactSubmitted = true;
 
   if (_partyCountdownTimer) {
@@ -1604,29 +1523,304 @@ function submitPartyContactInfo() {
     _partyCountdownTimer = null;
   }
 
+  // 暫存全體成員資料，供中央卡片展示
+  var membersCopy = Array.isArray(_partyCurRoom.members) ? JSON.parse(JSON.stringify(_partyCurRoom.members)) : [];
+
+  var btn = document.getElementById('party-btn-finish-party');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> 正在完成組隊並解散…';
+  }
+
+  tt('🎉 正在發布聯絡資訊並解散房間…', 'info');
+
+  // 1. 發送聯絡資訊至伺服器
+  pywebview.api.send_party_contact_info(rid, text).then(function(sendRes) {
+    // 2. 解散刪除房間
+    pywebview.api.close_party_room().then(function() {
+      resetPartyReadyCountdown();
+      _partyCurRoom = null;
+      updateSidebarRoomInfo(null);
+      switchPartyNav('lobby');
+      refreshPartyLobby(false);
+
+      // 3. 在 SMU 畫面正中央彈出房主端高亮卡片
+      showPartyHostCompletionCentralModal(membersCopy, text);
+    }).catch(function(err) {
+      resetPartyReadyCountdown();
+      _partyCurRoom = null;
+      updateSidebarRoomInfo(null);
+      switchPartyNav('lobby');
+      refreshPartyLobby(false);
+      showPartyHostCompletionCentralModal(membersCopy, text);
+    });
+  }).catch(function(err) {
+    tt('發送連線出錯: ' + err, 'er');
+    _partyContactSubmitted = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🚀 完成組隊並發布資訊 (解散房間)';
+    }
+  });
+}
+
+/**
+ * 隊員端極輕量輪詢獲取房主資訊 (每 0.5 秒發一次請求，直到取得為止)
+ */
+function startMemberContactPolling(rid) {
+  if (_partyContactPollingTimer) return;
+  _partyContactPollingTimer = setInterval(function() {
+    if (!_partyCurRoom || _partyCurRoom.room_id !== rid) {
+      clearInterval(_partyContactPollingTimer);
+      _partyContactPollingTimer = null;
+      return;
+    }
+    pywebview.api.get_party_contact_info(rid).then(function(res) {
+      if (res && (res.has_contact || res.is_closed || res.status === 'completed')) {
+        clearInterval(_partyContactPollingTimer);
+        _partyContactPollingTimer = null;
+
+        var contact = (res.contact_info || '').trim();
+        var hostName = (_partyCurRoom && _partyCurRoom.host_name) || '房主';
+        var hostDc = (res.host_discord) || (_partyCurRoom && _partyCurRoom.host_discord) || hostName;
+
+        if (!contact) {
+          contact = "房主未留任何資料，請自行申請好友DC+：'" + hostDc + "'";
+        }
+
+        tt('🎉 房主已完成組隊！正在載入連線資訊…', 'ok');
+
+        // 清理本地狀態並返回大廳
+        resetPartyReadyCountdown();
+        _partyCurRoom = null;
+        updateSidebarRoomInfo(null);
+        switchPartyNav('lobby');
+        refreshPartyLobby(false);
+
+        // 在 SMU 畫面正中央彈出隊員端高亮卡片
+        showPartyMemberCompletionCentralModal(hostName, hostDc, contact);
+      }
+    }).catch(function() {});
+  }, 500); // 0.5 秒一次極輕量查詢 (select=room_id,status,note,updated_at)
+}
+
+/**
+ * 👑 房主端：在 SMU 畫面正中央彈出組隊完成高亮卡片
+ */
+function showPartyHostCompletionCentralModal(members, contactText) {
+  var oldModal = document.getElementById('modal-party-host-completion-central');
+  if (oldModal) oldModal.remove();
+
+  var nonHostMembers = (members || []).filter(function(m) { return !m.is_host; });
+  var membersHtml = '';
+  if (nonHostMembers.length > 0) {
+    membersHtml = nonHostMembers.map(function(m) {
+      var dcTag = m.discord || m.discord_name || '';
+      var dcDisplay = dcTag ? ('@' + escapeHtml(dcTag.replace(/^@/, ''))) : '未綁定 Discord';
+      return '<div class="party-completion-member-item" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;margin-bottom:6px">' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<span style="font-size:16px">🎮</span>' +
+          '<span style="font-weight:700;color:var(--fg);font-size:13px">' + escapeHtml(m.name) + '</span>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px">' +
+          '<span style="color:#5865F2;font-weight:800;font-size:12.5px">' + dcDisplay + '</span>' +
+          (dcTag ? '<button class="btn btn-o btn-xs" style="padding:1px 6px;font-size:10.5px" onclick="copyContactText(\'' + escapeHtml(dcTag) + '\')">📋 複製</button>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } else {
+    membersHtml = '<div style="color:var(--gray);font-size:12px;text-align:center;padding:10px 0">隊伍成員已全數就緒並完成接收</div>';
+  }
+
+  var modal = document.createElement('div');
+  modal.id = 'modal-party-host-completion-central';
+  modal.className = 'party-central-completion-overlay';
+  modal.innerHTML = 
+    '<div class="party-central-completion-card host-theme" onclick="event.stopPropagation()">' +
+      '<div class="party-completion-badge-top">👑 組隊圓滿完成</div>' +
+      '<div class="party-completion-icon-ring">🎉</div>' +
+      '<h2 class="party-completion-title">恭喜完成組隊！</h2>' +
+      '<p class="party-completion-subtitle">您已成功組織並完成隊伍開拔，聯絡資訊已自動同步至全體隊員，房間已圓滿解散！</p>' +
+      
+      '<div class="party-completion-section">' +
+        '<div class="party-completion-sec-title">👥 全體隊員 Discord 聯絡清單：</div>' +
+        '<div class="party-completion-members-box" style="max-height:160px;overflow-y:auto">' +
+          membersHtml +
+        '</div>' +
+      '</div>' +
+
+      '<div class="party-completion-section" style="margin-top:12px">' +
+        '<div class="party-completion-sec-title">📢 您剛才發布的聯絡資訊：</div>' +
+        '<div class="party-completion-contact-box" style="background:rgba(46,160,67,0.1);border:1px solid rgba(46,160,67,0.3);padding:10px 14px;border-radius:10px;color:#2EA043;font-weight:800;font-size:13.5px;word-break:break-all">' +
+          escapeHtml(contactText) +
+        '</div>' +
+      '</div>' +
+
+      '<div style="margin-top:20px;display:flex;justify-content:center">' +
+        '<button class="btn btn-p btn-m party-completion-btn-close" onclick="closePartyCompletionCentralModal(\'modal-party-host-completion-central\')" style="padding:10px 32px;font-size:14px;font-weight:800;background:linear-gradient(135deg,#2EA043,#238636);box-shadow:0 4px 16px rgba(46,160,67,0.4)">👥 返回組隊大廳</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(modal);
+}
+
+/**
+ * ⚔️ 隊員端：在 SMU 畫面正中央彈出組隊完成高亮卡片
+ */
+function showPartyMemberCompletionCentralModal(hostName, hostDc, contactText) {
+  var oldModal = document.getElementById('modal-party-member-completion-central');
+  if (oldModal) oldModal.remove();
+
+  var isDefaultFallback = contactText.indexOf('房主未留任何資料') !== -1;
+
+  var modal = document.createElement('div');
+  modal.id = 'modal-party-member-completion-central';
+  modal.className = 'party-central-completion-overlay';
+  modal.innerHTML = 
+    '<div class="party-central-completion-card member-theme" onclick="event.stopPropagation()">' +
+      '<div class="party-completion-badge-top member">⚔️ 組隊圓滿完成</div>' +
+      '<div class="party-completion-icon-ring member">🎮</div>' +
+      '<h2 class="party-completion-title">恭喜完成組隊！</h2>' +
+      '<p class="party-completion-subtitle">全體隊員補丁與聯機環境已全部就緒，房間已圓滿結束！請使用下方房主提供的聯絡資訊立即連線同樂。</p>' +
+      
+      '<div class="party-completion-section">' +
+        '<div class="party-completion-sec-title">👑 房主傳輸之聯絡資訊：</div>' +
+        '<div class="party-completion-contact-box ' + (isDefaultFallback ? 'fallback' : 'highlight') + '" style="background:rgba(25,118,210,0.1);border:1.5px solid rgba(25,118,210,0.35);padding:12px 14px;border-radius:10px;color:#1976D2;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;word-break:break-all">' +
+          '<span>' + escapeHtml(contactText) + '</span>' +
+          '<button class="btn btn-o btn-s" onclick="copyContactText(\'' + escapeHtml(contactText) + '\')" style="white-space:nowrap;font-size:11.5px;padding:4px 10px">📋 一鍵複製</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="party-completion-section" style="margin-top:12px">' +
+        '<div class="party-completion-sec-title">👑 房主資訊：</div>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px">' +
+          '<div style="display:flex;align-items:center;gap:6px">' +
+            '<span style="font-size:14px">👑</span>' +
+            '<span style="font-weight:700;color:var(--fg);font-size:13px">' + escapeHtml(hostName) + '</span>' +
+          '</div>' +
+          '<span style="color:#5865F2;font-weight:800;font-size:12.5px">@' + escapeHtml((hostDc || '').replace(/^@/, '')) + '</span>' +
+        '</div>' +
+      '</div>' +
+
+      '<div style="margin-top:20px;display:flex;justify-content:center">' +
+        '<button class="btn btn-p btn-m party-completion-btn-close" onclick="closePartyCompletionCentralModal(\'modal-party-member-completion-central\')" style="padding:10px 32px;font-size:14px;font-weight:800;box-shadow:0 4px 16px rgba(25,118,210,0.4);background:linear-gradient(135deg,#1976D2,#2196F3)">👥 返回組隊大廳</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(modal);
+}
+
+function closePartyCompletionCentralModal(modalId) {
+  var m = document.getElementById(modalId);
+  if (m) m.remove();
+}
+
+/**
+ * 一鍵複製聯絡資訊
+ */
+function copyContactText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      tt('📋 聯絡資訊已成功複製到剪貼簿！', 'ok');
+    }).catch(function() {
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.copy_text) {
+        window.pywebview.api.copy_text(text);
+        tt('📋 聯絡資訊已成功複製到剪貼簿！', 'ok');
+      }
+    });
+  } else if (window.pywebview && window.pywebview.api && window.pywebview.api.copy_text) {
+    window.pywebview.api.copy_text(text).then(function() {
+      tt('📋 聯絡資訊已成功複製到剪貼簿！', 'ok');
+    });
+  } else {
+    prompt('請手動複製聯絡資訊：', text);
+  }
+}
+
+function formatCountdownDisplay(s) {
+  if (s >= 60) {
+    var min = Math.floor(s / 60);
+    var rem = s % 60;
+    return min + ' 分 ' + (rem < 10 ? '0' : '') + rem + ' 秒';
+  }
+  return s + ' 秒';
+}
+
+/**
+ * 房主手動延遲 5 分鐘 (+300 秒，最多 2 次)
+ */
+function delayPartyReadyCountdown() {
+  if (_partyDelayCount >= 2) {
+    tt('⚠️ 延遲次數已達上限 (最多支援 2 次)', 'warn');
+    return;
+  }
+  _partyDelayCount++;
+  _partyCountdownSeconds += 300;
+  tt('⏳ 已為房間延長 5 分鐘！當前剩餘延遲次數：' + (2 - _partyDelayCount) + ' 次', 'ok');
+  var cdSecEl = document.getElementById('party-cd-sec');
+  if (cdSecEl) cdSecEl.textContent = formatCountdownDisplay(_partyCountdownSeconds);
+  var delayBtn = document.getElementById('party-btn-delay-countdown');
+  if (delayBtn) {
+    var leftTimes = Math.max(0, 2 - _partyDelayCount);
+    delayBtn.textContent = '⏳ 延遲 5 分鐘 (剩餘 ' + leftTimes + ' 次)';
+    if (_partyDelayCount >= 2) delayBtn.disabled = true;
+  }
+}
+
+/**
+ * 房主點擊「馬上完成(解散)」：發送現有資訊並立即刪除房間
+ */
+function finishPartyInstantly() {
+  var inputEl = document.getElementById('party-contact-input');
+  var currentText = (inputEl ? inputEl.value : '') || _partyContactInputText || _partyPreFilledContact || '';
+  submitPartyContactInfo(currentText, true);
+}
+
+/**
+ * 房主發布聯絡資訊
+ * @param {string} [overrideText] 強制指定的聯絡資訊文字
+ * @param {boolean} [autoCloseImmediately=false] 是否發送完後立即刪除房間解散
+ */
+function submitPartyContactInfo(overrideText, autoCloseImmediately) {
+  if (!_partyCurRoom || _partyContactSubmitted) return;
+  var rid = _partyCurRoom.room_id;
+  var inputEl = document.getElementById('party-contact-input');
+  var text = (overrideText !== undefined && overrideText !== null && String(overrideText).trim() !== '') 
+    ? String(overrideText).trim() 
+    : (((inputEl ? inputEl.value : '') || _partyContactInputText || _partyPreFilledContact || '').trim());
+
+  // 🌟 若沒有填入任何預填入或是手動填入聯絡資訊，則向房間發送預設求友文案
+  if (!text) {
+    var hostDcId = (_partyProfile && (_partyProfile.discord_username || _partyProfile.discord)) || (_partyCurRoom.host_discord) || ((_partyProfile && _partyProfile.nickname) || '房主');
+    text = "房主未留任何資料，請自行申請好友DC+：'" + hostDcId + "'";
+  }
+
+  _partyContactInputText = text;
+  _partyContactSubmitted = true;
+
+  if (_partyCountdownTimer) {
+    clearInterval(_partyCountdownTimer);
+    _partyCountdownTimer = null;
+  }
+
+  // 隱藏頂部預填卡片
+  var preWrap = document.getElementById('party-room-pre-contact-wrap');
+  if (preWrap) preWrap.style.display = 'none';
+
   var btn = document.getElementById('party-btn-send-contact');
   if (btn) { btn.disabled = true; btn.textContent = '發送中...'; }
 
   pywebview.api.send_party_contact_info(rid, _partyContactInputText).then(function(res) {
     if (res && res.ok) {
-      tt('🎉 聯絡資訊已發布！房間保留 30 秒後自動解散自毀', 'ok');
-      // 啟動自毀 30 秒倒數計時
-      _partyDestructSeconds = 30;
-      if (_partyPostDestructTimer) clearInterval(_partyPostDestructTimer);
-      _partyPostDestructTimer = setInterval(function() {
-        _partyDestructSeconds--;
-        var secEl = document.getElementById('party-cd-destruct-sec');
-        if (secEl) secEl.textContent = _partyDestructSeconds;
-        if (_partyDestructSeconds <= 0) {
-          clearInterval(_partyPostDestructTimer);
-          _partyPostDestructTimer = null;
-          tt('房間保存期滿，已自動解散', 'info');
-          leaveOrCloseCurrentRoom(true);
-        }
-      }, 1000);
-      var bannerContentEl = document.querySelector('#party-all-ready-banner .banner-content');
-      if (bannerContentEl) bannerContentEl.dataset.mode = '';
-      if (_partyCurRoom) renderRoomView(_partyCurRoom);
+      tt('🎉 聯絡資訊已發布給全體隊員！', 'ok');
+      if (autoCloseImmediately) {
+        tt('隊伍組建完成，正在解散房間…', 'info');
+        leaveOrCloseCurrentRoom(true);
+      } else {
+        var bannerContentEl = document.querySelector('#party-all-ready-banner .banner-content');
+        if (bannerContentEl) bannerContentEl.dataset.mode = '';
+        if (_partyCurRoom) renderRoomView(_partyCurRoom);
+      }
     } else {
       tt('發送失敗: ' + ((res && res.msg) || '未知錯誤'), 'er');
       _partyContactSubmitted = false;
@@ -1660,7 +1854,7 @@ function startMemberContactPolling(rid) {
       } else if (res && res.is_closed) {
         clearInterval(_partyContactPollingTimer);
         _partyContactPollingTimer = null;
-        tt('房間已被房主關閉', 'info');
+        tt('房間已被房主完成並解散', 'info');
         leaveOrCloseCurrentRoom(true);
       }
     }).catch(function() {});
@@ -2204,37 +2398,100 @@ function openCreateRoomModal() {
     });
   }
 
+  // 預填隊伍聯絡資訊回填 (若有記憶則回填，留空則保持為空)
+  var preContactInp = document.getElementById('input-party-pre-contact');
+  var savedContact = _partyPreFilledContact || localStorage.getItem('smu_party_pre_contact') || '';
+  if (preContactInp) {
+    preContactInp.value = savedContact;
+  }
+
   modal.style.display = 'flex';
   modal.classList.remove('hidden');
   modal.classList.add('active');
+
+  // 🌟 動畫設計：創建房間完成顯示後等待 0.5 秒 (500ms)，漸顯右側 Webhook 教學影片組件
+  showWebhookTutorialCardDelayed();
+}
+
+var _webhookTutorialTimer = null;
+
+function showWebhookTutorialCardDelayed() {
+  if (_webhookTutorialTimer) {
+    clearTimeout(_webhookTutorialTimer);
+    _webhookTutorialTimer = null;
+  }
+  var card = document.getElementById('webhook-tutorial-card');
+  var video = document.getElementById('webhook-tutorial-video');
+  if (card) {
+    card.classList.remove('fade-in-active');
+  }
+  if (video) {
+    video.pause();
+    try { video.currentTime = 0; } catch(e){}
+  }
+
+  // 等待 0.5 秒 (500ms) 漸顯
+  _webhookTutorialTimer = setTimeout(function() {
+    var c = document.getElementById('webhook-tutorial-card');
+    var v = document.getElementById('webhook-tutorial-video');
+    var m = document.getElementById('modal-create-party-room');
+    if (c && m && m.classList.contains('active')) {
+      c.classList.add('fade-in-active');
+      if (v) {
+        v.play().catch(function(err) {
+          console.warn('[Party] Webhook 影片自動播放受阻:', err);
+        });
+      }
+    }
+  }, 500);
+}
+
+function hideWebhookTutorialCard() {
+  if (_webhookTutorialTimer) {
+    clearTimeout(_webhookTutorialTimer);
+    _webhookTutorialTimer = null;
+  }
+  var card = document.getElementById('webhook-tutorial-card');
+  var video = document.getElementById('webhook-tutorial-video');
+  if (card) {
+    card.classList.remove('fade-in-active');
+  }
+  if (video) {
+    video.pause();
+  }
+}
+
+function toggleWebhookVideoAudio(e) {
+  if (e) e.stopPropagation();
+  var v = document.getElementById('webhook-tutorial-video');
+  var b = document.getElementById('btn-webhook-audio-toggle');
+  if (v && b) {
+    v.muted = !v.muted;
+    b.textContent = v.muted ? '🔇 靜音' : '🔊 有聲';
+    if (!v.muted) {
+      v.play().catch(function(){});
+    }
+  }
 }
 
 function closeCreateRoomModal() {
+  // 🌟 關閉彈窗時立即隱藏影片並暫停播放
+  hideWebhookTutorialCard();
 
   var modal = document.getElementById('modal-create-party-room');
-
   if (modal) {
-
     modal.style.display = 'none';
-
     modal.classList.add('hidden');
-
     modal.classList.remove('active');
-
   }
 
   var flowPanel = document.getElementById('party-create-flow-status');
-
   if (flowPanel) flowPanel.style.display = 'none';
 
   var btnSubmit = document.getElementById('btn-submit-create-party');
-
   var btnCancel = document.getElementById('btn-cancel-create-party');
-
   if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.classList.add('disabled'); btnSubmit.textContent = '🚀 立即開房'; }
-
   if (btnCancel) { btnCancel.disabled = false; }
-
 }
 
 function togglePartyAutoUploadSection() {
@@ -2539,6 +2796,11 @@ function submitCreatePartyRoom() {
   var noteInput = document.getElementById('input-party-note');
 
   var gasInput = document.getElementById('input-party-gas-url');
+
+  var preContactInput = document.getElementById('input-party-pre-contact');
+  if (preContactInput && preContactInput.value.trim()) {
+    savePartyPreFilledContact(preContactInput.value.trim());
+  }
 
   var btnSubmit = document.getElementById('btn-submit-create-party');
 
@@ -3429,11 +3691,88 @@ function clearPartyTelemetryLogs() {
   });
 }
 
+/**
+ * 觸發組隊系統專屬全方位健康體檢 (Teaming & Cloud Architecture Health Check)
+ */
+async function triggerPartyDedicatedHealthCheck() {
+  var modal = document.getElementById('party-telemetry-modal');
+  var content = document.getElementById('party-telemetry-modal-content');
+  var badge = document.getElementById('party-telemetry-status-badge');
+
+  if (modal) modal.style.display = 'flex';
+  if (badge) {
+    badge.textContent = '🩺 正在健檢中...';
+    badge.className = 'chip yellow';
+  }
+  if (content) {
+    content.innerHTML = '<div style="text-align:center;padding:30px;color:var(--gray)"><div style="font-size:24px;margin-bottom:8px">⏳</div>正在對 Supabase、時鐘同步、Turso Edge、身分錨點與 STUN 進行全方位體檢…</div>';
+  }
+
+  try {
+    if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.run_party_health_check) {
+      if (content) content.innerHTML = '<div style="color:#ff8585;padding:20px;text-align:center">後端 API 尚未就緒</div>';
+      return;
+    }
+
+    var res = await pywebview.api.run_party_health_check();
+    if (!res || !res.ok || !res.data) {
+      if (content) content.innerHTML = '<div style="color:#ff8585;padding:20px;text-align:center">健檢失敗: ' + (res && res.msg || '未知錯誤') + '</div>';
+      return;
+    }
+
+    var data = res.data;
+    var isOk = data.status === 'OK';
+    if (badge) {
+      badge.textContent = isOk ? '✅ 狀態極佳 (10/10 就緒)' : (data.status === 'WARN' ? '⚠️ 部分警示' : '❌ 核心異常');
+      badge.className = 'chip ' + (isOk ? 'green' : (data.status === 'WARN' ? 'yellow' : 'red'));
+    }
+
+    var items = data.items || [];
+    var html = '<div style="margin-bottom:12px;padding:10px 14px;background:rgba(88,101,242,0.12);border:1px solid rgba(88,101,242,0.25);border-radius:8px;display:flex;align-items:center;justify-content:space-between">';
+    html += '<div style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px"><span>👥</span><span>無伺服器組隊大廳與雲端架構體檢報告</span></div>';
+    html += '<span class="badge" style="background:' + (isOk ? '#4CAF50' : '#FF9800') + ';color:#fff;font-size:10px;padding:2px 8px;border-radius:6px">' + data.status + '</span>';
+    html += '</div>';
+
+    html += '<div style="display:flex;flex-direction:column;gap:8px">';
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var icon = item.status === 'OK' ? '🟢' : (item.status === 'WARN' ? '🟡' : (item.status === 'INFO' ? '🔵' : '🔴'));
+      html += '<div style="padding:10px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px">';
+      html += '<div style="flex:1">';
+      html += '<div style="font-weight:600;color:var(--text);font-size:12px;display:flex;align-items:center;gap:6px"><span>' + icon + '</span><span>' + item.name + '</span></div>';
+      html += '<div style="color:var(--gray);font-size:11px;margin-top:3px;margin-left:20px;line-height:1.4">' + item.desc + '</div>';
+      html += '</div>';
+      if (item.action === 'auth_party_discord') {
+        html += '<button class="btn btn-p btn-xs" onclick="startDiscordOAuthFlow()" style="padding:3px 8px;font-size:10px;white-space:nowrap">🎮 綁定認證</button>';
+      } else if (item.action === 'open_telemetry') {
+        html += '<button class="btn btn-o btn-xs" onclick="refreshPartyTelemetryLogs()" style="padding:3px 8px;font-size:10px;white-space:nowrap">📋 檢視日誌</button>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+
+    if (content) content.innerHTML = html;
+    if (typeof tt === 'function') tt('組隊全鏈路健檢完成：' + (isOk ? '10/10 項目就緒' : '發現警示項目'), isOk ? 'success' : 'warn');
+  } catch (e) {
+    if (content) content.innerHTML = '<div style="color:#ff8585;padding:20px;text-align:center">體檢異常: ' + (e.message || e) + '</div>';
+  }
+}
+
 window.openPartyTelemetryModal = openPartyTelemetryModal;
 window.closePartyTelemetryModal = closePartyTelemetryModal;
 window.refreshPartyTelemetryLogs = refreshPartyTelemetryLogs;
 window.copyPartyTelemetryLogText = copyPartyTelemetryLogText;
 window.openPartyTelemetryLogInEditor = openPartyTelemetryLogInEditor;
 window.clearPartyTelemetryLogs = clearPartyTelemetryLogs;
+window.triggerPartyDedicatedHealthCheck = triggerPartyDedicatedHealthCheck;
+window.toggleWebhookVideoAudio = toggleWebhookVideoAudio;
+window.savePartyPreFilledContact = savePartyPreFilledContact;
+window.showPartyHostCompletionCentralModal = showPartyHostCompletionCentralModal;
+window.showPartyMemberCompletionCentralModal = showPartyMemberCompletionCentralModal;
+window.closePartyCompletionCentralModal = closePartyCompletionCentralModal;
+window.finishPartyAndBroadcast = finishPartyAndBroadcast;
+window.extendPartyWaitTime = extendPartyWaitTime;
+window.renderRoomView = renderRoomView;
+
 
 

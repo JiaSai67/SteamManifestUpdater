@@ -453,8 +453,8 @@ function renderQuotaMatrixAnimated(res, triggerAnimation) {
     });
   }
   
-  // 2. 重新渲染 DOM
-  renderQuotaMatrix(res);
+  // 2. 重新渲染 DOM (強制重新輸出 DOM 以供 FLIP 動畫計算)
+  renderQuotaMatrix(res, !!triggerAnimation);
   
   // 3. LAST & INVERT & PLAY: 計算位移並執行平滑彈簧過渡
   if (table && triggerAnimation && Object.keys(firstPositions).length > 0) {
@@ -509,7 +509,11 @@ function renderQuotaMatrixAnimated(res, triggerAnimation) {
   }
 }
 
-function renderQuotaMatrix(res) {
+function renderQuotaMatrix(res, forceRender) {
+  // 🌟 教學模式守護：若當前處於教學模式示範中，略過真實輪詢對矩陣的覆蓋
+  if (window.__tutorialMockCredentialsActive && !(res && res.__is_tutorial_mock)) {
+    return;
+  }
   _lastCredentialsData = res;
   var wrap = document.getElementById('cred-matrix-table-wrap');
   if (!wrap) return;
@@ -685,10 +689,11 @@ function renderQuotaMatrix(res) {
   var hcTargetId = '';
   var hcTargetName = '';
 
+  // 階段 1：第一優先尋找任何「明確有效 (is_valid)」的 Hubcap 配置
   for (var k = 0; k < accountOrder.length; k++) {
     var checkAcc = accountsMap[accountOrder[k]];
     var chkHc = checkAcc.hubcap || (checkAcc.ryuu && checkAcc.ryuu.hubcap) || (checkAcc.lua && checkAcc.lua.hubcap);
-    if (chkHc && (chkHc.is_valid || chkHc.is_configured)) {
+    if (chkHc && chkHc.is_valid) {
       configuredHc = chkHc;
       hcTargetId = checkAcc.discord_id || checkAcc.raw_id || checkAcc.key;
       hcTargetName = checkAcc.name || checkAcc.discord_id || '已綁定帳號';
@@ -696,14 +701,52 @@ function renderQuotaMatrix(res) {
     }
   }
 
-  if (!configuredHc && (globalHc.is_valid || globalHc.is_configured)) {
+  // 若帳號清單未命中有效配置，但全域 Hubcap 是有效的，採納全域有效配置
+  if (!configuredHc && globalHc && globalHc.is_valid) {
     configuredHc = globalHc;
+    if (accountOrder.length > 0) {
+      var firstAcc = accountsMap[accountOrder[0]];
+      hcTargetId = firstAcc.discord_id || firstAcc.raw_id || firstAcc.key;
+      hcTargetName = firstAcc.name || firstAcc.discord_id || '已綁定帳號';
+    }
   }
 
+  // 階段 2：若完全沒有任何有效配置，才尋找是否有「已配置但目前失效 (is_configured)」的物件
+  if (!configuredHc) {
+    for (var k2 = 0; k2 < accountOrder.length; k2++) {
+      var checkAcc2 = accountsMap[accountOrder[k2]];
+      var chkHc2 = checkAcc2.hubcap || (checkAcc2.ryuu && checkAcc2.ryuu.hubcap) || (checkAcc2.lua && checkAcc2.lua.hubcap);
+      if (chkHc2 && chkHc2.is_configured) {
+        configuredHc = chkHc2;
+        hcTargetId = checkAcc2.discord_id || checkAcc2.raw_id || checkAcc2.key;
+        hcTargetName = checkAcc2.name || checkAcc2.discord_id || '已綁定帳號';
+        break;
+      }
+    }
+    if (!configuredHc && globalHc && globalHc.is_configured) {
+      configuredHc = globalHc;
+      if (accountOrder.length > 0) {
+        var firstAcc2 = accountsMap[accountOrder[0]];
+        hcTargetId = firstAcc2.discord_id || firstAcc2.raw_id || firstAcc2.key;
+        hcTargetName = firstAcc2.name || firstAcc2.discord_id || '已綁定帳號';
+      }
+    }
+  }
+
+  // 階段 3：總計一致性校驗防禦（關鍵防線！）
+  // 只要 totals.hubcap.limit > 0 或 totals.hubcap.left > 0，代表系統中已經確認存在有效配額（例如 25 / 25）
+  // 此時絕對不允許降級進入「⚠️ 重新配置」，強制將狀態視為有效！
+  var hasConfirmedQuota = (totals.hubcap.limit > 0 || totals.hubcap.left > 0 || (globalHc && globalHc.is_valid));
+  var isHubcapValid = hasConfirmedQuota || (configuredHc && configuredHc.is_valid);
+
   var singleHubcapCellHtml = '';
-  if (configuredHc && configuredHc.is_valid) {
-    var hLeft = configuredHc.remaining != null ? configuredHc.remaining : (totals.hubcap.left || 0);
-    var hLimit = configuredHc.daily_limit || (totals.hubcap.limit || 25);
+  if (isHubcapValid) {
+    var hLeft = (configuredHc && configuredHc.remaining != null) ? configuredHc.remaining : (totals.hubcap.left || 0);
+    var hLimit = (configuredHc && configuredHc.daily_limit) ? configuredHc.daily_limit : (totals.hubcap.limit || 25);
+    if (totals.hubcap.limit > 0) {
+      hLeft = totals.hubcap.left;
+      hLimit = totals.hubcap.limit;
+    }
     singleHubcapCellHtml = '<td rowspan="' + accountOrder.length + '" class="hubcap-device-cell-td" data-col-key="r0_hubcap">' +
       '<div class="hubcap-device-cell-wrap">' +
         '<span class="hubcap-device-tag">1機1號</span>' +
@@ -832,6 +875,12 @@ function renderQuotaMatrix(res) {
   html += '</tr>';
   
   html += '</tbody></table>';
+
+  // 🌟 防頻閃機制：若 HTML 結構與配額完全無變動且非強制刷新，直接略過 DOM 重建，徹底消除重繪頻閃
+  if (!forceRender && wrap.dataset.lastMatrixHtml === html) {
+    return;
+  }
+  wrap.dataset.lastMatrixHtml = html;
   wrap.innerHTML = html;
 }
 

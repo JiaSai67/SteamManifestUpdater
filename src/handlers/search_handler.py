@@ -28,6 +28,55 @@ _bg_crawling_apps = set()
 MAX_CONCURRENT_STEAMDB_TASKS = 3
 
 class SearchHandler:
+    def _load_unified_game_cache(self) -> Dict[str, Any]:
+        """讀取全域統一遊戲快取（優先載入 resources/builtin_game_cache.json，再以 data/game_cache.json 覆蓋）"""
+        builtin_cache_file = Path(__file__).parent.parent / "resources" / "builtin_game_cache.json"
+        cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
+        game_cache = {}
+        if builtin_cache_file.exists():
+            try:
+                game_cache.update(json.loads(builtin_cache_file.read_text(encoding="utf-8")))
+            except Exception:
+                pass
+        if cache_file.exists():
+            try:
+                game_cache.update(json.loads(cache_file.read_text(encoding="utf-8")))
+            except Exception:
+                pass
+        return game_cache
+
+    def resolve_game_cover(self, appid: str) -> str:
+        """根據 AppID 解析真實有效的封面圖片網址 (優先快取，再在線查詢並回寫)"""
+        appid_str = str(appid).strip()
+        if not appid_str or not appid_str.isdigit(): return ""
+        gc = self._load_unified_game_cache()
+        if appid_str in gc and gc[appid_str].get("header_image"):
+            return gc[appid_str]["header_image"]
+        try:
+            url = f"https://store.steampowered.com/api/appdetails?appids={appid_str}&l=tchinese&cc=TW"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                d = json.loads(resp.read().decode("utf-8"))
+                if d.get(appid_str, {}).get("success"):
+                    hi = d[appid_str].get("data", {}).get("header_image", "")
+                    if hi:
+                        try:
+                            cf = Path(__file__).parent.parent / "data" / "game_cache.json"
+                            cf.parent.mkdir(parents=True, exist_ok=True)
+                            cur = {}
+                            if cf.exists():
+                                cur = json.loads(cf.read_text(encoding="utf-8"))
+                            if appid_str not in cur:
+                                cur[appid_str] = {}
+                            cur[appid_str]["header_image"] = hi
+                            cf.write_text(json.dumps(cur, ensure_ascii=False, indent=2), encoding="utf-8")
+                        except Exception:
+                            pass
+                        return hi
+        except Exception:
+            pass
+        return f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{appid_str}/header.jpg"
+
     def search(self, q: str) -> List[Dict[str, Any]]:
         """
         搜尋遊戲：支援純 AppID、中文名稱、英文名稱 (全面繁體中文化)
@@ -37,27 +86,23 @@ class SearchHandler:
         if not q: return []
 
         results = []
+        c_data = self._load_unified_game_cache()
+
         # 若是 AppID 數字
         if q.isdigit():
-            # 優先從快取找
-            cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
-            if cache_file.exists():
-                try:
-                    c_data = json.loads(cache_file.read_text(encoding="utf-8"))
-                    if q in c_data:
-                        c_info = c_data[q]
-                        return [{
-                            "appid": q,
-                            "name": sanitize_game_name(c_info.get("name", f"App_{q}"), q),
-                            "image": c_info.get("header_image", f"https://cdn.cloudflare.steamstatic.com/steam/apps/{q}/header.jpg")
-                        }]
-                except Exception:
-                    pass
+            if q in c_data:
+                c_info = c_data[q]
+                return [{
+                    "appid": q,
+                    "name": sanitize_game_name(c_info.get("name", f"App_{q}"), q),
+                    "image": c_info.get("header_image") or f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{q}/header.jpg"
+                }]
 
             # 嘗試反查名稱
             name = name_resolver.resolve_game_name(q, steam_path=self._steam_path)
+            img_from_api = ""
             if not name or name == "未知遊戲":
-                # 嘗試在線 Steam appdetails 獲取精確官方繁體名
+                # 嘗試在線 Steam appdetails 獲取精確官方繁體名與真實圖片
                 try:
                     url = f"https://store.steampowered.com/api/appdetails?appids={q}&l=tchinese&cc=TW"
                     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -66,13 +111,14 @@ class SearchHandler:
                         if d.get(q, {}).get("success"):
                             data = d[q].get("data", {})
                             name = data.get("name", f"App_{q}")
+                            img_from_api = data.get("header_image", "")
                 except Exception:
                     name = f"App_{q}"
 
             return [{
                 "appid": q,
                 "name": sanitize_game_name(name, q),
-                "image": f"https://cdn.cloudflare.steamstatic.com/steam/apps/{q}/header.jpg"
+                "image": img_from_api or f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{q}/header.jpg"
             }]
 
         # 透過 Steam 官方 storesearch API 搜尋 (使用台灣繁體地區碼 l=tchinese&cc=TW)
@@ -85,10 +131,18 @@ class SearchHandler:
                 for it in items:
                     appid_str = str(it.get("id"))
                     name_str = sanitize_game_name(it.get("name", f"App_{appid_str}"), appid_str)
+                    c_info = c_data.get(appid_str, {})
+                    img_url = c_info.get("header_image")
+                    if not img_url:
+                        tiny = it.get("tiny_image", "")
+                        if tiny:
+                            img_url = tiny.replace("capsule_231x87.jpg", "header.jpg").replace("capsule_184x69.jpg", "header.jpg")
+                        else:
+                            img_url = f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{appid_str}/header.jpg"
                     results.append({
                         "appid": appid_str,
                         "name": name_str,
-                        "image": f"https://cdn.cloudflare.steamstatic.com/steam/apps/{appid_str}/header.jpg"
+                        "image": img_url
                     })
         except Exception as e:
             print(f"[WebApi] search online error: {e}")
@@ -99,17 +153,19 @@ class SearchHandler:
             for aid, n in known.items():
                 tw_n = sanitize_game_name(str(n), str(aid))
                 if q.lower() in tw_n.lower() or q.lower() in str(aid):
+                    c_info = c_data.get(str(aid), {})
+                    img_url = c_info.get("header_image") or f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{aid}/header.jpg"
                     results.append({
                         "appid": str(aid),
                         "name": tw_n,
-                        "image": f"https://cdn.cloudflare.steamstatic.com/steam/apps/{aid}/header.jpg"
+                        "image": img_url
                     })
                     if len(results) >= 20: break
 
         return results
 
     def browse_games(self, offset: int = 0, limit: int = 40) -> Dict[str, Any]:
-        """首頁遊戲推薦瀏覽清單 (支援無限滾動加載，100% 繁體中文展示)"""
+        """首頁遊戲推薦瀏覽清單 (支援無限滾動加載，100% 繁體中文展示，優先載入內建快取帶 Hash 封面)"""
         from utils.tw_converter import sanitize_game_name
         # 精選熱門遊戲池作為瀏覽備用 (台灣繁體中文官方標題)
         featured_pool = [
@@ -150,13 +206,7 @@ class SearchHandler:
         end = min(start + limit, total)
         items = []
 
-        cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
-        game_cache = {}
-        if cache_file.exists():
-            try:
-                game_cache = json.loads(cache_file.read_text(encoding="utf-8"))
-            except Exception:
-                pass
+        game_cache = self._load_unified_game_cache()
 
         for aid, nm in featured_pool[start:end]:
             c_info = game_cache.get(str(aid), {})
@@ -468,8 +518,8 @@ class SearchHandler:
         # b. 🌟 階段 5：檢測 4 域之二 Google Drive (網盤補丁庫) (70%)
         _push_step(70, "校驗 Google Drive 網盤補丁庫...", "檢查專用/聯機補丁收錄與本地部署狀態", 5)
         from managers import onlinefix_manager
-        # 在點擊遊戲小卡/開啟詳細資訊時，發出向 Google Drive 讀取的請求 (allow_network=True)
-        gdrive_sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=res_name, allow_network=True)
+        # 🌟 數據已於啟動預載入與定時輪詢中確定，此處直接讀取快取 (allow_network=False)，絕不臨時主動向 GDrive 發起網路 TRY
+        gdrive_sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=res_name, allow_network=False)
         gdrive_item = gdrive_sources.get(appid_str, {})
         has_gdrive = bool(gdrive_item.get("cloud_rar") or gdrive_item.get("cloud_lua") or gdrive_item.get("local_lua"))
         is_deployed = onlinefix_manager.is_patch_deployed_locally(appid_str)
@@ -493,14 +543,8 @@ class SearchHandler:
         # c. 🌟 階段 6：檢測 4 域之三 Online-Fix (84%) & 階段 7：ZeiGames (94%)
         _push_step(84, "檢索 Online-Fix 聯機補丁庫...", "搜尋專用聯機補丁並驗證下載鏈接有效性", 6)
         from api import web_patch_checker
-        cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
-        eng_name = ""
-        if cache_file.exists():
-            try:
-                gc = json.loads(cache_file.read_text(encoding="utf-8"))
-                eng_name = gc.get(appid_str, {}).get("english_name", "") or gc.get(appid_str, {}).get("name_en", "")
-            except Exception:
-                pass
+        gc = self._load_unified_game_cache()
+        eng_name = gc.get(appid_str, {}).get("english_name", "") or gc.get(appid_str, {}).get("name_en", "")
         official_eng_name = steamdb_info.get("english_name", "") if isinstance(steamdb_info, dict) else ""
         search_query_name = official_eng_name or eng_name or res_name
 
@@ -845,7 +889,7 @@ class SearchHandler:
             lua_f = Path(sp) / "config" / "lua" / f"{appid_str}.lua"
             is_installed = bool(lua_f.exists() and lua_f.stat().st_size > 20)
 
-        # 2. 檢查雲端網盤補丁庫 (Google Drive)
+        # 2. 檢查雲端網盤補丁庫 (Google Drive - 預載入與定時輪詢極速比對)
         has_patch = False
         drive_name = ""
         try:
@@ -855,6 +899,9 @@ class SearchHandler:
             if app_src.get("cloud_rar") or app_src.get("cloud_lua") or app_src.get("local_lua"):
                 has_patch = True
                 drive_name = app_src.get("drive_name", "Google Drive")
+            elif appid_str in onlinefix_manager.get_all_onlinefix_appids(force=False):
+                has_patch = True
+                drive_name = "Google Drive"
         except Exception as e:
             print(f"[get_search_item_status] AppID {appid_str} 查詢補丁庫異常: {e}")
 
@@ -898,13 +945,56 @@ class SearchHandler:
             if has_patch or is_installed:
                 has_manifest = True
 
+        # 4. 檢查本地是否已部署補丁
+        is_deployed = False
+        try:
+            from managers import onlinefix_manager
+            is_deployed = onlinefix_manager.is_patch_deployed_locally(appid_str)
+        except Exception:
+            pass
+
+        # 5. 檢查 Online-Fix 與 ZeiGames 網頁補丁收錄狀態 (優先自快取與種子庫讀取，快取未命中則快速檢索)
+        has_of_web = False
+        has_zg_web = False
+        try:
+            from api import web_patch_checker
+            of_known, zg_known = web_patch_checker.get_known_patch_appids()
+            if appid_str in of_known:
+                has_of_web = True
+            if appid_str in zg_known:
+                has_zg_web = True
+
+            clean_search_name = str(name).strip()
+            if not has_of_web or not has_zg_web:
+                cached_res = web_patch_checker._patch_memory_cache.get(appid_str)
+                if not cached_res and clean_search_name:
+                    cached_res = web_patch_checker._patch_memory_cache.get(clean_search_name.lower())
+                if cached_res:
+                    if cached_res.get("onlinefix", {}).get("available"):
+                        has_of_web = True
+                    if cached_res.get("zeigames", {}).get("available"):
+                        has_zg_web = True
+                elif clean_search_name and not clean_search_name.startswith("App_"):
+                    # 快取無記錄時，執行單次快速驗證
+                    res_patches = web_patch_checker.check_all_web_patches(clean_search_name, appid=appid_str)
+                    if res_patches.get("onlinefix", {}).get("available"):
+                        has_of_web = True
+                    if res_patches.get("zeigames", {}).get("available"):
+                        has_zg_web = True
+        except Exception as e:
+            print(f"[get_search_item_status] AppID {appid_str} 查詢 web 補丁庫異常: {e}")
+
         return {
             "appid": appid_str,
             "has_manifest": has_manifest,
             "version_date": version_date_str,
             "has_onlinefix": has_patch,
+            "has_gdrive": has_patch,
+            "has_onlinefix_web": has_of_web,
+            "has_zeigames_web": has_zg_web,
             "drive_name": drive_name,
-            "is_installed": is_installed
+            "is_installed": is_installed,
+            "is_deployed": is_deployed
         }
 
     def refresh_single_game_status(self, appid: str) -> Dict[str, Any]:

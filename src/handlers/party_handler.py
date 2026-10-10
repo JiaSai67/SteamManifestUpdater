@@ -315,4 +315,16 @@ class PartyHandler:
         except Exception as e:
             return {"ok": False, "msg": str(e)}
 
+    def run_party_health_check(self) -> Dict[str, Any]:
+        """觸發組隊系統專屬全方位健康體檢 (Supabase, Turso, 時鐘同步, HWID/DPAPI, 風控, STUN, 遙測)"""
+        try:
+            res = self._get_party_manager().run_party_health_check()
+            return {"ok": True, "data": res}
+        except Exception as e:
+            return {"ok": False, "msg": f"執行組隊健檢失敗: {e}"}
+
+    def get_party_health_check(self) -> Dict[str, Any]:
+        """相容別名：獲取組隊系統專屬體檢結果"""
+        return self.run_party_health_check()
+
 

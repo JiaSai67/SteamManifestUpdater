@@ -25,25 +25,35 @@ from managers import onlinefix_manager
 from managers import version_resolver
 
 class ManageHandler:
+    def _load_unified_game_cache(self) -> Dict[str, Any]:
+        """讀取全域統一遊戲快取（優先載入 resources/builtin_game_cache.json，再以 data/game_cache.json 覆蓋）"""
+        builtin_cache_file = Path(__file__).parent.parent / "resources" / "builtin_game_cache.json"
+        cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
+        game_cache = {}
+        if builtin_cache_file.exists():
+            try:
+                game_cache.update(json.loads(builtin_cache_file.read_text(encoding="utf-8")))
+            except Exception:
+                pass
+        if cache_file.exists():
+            try:
+                game_cache.update(json.loads(cache_file.read_text(encoding="utf-8")))
+            except Exception:
+                pass
+        return game_cache
+
     def get_updatable_games(self) -> List[Dict[str, Any]]:
         """
         全庫精確取得當前真正需要更新的遊戲名單 (杜絕前端快照時序差導致漏更)
         直接從 manifest_updates.json 讀取最新狀態，並交叉校驗本地 Lua 檔案
         """
         updates_file = Path(__file__).parent.parent / "data" / "manifest_updates.json"
-        cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
         cached_updates = {}
-        game_cache = {}
+        game_cache = self._load_unified_game_cache()
 
         if updates_file.exists():
             try:
                 cached_updates = json.loads(updates_file.read_text(encoding="utf-8"))
-            except Exception:
-                pass
-
-        if cache_file.exists():
-            try:
-                game_cache = json.loads(cache_file.read_text(encoding="utf-8"))
             except Exception:
                 pass
 
@@ -141,11 +151,17 @@ class ManageHandler:
                 except Exception:
                     pass
 
-            # 讀取所有具有 Online-Fix / ZeiGames 網盤補丁的 AppID 集合（利用記憶體快取）
+            # 讀取 Google Drive 網盤補丁庫與已知 Online-Fix / ZeiGames 官網補丁 AppID 清單
             try:
                 of_appids = set(onlinefix_manager.get_all_onlinefix_appids())
             except Exception:
                 of_appids = set()
+
+            try:
+                from api import web_patch_checker
+                known_of_appids, known_zg_appids = web_patch_checker.get_known_patch_appids()
+            except Exception:
+                known_of_appids, known_zg_appids = set(), set()
 
             for lf in lua_files:
                 appid = lf.stem
@@ -239,8 +255,10 @@ class ManageHandler:
                     except Exception:
                         pass
 
-                # 🌟 聯機標籤 (has_onlinefix)：嚴格只檢查 Google Drive / 雲端補丁庫是否收錄該遊戲 (藍色標籤 🎮 聯機)
-                has_of = bool(appid in of_appids)
+                # 🌟 補丁標籤：區分 Google Drive 網盤補丁、Online-Fix 官方補丁、ZeiGames 官方補丁
+                has_gdrive = bool(appid in of_appids)
+                has_of_web = bool(appid in known_of_appids)
+                has_zg_web = bool(appid in known_zg_appids)
 
                 games.append({
                     "appid": appid,
@@ -253,7 +271,10 @@ class ManageHandler:
                     "protected": is_protected,           # 🌟 原始檔案已成功備份保護標記
                     "current_mid": current_mid,
                     "has_update": has_update,            # 🌟 秒開即帶有黃色需更新標記
-                    "has_onlinefix": has_of,             # 🌟 藍色邊框標記 (支援 Online-Fix 聯機補丁)
+                    "has_onlinefix": has_gdrive,         # 🌟 相容舊代碼 (代表網盤有補丁)
+                    "has_gdrive": has_gdrive,            # 🌟 Google Drive 網盤收錄標記
+                    "has_onlinefix_web": has_of_web,     # 🌟 Online-Fix 官方網站收錄標記
+                    "has_zeigames_web": has_zg_web,      # 🌟 ZeiGames 官方網站收錄標記
                     "version_status": version_status,
                     "latest_date": latest_date,
                     "best_source": best_source
@@ -430,13 +451,7 @@ class ManageHandler:
             pass
 
         # 載入遊戲快取以備補全
-        cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
-        game_cache = {}
-        if cache_file.exists():
-            try:
-                game_cache = json.loads(cache_file.read_text(encoding="utf-8"))
-            except Exception:
-                pass
+        game_cache = self._load_unified_game_cache()
 
         updates_file = Path(__file__).parent.parent / "data" / "manifest_updates.json"
         updates = {}
@@ -783,13 +798,7 @@ class ManageHandler:
         dlc_ids = [did for did in raw_ids if did not in manifest_depots and did not in keyed_depots]
 
         # 4. 嘗試從本機遊戲快取讀取真實 DLC 名稱與封面
-        cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
-        game_cache = {}
-        if cache_file.exists():
-            try:
-                game_cache = json.loads(cache_file.read_text(encoding="utf-8"))
-            except Exception:
-                pass
+        game_cache = self._load_unified_game_cache()
 
         from utils.tw_converter import sanitize_game_name
 

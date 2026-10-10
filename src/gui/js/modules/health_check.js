@@ -114,7 +114,8 @@ function renderHealthCheckOverview(data){
     steam_env: '🎮',
     sources: '🌐',
     credentials: '🪪',
-    storage: '☁️'
+    storage: '💾',
+    party_lobby: '👥'
   };
 
   for(var secKey in checks){
@@ -150,6 +151,10 @@ function renderHealthCheckOverview(data){
         html += '<button class="btn btn-o btn-xs" onclick="openHubcapKeyInputModal()" style="padding:2px 6px;font-size:9.5px;white-space:nowrap">⚙️ 配置 Key</button>';
       } else if(item.action === 'install_webview2'){
         html += '<button class="btn btn-o btn-xs" onclick="if(window.pywebview && pywebview.api && pywebview.api.open_external_url){pywebview.api.open_external_url(\'https://developer.microsoft.com/zh-tw/microsoft-edge/webview2/\');}else{window.open(\'https://developer.microsoft.com/zh-tw/microsoft-edge/webview2/\');}" style="padding:2px 6px;font-size:9.5px;white-space:nowrap">🌐 下載內核</button>';
+      } else if(item.action === 'open_telemetry'){
+        html += '<button class="btn btn-p btn-xs" onclick="if(window.openPartyTelemetryModal){openPartyTelemetryModal();}else if(window.switchTab){switchTab(\'party\');setTimeout(openPartyTelemetryModal,300);}" style="padding:2px 6px;font-size:9.5px;white-space:nowrap">📊 檢視遙測</button>';
+      } else if(item.action === 'auth_party_discord'){
+        html += '<button class="btn btn-p btn-xs" onclick="if(window.startDiscordOAuthFlow){startDiscordOAuthFlow();}else if(window.switchTab){switchTab(\'party\');}" style="padding:2px 6px;font-size:9.5px;white-space:nowrap">🎮 綁定認證</button>';
       }
       html += '</div>';
     }

@@ -1,0 +1,107 @@
+<div class="page" id="p-tutorial">
+  <div class="tutorial-page-container">
+    
+    <!-- 頂部標題區域 (大標置中) -->
+    <div class="tutorial-header-wrap">
+      <div class="tutorial-badge">
+        <span>🧭</span>
+        <span>新手快速引導</span>
+      </div>
+      <h1 class="tutorial-main-title">我是</h1>
+      <p class="tutorial-subtitle">請選擇最符合您當前遊玩模式的定位，我們將為您量身引導最順暢的操作流程</p>
+    </div>
+
+    <!-- 雙向子框左右並排佈局 -->
+    <div class="tutorial-cards-grid">
+      
+      <!-- 🐺 左側子框：獨狼玩家 -->
+      <div class="tutorial-card card-solo" onclick="selectTutorialRole('solo')">
+        <div class="card-icon-halo">🐺</div>
+        <h3 class="card-title">獨狼玩家</h3>
+        <div class="card-body-content">
+          <p class="card-desc">通常自己玩單機遊戲</p>
+          <div class="card-tutorial-topics">
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">✦</span>
+              <span>憑證登入教學</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">✦</span>
+              <span>搜尋一鍵入庫</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">✦</span>
+              <span>管理入庫說明</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn-tutorial-start" onclick="event.stopPropagation(); startTutorial('solo')" title="開啟獨狼單機專屬引導流程">
+          <span>開始教學</span>
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2.44z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 🚀 右側子框：線上補丁 -->
+      <div class="tutorial-card card-leader" onclick="selectTutorialRole('leader')">
+        <div class="card-icon-halo">🚀</div>
+        <h3 class="card-title">線上補丁</h3>
+        <div class="card-body-content">
+          <p class="card-desc">經常領頭當隊長必看此教學</p>
+          <div class="card-tutorial-topics">
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">🏷️</span>
+              <span>小卡標籤與線上補丁說明</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">🌐</span>
+              <span>Google Drive 網盤配置</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">🚀</span>
+              <span>線上補丁安裝與移除教學</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn-tutorial-start" onclick="event.stopPropagation(); startTutorial('leader')" title="開啟線上補丁與共享網盤專屬引導流程">
+          <span>開始教學</span>
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2.44z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 🎮 第三子框：組隊教學 -->
+      <div class="tutorial-card card-party" onclick="selectTutorialRole('party')">
+        <div class="card-icon-halo">🎮</div>
+        <h3 class="card-title">組隊教學</h3>
+        <div class="card-body-content">
+          <p class="card-desc">多人聯機開房入隊必看教學</p>
+          <div class="card-tutorial-topics">
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">📥</span>
+              <span>入隊流程與狀態同步</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">👑</span>
+              <span>開房招募與全員就緒</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">⚡</span>
+              <span>一鍵安裝與連線開玩</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn-tutorial-start" onclick="event.stopPropagation(); startTutorial('party')" title="開啟多人組隊同樂專屬引導流程">
+          <span>開始教學</span>
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2.44z"/>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+</div>

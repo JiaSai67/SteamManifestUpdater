@@ -90,6 +90,13 @@ def launch_modern_gui():
 
     api.set_window(window)
 
+    # 🌟 啟動背景 Google Drive 雲端補丁庫預載入與定時輪詢守護器 (非同步執行，0ms 阻塞)
+    try:
+        from managers import onlinefix_manager
+        onlinefix_manager.start_cloud_sync_scheduler()
+    except Exception as e:
+        print(f"[Launcher] 啟動 Google Drive 雲端補丁庫排程器異常: {e}")
+
     # 啟動 Webview 引擎 (關閉 DevTools 避免干擾)
     webview.start(debug=False)
 

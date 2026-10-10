@@ -533,16 +533,12 @@ async function s(){
           btnHtml = '<div class="search-loading-spinner" title="正在查詢 Manifest 與補丁庫狀態..."></div>';
         }
 
-        var hasOf = _onlinefixAppids && _onlinefixAppids.has(aidStr);
+        var hasGdrive = (window._gdriveAppids && window._gdriveAppids.has(aidStr)) || (_onlinefixAppids && _onlinefixAppids.has(aidStr));
+        var hasOfWeb = window._onlinefixWebAppids && window._onlinefixWebAppids.has(aidStr);
+        var hasZgWeb = window._zeigamesWebAppids && window._zeigamesWebAppids.has(aidStr);
         var isDeployed = _deployedAppids && _deployedAppids.has(aidStr);
-        var cardClass = 'card' + (hasUp ? ' needs-update' : '') + (hasOf ? ' has-onlinefix' : '');
+        var cardClass = 'card' + (hasUp ? ' needs-update' : '') + ((hasGdrive || hasOfWeb || hasZgWeb) ? ' has-onlinefix' : '');
         
-        var tagsHtml = '';
-        if(hasOf) tagsHtml += '<span class="corner-tag tag-of" title="支援 Online-Fix 聯機補丁">🎮 聯機</span>';
-        if(isDeployed) tagsHtml += '<span class="corner-tag tag-dep" title="本地已成功部署補丁">✅ 部署</span>';
-        if(hasUp) tagsHtml += '<span class="corner-tag tag-up" title="可更新 Manifest">⚡ 可更新</span>';
-        var cornerTagsDiv = tagsHtml ? '<div class="card-corner-tags">' + tagsHtml + '</div>' : '';
-
         var progressHtml = '<div class="card-progress-wrap" id="cpw-'+r.appid+'">' +
                              '<div class="card-progress-header">' +
                                 '<span class="cp-action" id="cpa-'+r.appid+'">🔍 準備檢查資料...</span>' +
@@ -554,14 +550,16 @@ async function s(){
                            '</div>';
 
         return '<div class="'+cardClass+'" style="--i:'+i+'" data-appid="'+r.appid+'" id="scard-'+r.appid+'" onclick="openGameDetail(\''+r.appid+'\',\''+jsesc(r.name)+'\',\''+jsesc(r.image||'')+'\')">' +
-                 cornerTagsDiv +
                  '<img src="'+h(r.image||'')+'" loading="lazy" onerror="imgFb(this,'+r.appid+')">' +
                  '<div class="info">' +
                    '<div class="name" title="'+h(r.name)+'">'+h(r.name)+'</div>' +
                    '<div class="search-tags-row">' +
                      '<span class="aid">'+r.appid+'</span>' +
                      '<span class="search-tag tag-ver" id="stag-ver-'+r.appid+'" style="display:none"></span>' +
-                     '<span class="search-tag tag-of" id="stag-of-'+r.appid+'" style="'+(hasOf ? 'display:inline-flex' : 'display:none')+'">✅ 聯機補丁</span>' +
+                     '<span class="search-tag tag-gdrive" id="stag-gdrive-'+r.appid+'" style="'+(hasGdrive ? 'display:inline-flex' : 'display:none')+'"><img src="assets/icons/gdrive.png" class="corner-tag-img" alt="GD"/>Google Drive</span>' +
+                     '<span class="search-tag tag-of" id="stag-of-'+r.appid+'" style="'+(hasOfWeb ? 'display:inline-flex' : 'display:none')+'"><img src="assets/icons/onlinefix.png" class="corner-tag-img" alt="OF"/>Online-Fix</span>' +
+                     '<span class="search-tag tag-zg" id="stag-zg-'+r.appid+'" style="'+(hasZgWeb ? 'display:inline-flex' : 'display:none')+'"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>' +
+                     '<span class="search-tag tag-dep" id="stag-dep-'+r.appid+'" style="'+(isDeployed ? 'display:inline-flex' : 'display:none')+'">✅ 已部署</span>' +
                    '</div>' +
                    '<div class="link-wrap">' +
                      '<span class="link link-steam" onclick="event.stopPropagation(); openSteam('+r.appid+')">在 Steam 商店查看 ▶</span>' +
@@ -584,7 +582,10 @@ async function s(){
           var cardEl = document.getElementById('scard-' + aid);
           var actWrap = document.getElementById('sact-' + aid);
           var verTag = document.getElementById('stag-ver-' + aid);
+          var gdriveTag = document.getElementById('stag-gdrive-' + aid);
           var ofTag = document.getElementById('stag-of-' + aid);
+          var zgTag = document.getElementById('stag-zg-' + aid);
+          var cdiv = document.getElementById('cdiv-' + aid);
 
           // 1. 版本日期標籤 (跟隨 Ryuu 的 Manifest ID 與 SteamDB 日期)
           if(verTag){
@@ -598,30 +599,47 @@ async function s(){
             }
           }
 
-          // 2. 聯機補丁標籤 (根據 Google Drive 網盤補丁庫掃描結果)
-          if(ofTag){
-            if(stat.has_onlinefix){
-              ofTag.style.display = 'inline-flex';
-              _onlinefixAppids.add(aid);
-              if(cardEl){
-                cardEl.classList.add('has-onlinefix');
-                var cTags = cardEl.querySelector('.card-corner-tags');
-                if(!cTags){
-                  cTags = document.createElement('div');
-                  cTags.className = 'card-corner-tags';
-                  cardEl.insertBefore(cTags, cardEl.firstChild);
-                }
-                if(!cTags.querySelector('.tag-of')){
-                  var sp = document.createElement('span');
-                  sp.className = 'corner-tag tag-of';
-                  sp.title = '支援 Online-Fix 聯機補丁';
-                  sp.textContent = '🎮 聯機';
-                  cTags.appendChild(sp);
-                }
-              }
-            } else if(!_onlinefixAppids.has(aid)){
-              ofTag.style.display = 'none';
-            }
+          // 2. 補丁多來源標籤 (放置於版本日期後方：Google Drive / Online-Fix / ZeiGames)
+          var isGd = !!(stat.has_gdrive || stat.has_onlinefix);
+          var isOfWeb = !!stat.has_onlinefix_web;
+          var isZgWeb = !!stat.has_zeigames_web;
+
+          if(!window._gdriveAppids) window._gdriveAppids = new Set();
+          if(!window._onlinefixWebAppids) window._onlinefixWebAppids = new Set();
+          if(!window._zeigamesWebAppids) window._zeigamesWebAppids = new Set();
+
+          if(isGd){
+            if(gdriveTag) gdriveTag.style.display = 'inline-flex';
+            window._gdriveAppids.add(aid);
+            if(_onlinefixAppids) _onlinefixAppids.add(aid);
+          } else if(!window._gdriveAppids.has(aid)){
+            if(gdriveTag) gdriveTag.style.display = 'none';
+          }
+
+          if(isOfWeb){
+            if(ofTag) ofTag.style.display = 'inline-flex';
+            window._onlinefixWebAppids.add(aid);
+          } else if(!window._onlinefixWebAppids.has(aid)){
+            if(ofTag) ofTag.style.display = 'none';
+          }
+
+          if(isZgWeb){
+            if(zgTag) zgTag.style.display = 'inline-flex';
+            window._zeigamesWebAppids.add(aid);
+          } else if(!window._zeigamesWebAppids.has(aid)){
+            if(zgTag) zgTag.style.display = 'none';
+          }
+
+          if((isGd || isOfWeb || isZgWeb) && cardEl){
+            cardEl.classList.add('has-onlinefix');
+          }
+
+          // 3. 部署標籤 (根據本地已部署狀態，以「已部署」呈現)
+          var isDep = !!stat.is_deployed || (_deployedAppids && _deployedAppids.has(aid));
+          if(isDep && _deployedAppids) _deployedAppids.add(aid);
+          var depTag = document.getElementById('stag-dep-' + aid);
+          if(depTag){
+            depTag.style.display = isDep ? 'inline-flex' : 'none';
           }
 
           // 3. 操作按鈕更新 (旋轉中 → 一鍵入庫 / 不支援)

@@ -35,18 +35,22 @@ function _browseCard(g){
       }
     }
   }
-  var hasOf = _onlinefixAppids && _onlinefixAppids.has(aid);
+  var hasGdrive = (window._gdriveAppids && window._gdriveAppids.has(aid)) || (_onlinefixAppids && _onlinefixAppids.has(aid));
+  var hasOfWeb = window._onlinefixWebAppids && window._onlinefixWebAppids.has(aid);
+  var hasZgWeb = window._zeigamesWebAppids && window._zeigamesWebAppids.has(aid);
   var isDeployed = _deployedAppids && _deployedAppids.has(aid);
   var isProtected = _protectedAppids && _protectedAppids.has(aid);
   
-  // 🌟 右上角標籤（垂直由上往下直排）
+  // 🌟 右上角標籤（垂直由上往下直排，區分 Google Drive / Online-Fix / ZeiGames）
   var tagsHtml = '';
-  if(hasOf) tagsHtml += '<span class="corner-tag tag-of" title="支援 Online-Fix 聯機補丁">🎮 聯機</span>';
+  if(hasGdrive) tagsHtml += '<span class="corner-tag tag-gdrive" title="Google Drive 網盤補丁庫已收錄補丁檔案"><img src="assets/icons/gdrive.png" class="corner-tag-img" alt="GD"/>Google Drive</span>';
+  if(hasOfWeb) tagsHtml += '<span class="corner-tag tag-onlinefix" title="Online-Fix 官方網站已收錄聯機補丁"><img src="assets/icons/onlinefix.png" class="corner-tag-img" alt="OF"/>Online-Fix</span>';
+  if(hasZgWeb) tagsHtml += '<span class="corner-tag tag-zeigames" title="ZeiGames 官方網站已收錄專用補丁"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>';
   if(isDeployed) tagsHtml += '<span class="corner-tag tag-dep" title="本地已成功部署補丁">✅ 部署</span>';
   if(hasUp) tagsHtml += '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ 可更新</span>';
   var cornerTagsDiv = tagsHtml ? '<div class="card-corner-tags">' + tagsHtml + '</div>' : '';
 
-  var cardClass = 'card' + (hasUp ? ' needs-update' : '') + (hasOf ? ' has-onlinefix' : '');
+  var cardClass = 'card' + (hasUp ? ' needs-update' : '') + ((hasGdrive || hasOfWeb || hasZgWeb) ? ' has-onlinefix' : '');
   var actionBtn = '';
   if(isInstalled){
     actionBtn = '<button class="card-menu card-installed" onclick="event.stopPropagation()" title="✅ 已在本地入庫' + (hasUp ? ' (官方有新版本可更新)' : '') + '">' +

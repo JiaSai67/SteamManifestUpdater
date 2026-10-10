@@ -275,10 +275,11 @@ class CredentialsHandler:
                     mgr.set_hubcap_key(target_id, "")
                 else:
                     hubcap_manager.set_api_key("")
+                hubcap_manager.clear_stats_cache()
                 return {"ok": True, "msg": "已清除 HubcapDB API Key"}
 
-            # 立即連線驗證
-            stats = hubcap_manager.fetch_user_stats(clean_key)
+            # 立即連線驗證 (強制發送即時請求)
+            stats = hubcap_manager.fetch_user_stats(clean_key, force_refresh=True)
             if stats.get("ok"):
                 rem = stats.get("remaining", 0)
                 lim = stats.get("daily_limit", 0)

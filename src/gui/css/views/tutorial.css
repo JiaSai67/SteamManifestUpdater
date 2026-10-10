@@ -1,0 +1,2814 @@
+/* ═══════════════════════════════════════════════════════
+   教學模式 (Tutorial Mode) 視圖專屬樣式
+   雙角色引導卡片體系：直立長方形卡片 (Portrait Rectangular Cards)
+   ═══════════════════════════════════════════════════════ */
+
+/* 🌟 教學模式頁面置中規範：移除預設 padding，保證容器能 100% 填滿視窗空間 */
+.pages:has(#p-tutorial.active),
+.pages.tutorial-active-pages {
+  padding: 0 !important;
+  overflow-y: auto !important;
+  height: 100% !important;
+}
+
+/* 🌟 核心防禦：非 active 時絕對隱藏教學頁面，嚴禁遮蔽或覆蓋其他頁面 */
+#p-tutorial {
+  display: none;
+}
+#p-tutorial:not(.active) {
+  display: none !important;
+}
+
+/* 🌟 啟用時以彈性盒達成水平與垂直絕對完美置中：
+   精準光學補償：由於視窗頂端固定有 32px 的 Titlebar，加上大卡片底部的邊框光暈與陰影，
+   在數值對稱居中下會天然導致內容偏下約 28px（造成全視窗頂部與底部留白相差 56~58px）。
+   此處藉由底部 58px vs 頂部 0px 的差值配置，精確將整組內容向上提升 29px，
+   徹底抵消標題列佔用與視覺下沉，達成全螢幕視覺上 100% 完全均等的完美垂直置中！ */
+#p-tutorial.active {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100% !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 16px 58px 16px !important;
+  box-sizing: border-box !important;
+  animation: fadeIn 0.25s ease;
+}
+
+.tutorial-page-container {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  max-width: 980px !important;
+  margin: auto !important; /* 🌟 在 min-height: 100% 容器中達成完美垂直與水平居中 */
+  box-sizing: border-box !important;
+}
+
+/* 頂部標題區域 (完全置中) */
+.tutorial-header-wrap {
+  text-align: center !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  margin-bottom: 22px !important;
+  max-width: 680px !important;
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.tutorial-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 14px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  background: rgba(255, 143, 167, 0.15);
+  color: var(--pink-deep);
+  border: 1px solid rgba(255, 143, 167, 0.35);
+  margin-top: 0 !important;
+  margin-bottom: 6px !important;
+  text-transform: uppercase;
+}
+.app.dark .tutorial-badge {
+  background: rgba(255, 143, 167, 0.22);
+  color: #FFAEC0;
+  border-color: rgba(255, 143, 167, 0.45);
+}
+
+.tutorial-main-title {
+  font-size: 36px !important;
+  font-weight: 900 !important;
+  letter-spacing: 2px !important;
+  margin: 0 0 6px 0 !important;
+  color: var(--fg);
+  text-align: center;
+  line-height: 1.15 !important;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+.app.dark .tutorial-main-title {
+  color: #FFFFFF !important;
+  text-shadow: 0 2px 16px rgba(255, 255, 255, 0.15);
+}
+
+.tutorial-subtitle {
+  font-size: 13.5px !important;
+  color: var(--gray);
+  line-height: 1.5 !important;
+  margin: 0 !important;
+  font-weight: 500;
+  text-align: center !important;
+}
+.app.dark .tutorial-subtitle {
+  color: #D6CBD0 !important;
+}
+
+/* 雙向子框/三卡片左右並排佈局 (直立長方形排版) */
+.tutorial-cards-grid {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: center !important;
+  align-items: stretch !important;
+  gap: 24px !important;
+  width: 100% !important;
+  max-width: 960px !important;
+  margin: 0 auto !important;
+  box-sizing: border-box !important;
+  flex-wrap: wrap !important;
+}
+
+@media (max-width: 920px) {
+  .tutorial-cards-grid {
+    gap: 18px !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .tutorial-cards-grid {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 20px !important;
+  }
+}
+
+/* 🌟 子框卡片通用結構 (優雅直立長方形 Portrait Card，組件完全置中) */
+.tutorial-card {
+  position: relative;
+  width: 285px !important;
+  min-width: 285px !important;
+  max-width: 285px !important;
+  height: 480px !important;
+  min-height: 480px !important;
+  border-radius: 22px;
+  padding: 32px 22px 26px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border: 2px solid var(--border);
+  box-shadow: 0 12px 34px rgba(61, 44, 46, 0.06);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tutorial-card:hover {
+  transform: translateY(-8px) scale(1.02);
+}
+
+.app.dark .tutorial-card {
+  background: rgba(28, 21, 25, 0.92);
+}
+
+/* 卡片頂部流光裝飾條 (與 22px 圓角頂部融合) */
+.tutorial-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  opacity: 0.9;
+  border-radius: 20px 20px 0 0;
+  transition: opacity 0.3s ease, height 0.3s ease;
+  z-index: 2;
+}
+.tutorial-card:hover::before {
+  opacity: 1;
+  height: 6px;
+}
+
+/* 🐺 左側子框：獨狼玩家 (以線上補丁為基準：2px 邊框 + 湛藍極光氛圍光暈) */
+.tutorial-card.card-solo {
+  border: 2px solid rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.22), 0 12px 34px rgba(0, 0, 0, 0.08);
+}
+.tutorial-card.card-solo::before {
+  background: linear-gradient(90deg, #38BDF8, #818CF8);
+}
+.tutorial-card.card-solo:hover {
+  border-color: rgba(56, 189, 248, 0.9);
+  box-shadow: 0 0 30px rgba(56, 189, 248, 0.45), 0 20px 48px rgba(56, 189, 248, 0.25);
+}
+
+.app.dark .tutorial-card.card-solo {
+  border: 2px solid rgba(56, 189, 248, 0.72);
+  box-shadow: 0 0 22px rgba(56, 189, 248, 0.32), 0 0 44px rgba(56, 189, 248, 0.12), 0 14px 38px rgba(0, 0, 0, 0.55);
+}
+.app.dark .tutorial-card.card-solo:hover {
+  border-color: #38BDF8;
+  box-shadow: 0 0 32px rgba(56, 189, 248, 0.55), 0 0 60px rgba(56, 189, 248, 0.28), 0 22px 52px rgba(0, 0, 0, 0.7);
+}
+
+/* 🚀 右側子框：線上補丁 (基準樣式：2px 邊框 + 電光青藍光暈) */
+.tutorial-card.card-leader {
+  border: 2px solid rgba(0, 188, 212, 0.55);
+  box-shadow: 0 0 20px rgba(0, 188, 212, 0.22), 0 12px 34px rgba(0, 0, 0, 0.08);
+}
+.tutorial-card.card-leader::before {
+  background: linear-gradient(90deg, #00BCD4, #10B981);
+}
+.tutorial-card.card-leader:hover {
+  border-color: rgba(0, 188, 212, 0.9);
+  box-shadow: 0 0 30px rgba(0, 188, 212, 0.45), 0 20px 48px rgba(0, 188, 212, 0.25);
+}
+
+.app.dark .tutorial-card.card-leader {
+  border: 2px solid rgba(0, 229, 255, 0.72);
+  box-shadow: 0 0 22px rgba(0, 188, 212, 0.32), 0 0 44px rgba(0, 188, 212, 0.12), 0 14px 38px rgba(0, 0, 0, 0.55);
+}
+.app.dark .tutorial-card.card-leader:hover {
+  border-color: #00E5FF;
+  box-shadow: 0 0 32px rgba(0, 188, 212, 0.55), 0 0 60px rgba(0, 188, 212, 0.28), 0 22px 52px rgba(0, 0, 0, 0.7);
+}
+
+/* 🎮 第三子框：組隊教學 (紫粉電競霓虹光暈) */
+.tutorial-card.card-party {
+  border: 2px solid rgba(168, 85, 247, 0.55);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.22), 0 12px 34px rgba(0, 0, 0, 0.08);
+}
+.tutorial-card.card-party::before {
+  background: linear-gradient(90deg, #A855F7, #EC4899);
+}
+.tutorial-card.card-party:hover {
+  border-color: rgba(168, 85, 247, 0.9);
+  box-shadow: 0 0 30px rgba(168, 85, 247, 0.45), 0 20px 48px rgba(168, 85, 247, 0.25);
+}
+
+.app.dark .tutorial-card.card-party {
+  border: 2px solid rgba(192, 132, 252, 0.72);
+  box-shadow: 0 0 22px rgba(168, 85, 247, 0.32), 0 0 44px rgba(168, 85, 247, 0.12), 0 14px 38px rgba(0, 0, 0, 0.55);
+}
+.app.dark .tutorial-card.card-party:hover {
+  border-color: #C084FC;
+  box-shadow: 0 0 32px rgba(168, 85, 247, 0.55), 0 0 60px rgba(168, 85, 247, 0.28), 0 22px 52px rgba(0, 0, 0, 0.7);
+}
+
+/* 選中狀態高亮效果 (強烈立體霓虹光暈) */
+.tutorial-card.selected {
+  transform: translateY(-5px);
+}
+.tutorial-card.card-solo.selected {
+  border-color: #38BDF8 !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.65), 0 0 36px rgba(56, 189, 248, 0.58), 0 20px 44px rgba(0, 0, 0, 0.65) !important;
+}
+.tutorial-card.card-leader.selected {
+  border-color: #00E5FF !important;
+  box-shadow: 0 0 0 2px rgba(0, 188, 212, 0.65), 0 0 36px rgba(0, 188, 212, 0.58), 0 20px 44px rgba(0, 0, 0, 0.65) !important;
+}
+.tutorial-card.card-party.selected {
+  border-color: #C084FC !important;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.65), 0 0 36px rgba(168, 85, 247, 0.58), 0 20px 44px rgba(0, 0, 0, 0.65) !important;
+}
+
+/* 🌟 子框角色圖標大徽章 (精緻修長比例，完全置中) */
+.card-icon-halo {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  margin: 0 auto 18px auto !important;
+  position: relative;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+.tutorial-card:hover .card-icon-halo {
+  transform: scale(1.1) rotate(4deg);
+}
+
+.card-solo .card-icon-halo {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(99, 102, 241, 0.28));
+  border: 2px solid rgba(56, 189, 248, 0.55);
+  box-shadow: 0 10px 28px rgba(56, 189, 248, 0.26);
+}
+.card-leader .card-icon-halo {
+  background: linear-gradient(135deg, rgba(0, 188, 212, 0.24), rgba(16, 185, 129, 0.28));
+  border: 2px solid rgba(0, 188, 212, 0.6);
+  box-shadow: 0 10px 28px rgba(0, 188, 212, 0.28);
+}
+
+/* 🌟 子框標題 (完全置中) */
+.card-title {
+  font-size: 24px !important;
+  font-weight: 900 !important;
+  margin: 0 auto 8px auto !important;
+  color: var(--fg);
+  letter-spacing: 0.8px;
+  text-align: center !important;
+  flex-shrink: 0;
+}
+.app.dark .card-title {
+  color: #FFFFFF !important;
+}
+
+/* 🌟 子框內容容器 (彈性撐開，垂直與水平置中) */
+.card-body-content {
+  flex: 1;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+}
+
+/* 🌟 子框描述 (完全置中) */
+.card-desc {
+  font-size: 13.5px !important;
+  font-weight: 500;
+  color: var(--gray);
+  line-height: 1.5 !important;
+  margin: 0 auto 12px auto !important;
+  text-align: center !important;
+}
+.app.dark .card-desc {
+  color: #D6CBD0 !important;
+}
+
+/* 🌟 教學項目清單盒 (與按鈕統一度 236px，完全水平置中) */
+.card-tutorial-topics {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  width: 100% !important;
+  max-width: 236px !important;
+  margin: 0 auto 16px auto !important;
+  padding: 10px 14px !important;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  border-radius: 12px;
+  box-sizing: border-box !important;
+  transition: all 0.25s ease;
+}
+.card-leader .card-tutorial-topics {
+  background: rgba(0, 188, 212, 0.08);
+  border-color: rgba(0, 188, 212, 0.26);
+}
+
+.app.dark .card-tutorial-topics {
+  background: rgba(56, 189, 248, 0.07);
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: inset 0 0 14px rgba(56, 189, 248, 0.06);
+}
+.app.dark .card-leader .card-tutorial-topics {
+  background: rgba(0, 188, 212, 0.07);
+  border-color: rgba(0, 188, 212, 0.35);
+  box-shadow: inset 0 0 14px rgba(0, 188, 212, 0.06);
+}
+
+.tutorial-topic-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg);
+  text-align: left;
+  line-height: 1.4;
+  white-space: nowrap !important; /* 🌟 確保文字一行排開不換行、不重疊擠壓 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app.dark .tutorial-topic-item {
+  color: #E2E8F0;
+}
+
+.tutorial-topic-item .topic-bullet {
+  font-size: 11px;
+  color: #0284C7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.card-leader .tutorial-topic-item .topic-bullet {
+  color: #00BCD4;
+}
+.app.dark .tutorial-topic-item .topic-bullet {
+  color: #38BDF8;
+}
+.app.dark .card-leader .tutorial-topic-item .topic-bullet {
+  color: #00E5FF;
+}
+
+/* 🌟 「開始教學」按鈕 (與清單盒寬度完全對齊統一 236px，完全水平置中) */
+.btn-tutorial-start {
+  width: 100% !important;
+  max-width: 236px !important;
+  margin: 0 auto !important;
+  padding: 13px 22px !important;
+  border-radius: 12px !important;
+  font-size: 15.5px !important;
+  font-weight: 800 !important;
+  border: none;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  position: relative;
+  overflow: hidden;
+  letter-spacing: 0.8px;
+  flex-shrink: 0;
+}
+.btn-tutorial-start svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.25s ease;
+}
+.btn-tutorial-start:hover svg {
+  transform: translateX(5px);
+}
+.btn-tutorial-start:active {
+  transform: scale(0.97);
+}
+
+/* 獨狼玩家按鈕樣式 */
+.card-solo .btn-tutorial-start {
+  background: linear-gradient(135deg, #0284C7, #4F46E5);
+  color: #FFFFFF;
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.38);
+}
+.card-solo .btn-tutorial-start:hover {
+  background: linear-gradient(135deg, #0369A1, #4338CA);
+  box-shadow: 0 8px 24px rgba(2, 132, 199, 0.52);
+  transform: translateY(-2px);
+}
+
+/* 線上補丁按鈕樣式 (電光青藍/聯機綠) */
+.card-leader .btn-tutorial-start {
+  background: linear-gradient(135deg, #00BCD4, #059669);
+  color: #FFFFFF;
+  box-shadow: 0 6px 18px rgba(0, 188, 212, 0.38);
+}
+.card-leader .btn-tutorial-start:hover {
+  background: linear-gradient(135deg, #00ACC1, #047857);
+  box-shadow: 0 8px 24px rgba(0, 188, 212, 0.52);
+  transform: translateY(-2px);
+}
+
+/* ═══════════════════════════════════════════════════════
+   教學聚光燈系統 (Tutorial Spotlight & Interactive Sandbox)
+   ═══════════════════════════════════════════════════════ */
+
+/* 1. 聚光燈遮罩容器 */
+.tutorial-spotlight-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99990;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+.tutorial-spotlight-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.spotlight-svg-mask {
+  width: 100%;
+  height: 100%;
+}
+#spotlight-cutout,
+#spotlight-cutout-sub {
+  transition: x 0.25s cubic-bezier(0.2, 0.9, 0.2, 1), 
+              y 0.25s cubic-bezier(0.2, 0.9, 0.2, 1), 
+              width 0.25s ease, 
+              height 0.25s ease;
+}
+
+/* 2. 教學浮動氣泡卡 (Popover Card) - 預設淺色模式：白底黑字、高清晰對比度 */
+.tutorial-step-popover {
+  position: fixed;
+  z-index: 99995;
+  width: 350px;
+  background: #FFFFFF !important; /* 🌟 偏白底不透明，徹底杜絕黑夜聚光燈遮罩穿透 */
+  border: 1.5px solid rgba(255, 143, 167, 0.5) !important;
+  border-radius: 14px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.22), 0 2px 10px rgba(255, 102, 153, 0.15) !important;
+  padding: 16px 18px;
+  box-sizing: border-box;
+  color: #1A1A1A !important;
+  transition: top 0.25s cubic-bezier(0.2, 0.9, 0.2, 1), left 0.25s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.2s ease;
+  animation: popoverFadeIn 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes popoverFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.02) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.popover-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tag-role {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(2, 132, 199, 0.15);
+  color: #0284C7;
+  border: 1px solid rgba(2, 132, 199, 0.3);
+}
+.tag-role.tag-role-leader {
+  background: rgba(0, 188, 212, 0.16) !important;
+  color: #00838F !important;
+  border: 1px solid rgba(0, 188, 212, 0.45) !important;
+}
+.app.dark .tag-role.tag-role-leader {
+  background: rgba(0, 188, 212, 0.22) !important;
+  color: #00E5FF !important;
+  border-color: rgba(0, 229, 255, 0.5) !important;
+}
+
+/* 教學示意截圖專用風格 (限制最大高度，防止卡片被撐大導致點不到下一步) */
+.popover-screenshot-img {
+  width: 100%;
+  max-height: 135px !important;
+  object-fit: contain !important;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  margin: 7px 0 5px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  display: block;
+}
+.app.dark .popover-screenshot-img {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+/* 淺色模式字體與細節高對比規範 */
+.tutorial-step-popover .popover-step-title {
+  margin: 0 0 6px 0;
+  font-size: 15.5px;
+  font-weight: 800;
+  color: #111827 !important; /* 深黑濃色標題 */
+  line-height: 1.3;
+}
+
+.tutorial-step-popover .popover-step-desc {
+  font-size: 12.5px;
+  color: #2D2327 !important; /* 清晰深黑灰內文 */
+  line-height: 1.6;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.tutorial-step-popover .popover-step-index {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #E91E63 !important; /* 鮮豔粉紅步驟指示 */
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+}
+
+.tutorial-step-popover .tag-module {
+  font-size: 11px;
+  font-weight: 700;
+  color: #4B5563 !important;
+}
+
+.tutorial-step-popover .popover-hint {
+  font-size: 11.5px;
+  color: #374151 !important;
+  background: #F3F4F6 !important; /* 清爽淺灰背景 */
+  border: 1px solid #E5E7EB !important;
+  padding: 6px 10px;
+  border-radius: 6px;
+  line-height: 1.45;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.tutorial-step-popover .btn-popover-close {
+  background: transparent;
+  border: none;
+  font-size: 15px;
+  color: #6B7280 !important;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+.tutorial-step-popover .btn-popover-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #EF4444 !important;
+}
+
+.tutorial-step-popover .popover-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #E5E7EB !important;
+}
+
+.tutorial-step-popover #tutorial-popover-prev {
+  background: #F3F4F6 !important;
+  color: #374151 !important;
+  border: 1px solid #D1D5DB !important;
+  font-weight: 600 !important;
+}
+.tutorial-step-popover #tutorial-popover-prev:hover {
+  background: #E5E7EB !important;
+  color: #111827 !important;
+}
+
+.tutorial-step-popover #tutorial-popover-next {
+  background: linear-gradient(135deg, #FF6699, #FF4081) !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(255, 64, 129, 0.35) !important;
+}
+
+/* 🌟 深色模式 (Dark Mode) 適配：白色邊框與純白清晰指針，消除全黑與底色衝突 */
+html.dark .tutorial-step-popover,
+body.dark .tutorial-step-popover,
+.app.dark .tutorial-step-popover {
+  background: #18141B !important;
+  border: 1.5px solid #FFFFFF !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
+  color: #FFFFFF !important;
+}
+
+html.dark .tutorial-step-popover .popover-step-title,
+body.dark .tutorial-step-popover .popover-step-title,
+.app.dark .tutorial-step-popover .popover-step-title {
+  color: #FFFFFF !important;
+}
+
+html.dark .tutorial-step-popover .popover-step-desc,
+body.dark .tutorial-step-popover .popover-step-desc,
+.app.dark .tutorial-step-popover .popover-step-desc {
+  color: #E5E7EB !important;
+}
+
+html.dark .tutorial-step-popover .tag-module,
+body.dark .tutorial-step-popover .tag-module,
+.app.dark .tutorial-step-popover .tag-module {
+  color: #9CA3AF !important;
+}
+
+html.dark .tutorial-step-popover .popover-hint,
+body.dark .tutorial-step-popover .popover-hint,
+.app.dark .tutorial-step-popover .popover-hint {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #E2E8F0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+html.dark .tutorial-step-popover .btn-popover-close,
+body.dark .tutorial-step-popover .btn-popover-close,
+.app.dark .tutorial-step-popover .btn-popover-close {
+  color: #9CA3AF !important;
+}
+html.dark .tutorial-step-popover .btn-popover-close:hover,
+body.dark .tutorial-step-popover .btn-popover-close:hover,
+.app.dark .tutorial-step-popover .btn-popover-close:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #FF6B81 !important;
+}
+
+html.dark .tutorial-step-popover .popover-footer,
+body.dark .tutorial-step-popover .popover-footer,
+.app.dark .tutorial-step-popover .popover-footer {
+  border-top-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+html.dark .tutorial-step-popover #tutorial-popover-prev,
+body.dark .tutorial-step-popover #tutorial-popover-prev,
+.app.dark .tutorial-step-popover #tutorial-popover-prev {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #E5E7EB !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+}
+
+.tutorial-step-popover.hidden {
+  display: none !important;
+}
+
+/* Popover 箭頭指針 (升級雙層立體架構：外層 ::before 邊框 + 內層 ::after 填充，精準對齊標籤) */
+.tutorial-step-popover[data-arrow="none"]::before,
+.tutorial-step-popover[data-arrow="none"]::after {
+  display: none !important;
+  content: none !important;
+}
+.tutorial-step-popover[data-arrow="top"]::before,
+.tutorial-step-popover[data-arrow="top-right"]::before {
+  content: '';
+  position: absolute;
+  top: -11px;
+  left: var(--arrow-left, 50%);
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 11px solid rgba(255, 143, 167, 0.85);
+  z-index: 1;
+}
+.tutorial-step-popover[data-arrow="top"]::after,
+.tutorial-step-popover[data-arrow="top-right"]::after {
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: var(--arrow-left, 50%);
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 9px solid #FFFFFF;
+  z-index: 2;
+}
+
+.tutorial-step-popover[data-arrow="bottom"]::before {
+  content: '';
+  position: absolute;
+  bottom: -11px;
+  left: var(--arrow-left, 50%);
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 11px solid rgba(255, 143, 167, 0.85);
+  z-index: 1;
+}
+.tutorial-step-popover[data-arrow="bottom"]::after {
+  content: '';
+  position: absolute;
+  bottom: -9px;
+  left: var(--arrow-left, 50%);
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 9px solid #FFFFFF;
+  z-index: 2;
+}
+
+.tutorial-step-popover[data-arrow="left"]::before {
+  content: '';
+  position: absolute;
+  top: var(--arrow-top, 40px);
+  left: -11px;
+  width: 0;
+  height: 0;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-right: 11px solid rgba(255, 143, 167, 0.85);
+  z-index: 1;
+}
+.tutorial-step-popover[data-arrow="left"]::after {
+  content: '';
+  position: absolute;
+  top: var(--arrow-top, 40px);
+  left: -9px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 9px solid #FFFFFF;
+  z-index: 2;
+}
+
+.tutorial-step-popover[data-arrow="right"]::before {
+  content: '';
+  position: absolute;
+  top: var(--arrow-top, 40px);
+  right: -11px;
+  width: 0;
+  height: 0;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 11px solid rgba(255, 143, 167, 0.85);
+  z-index: 1;
+}
+.tutorial-step-popover[data-arrow="right"]::after {
+  content: '';
+  position: absolute;
+  top: var(--arrow-top, 40px);
+  right: -9px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 9px solid #FFFFFF;
+  z-index: 2;
+}
+
+/* 🌟 群眾領導步驟 10 下拉選單完整展開，支援多邊形高亮 */
+#tut-leader-card-dd {
+  max-height: none !important;
+  overflow: visible !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4), 0 0 16px rgba(0, 188, 212, 0.25) !important;
+}
+
+/* 🌟 教學步驟專屬聚光燈標籤呼吸光暈 (加強指向可視性與視覺聚焦) */
+.tutorial-focus-pulse {
+  outline: 2px solid #00BCD4 !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 18px rgba(0, 188, 212, 0.95), inset 0 0 8px rgba(0, 188, 212, 0.4) !important;
+  animation: tutTagPulseAnim 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate !important;
+  z-index: 10 !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+@keyframes tutTagPulseAnim {
+  0% { transform: scale(1); box-shadow: 0 0 8px rgba(0, 188, 212, 0.6); }
+  100% { transform: scale(1.08); box-shadow: 0 0 24px rgba(0, 188, 212, 1); }
+}
+
+/* 🌟 教學步驟動態打字機輸入框聚焦特效 */
+.tutorial-input-typing {
+  outline: 2px solid #00BCD4 !important;
+  border-color: #00BCD4 !important;
+  box-shadow: 0 0 16px rgba(0, 188, 212, 0.7) !important;
+  background: rgba(0, 188, 212, 0.08) !important;
+  transition: all 0.2s ease;
+}
+
+/* 🌟 深色模式立體箭頭適配 */
+html.dark .tutorial-step-popover[data-arrow="top"]::before,
+body.dark .tutorial-step-popover[data-arrow="top"]::before,
+.app.dark .tutorial-step-popover[data-arrow="top"]::before,
+html.dark .tutorial-step-popover[data-arrow="top-right"]::before,
+body.dark .tutorial-step-popover[data-arrow="top-right"]::before,
+.app.dark .tutorial-step-popover[data-arrow="top-right"]::before {
+  border-bottom-color: #FFFFFF !important;
+}
+html.dark .tutorial-step-popover[data-arrow="top"]::after,
+body.dark .tutorial-step-popover[data-arrow="top"]::after,
+.app.dark .tutorial-step-popover[data-arrow="top"]::after,
+html.dark .tutorial-step-popover[data-arrow="top-right"]::after,
+body.dark .tutorial-step-popover[data-arrow="top-right"]::after,
+.app.dark .tutorial-step-popover[data-arrow="top-right"]::after {
+  border-bottom-color: #18141B !important;
+}
+html.dark .tutorial-step-popover[data-arrow="bottom"]::before,
+body.dark .tutorial-step-popover[data-arrow="bottom"]::before,
+.app.dark .tutorial-step-popover[data-arrow="bottom"]::before {
+  border-top-color: #FFFFFF !important;
+}
+html.dark .tutorial-step-popover[data-arrow="bottom"]::after,
+body.dark .tutorial-step-popover[data-arrow="bottom"]::after,
+.app.dark .tutorial-step-popover[data-arrow="bottom"]::after {
+  border-top-color: #18141B !important;
+}
+html.dark .tutorial-step-popover[data-arrow="left"]::before,
+body.dark .tutorial-step-popover[data-arrow="left"]::before,
+.app.dark .tutorial-step-popover[data-arrow="left"]::before {
+  border-right-color: #FFFFFF !important;
+}
+html.dark .tutorial-step-popover[data-arrow="left"]::after,
+body.dark .tutorial-step-popover[data-arrow="left"]::after,
+.app.dark .tutorial-step-popover[data-arrow="left"]::after {
+  border-right-color: #18141B !important;
+}
+html.dark .tutorial-step-popover[data-arrow="right"]::before,
+body.dark .tutorial-step-popover[data-arrow="right"]::before,
+.app.dark .tutorial-step-popover[data-arrow="right"]::before {
+  border-left-color: #FFFFFF !important;
+}
+html.dark .tutorial-step-popover[data-arrow="right"]::after,
+body.dark .tutorial-step-popover[data-arrow="right"]::after,
+.app.dark .tutorial-step-popover[data-arrow="right"]::after {
+  border-left-color: #18141B !important;
+}
+
+/* 被鎖定下一步時的目標按鈕搖晃提示 */
+@keyframes tutorialBtnShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px) scale(1.05); }
+  40%, 80% { transform: translateX(5px) scale(1.05); }
+}
+.tutorial-btn-shake {
+  animation: tutorialBtnShake 0.55s ease !important;
+}
+
+/* 🌟 步驟 6 專屬：雙獨立子組件（無外層母組件框） */
+.tutorial-step-popover.tutorial-popover-dual-cards {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+/* 雙子卡佈局樣式統一於底部 1342+ 行維護 */
+
+/* 模擬登入按鈕動態提示特效 (動畫替換標註) */
+.tutorial-btn-simulating {
+  position: relative !important;
+  animation: pulseSimulating 1.5s infinite ease-in-out !important;
+  border-color: #4CAF50 !important;
+  color: #FFFFFF !important;
+  background: linear-gradient(135deg, #2EA043, #0284C7) !important;
+  box-shadow: 0 0 16px rgba(46, 160, 67, 0.6) !important;
+  z-index: 99992 !important;
+}
+@keyframes pulseSimulating {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(46, 160, 67, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(46, 160, 67, 0.85);
+    transform: scale(1.04);
+  }
+}
+
+
+
+/* 3. 虛擬沙盒彈窗 (Sandbox Modal) 與結業慶祝彈窗 (Completion Modal) - 徹底消除透明毛玻璃 */
+.tutorial-sandbox-modal-wrap {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.68) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  z-index: 999998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease;
+}
+.tutorial-sandbox-modal-card {
+  width: 90%;
+  max-width: 440px;
+  background: var(--card);
+  border: 1.5px solid var(--pink-light);
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  padding: 20px;
+  box-sizing: border-box;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 🌟 完成教學的畫面 (Completion Modal)
+   淺色模式：白底黑邊黑字，實體不透明，去除透明毛玻璃
+   深色模式：黑底白邊白字，實體不透明，去除透明毛玻璃 */
+.tutorial-completion-modal-card {
+  width: 90% !important;
+  max-width: 460px !important;
+  background: #FFFFFF !important; /* 淺色模式：白底 */
+  border: 2px solid #111111 !important; /* 淺色模式：黑邊 */
+  border-radius: 18px !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35) !important;
+  padding: 30px 24px !important;
+  box-sizing: border-box;
+  text-align: center;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  color: #111111 !important; /* 淺色模式：黑字 */
+}
+
+.tutorial-completion-modal-card .tutorial-completion-title {
+  margin: 0 0 10px 0 !important;
+  font-size: 20px !important;
+  font-weight: 900 !important;
+  color: #111111 !important;
+}
+
+.tutorial-completion-modal-card .tutorial-completion-desc {
+  font-size: 13px !important;
+  color: #222222 !important;
+  line-height: 1.65 !important;
+  margin: 0 0 22px 0 !important;
+  font-weight: 500 !important;
+}
+
+.tutorial-completion-modal-card .tutorial-completion-desc strong {
+  color: #000000 !important;
+  font-weight: 800 !important;
+}
+
+.tutorial-completion-modal-card #btn-solo-finish-back,
+.tutorial-completion-modal-card #btn-leader-finish-back {
+  background: #F3F4F6 !important;
+  border: 1.5px solid #111111 !important;
+  color: #111111 !important;
+  font-weight: 700 !important;
+  padding: 8px 16px !important;
+  border-radius: 8px !important;
+}
+.tutorial-completion-modal-card #btn-solo-finish-back:hover,
+.tutorial-completion-modal-card #btn-leader-finish-back:hover {
+  background: #E5E7EB !important;
+}
+
+.tutorial-completion-modal-card #btn-solo-finish-explore,
+.tutorial-completion-modal-card #btn-leader-finish-explore {
+  background: linear-gradient(135deg, #FF6699, #FF4081) !important;
+  border: 1.5px solid #FF4081 !important;
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+  padding: 8px 18px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 14px rgba(255, 64, 129, 0.35) !important;
+}
+
+/* 🌟 完成教學的畫面 - 深色模式：黑底白邊白字，實體不透明，去除透明毛玻璃 */
+html.dark .tutorial-completion-modal-card,
+body.dark .tutorial-completion-modal-card,
+.app.dark .tutorial-completion-modal-card {
+  background: #141416 !important; /* 深色模式：黑底 */
+  border: 2px solid #FFFFFF !important; /* 深色模式：白邊 */
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.45) !important;
+  color: #FFFFFF !important; /* 深色模式：白字 */
+}
+
+html.dark .tutorial-completion-modal-card .tutorial-completion-title,
+body.dark .tutorial-completion-modal-card .tutorial-completion-title,
+.app.dark .tutorial-completion-modal-card .tutorial-completion-title {
+  color: #FFFFFF !important;
+}
+
+html.dark .tutorial-completion-modal-card .tutorial-completion-desc,
+body.dark .tutorial-completion-modal-card .tutorial-completion-desc,
+.app.dark .tutorial-completion-modal-card .tutorial-completion-desc {
+  color: #E2E8F0 !important;
+}
+
+html.dark .tutorial-completion-modal-card .tutorial-completion-desc strong,
+body.dark .tutorial-completion-modal-card .tutorial-completion-desc strong,
+.app.dark .tutorial-completion-modal-card .tutorial-completion-desc strong {
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+}
+
+html.dark .tutorial-completion-modal-card #btn-solo-finish-back,
+body.dark .tutorial-completion-modal-card #btn-solo-finish-back,
+.app.dark .tutorial-completion-modal-card #btn-solo-finish-back,
+html.dark .tutorial-completion-modal-card #btn-leader-finish-back,
+body.dark .tutorial-completion-modal-card #btn-leader-finish-back,
+.app.dark .tutorial-completion-modal-card #btn-leader-finish-back {
+  background: #232328 !important;
+  border: 1.5px solid #FFFFFF !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+}
+html.dark .tutorial-completion-modal-card #btn-solo-finish-back:hover,
+body.dark .tutorial-completion-modal-card #btn-solo-finish-back:hover,
+.app.dark .tutorial-completion-modal-card #btn-solo-finish-back:hover,
+html.dark .tutorial-completion-modal-card #btn-leader-finish-back:hover,
+body.dark .tutorial-completion-modal-card #btn-leader-finish-back:hover,
+.app.dark .tutorial-completion-modal-card #btn-leader-finish-back:hover {
+  background: #323238 !important;
+}
+.sandbox-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.sandbox-demo-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #D97706;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.sandbox-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+.app.dark .sandbox-avatar-row {
+  background: rgba(255, 255, 255, 0.04);
+}
+.sandbox-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0284C7, #4F46E5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #fff;
+}
+.sandbox-info-box {
+  background: rgba(25, 118, 210, 0.07);
+  border: 1px dashed rgba(25, 118, 210, 0.3);
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+/* 4. 模擬搜尋結果與管理項目卡片 */
+.tutorial-mock-game-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: var(--card);
+  border: 1.5px solid var(--pink-light);
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  margin-top: 10px;
+  animation: fadeIn 0.3s ease;
+}
+.mock-card-cover-wrap {
+  width: 140px;
+  height: 65px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1e1e1e;
+  flex-shrink: 0;
+}
+.mock-card-cover-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mock-card-info {
+  flex: 1;
+}
+.mock-game-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--fg);
+}
+.mock-game-desc {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--gray);
+  line-height: 1.4;
+}
+
+.tutorial-mock-manage-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--card);
+  border: 1.5px solid var(--pink-light);
+  border-radius: 12px;
+  margin-top: 8px;
+  animation: fadeIn 0.3s ease;
+}
+.manage-item-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.manage-cover-box {
+  width: 115px;
+  height: 48px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1e1e1e;
+  flex-shrink: 0;
+}
+.manage-cover-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ═══════════════════════════════════════════════════════
+   5. 獨狼玩家啟動轉場動畫 (Cinema Warp Transition Screen)
+   ═══════════════════════════════════════════════════════ */
+
+/* 獨狼卡片啟動衝擊動效 */
+.tutorial-card.card-solo.card-launching {
+  transform: scale(0.97) !important;
+  border-color: #38BDF8 !important;
+  box-shadow: 0 0 36px rgba(56, 189, 248, 0.85), 0 0 70px rgba(99, 102, 241, 0.5) !important;
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.tutorial-card.card-solo.card-launching .card-icon-halo {
+  transform: scale(1.18) rotate(6deg) !important;
+  box-shadow: 0 0 42px rgba(56, 189, 248, 0.95) !important;
+}
+
+/* 啟動時其他元素退場淡化 */
+.tutorial-cards-grid.is-launching .tutorial-card:not(.card-launching) {
+  opacity: 0.3 !important;
+  transform: scale(0.94) !important;
+  filter: blur(2px) !important;
+  transition: all 0.35s ease !important;
+}
+.tutorial-header-wrap.is-launching {
+  opacity: 0.3 !important;
+  transform: translateY(-8px) !important;
+  transition: all 0.35s ease !important;
+}
+
+/* 轉場穿梭光幕 (Cinema Warp Curtain) */
+.tutorial-transition-curtain {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+  background: radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.25), transparent 65%), rgba(18, 14, 20, 0.92);
+  backdrop-filter: blur(22px) saturate(1.3);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3);
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(1.04);
+  transition: opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1), 
+              transform 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0.32s;
+}
+
+.tutorial-transition-curtain.active {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+}
+
+.tutorial-transition-curtain.fading-out {
+  opacity: 0;
+  transform: scale(0.96);
+  pointer-events: none;
+}
+
+/* 轉場中央徽章與流光提示 */
+.curtain-center-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: curtainPulse 1.8s infinite ease-in-out;
+}
+
+.curtain-wolf-halo {
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.35), rgba(99, 102, 241, 0.45));
+  border: 2px solid rgba(56, 189, 248, 0.85);
+  box-shadow: 0 0 38px rgba(56, 189, 248, 0.65), inset 0 0 20px rgba(56, 189, 248, 0.45);
+  margin-bottom: 18px;
+  animation: haloSpin 3.5s linear infinite;
+}
+
+.curtain-title {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  color: #FFFFFF;
+  margin-bottom: 8px;
+  text-shadow: 0 2px 16px rgba(56, 189, 248, 0.7);
+}
+
+.curtain-desc {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #BAE6FD;
+  letter-spacing: 0.6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.curtain-spinner-ring {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(186, 230, 253, 0.3);
+  border-top-color: #38BDF8;
+  border-radius: 50%;
+  animation: cardSpin 0.75s linear infinite;
+}
+
+@keyframes curtainPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+@keyframes haloSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 🌟 步驟 5：動態導向箭頭流光動畫 */
+@keyframes tutorialDashAnim {
+  to {
+    stroke-dashoffset: -26;
+  }
+}
+
+/* 🌟 步驟 6：Google Drive 左右雙欄動態輪播樣式 - 高對比度膠囊導航條 */
+.gdrive-carousel-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 2px 0;
+  width: 100%;
+}
+.gdrive-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 700;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
+}
+.gdrive-dot .dot-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+.gdrive-dot .dot-label {
+  font-size: 12px;
+  letter-spacing: 0.3px;
+}
+
+/* 淺色模式下圓點 / 膠囊配色 (徹底解決看不到問題) */
+html:not(.dark) .gdrive-dot,
+body:not(.dark) .gdrive-dot {
+  background: #F1F5F9;
+  border: 1.5px solid #CBD5E1;
+  color: #475569;
+}
+html:not(.dark) .gdrive-dot .dot-num {
+  background: #E2E8F0;
+  color: #334155;
+}
+html:not(.dark) .gdrive-dot:hover {
+  background: #E2E8F0;
+  border-color: #94A3B8;
+  color: #0F172A;
+  transform: translateY(-1px);
+}
+html:not(.dark) .gdrive-dot.active {
+  background: linear-gradient(135deg, #0284C7, #00BCD4);
+  border-color: #0284C7;
+  color: #FFFFFF;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+  transform: translateY(-1px) scale(1.03);
+}
+html:not(.dark) .gdrive-dot.active .dot-num {
+  background: #FFFFFF;
+  color: #0284C7;
+}
+
+/* 深色模式下圓點 / 膠囊配色 */
+html.dark .gdrive-dot,
+body.dark .gdrive-dot,
+.app.dark .gdrive-dot {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  color: #CBD5E1;
+}
+html.dark .gdrive-dot .dot-num,
+body.dark .gdrive-dot .dot-num,
+.app.dark .gdrive-dot .dot-num {
+  background: rgba(255, 255, 255, 0.16);
+  color: #F1F5F9;
+}
+html.dark .gdrive-dot:hover,
+body.dark .gdrive-dot:hover,
+.app.dark .gdrive-dot:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+html.dark .gdrive-dot.active,
+body.dark .gdrive-dot.active,
+.app.dark .gdrive-dot.active {
+  background: linear-gradient(135deg, #00BCD4, #38BDF8);
+  border-color: #00BCD4;
+  color: #0F172A;
+  box-shadow: 0 0 16px rgba(0, 188, 212, 0.65);
+  transform: translateY(-1px) scale(1.03);
+}
+html.dark .gdrive-dot.active .dot-num,
+body.dark .gdrive-dot.active .dot-num,
+.app.dark .gdrive-dot.active .dot-num {
+  background: #0F172A;
+  color: #00BCD4;
+}
+
+/* 🌟 步驟 6：無母組件雙子卡並列結構 (Dual Cards Layout - 絕對無母框防禦，左大右小) */
+html.dark .tutorial-step-popover.tutorial-popover-dual-cards,
+body.dark .tutorial-step-popover.tutorial-popover-dual-cards,
+.app.dark .tutorial-step-popover.tutorial-popover-dual-cards,
+html .tutorial-step-popover.tutorial-popover-dual-cards,
+body .tutorial-step-popover.tutorial-popover-dual-cards,
+.tutorial-step-popover.tutorial-popover-dual-cards {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  gap: 22px !important;
+  pointer-events: auto;
+  max-width: 96vw !important;
+}
+
+html.dark .tutorial-step-popover.tutorial-popover-dual-cards::before,
+html.dark .tutorial-step-popover.tutorial-popover-dual-cards::after,
+body.dark .tutorial-step-popover.tutorial-popover-dual-cards::before,
+body.dark .tutorial-step-popover.tutorial-popover-dual-cards::after,
+.app.dark .tutorial-step-popover.tutorial-popover-dual-cards::before,
+.app.dark .tutorial-step-popover.tutorial-popover-dual-cards::after,
+.tutorial-step-popover.tutorial-popover-dual-cards::before,
+.tutorial-step-popover.tutorial-popover-dual-cards::after {
+  display: none !important;
+  content: none !important;
+  border: none !important;
+}
+
+/* 左側動畫子組件卡片 (黃線預期：左大右小，大圖展示，充分利用空間) */
+.gdrive-carousel-card {
+  flex: 1.55 !important;
+  min-width: 580px !important;
+  max-width: 660px !important;
+  height: 460px !important;
+  background: rgba(22, 18, 25, 0.96) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 2px solid rgba(0, 188, 212, 0.65) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 0 24px rgba(0, 188, 212, 0.28), 0 20px 50px rgba(0, 0, 0, 0.65) !important;
+  box-sizing: border-box !important;
+  padding: 18px 20px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  position: relative !important;
+  transition: all 0.25s ease;
+}
+
+/* 右側步驟子組件卡片 (黃線預期：緊湊齊平，高品質發光) */
+.gdrive-step-card {
+  flex: 1 !important;
+  min-width: 380px !important;
+  max-width: 440px !important;
+  height: 460px !important;
+  background: rgba(22, 18, 25, 0.96) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 2px solid rgba(255, 64, 129, 0.65) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 0 24px rgba(255, 64, 129, 0.25), 0 20px 50px rgba(0, 0, 0, 0.65) !important;
+  box-sizing: border-box !important;
+  padding: 18px 20px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  position: relative !important;
+  transition: all 0.25s ease;
+}
+
+/* 淺色模式相容 (白底黑字，確保最高對比度) */
+html:not(.dark) .gdrive-carousel-card,
+html:not(.dark) .gdrive-step-card,
+body:not(.dark) .gdrive-carousel-card,
+body:not(.dark) .gdrive-step-card {
+  background: #FFFFFF !important;
+  border-color: rgba(0, 0, 0, 0.14) !important;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.12) !important;
+}
+
+html:not(.dark) .gdrive-step-card .popover-step-title {
+  color: #0F172A !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   🌟 步驟 6 專屬：GDrive 左右雙卡高對比度文字與字幕樣式
+   ═══════════════════════════════════════════════════════════════ */
+
+/* 左側卡片標題 */
+.gdrive-carousel-step-title {
+  font-weight: 800;
+  font-size: 15px;
+  margin-bottom: 10px;
+  text-align: center;
+  transition: color 0.3s ease;
+}
+html:not(.dark) .gdrive-carousel-step-title,
+body:not(.dark) .gdrive-carousel-step-title {
+  color: #0284C7 !important;
+}
+html.dark .gdrive-carousel-step-title,
+body.dark .gdrive-carousel-step-title,
+.app.dark .gdrive-carousel-step-title {
+  color: #00BCD4 !important;
+}
+
+/* 左側圖片底部的精練敘述 (高辨識度字幕條) */
+.gdrive-carousel-desc {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 96%;
+  margin-top: 10px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+html:not(.dark) .gdrive-carousel-desc,
+body:not(.dark) .gdrive-carousel-desc {
+  color: #0F172A !important;
+  background: #F1F5F9 !important;
+  border: 1px solid #CBD5E1 !important;
+}
+html.dark .gdrive-carousel-desc,
+body.dark .gdrive-carousel-desc,
+.app.dark .gdrive-carousel-desc {
+  color: #F8FAFC !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   🌟 右側卡片：步驟列表專屬樣式 (自適應高對比度深淺模式)
+   ═══════════════════════════════════════════════════════════════ */
+.gdrive-guide-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.gdrive-guide-step-item {
+  padding: 8px 12px;
+  border-radius: 0 8px 8px 0;
+  transition: all 0.25s ease;
+  box-sizing: border-box;
+}
+
+.gdrive-guide-step-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.gdrive-guide-step-header .step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.gdrive-guide-step-header .step-title {
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.gdrive-guide-step-item .step-desc {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 醒目標籤 (Highlight badges) */
+.hl-badge {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  display: inline-block;
+  line-height: 1.4;
+}
+
+/* 淺色模式下步驟 1、2、3 配色 (解決白色字體看不見、淺灰字看不清) */
+html:not(.dark) .gdrive-guide-step-item.step-1,
+body:not(.dark) .gdrive-guide-step-item.step-1 {
+  background: rgba(2, 132, 199, 0.08) !important;
+  border-left: 3.5px solid #0284C7 !important;
+}
+html:not(.dark) .gdrive-guide-step-item.step-1 .step-badge {
+  background: #0284C7 !important;
+  color: #FFFFFF !important;
+}
+html:not(.dark) .gdrive-guide-step-item.step-1 .step-title {
+  color: #0284C7 !important;
+}
+html:not(.dark) .gdrive-guide-step-item.step-1 .step-desc {
+  color: #334155 !important;
+}
+
+html:not(.dark) .gdrive-guide-step-item.step-2,
+body:not(.dark) .gdrive-guide-step-item.step-2 {
+  background: rgba(124, 58, 237, 0.07) !important;
+  border-left: 3.5px solid #7C3AED !important;
+}
+html:not(.dark) .gdrive-guide-step-item.step-2 .step-badge {
+  background: #7C3AED !important;
+  color: #FFFFFF !important;
+}
+html:not(.dark) .gdrive-guide-step-item.step-2 .step-title {
+  color: #6D28D9 !important;
+}
+html:not(.dark) .gdrive-guide-step-item.step-2 .step-desc {
+  color: #334155 !important;
+}
+
+html:not(.dark) .gdrive-guide-step-item.step-3,
+body:not(.dark) .gdrive-guide-step-item.step-3 {
+  background: rgba(5, 150, 105, 0.08) !important;
+  border-left: 3.5px solid #059669 !important;
+}
+html:not(.dark) .gdrive-guide-step-item.step-3 .step-badge {
+  background: #059669 !important;
+  color: #FFFFFF !important;
+}
+html:not(.dark) .gdrive-guide-step-item.step-3 .step-title {
+  color: #047857 !important;
+}
+html:not(.dark) .gdrive-guide-step-item.step-3 .step-desc {
+  color: #334155 !important;
+}
+
+html:not(.dark) .hl-badge.hl-green {
+  color: #047857 !important;
+  background: rgba(5, 150, 105, 0.14) !important;
+}
+html:not(.dark) .hl-badge.hl-dark {
+  color: #0F172A !important;
+  background: rgba(15, 23, 42, 0.09) !important;
+}
+html:not(.dark) .hl-badge.hl-pink {
+  color: #BE185D !important;
+  background: rgba(190, 24, 93, 0.12) !important;
+}
+
+/* 深色模式下步驟 1、2、3 配色 */
+html.dark .gdrive-guide-step-item.step-1,
+body.dark .gdrive-guide-step-item.step-1,
+.app.dark .gdrive-guide-step-item.step-1 {
+  background: rgba(0, 188, 212, 0.12) !important;
+  border-left: 3.5px solid #00BCD4 !important;
+}
+html.dark .gdrive-guide-step-item.step-1 .step-badge,
+body.dark .gdrive-guide-step-item.step-1 .step-badge,
+.app.dark .gdrive-guide-step-item.step-1 .step-badge {
+  background: #00BCD4 !important;
+  color: #0F172A !important;
+}
+html.dark .gdrive-guide-step-item.step-1 .step-title,
+body.dark .gdrive-guide-step-item.step-1 .step-title,
+.app.dark .gdrive-guide-step-item.step-1 .step-title {
+  color: #38BDF8 !important;
+}
+html.dark .gdrive-guide-step-item.step-1 .step-desc,
+body.dark .gdrive-guide-step-item.step-1 .step-desc,
+.app.dark .gdrive-guide-step-item.step-1 .step-desc {
+  color: #E2E8F0 !important;
+}
+
+html.dark .gdrive-guide-step-item.step-2,
+body.dark .gdrive-guide-step-item.step-2,
+.app.dark .gdrive-guide-step-item.step-2 {
+  background: rgba(168, 85, 247, 0.12) !important;
+  border-left: 3.5px solid #A855F7 !important;
+}
+html.dark .gdrive-guide-step-item.step-2 .step-badge,
+body.dark .gdrive-guide-step-item.step-2 .step-badge,
+.app.dark .gdrive-guide-step-item.step-2 .step-badge {
+  background: #A855F7 !important;
+  color: #0F172A !important;
+}
+html.dark .gdrive-guide-step-item.step-2 .step-title,
+body.dark .gdrive-guide-step-item.step-2 .step-title,
+.app.dark .gdrive-guide-step-item.step-2 .step-title {
+  color: #C084FC !important;
+}
+html.dark .gdrive-guide-step-item.step-2 .step-desc,
+body.dark .gdrive-guide-step-item.step-2 .step-desc,
+.app.dark .gdrive-guide-step-item.step-2 .step-desc {
+  color: #E2E8F0 !important;
+}
+
+html.dark .gdrive-guide-step-item.step-3,
+body.dark .gdrive-guide-step-item.step-3,
+.app.dark .gdrive-guide-step-item.step-3 {
+  background: rgba(16, 185, 129, 0.12) !important;
+  border-left: 3.5px solid #10B981 !important;
+}
+html.dark .gdrive-guide-step-item.step-3 .step-badge,
+body.dark .gdrive-guide-step-item.step-3 .step-badge,
+.app.dark .gdrive-guide-step-item.step-3 .step-badge {
+  background: #10B981 !important;
+  color: #0F172A !important;
+}
+html.dark .gdrive-guide-step-item.step-3 .step-title,
+body.dark .gdrive-guide-step-item.step-3 .step-title,
+.app.dark .gdrive-guide-step-item.step-3 .step-title {
+  color: #34D399 !important;
+}
+html.dark .gdrive-guide-step-item.step-3 .step-desc,
+body.dark .gdrive-guide-step-item.step-3 .step-desc,
+.app.dark .gdrive-guide-step-item.step-3 .step-desc {
+  color: #E2E8F0 !important;
+}
+
+html.dark .hl-badge.hl-green,
+body.dark .hl-badge.hl-green,
+.app.dark .hl-badge.hl-green {
+  color: #34D399 !important;
+  background: rgba(16, 185, 129, 0.2) !important;
+}
+html.dark .hl-badge.hl-dark,
+body.dark .hl-badge.hl-dark,
+.app.dark .hl-badge.hl-dark {
+  color: #F8FAFC !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+html.dark .hl-badge.hl-pink,
+body.dark .hl-badge.hl-pink,
+.app.dark .hl-badge.hl-pink {
+  color: #F472B6 !important;
+  background: rgba(244, 114, 182, 0.2) !important;
+}
+
+/* 提示方塊在淺色模式與深色模式的強化 */
+html:not(.dark) .gdrive-step-card .popover-hint,
+body:not(.dark) .gdrive-step-card .popover-hint {
+  background: rgba(245, 158, 11, 0.12) !important;
+  color: #78350F !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+}
+
+html:not(.dark) .gdrive-step-card .popover-footer,
+body:not(.dark) .gdrive-step-card .popover-footer {
+  border-top-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* ==========================================================================
+   🎮 組隊教學專屬：二次元光能星核感應選擇層 (Resonance Core Aperture Overlay)
+   視覺亮點：虛空全螢幕衝擊波進場、無卡片純粹星核、Hover 上下晶殼滑開展開、璀璨能量光核
+   ========================================================================== */
+
+#tutorial-party-orb-overlay,
+.party-orb-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100090;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* 🌟 保留圖二教學選擇畫面，採取半透明暗色調光 (如同聚光燈步驟組件般壓暗背景)，無獨立死黑背景 */
+  background: rgba(10, 12, 22, 0.72) !important;
+  backdrop-filter: blur(8px) brightness(0.65) !important;
+  -webkit-backdrop-filter: blur(8px) brightness(0.65) !important;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 24px;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+#tutorial-party-orb-overlay:not(.active),
+.party-orb-overlay:not(.active) {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+#tutorial-party-orb-overlay.active,
+.party-orb-overlay.active {
+  display: flex !important;
+  opacity: 1;
+  pointer-events: auto !important;
+  visibility: visible !important;
+}
+
+#tutorial-party-orb-overlay.fading-out,
+.party-orb-overlay.fading-out {
+  opacity: 0;
+  pointer-events: none !important;
+}
+
+/* 🌟 隱藏獨立死黑背景層與進場黑洞衝擊波，杜絕遮蔽底層教學卡片 */
+.party-orb-backdrop,
+.core-entrance-shockwave {
+  display: none !important;
+}
+
+/* 科技 HUD 四角裝飾線 */
+.party-orb-hud-bracket {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+  opacity: 0.45;
+  transition: opacity 0.3s ease;
+}
+.party-orb-hud-bracket.bracket-tl {
+  top: 18px;
+  left: 20px;
+  border-top: 2px solid #00F5FF;
+  border-left: 2px solid #00F5FF;
+}
+.party-orb-hud-bracket.bracket-tr {
+  top: 18px;
+  right: 20px;
+  border-top: 2px solid #FF2A85;
+  border-right: 2px solid #FF2A85;
+}
+.party-orb-hud-bracket.bracket-bl {
+  bottom: 18px;
+  left: 20px;
+  border-bottom: 2px solid #00F5FF;
+  border-left: 2px solid #00F5FF;
+}
+.party-orb-hud-bracket.bracket-br {
+  bottom: 18px;
+  right: 20px;
+  border-bottom: 2px solid #FF2A85;
+  border-right: 2px solid #FF2A85;
+}
+
+/* 背景消散粒子 (Dissolve Floating Particles) */
+.dissolve-particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: particleDriftUp linear infinite;
+}
+@keyframes particleDriftUp {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  25% { opacity: 0.85; }
+  75% { opacity: 0.5; }
+  100% { transform: translateY(-120px) scale(1.3); opacity: 0; }
+}
+
+/* 右上角獨立關閉圓鈕 */
+.party-orb-close-btn {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 10;
+  padding: 0;
+  outline: none;
+}
+.party-orb-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: rotate(90deg) scale(1.08);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.35);
+}
+
+/* 內容整體容器 (確保所有元素精準置中) */
+.party-orb-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 5;
+}
+
+/* 頂部標題說明 */
+.party-orb-header {
+  text-align: center;
+  margin-bottom: 28px;
+  z-index: 5;
+}
+#tutorial-party-orb-overlay.entrance-warp .party-orb-header {
+  animation: headerCascadeDown 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes headerCascadeDown {
+  0% { opacity: 0; transform: translateY(-30px); letter-spacing: 3px; }
+  100% { opacity: 1; transform: translateY(0); letter-spacing: 1.5px; }
+}
+
+.party-orb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 20px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  background: rgba(168, 85, 247, 0.22);
+  color: #E9D5FF;
+  border: 1.5px solid rgba(192, 132, 252, 0.6);
+  margin-bottom: 12px;
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.35), inset 0 0 10px rgba(192, 132, 252, 0.2);
+  text-shadow: 0 0 8px rgba(233, 213, 255, 0.7);
+}
+.party-orb-badge .badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #C084FC;
+  box-shadow: 0 0 10px #C084FC, 0 0 18px #A855F7;
+  animation: dotPulse 1.8s ease-in-out infinite;
+}
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.party-orb-title {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  margin: 0 0 6px 0;
+  color: #FFFFFF;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.95), 0 0 28px rgba(103, 232, 249, 0.8), 0 0 55px rgba(168, 85, 247, 0.55);
+}
+
+.party-orb-subtitle {
+  font-size: 14px;
+  color: #C4B5FD;
+  margin: 0;
+  letter-spacing: 0.5px;
+  opacity: 0.9;
+}
+
+/* ==========================================================================
+   🌟 雙星核舞台區 (The Resonance Orb Stage - 純粹大器無卡片)
+   ========================================================================== */
+.resonance-orb-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 100px;
+  z-index: 5;
+  margin: 20px 0 15px;
+}
+
+@media (max-width: 820px) {
+  .resonance-orb-stage {
+    flex-direction: column;
+    gap: 50px;
+  }
+}
+
+/* 單顆光能星核實體外包裝 (Core Entity) */
+.resonance-core-entity {
+  position: relative;
+  width: 290px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+}
+.resonance-core-entity:hover {
+  transform: translateY(-8px);
+}
+
+/* 左星核進場動效 */
+#tutorial-party-orb-overlay.entrance-warp .resonance-core-entity.orb-join {
+  animation: orbJoinEntrance 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes orbJoinEntrance {
+  0% { opacity: 0; transform: translate(-100px, 30px) scale(0.68); filter: blur(10px); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1); filter: blur(0); }
+}
+
+/* 右星核進場動效 (輕微延遲) */
+#tutorial-party-orb-overlay.entrance-warp .resonance-core-entity.orb-host {
+  animation: orbHostEntrance 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
+}
+@keyframes orbHostEntrance {
+  0% { opacity: 0; transform: translate(100px, 30px) scale(0.68); filter: blur(10px); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1); filter: blur(0); }
+}
+
+/* 背景聚光微光 (Ambient Spotlight Halo) */
+.core-spotlight-halo {
+  position: absolute;
+  top: 90px;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.55;
+  filter: blur(40px);
+  transition: all 0.45s ease;
+  z-index: 1;
+}
+.resonance-core-entity.orb-join .core-spotlight-halo {
+  background: radial-gradient(circle, rgba(0, 245, 255, 0.75) 0%, rgba(0, 114, 255, 0.25) 55%, transparent 75%);
+}
+.resonance-core-entity.orb-host .core-spotlight-halo {
+  background: radial-gradient(circle, rgba(255, 42, 133, 0.75) 0%, rgba(168, 85, 247, 0.25) 55%, transparent 75%);
+}
+.resonance-core-entity:hover .core-spotlight-halo {
+  opacity: 0.95;
+  filter: blur(50px);
+  transform: translate(-50%, -50%) scale(1.18);
+}
+
+/* 魔導星盤光輪 (Sacred Astral Array) */
+.core-sacred-array {
+  position: absolute;
+  top: 90px;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  border: 1px dashed;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.45;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: sacredArraySpin 24s linear infinite;
+}
+.resonance-core-entity.orb-join .core-sacred-array {
+  border-color: rgba(103, 232, 249, 0.7);
+  box-shadow: 0 0 20px rgba(0, 245, 255, 0.35);
+}
+.resonance-core-entity.orb-host .core-sacred-array {
+  border-color: rgba(244, 114, 182, 0.7);
+  box-shadow: 0 0 20px rgba(255, 42, 133, 0.35);
+}
+@keyframes sacredArraySpin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+.resonance-core-entity:hover .core-sacred-array {
+  transform: translate(-50%, -50%) scale(1.22);
+  opacity: 0.9;
+  animation-duration: 9s;
+}
+
+/* 渾天儀多層 3D 旋轉星軌 (Gyroscopic 3D Rings) */
+.core-gyro-ring {
+  position: absolute;
+  top: 90px;
+  left: 50%;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+  transition: all 0.45s ease;
+}
+.core-gyro-ring.ring-outer {
+  width: 240px;
+  height: 240px;
+  border: 1.5px solid;
+  transform: translate(-50%, -50%) rotateX(65deg) rotateY(25deg);
+  animation: gyroSpinOuter 12s linear infinite;
+}
+.core-gyro-ring.ring-inner {
+  width: 210px;
+  height: 210px;
+  border: 1.5px dashed;
+  transform: translate(-50%, -50%) rotateX(-60deg) rotateY(30deg);
+  animation: gyroSpinInner 8s linear infinite reverse;
+}
+.resonance-core-entity.orb-join .core-gyro-ring.ring-outer {
+  border-color: rgba(0, 245, 255, 0.6);
+  box-shadow: 0 0 15px rgba(0, 245, 255, 0.4);
+}
+.resonance-core-entity.orb-join .core-gyro-ring.ring-inner {
+  border-color: rgba(103, 232, 249, 0.5);
+}
+.resonance-core-entity.orb-host .core-gyro-ring.ring-outer {
+  border-color: rgba(255, 42, 133, 0.6);
+  box-shadow: 0 0 15px rgba(255, 42, 133, 0.4);
+}
+.resonance-core-entity.orb-host .core-gyro-ring.ring-inner {
+  border-color: rgba(244, 114, 182, 0.5);
+}
+@keyframes gyroSpinOuter {
+  from { transform: translate(-50%, -50%) rotateX(65deg) rotateY(25deg) rotateZ(0deg); }
+  to { transform: translate(-50%, -50%) rotateX(65deg) rotateY(25deg) rotateZ(360deg); }
+}
+@keyframes gyroSpinInner {
+  from { transform: translate(-50%, -50%) rotateX(-60deg) rotateY(30deg) rotateZ(0deg); }
+  to { transform: translate(-50%, -50%) rotateX(-60deg) rotateY(30deg) rotateZ(360deg); }
+}
+.resonance-core-entity:hover .core-gyro-ring.ring-outer {
+  animation-duration: 4s;
+}
+.resonance-core-entity:hover .core-gyro-ring.ring-inner {
+  animation-duration: 3s;
+}
+
+/* 浮動上升魔力光點 (Floating Mana Sparks) */
+.core-sparks-container {
+  position: absolute;
+  top: 90px;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 200px;
+  pointer-events: none;
+  z-index: 3;
+}
+.core-sparks-container .spark {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0;
+  animation: sparkFloatRise 2.8s ease-out infinite;
+}
+.resonance-core-entity.orb-join .spark {
+  background: #67E8F9;
+  box-shadow: 0 0 10px #00F5FF, 0 0 18px #0072FF;
+}
+.resonance-core-entity.orb-host .spark {
+  background: #F472B6;
+  box-shadow: 0 0 10px #FF2A85, 0 0 18px #A855F7;
+}
+
+.core-sparks-container .spark.s1 { top: 20%; left: 15%; width: 6px; height: 6px; animation-delay: 0.1s; --tx: -20px; --ty: -35px; }
+.core-sparks-container .spark.s2 { top: 15%; right: 18%; width: 7px; height: 7px; animation-delay: 0.6s; --tx: 25px; --ty: -40px; }
+.core-sparks-container .spark.s3 { bottom: 25%; left: 10%; width: 5px; height: 5px; animation-delay: 1.1s; --tx: -24px; --ty: 28px; }
+.core-sparks-container .spark.s4 { bottom: 20%; right: 12%; width: 7px; height: 7px; animation-delay: 1.7s; --tx: 26px; --ty: 32px; }
+.core-sparks-container .spark.s5 { top: 50%; left: -5%; width: 6px; height: 6px; animation-delay: 0.4s; --tx: -32px; --ty: -10px; }
+.core-sparks-container .spark.s6 { top: 48%; right: -5%; width: 6px; height: 6px; animation-delay: 1.4s; --tx: 32px; --ty: -12px; }
+
+@keyframes sparkFloatRise {
+  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 0.4; }
+  100% { transform: translate(var(--tx, 0px), var(--ty, -30px)) scale(1.6); opacity: 0; }
+}
+
+/* ==========================================================================
+   🌟 核心主球體：可感應展開的二次元光能星核 (The Opening Aperture Sphere)
+   ========================================================================== */
+.core-aperture-sphere {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+  z-index: 4;
+  animation: coreFloatLevitate 4s ease-in-out infinite alternate;
+}
+@keyframes coreFloatLevitate {
+  0% { transform: translateY(0px); }
+  100% { transform: translateY(-9px); }
+}
+
+/* 垂直穿透極光光束 (Revealed on Open) */
+.core-light-beam {
+  position: absolute;
+  top: -60px;
+  bottom: -60px;
+  width: 14px;
+  border-radius: 99px;
+  pointer-events: none;
+  opacity: 0;
+  filter: blur(6px);
+  transform: scaleY(0.4);
+  transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 2;
+}
+.resonance-core-entity.orb-join .core-light-beam {
+  background: linear-gradient(180deg, transparent, #67E8F9, #FFFFFF, #67E8F9, transparent);
+  box-shadow: 0 0 25px #00F5FF;
+}
+.resonance-core-entity.orb-host .core-light-beam {
+  background: linear-gradient(180deg, transparent, #F472B6, #FFFFFF, #F472B6, transparent);
+  box-shadow: 0 0 25px #FF2A85;
+}
+.resonance-core-entity:hover .core-light-beam {
+  opacity: 0.85;
+  transform: scaleY(1.35);
+}
+
+/* 內層璀璨星核水晶 (Revealed on Open with intense glow) */
+.inner-plasma-crystal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.85);
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.resonance-core-entity.orb-join .inner-plasma-crystal {
+  background: radial-gradient(circle at 40% 35%, #FFFFFF 0%, #67E8F9 30%, #06B6D4 60%, #034275 100%);
+  box-shadow: 0 0 30px #00F5FF, inset 0 0 15px rgba(255, 255, 255, 0.9);
+}
+.resonance-core-entity.orb-host .inner-plasma-crystal {
+  background: radial-gradient(circle at 40% 35%, #FFFFFF 0%, #FDE047 25%, #EC4899 55%, #4C1D95 100%);
+  box-shadow: 0 0 30px #FF2A85, inset 0 0 15px rgba(255, 255, 255, 0.9);
+}
+
+/* 🌟 HOVER 展開靈魂效果：內核巨大化並綻放耀眼強光 */
+.resonance-core-entity:hover .inner-plasma-crystal {
+  transform: translate(-50%, -50%) scale(1.28);
+  filter: brightness(1.6) drop-shadow(0 0 35px currentColor);
+}
+.resonance-core-entity.orb-join:hover .inner-plasma-crystal {
+  color: #00F5FF;
+}
+.resonance-core-entity.orb-host:hover .inner-plasma-crystal {
+  color: #FF2A85;
+}
+
+.crystal-glyph {
+  font-size: 20px;
+  font-weight: 900;
+  color: #FFFFFF;
+  text-shadow: 0 0 12px currentColor;
+  z-index: 2;
+  transition: transform 0.4s ease;
+}
+.resonance-core-entity:hover .crystal-glyph {
+  transform: scale(1.25) rotate(15deg);
+}
+
+/* 晶核脈衝圈 */
+.crystal-pulse-wave {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid;
+  opacity: 0;
+  animation: crystalPulseWave 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+.resonance-core-entity.orb-join .crystal-pulse-wave { border-color: #00F5FF; }
+.resonance-core-entity.orb-host .crystal-pulse-wave { border-color: #FF2A85; }
+@keyframes crystalPulseWave {
+  0% { transform: scale(0.9); opacity: 0.9; }
+  60% { opacity: 0.3; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* 🌟 防護晶殼 (上下分立穹頂晶殼) */
+.core-shell {
+  position: absolute;
+  width: 170px;
+  height: 85px;
+  overflow: hidden;
+  transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 5;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+/* 上穹頂晶殼 (Hover 時向上滑開並往後仰) */
+.core-shell.shell-top {
+  top: 5px;
+  left: 5px;
+  border-radius: 85px 85px 0 0;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.8);
+}
+.resonance-core-entity:hover .core-shell.shell-top {
+  transform: translateY(-46px) rotateX(24deg) scale(0.96);
+  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.4));
+}
+
+/* 下穹頂晶殼 (Hover 時向下滑開並往前仰) */
+.core-shell.shell-bottom {
+  bottom: 5px;
+  left: 5px;
+  border-radius: 0 0 85px 85px;
+  border-top: 2px solid rgba(0, 0, 0, 0.8);
+}
+.resonance-core-entity:hover .core-shell.shell-bottom {
+  transform: translateY(46px) rotateX(-24deg) scale(0.96);
+  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.4));
+}
+
+/* 晶殼材質光照 (Crystalline Shell Shader) */
+.resonance-core-entity.orb-join .core-shell {
+  background: radial-gradient(circle at 45% 25%, #22D3EE 0%, #0891B2 35%, #0E7490 65%, #082F49 100%);
+  border: 1.5px solid rgba(103, 232, 249, 0.7);
+}
+.resonance-core-entity.orb-host .core-shell {
+  background: radial-gradient(circle at 45% 25%, #F472B6 0%, #DB2777 35%, #9333EA 65%, #3B0764 100%);
+  border: 1.5px solid rgba(244, 114, 182, 0.7);
+}
+
+/* 晶殼高光琉璃層 (Specular Reflection) */
+.shell-specular {
+  position: absolute;
+  top: 10px;
+  left: 20px;
+  width: 70px;
+  height: 32px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 80%);
+  transform: rotate(-28deg);
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* 晶殼科幻刻線 (Cyber Tech Inscriptions) */
+.shell-cyber-rune {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  transition: opacity 0.3s ease;
+}
+.resonance-core-entity.orb-join .shell-cyber-rune {
+  background: radial-gradient(circle at 50% 120%, transparent 58%, rgba(255, 255, 255, 0.45) 64%, transparent 68%);
+}
+.resonance-core-entity.orb-host .shell-cyber-rune {
+  background: radial-gradient(circle at 50% 120%, transparent 58%, rgba(251, 191, 36, 0.55) 64%, transparent 68%);
+}
+.resonance-core-entity:hover .shell-cyber-rune {
+  opacity: 0.9;
+}
+
+/* 中軸能量約束環 (Equator Seam Lock - Hover 時向外解鎖展開消失) */
+.core-shell-equator {
+  position: absolute;
+  top: calc(50% - 6px);
+  left: 0;
+  width: 100%;
+  height: 12px;
+  background: #060B14;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.9);
+  z-index: 6;
+  transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.equator-node {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1E293B;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 10px currentColor;
+}
+.resonance-core-entity.orb-join .equator-node { color: #00F5FF; }
+.resonance-core-entity.orb-host .equator-node { color: #FF2A85; }
+
+/* 🌟 HOVER 時赤道鎖向外散開解鎖 */
+.resonance-core-entity:hover .core-shell-equator {
+  transform: scale(1.4);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   🌟 下方純淨大氣的標題與感應解鎖反饋 (Core Info & Interactive Prompts)
+   ========================================================================== */
+.core-info-anchor {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 5;
+}
+
+.core-protocol-code {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2.2px;
+  color: #94A3B8;
+  text-transform: uppercase;
+  transition: color 0.3s ease;
+}
+.resonance-core-entity.orb-join:hover .core-protocol-code {
+  color: #67E8F9;
+}
+.resonance-core-entity.orb-host:hover .core-protocol-code {
+  color: #F472B6;
+}
+
+.core-title-text {
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  margin: 0;
+  transition: all 0.4s ease;
+}
+.resonance-core-entity.orb-join .core-title-text {
+  background: linear-gradient(135deg, #FFFFFF 0%, #67E8F9 55%, #06B6D4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 15px rgba(0, 245, 255, 0.3));
+}
+.resonance-core-entity.orb-host .core-title-text {
+  background: linear-gradient(135deg, #FFFFFF 0%, #F472B6 55%, #A855F7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 15px rgba(255, 42, 133, 0.3));
+}
+.resonance-core-entity.orb-join:hover .core-title-text {
+  filter: drop-shadow(0 0 25px rgba(0, 245, 255, 0.8));
+  transform: scale(1.05);
+}
+.resonance-core-entity.orb-host:hover .core-title-text {
+  filter: drop-shadow(0 0 25px rgba(255, 42, 133, 0.8));
+  transform: scale(1.05);
+}
+
+/* 互動引導標籤 (Hover 時凸顯提示) */
+.core-action-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #E2E8F0;
+  margin-top: 4px;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.resonance-core-entity.orb-join:hover .core-action-hint {
+  background: rgba(0, 245, 255, 0.18);
+  border-color: rgba(0, 245, 255, 0.7);
+  color: #FFFFFF;
+  box-shadow: 0 0 20px rgba(0, 245, 255, 0.45);
+  transform: translateY(-2px);
+}
+.resonance-core-entity.orb-host:hover .core-action-hint {
+  background: rgba(255, 42, 133, 0.18);
+  border-color: rgba(255, 42, 133, 0.7);
+  color: #FFFFFF;
+  box-shadow: 0 0 20px rgba(255, 42, 133, 0.45);
+  transform: translateY(-2px);
+}
+.core-action-hint .hint-arrow {
+  transition: transform 0.3s ease;
+}
+.resonance-core-entity:hover .core-action-hint .hint-arrow {
+  transform: translateX(4px);
+}
+
+/* ==========================================================================
+   🌟 點擊解鎖召喚爆發動效 (Core Launch Hyperdrive Burst)
+   ========================================================================== */
+.resonance-core-entity.launching {
+  animation: coreLaunchHyperdrive 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  z-index: 100 !important;
+}
+@keyframes coreLaunchHyperdrive {
+  0% { transform: scale(1); filter: brightness(1); }
+  40% { transform: scale(1.3); filter: brightness(3.5); }
+  100% { transform: scale(2.5); opacity: 0; filter: brightness(5); }
+}
+
+/* 點擊時另一顆星核平滑淡出 */
+#tutorial-party-orb-overlay:has(.launching) .resonance-core-entity:not(.launching) {
+  opacity: 0;
+  transform: scale(0.85);
+  transition: all 0.3s ease;
+}
+
+/* 底部返回按鈕區 (絕對置中) */
+.party-orb-footer-action {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin: 30px auto 0;
+  z-index: 5;
+}
+.party-orb-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 28px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #CBD5E1;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  outline: none;
+}
+.party-orb-back-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: translateY(-1px);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.15);
+}
+
+.party-orb-cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 30px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #CBD5E1;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  outline: none;
+}
+.party-orb-cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
+}
+
+/* ==========================================================================
+   🌟 Three.js WebGL 賽博龐克 3D 全息星核舞台 (1:1 復刻原畫視覺)
+   ========================================================================== */
+.resonance-three-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 80px;
+  z-index: 5;
+  margin: 15px 0 10px;
+}
+
+@media (max-width: 900px) {
+  .resonance-three-stage {
+    gap: 40px;
+  }
+}
+
+.three-core-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+}
+.three-core-column:hover {
+  transform: translateY(-6px);
+}
+
+.three-canvas-wrap {
+  width: 420px;
+  height: 420px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+/* 🌟 球體背後高亮環境微光光暈 (Ambient Halo) */
+.core-join .three-canvas-wrap::before {
+  content: '';
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 245, 255, 0.42) 0%, rgba(14, 165, 233, 0.18) 45%, transparent 72%);
+  filter: blur(32px);
+  pointer-events: none;
+  z-index: 0;
+  transition: all 0.4s ease;
+}
+.core-host .three-canvas-wrap::before {
+  content: '';
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 42, 133, 0.42) 0%, rgba(168, 85, 247, 0.18) 45%, transparent 72%);
+  filter: blur(32px);
+  pointer-events: none;
+  z-index: 0;
+  transition: all 0.4s ease;
+}
+.three-core-column.core-join:hover .three-canvas-wrap::before {
+  transform: scale(1.18);
+  background: radial-gradient(circle, rgba(0, 245, 255, 0.65) 0%, rgba(14, 165, 233, 0.28) 50%, transparent 72%);
+  filter: blur(40px);
+}
+.three-core-column.core-host:hover .three-canvas-wrap::before {
+  transform: scale(1.18);
+  background: radial-gradient(circle, rgba(255, 42, 133, 0.65) 0%, rgba(168, 85, 247, 0.28) 50%, transparent 72%);
+  filter: blur(40px);
+}
+
+.three-orb-canvas {
+  width: 420px !important;
+  height: 420px !important;
+  display: block;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.three-core-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: -18px;
+  z-index: 6;
+}
+
+/* 🌟 高亮協議副標題 (強制純亮色，杜絕淺色主題變黑) */
+.protocol-subtext,
+html:not(.dark) .protocol-subtext,
+body:not(.dark) .protocol-subtext,
+.app:not(.dark) .protocol-subtext {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  letter-spacing: 2.4px !important;
+  text-transform: uppercase !important;
+  margin-bottom: 6px !important;
+}
+.core-join .protocol-subtext,
+html:not(.dark) .core-join .protocol-subtext {
+  color: #00F5FF !important;
+  text-shadow: 0 0 12px #00F5FF, 0 0 24px rgba(0, 245, 255, 0.85) !important;
+}
+.core-host .protocol-subtext,
+html:not(.dark) .core-host .protocol-subtext {
+  color: #FF2A85 !important;
+  text-shadow: 0 0 12px #FF2A85, 0 0 24px rgba(255, 42, 133, 0.85) !important;
+}
+
+/* 🌟 極致高亮核心大標題 (強制純白高光，淺色模式下絕對不被深色覆蓋) */
+.core-display-name,
+#tutorial-party-orb-overlay .core-display-name,
+html:not(.dark) #tutorial-party-orb-overlay .core-display-name,
+body:not(.dark) #tutorial-party-orb-overlay .core-display-name,
+.app:not(.dark) #tutorial-party-orb-overlay .core-display-name {
+  font-size: 28px !important;
+  font-weight: 900 !important;
+  letter-spacing: 1.2px !important;
+  margin: 0 0 14px 0 !important;
+  color: #FFFFFF !important;
+}
+.core-join .core-display-name,
+html:not(.dark) .core-join .core-display-name {
+  color: #FFFFFF !important;
+  text-shadow: 0 0 10px #FFFFFF, 0 0 22px #00F5FF, 0 0 40px #0284C7 !important;
+}
+.core-host .core-display-name,
+html:not(.dark) .core-host .core-display-name {
+  color: #FFFFFF !important;
+  text-shadow: 0 0 10px #FFFFFF, 0 0 22px #FF2A85, 0 0 40px #9333EA !important;
+}
+
+/* 🌟 膠囊發光進入按鈕 */
+.three-launch-pill {
+  padding: 9px 28px;
+  border-radius: 99px;
+  font-size: 14px;
+  font-weight: 900;
+  border: 1.8px solid;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.btn-pill-cyan {
+  background: linear-gradient(135deg, rgba(0, 245, 255, 0.28) 0%, rgba(2, 132, 199, 0.42) 100%);
+  border-color: #00F5FF;
+  color: #FFFFFF;
+  box-shadow: 0 0 20px rgba(0, 245, 255, 0.6), inset 0 0 12px rgba(0, 245, 255, 0.35);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+}
+.three-core-column.core-join:hover .btn-pill-cyan,
+.btn-pill-cyan:hover {
+  background: linear-gradient(135deg, rgba(0, 245, 255, 0.48) 0%, rgba(2, 132, 199, 0.65) 100%);
+  border-color: #67E8F9;
+  color: #FFFFFF;
+  box-shadow: 0 0 32px #00F5FF, inset 0 0 16px rgba(255, 255, 255, 0.6);
+  transform: translateY(-2px) scale(1.05);
+}
+
+.btn-pill-magenta {
+  background: linear-gradient(135deg, rgba(255, 42, 133, 0.28) 0%, rgba(147, 51, 234, 0.42) 100%);
+  border-color: #FF2A85;
+  color: #FFFFFF;
+  box-shadow: 0 0 20px rgba(255, 42, 133, 0.6), inset 0 0 12px rgba(255, 42, 133, 0.35);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+}
+.three-core-column.core-host:hover .btn-pill-magenta,
+.btn-pill-magenta:hover {
+  background: linear-gradient(135deg, rgba(255, 42, 133, 0.48) 0%, rgba(147, 51, 234, 0.65) 100%);
+  border-color: #F472B6;
+  color: #FFFFFF;
+  box-shadow: 0 0 32px #FF2A85, inset 0 0 16px rgba(255, 255, 255, 0.6);
+  transform: translateY(-2px) scale(1.05);
+}
+
+
+
+
+
+

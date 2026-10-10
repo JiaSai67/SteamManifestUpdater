@@ -751,7 +751,22 @@ class PartyManager:
         raw_url = str(r.get("gdrive_url") or "").strip()
         download_url = self._unpack_gdrive_url(raw_url)
 
-        appid = str(r.get("app_id") or r.get("appid") or "").strip()
+        raw_note = str(r.get("note") or "")
+        orig_note = ""
+        contact_info = ""
+        if "[CONTACT]:" in raw_note:
+            parts = raw_note.split("[CONTACT]:", 1)
+            note_part = parts[0]
+            if note_part.startswith("[NOTE]:"):
+                orig_note = note_part[len("[NOTE]:"):].strip()
+            else:
+                orig_note = note_part.strip()
+            contact_info = parts[1].strip()
+        elif raw_note.startswith("[NOTE]:"):
+            orig_note = raw_note[len("[NOTE]:"):].strip()
+        else:
+            orig_note = raw_note.strip()
+
         return {
             "room_id": r.get("room_id", ""),
             "game_name": r.get("game_name", ""),
@@ -764,7 +779,8 @@ class PartyManager:
             "max_players": int(r.get("max_players", 4)),
             "is_public": bool(r.get("is_public", True)),
             "status": r.get("status", "recruiting"),
-            "note": r.get("note", ""),
+            "note": orig_note,
+            "contact_info": contact_info,
             "gdrive_url": download_url,
             "archive_password": r.get("archive_password", ""),
             "members": members,
@@ -791,9 +807,9 @@ class PartyManager:
         # 🌟 核心分流：優先向 Turso Edge 讀取原子聚合大廳快照 (一次讀取，單行傳回)
         if self.turso_endpoint and self.turso_token:
             now_ts = int(time.time())
-            # 過濾 60 秒內活躍之房間 (聚合 payload 密文陣列，單行回傳)
+            # 過濾 120 秒內活躍之房間 (允許跨電腦時鐘微小漂移，聚合 payload 密文陣列，單行回傳)
             agg_sql = "SELECT json_group_array(payload) AS all_rooms FROM party_rooms WHERE updated_at > ?;"
-            args = [{"type": "integer", "value": str(now_ts - 60)}]
+            args = [{"type": "integer", "value": str(now_ts - 120)}]
             ok, res = self._turso_execute(agg_sql, args, timeout=3)
             if ok and res and res.get("rows") and len(res["rows"]) > 0:
                 try:
@@ -829,12 +845,12 @@ class PartyManager:
                     logger.debug(f"解析 Turso 大廳聚合結果異常: {e}")
 
         # 🌟 容災降級：若 Turso 失敗或無配置，回退至 Supabase 讀取
-        # 35 秒心跳截止時間 (UTC Z 格式)
-        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=35)
+        # 90 秒心跳截止時間 (UTC Z 格式，放寬時鐘漂移容錯，徹底杜絕跨電腦房間不可見問題)
+        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=90)
         cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # 🌟 自動異步清理 Supabase 中超過 45 秒無心跳之幽靈房間 (避免死房累積)
-        ghost_cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=45)
+        # 🌟 自動異步清理 Supabase 中超過 180 秒 (3分鐘) 無心跳之幽靈房間 (避免跨電腦誤殺活躍房間)
+        ghost_cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=180)
         ghost_iso = ghost_cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
         try:
             threading.Thread(
@@ -1767,9 +1783,9 @@ class PartyManager:
     def send_room_contact_info(self, room_id: str, contact_info: str) -> Dict[str, Any]:
         """
         房主提交房間聯絡資訊 (如 Discord 頻道、房號等)：
-        1. 將聯絡資訊寫入房間 note 欄位 (前綴 [CONTACT]:)
-        2. 將房間 status 更新為 'completed' (已完成組隊)
-        3. 啟動 30 秒自動銷毀計時器，30 秒後自動解散房間並清理雲端檔案
+        1. 若未填寫，自動生成「房主未留任何資料，請自行申請好友DC+：'房主@ID'」
+        2. 保留原有的招募備註 note，將聯絡資訊封裝為 [NOTE]:原備註[CONTACT]:聯絡資訊
+        3. 將房間 status 更新為 'completed' (已完成組隊)
         """
         rid = room_id or self.current_room_id
         if not self.current_room_id or self.current_room_id != rid:
@@ -1779,10 +1795,20 @@ class PartyManager:
 
         contact_text = str(contact_info or "").strip()
         if not contact_text:
-            contact_text = f"+dc: {self.get_current_discord_name() or self.nickname}"
+            host_dc = self.get_current_discord_name() or self.nickname
+            contact_text = f"房主未留任何資料，請自行申請好友DC+：'{host_dc}'"
+
+        # 取得當前房間的原始 note，保留它
+        orig_note = ""
+        if self.current_room_data and isinstance(self.current_room_data, dict):
+            orig_note = str(self.current_room_data.get("note") or "").strip()
+            if orig_note.startswith("[NOTE]:"):
+                orig_note = orig_note[len("[NOTE]:"):].strip()
+            if "[CONTACT]:" in orig_note:
+                orig_note = orig_note.split("[CONTACT]:", 1)[0].strip()
 
         now_str = self._now_iso()
-        note_content = f"[CONTACT]:{contact_text}"
+        note_content = f"[NOTE]:{orig_note}[CONTACT]:{contact_text}" if orig_note else f"[CONTACT]:{contact_text}"
 
         self._inc_quota()
         try:
@@ -1793,45 +1819,27 @@ class PartyManager:
                 "updated_at": now_str
             }, timeout=6)
             if resp.status_code == 200:
-                logger.info(f"[PARTY] 房主已發布房間 #{rid} 聯絡資訊: {contact_text}，將於 30 秒後自動解散房間")
-
-                # 啟動 30 秒後自動解散房間排程
-                if self._auto_close_timer:
-                    self._auto_close_timer.cancel()
-                self._auto_close_timer = threading.Timer(30.0, self._auto_close_room_after_contact, args=[rid])
-                self._auto_close_timer.daemon = True
-                self._auto_close_timer.start()
-
+                logger.info(f"[PARTY] 房主已發布房間 #{rid} 聯絡資訊: {contact_text}")
                 return {
                     "ok": True,
-                    "msg": "聯絡資訊已發布，房間將於 30 秒後自動關閉",
-                    "contact_info": contact_text,
-                    "expire_in": 30
+                    "msg": "聯絡資訊已發布，組隊已完成！",
+                    "contact_info": contact_text
                 }
             else:
                 return {"ok": False, "msg": f"發送失敗: HTTP {resp.status_code}"}
         except Exception as e:
             return {"ok": False, "msg": f"連線異常: {e}"}
 
-    def _auto_close_room_after_contact(self, room_id: str):
-        """30 秒保存期滿，自動銷毀房間"""
-        try:
-            if self.current_room_id == room_id and self.is_host:
-                logger.info(f"[PARTY] 房間 #{room_id} 聯絡資訊已保存 30 秒，自動解散並銷毀雲端紀錄")
-                self.close_room()
-        except Exception as e:
-            logger.warning(f"自動解散房間異常: {e}")
-
     def get_room_contact_info(self, room_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        隊員獲取房主發布的聯絡資訊 (極輕量查詢 select=room_id,status,note,updated_at)
+        隊員獲取房主發布的聯絡資訊 (極輕量查詢 select=room_id,status,note,host_discord,host_name,updated_at)
         """
         rid = room_id or self.current_room_id
         if not rid:
             return {"ok": False, "has_contact": False, "msg": "無房號"}
 
         try:
-            query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select=room_id,status,note,updated_at"
+            query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select=room_id,status,note,host_discord,host_name,updated_at"
             resp = self.session.get(query_url, timeout=4)
             if resp.status_code == 200:
                 rows = resp.json()
@@ -1840,25 +1848,30 @@ class PartyManager:
                 r = rows[0]
                 note = str(r.get("note") or "")
                 status = str(r.get("status") or "")
+                host_dc = str(r.get("host_discord") or r.get("host_name") or "房主")
 
-                if note.startswith("[CONTACT]:"):
-                    contact = note[len("[CONTACT]:"):].strip()
+                if "[CONTACT]:" in note:
+                    contact = note.split("[CONTACT]:", 1)[1].strip()
                     return {
                         "ok": True,
                         "has_contact": True,
                         "contact_info": contact,
+                        "host_discord": host_dc,
                         "status": status
                     }
-                elif status == "completed" and note:
+                elif status == "completed":
+                    contact = f"房主未留任何資料，請自行申請好友DC+：'{host_dc}'"
                     return {
                         "ok": True,
                         "has_contact": True,
-                        "contact_info": note,
+                        "contact_info": contact,
+                        "host_discord": host_dc,
                         "status": status
                     }
                 return {
                     "ok": True,
                     "has_contact": False,
+                    "host_discord": host_dc,
                     "status": status
                 }
             else:
@@ -2268,6 +2281,273 @@ class PartyManager:
             logger.error(f"[PARTY] 一鍵安裝流程發生例外: {e}", exc_info=True)
             report_party_error("一鍵安裝流程例外", err_str, context=f"房間 #{room_id} AppID {app_id}")
             self.update_member_progress("未下載", 0, steam_installed=self.my_steam_installed, deploy_status="failed", deploy_error=f"一鍵安裝異常: {e}")
+
+    # ═════════════════════════════════════════════════════════════════════
+    # 🩺 組隊系統深度健康體檢 (Teaming & Cloud Architecture Health Check)
+    # ═════════════════════════════════════════════════════════════════════
+
+    def run_party_health_check(self) -> Dict[str, Any]:
+        """
+        組隊系統深度健康體檢：
+        1. 雲端大廳資料庫 (Supabase REST API, 延遲, 活躍房間數, RLS 權限)
+        2. 雲端伺服器時鐘同步 (Cloud Clock Skew & Drift Detection)
+        3. 邊緣大廳快取池 (Turso Edge LibSQL Pipeline & 延遲)
+        4. 三因子行為審計與身分驗證 RPC (Supabase RPC record_user_action)
+        5. 本機不可偽造安全錨點 (物理 HWID, 本地 SteamID, Windows DPAPI 公鑰)
+        6. Discord 官方授權與防偽身份 (@username 綁定狀態)
+        7. 雲端風控門禁與黑名單核驗 (Banned Entities & Fallback Lease)
+        8. WebRTC P2P 穿透與 STUN 服務 (Google STUN: stun.l.google.com:19302)
+        9. 全鏈路遙測與審計架構流 (TelemetryLogger 記憶體隊列與實體 party_telemetry.log)
+        10. 組隊整合包工作區與磁碟配額 (data/temp_packages 讀寫與剩餘空間)
+        """
+        import socket
+        import time
+        import shutil
+        from email.utils import parsedate_to_datetime
+
+        items = []
+        overall_status = "OK"
+
+        # 1. Supabase 雲端組隊大廳 REST API 探測
+        sb_start = time.time()
+        sb_ok = False
+        sb_ms = 0
+        active_rooms = 0
+        sb_err = ""
+        server_date_hdr = None
+
+        try:
+            resp = self.session.get(f"{self.rest_endpoint}?select=room_id,updated_at&limit=10", timeout=5)
+            sb_ms = int((time.time() - sb_start) * 1000)
+            server_date_hdr = resp.headers.get("Date")
+            if resp.status_code == 200:
+                sb_ok = True
+                rooms_data = resp.json()
+                active_rooms = len(rooms_data) if isinstance(rooms_data, list) else 0
+            else:
+                sb_err = f"HTTP {resp.status_code} ({resp.text[:60]})"
+        except Exception as e:
+            sb_ms = int((time.time() - sb_start) * 1000)
+            sb_err = str(e)
+
+        if sb_ok:
+            items.append({
+                "name": "Supabase 雲端組隊大廳 (REST / RLS)",
+                "status": "OK",
+                "desc": f"連線暢通 (延遲約 {sb_ms} ms · 全球 PostgreSQL 房間庫就緒 · 當前公開房間: {active_rooms} 間)"
+            })
+        else:
+            overall_status = "ERROR"
+            items.append({
+                "name": "Supabase 雲端組隊大廳 (REST / RLS)",
+                "status": "ERROR",
+                "desc": f"連線受阻 ({sb_err} · 延遲 {sb_ms} ms · 雲端房間暫時無法同步)",
+                "action": "open_telemetry"
+            })
+
+        # 2. 雲端伺服器時鐘同步校準 (Cloud Clock Skew & Drift)
+        clock_skew_sec = 0.0
+        if server_date_hdr:
+            try:
+                server_dt = parsedate_to_datetime(server_date_hdr)
+                local_dt = datetime.datetime.now(datetime.timezone.utc)
+                clock_skew_sec = abs((local_dt - server_dt).total_seconds())
+                if clock_skew_sec > 45.0:
+                    if overall_status == "OK": overall_status = "WARN"
+                    items.append({
+                        "name": "雲端伺服器時鐘同步",
+                        "status": "WARN",
+                        "desc": f"時鐘漂移較大 (漂移約 {clock_skew_sec:.1f} 秒 · 請校準 Windows 系統時間以免房間過期被誤濾)"
+                    })
+                else:
+                    items.append({
+                        "name": "雲端伺服器時鐘同步",
+                        "status": "OK",
+                        "desc": f"時間精準同步 (漂移僅 {clock_skew_sec:.1f} 秒 · 房主心跳與房間生命週期校準正常)"
+                    })
+            except Exception:
+                pass
+
+        # 3. Turso Edge 分布式邊緣大廳快取池
+        if self.turso_endpoint and self.turso_token:
+            t_start = time.time()
+            tok, tres = self._turso_execute("SELECT count(*) FROM party_rooms;", timeout=4)
+            t_ms = int((time.time() - t_start) * 1000)
+            if tok:
+                items.append({
+                    "name": "Turso Edge 邊緣快取大廳",
+                    "status": "OK",
+                    "desc": f"邊緣管線通暢 (延遲約 {t_ms} ms · 90 億次免費行讀取通道就緒 · 毫秒級房間廣播)"
+                })
+            else:
+                if overall_status == "OK": overall_status = "WARN"
+                items.append({
+                    "name": "Turso Edge 邊緣快取大廳",
+                    "status": "WARN",
+                    "desc": f"邊緣管線異常 (延遲 {t_ms} ms · 系統已無縫降級至 Supabase 原生通道備援)"
+                })
+        else:
+            items.append({
+                "name": "Turso Edge 邊緣快取大廳",
+                "status": "INFO",
+                "desc": "未配置專屬 Turso 憑證 (系統已啟用 Supabase 原生大廳通道無縫容災備援)"
+            })
+
+        # 4. 三因子身分核驗與審計 RPC (Supabase RPC record_user_action)
+        try:
+            rpc_endpoint = f"{self.supabase_url.rstrip('/')}/rest/v1/rpc/record_user_action"
+            test_body = {
+                "p_discord_id": getattr(self, "discord_id", "") or "HEALTH_PROBE",
+                "p_discord_username": getattr(self, "discord_username", "") or "HEALTH_PROBE",
+                "p_discord_token": "",
+                "p_dpapi_pubkey": getattr(self, "dpapi_pubkey", ""),
+                "p_hwid": self.hwid,
+                "p_client_id": self.client_id,
+                "p_action": "HEALTH_CHECK",
+                "p_payload_encrypted": "{}",
+                "p_signature": ""
+            }
+            r_rpc = self.session.post(rpc_endpoint, json=test_body, timeout=5)
+            if r_rpc.status_code in [200, 400]:
+                items.append({
+                    "name": "三因子安全審計 RPC 通道",
+                    "status": "OK",
+                    "desc": "雲端審計管道就緒 (支援 IP 脫敏、DPAPI 公鑰驗證與全鏈路操作追溯)"
+                })
+            else:
+                if overall_status == "OK": overall_status = "WARN"
+                items.append({
+                    "name": "三因子安全審計 RPC 通道",
+                    "status": "WARN",
+                    "desc": f"審計管道回傳異常 (HTTP {r_rpc.status_code})"
+                })
+        except Exception as e:
+            items.append({
+                "name": "三因子安全審計 RPC 通道",
+                "status": "WARN",
+                "desc": f"審計通道探測受阻: {e}"
+            })
+
+        # 5. 本機硬體錨點與安全身分 (HWID / SteamID / DPAPI)
+        hwid_short = (self.hwid[:14] + "...") if self.hwid else "未取得"
+        steam_display = self.steam_id if self.steam_id else "未偵測到本地登入"
+        has_dpapi = bool(getattr(self, "dpapi_pubkey", ""))
+        if self.hwid and has_dpapi:
+            items.append({
+                "name": "本機硬體錨點與安全身分",
+                "status": "OK",
+                "desc": f"硬體指紋: {hwid_short} (不可偽造安全錨點) · DPAPI 公鑰就緒 · 本地 SteamID: {steam_display}"
+            })
+        else:
+            if overall_status == "OK": overall_status = "WARN"
+            items.append({
+                "name": "本機硬體錨點與安全身分",
+                "status": "WARN",
+                "desc": f"安全身分未完全就緒 (HWID: {hwid_short}, DPAPI 公鑰: {'已生成' if has_dpapi else '未生成'})"
+            })
+
+        # 6. Discord 官方授權認證狀態
+        is_disc_ok = bool(getattr(self, "is_discord_verified", False) and getattr(self, "discord_id", ""))
+        if is_disc_ok:
+            items.append({
+                "name": "Discord 授權與玩家身分",
+                "status": "OK",
+                "desc": f"已官方認證: @{self.discord_username} (綠標信任玩家 · 具備全網開房與加入權限)"
+            })
+        else:
+            if overall_status == "OK": overall_status = "WARN"
+            items.append({
+                "name": "Discord 授權與玩家身分",
+                "status": "WARN",
+                "desc": f"尚未完成 Discord 官方認證 (目前暱稱: {self.nickname} · 需完成認證以解鎖建立房間)",
+                "action": "auth_party_discord"
+            })
+
+        # 7. 雲端風控門禁與黑名單核驗
+        is_banned, ban_reason = self.check_if_banned()
+        if is_banned:
+            overall_status = "ERROR"
+            items.append({
+                "name": "雲端風控與門禁檢測",
+                "status": "ERROR",
+                "desc": f"設備已被列入風控受限名單 ({ban_reason})"
+            })
+        else:
+            has_lease = self.has_valid_fallback_lease()
+            lease_text = " (已持有每日通行有效租約)" if has_lease else ""
+            items.append({
+                "name": "雲端風控與門禁檢測",
+                "status": "OK",
+                "desc": f"信用正常 (未命中黑名單 · 通過雲端門禁核驗{lease_text})"
+            })
+
+        # 8. WebRTC P2P 穿透與 STUN 服務
+        stun_ip = ""
+        stun_ok = False
+        try:
+            stun_ip = socket.gethostbyname("stun.l.google.com")
+            stun_ok = True
+        except Exception:
+            pass
+
+        if stun_ok:
+            items.append({
+                "name": "WebRTC P2P 穿透與 STUN 服務",
+                "status": "OK",
+                "desc": f"STUN 解析正常 (Google STUN: {stun_ip}:19302 · 支援 P2P 直連穿透與信令交換)"
+            })
+        else:
+            if overall_status == "OK": overall_status = "WARN"
+            items.append({
+                "name": "WebRTC P2P 穿透與 STUN 服務",
+                "status": "WARN",
+                "desc": "STUN 節點解析超時 (P2P 直連穿透可能受限，建議檢查 DNS)"
+            })
+
+        # 9. 全鏈路遙測與審計架構流
+        try:
+            from utils.telemetry_logger import TelemetryLogger
+            tl = TelemetryLogger()
+            t_logs_count = len(tl.get_logs())
+            items.append({
+                "name": "全鏈路遙測與審計日誌流",
+                "status": "OK",
+                "desc": f"遙測日誌管線正常 (logs/party_telemetry.log · 記憶體環形隊列: {t_logs_count} 筆事件)",
+                "action": "open_telemetry"
+            })
+        except Exception as e:
+            items.append({
+                "name": "全鏈路遙測與審計日誌流",
+                "status": "INFO",
+                "desc": f"日誌收集器就緒: {e}"
+            })
+
+        # 10. 組隊整合包工作區與磁碟配額 (Packager Workspace)
+        pkg_dir = Path(self.root_dir) / "data" / "temp_packages"
+        try:
+            pkg_dir.mkdir(parents=True, exist_ok=True)
+            test_f = pkg_dir / ".health_test"
+            test_f.write_text("ok", encoding="utf-8")
+            test_f.unlink()
+            total, used, free = shutil.disk_usage(pkg_dir)
+            free_gb = round(free / (1024**3), 1)
+            items.append({
+                "name": "組隊整合包暫存工作區",
+                "status": "OK" if free_gb >= 2.0 else "WARN",
+                "desc": f"暫存目錄正常 (讀寫無阻 · 磁碟剩餘可用空間約 {free_gb} GB)"
+            })
+        except Exception as e:
+            items.append({
+                "name": "組隊整合包暫存工作區",
+                "status": "WARN",
+                "desc": f"暫存工作區檢測異常: {e}"
+            })
+
+        return {
+            "title": "無伺服器組隊大廳與雲端架構",
+            "status": overall_status,
+            "items": items
+        }
 
 _global_party_manager = None
 

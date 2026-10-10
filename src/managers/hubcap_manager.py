@@ -17,16 +17,30 @@ logger = logging.getLogger("hubcap_manager")
 
 DEFAULT_HUBCAP_DOMAIN = "https://hubcapmanifest.com"
 
+# 快取結構: {api_key: {"time": float, "stats": dict, "last_valid_stats": dict}}
+_user_stats_cache: Dict[str, Dict[str, Any]] = {}
+CACHE_TTL_SECONDS = 30  # 30 秒快取，防止前端輪詢與多帳號瞬發打滿 429
+FALLBACK_GRACE_PERIOD = 300  # 5 分鐘容錯寬限期
+
+def clear_stats_cache(api_key: Optional[str] = None):
+    """清除配額查詢快取"""
+    global _user_stats_cache
+    if api_key:
+        _user_stats_cache.pop(str(api_key).strip(), None)
+    else:
+        _user_stats_cache.clear()
+
 def get_api_key() -> str:
     """取得儲存的 Hubcap API Key"""
     cfg = config_manager.get_config()
     return str(cfg.get("hubcap_api_key", "")).strip()
 
 def set_api_key(api_key: str) -> bool:
-    """儲存 Hubcap API Key 到 config.json"""
+    """儲存 Hubcap API Key 到 config.json 並清空舊快取"""
     cfg = config_manager.get_config()
     cfg["hubcap_api_key"] = str(api_key).strip()
     config_manager.save_config(cfg)
+    clear_stats_cache()
     return True
 
 def get_domain() -> str:
@@ -35,11 +49,12 @@ def get_domain() -> str:
     domain = cfg.get("hubcap_domain", DEFAULT_HUBCAP_DOMAIN).strip()
     return domain.rstrip("/") if domain else DEFAULT_HUBCAP_DOMAIN
 
-def fetch_user_stats(api_key: Optional[str] = None) -> Dict[str, Any]:
+def fetch_user_stats(api_key: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
     """
     調用 Hubcap 官方 GET /api/v1/user/stats 端點
-    回傳使用者的即時配額、今日已用量、剩餘額度及重設時間
+    支援記憶體快取 (TTL 30s) 與暫時性網路抖動平滑回退，防止介面頻閃與 429 誤報警告
     """
+    global _user_stats_cache
     key = (api_key if api_key is not None else get_api_key()).strip()
     if not key:
         return {
@@ -51,6 +66,13 @@ def fetch_user_stats(api_key: Optional[str] = None) -> Dict[str, Any]:
             "remaining": 0,
             "can_make_requests": False
         }
+
+    now = time.time()
+    cached = _user_stats_cache.get(key)
+    if not force_refresh and cached:
+        # 若快取尚在 TTL 內且結果正常，直接返回快取
+        if (now - cached.get("time", 0) < CACHE_TTL_SECONDS) and cached.get("stats", {}).get("ok"):
+            return cached["stats"]
 
     domain = get_domain()
     url = f"{domain}/api/v1/user/stats"
@@ -72,7 +94,7 @@ def fetch_user_stats(api_key: Optional[str] = None) -> Dict[str, Any]:
             remaining = max(0, daily_limit - daily_usage)
             username = str(data.get("username", "")).strip()
 
-            return {
+            res = {
                 "ok": True,
                 "is_configured": True,
                 "username": username,
@@ -83,6 +105,13 @@ def fetch_user_stats(api_key: Optional[str] = None) -> Dict[str, Any]:
                 "api_key_expires_at": data.get("api_key_expires_at", ""),
                 "can_make_requests": bool(data.get("can_make_requests", True))
             }
+            # 更新快取
+            _user_stats_cache[key] = {
+                "time": now,
+                "stats": res,
+                "last_valid_stats": res
+            }
+            return res
     except urllib.error.HTTPError as he:
         err_body = ""
         try:
@@ -92,8 +121,26 @@ def fetch_user_stats(api_key: Optional[str] = None) -> Dict[str, Any]:
         msg = f"HTTP {he.code}"
         if he.code == 401:
             msg = "API Key 無效或已過期 (401 Unauthorized)"
+            # 金鑰確已無效，清除快取
+            _user_stats_cache.pop(key, None)
+            return {
+                "ok": False,
+                "error": msg,
+                "raw_error": err_body,
+                "is_configured": True,
+                "daily_limit": 0,
+                "daily_usage": 0,
+                "remaining": 0,
+                "can_make_requests": False
+            }
         elif he.code == 429:
             msg = "已超過請求頻率限制或配額耗盡 (429 Too Many Requests)"
+
+        # 429 或其他暫時性 HTTP 異常：若先前有有效快取，進行寬容回退避免前端瞬間閃紅
+        if cached and cached.get("last_valid_stats") and (now - cached.get("time", 0) < FALLBACK_GRACE_PERIOD):
+            logger.warning("Hubcap API 請求遭遇暫時性異常 (%s)，自動回退使用有效快取資料維持顯示", msg)
+            return cached["last_valid_stats"]
+
         return {
             "ok": False,
             "error": msg,
@@ -105,6 +152,11 @@ def fetch_user_stats(api_key: Optional[str] = None) -> Dict[str, Any]:
             "can_make_requests": False
         }
     except Exception as e:
+        # 連線逾時、DNS 抖動或網路連線暫時中斷：若先前有有效快取，回退至有效快取
+        if cached and cached.get("last_valid_stats") and (now - cached.get("time", 0) < FALLBACK_GRACE_PERIOD):
+            logger.warning("連線至 Hubcap 發生短暫波動 (%s)，自動回退使用有效快取資料維持顯示", e)
+            return cached["last_valid_stats"]
+
         return {
             "ok": False,
             "error": f"連線至 Hubcap 失敗: {e}",
@@ -116,9 +168,9 @@ def fetch_user_stats(api_key: Optional[str] = None) -> Dict[str, Any]:
         }
 
 def test_connection(api_key: Optional[str] = None) -> Dict[str, Any]:
-    """測試 HubcapDB 平台連線與金鑰有效性"""
+    """測試 HubcapDB 平台連線與金鑰有效性 (強制即時發出請求)"""
     start_t = time.time()
-    stats = fetch_user_stats(api_key)
+    stats = fetch_user_stats(api_key, force_refresh=True)
     latency_ms = int((time.time() - start_t) * 1000)
     
     if stats.get("ok"):

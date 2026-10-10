@@ -1,12 +1,68 @@
 .card-update-status{font-size:11px;font-weight:700;color:#ffd700;text-shadow:0 1px 4px rgba(0,0,0,0.9);line-height:1.35;max-width:94%;word-break:break-word}
-/* 管理頁列表 */
-#glist.list{display:flex;flex-direction:column;gap:8px}
-#glist.list .card{flex-direction:row;align-items:center;text-align:left;padding:10px 16px;border-radius:14px;min-height:68px;margin-bottom:0;overflow:visible!important;position:relative;gap:14px}
-#glist.list .card img{width:116px;height:54px;border-radius:6px;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.1);order:-1}
-#glist.list .card .name{font-size:13.5px;font-weight:600;padding:0;background:transparent!important;color:inherit;flex:1;min-width:0;border-radius:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#glist.list .card .aid{padding:0;background:transparent!important;border-radius:0;min-height:auto;display:inline-flex;align-items:center;gap:10px;margin:0 40px 0 auto;color:var(--gray)}
-#glist.list .card .card-menu{position:absolute;top:50%;transform:translateY(-50%);right:12px;width:28px;height:28px;font-size:16px;line-height:28px}
-#glist.list .card .card-dd{top:calc(50% + 18px);right:12px;bottom:auto}
+/* 管理頁列表：100% 複製遊戲入庫搜尋結果之卡片大小與排版 */
+#glist.list{display:flex;flex-direction:column;gap:4px}
+#glist.list .card{
+  flex-direction:row!important;
+  align-items:center!important;
+  text-align:left!important;
+  padding:15px 12px!important;
+  border-radius:var(--rs, 14px)!important;
+  min-height:auto!important;
+  margin-bottom:4px!important;
+  overflow:visible!important;
+  position:relative!important;
+  gap:12px!important;
+  z-index:1;
+}
+/* 🌟 下拉選單展開時，大幅提升層疊等級（Stacking Context），徹底杜絕被後續卡片邊框穿透覆蓋 */
+#glist.list .card:has(.card-dd.show),
+#glist.list .card.menu-open{
+  z-index:2000!important;
+  position:relative!important;
+}
+#glist.list .card:has(.card-dd.show) .search-action-wrap,
+#glist.list .card.menu-open .search-action-wrap{
+  z-index:2001!important;
+  position:relative!important;
+}
+#glist.list .card img:not(.corner-tag-img){
+  width:120px!important;
+  height:56px!important;
+  min-width:120px!important;
+  max-width:120px!important;
+  min-height:56px!important;
+  max-height:56px!important;
+  border-radius:4px!important;
+  object-fit:cover!important;
+  flex-shrink:0!important;
+  background:rgba(0,0,0,0.25)!important;
+  display:block!important;
+}
+#glist.list .card .info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px;text-align:left}
+#glist.list .card .name{
+  font-size:13px!important;
+  font-weight:600!important;
+  padding:0 0 2px 0!important;
+  background:transparent!important;
+  color:inherit;
+  border-radius:0!important;
+  -webkit-border-radius:0!important;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  line-height:1.35;
+}
+#glist.list .card .search-tags-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 0}
+#glist.list .card .aid,
+#glist.list .card .info .aid{font-size:11px!important;font-weight:700!important;color:inherit!important;margin:0!important;padding:0!important;background:transparent!important;border-radius:0!important;min-height:auto!important;display:inline-flex!important;align-items:center!important;letter-spacing:0.2px!important;font-variant-numeric:tabular-nums!important}
+#glist.list .card .link-wrap{display:inline-flex;align-self:flex-start;width:max-content;margin-top:2px}
+#glist.list .card .link{font-size:10.5px;color:var(--pink-deep);cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:3px;width:max-content}
+#glist.list .card .link:hover{text-decoration:underline;color:#FF4081}
+#glist.list .card .search-action-wrap{display:flex;align-items:center;justify-content:flex-end;margin-left:auto;flex-shrink:0;position:relative;gap:8px}
+#glist.list .card .card-menu{position:relative;top:auto;right:auto;transform:none;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.08);color:inherit;cursor:pointer;border:none;display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;line-height:1;transition:background .2s,transform .15s}
+#glist.list .card .card-menu:hover{background:var(--pink-deep);color:#FFF;transform:scale(1.08)}
+.app.dark #glist.list .card .card-menu{background:rgba(255,255,255,.14);color:#FFF}
+#glist.list .card .card-dd{top:calc(100% + 8px);right:0;bottom:auto;z-index:2100!important}
 #glist.list .dlc-card{margin-left:24px}
 
 #manage-sort-mode,
@@ -38,7 +94,7 @@
   color: #111827 !important;
 }
 .card .info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px;text-align:left}
-.card .name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.card .name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35;border-radius:0!important;-webkit-border-radius:0!important;padding:0 0 2px 0!important}
 .app.dark .card:not(.needs-update) .name,
 .app.dark.has-bg .card:not(.needs-update) .name,
 html.dark .card:not(.needs-update) .name,

@@ -371,15 +371,6 @@ class ErrorReporter:
         if custom_webhook and custom_webhook.strip() and custom_webhook != self._official_webhook_url:
             webhook_urls.append(custom_webhook.strip())
 
-        # 自動檢查使用者在系統設定或 discord_storage 中保存的自訂 Webhook
-        try:
-            from managers.discord_storage import get_discord_storage
-            saved_custom_wh = get_discord_storage().get_custom_webhook_url()
-            if saved_custom_wh and saved_custom_wh not in webhook_urls:
-                webhook_urls.append(saved_custom_wh)
-        except Exception:
-            pass
-
         if not webhook_urls:
             logger.warning("[ErrorReporter] 無可用的 Discord Webhook 網址")
             return False

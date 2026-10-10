@@ -268,22 +268,17 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
             }
         }
 
-        // 6. 頂部常駐極簡導航列 (Navbar - 僅保留步驟狀態、跳過此步驟、完成並關閉沙盒)
+        // 6. 頂部常駐極簡導航列 (Navbar - 增量單例更新，絕不摧毀 DOM，徹底杜絕閃爍)
+        function updateNavMsg(newHtml) {
+            var msgEl = document.getElementById('_sm_nav_msg');
+            if (msgEl && msgEl.innerHTML !== newHtml) {
+                msgEl.innerHTML = newHtml;
+            }
+        }
+
         function renderTopNavbar() {
             var curStep = window._sm_current_step || 1;
             var nav = document.getElementById('_sm_top_navbar');
-            if (!nav) {
-                nav = document.createElement('div');
-                nav.id = '_sm_top_navbar';
-                nav.style.cssText = 'position:fixed!important;top:0!important;left:0!important;right:0!important;height:42px!important;background:rgba(20,20,24,0.96)!important;backdrop-filter:blur(10px)!important;border-bottom:1px solid rgba(255,255,255,0.12)!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:space-between!important;padding:0 14px!important;box-shadow:0 3px 14px rgba(0,0,0,0.45)!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;user-select:none!important;box-sizing:border-box!important;';
-                document.body.appendChild(nav);
-
-                // 為 body 添加 padding 避免遮蓋頁面頂端
-                if (document.body && !document.body.getAttribute('data-sm-nav-pad')) {
-                    document.body.setAttribute('data-sm-nav-pad', 'true');
-                    document.body.style.setProperty('padding-top', '44px', 'important');
-                }
-            }
 
             var stepText = '🐉 步驟 1/3：Ryuu (50次/日)';
             var stepColor = '#10b981';
@@ -301,53 +296,83 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                 showHcDoneBtn = true;
             }
 
-            nav.innerHTML = `
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <div style="background:rgba(255,255,255,0.08);border:1px solid ${stepColor};color:#ffffff;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;">
-                        <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${stepColor};box-shadow:0 0 6px ${stepColor};"></span>
-                        <span>${stepText}</span>
+            if (!nav) {
+                nav = document.createElement('div');
+                nav.id = '_sm_top_navbar';
+                nav.setAttribute('data-step', String(curStep));
+                nav.style.cssText = 'position:fixed!important;top:0!important;left:0!important;right:0!important;height:42px!important;background:rgba(20,20,24,0.96)!important;backdrop-filter:blur(10px)!important;border-bottom:1px solid rgba(255,255,255,0.12)!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:space-between!important;padding:0 14px!important;box-shadow:0 3px 14px rgba(0,0,0,0.45)!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;user-select:none!important;box-sizing:border-box!important;';
+                document.body.appendChild(nav);
+
+                // 為 body 添加 padding 避免遮蓋頁面頂端
+                if (document.body && !document.body.getAttribute('data-sm-nav-pad')) {
+                    document.body.setAttribute('data-sm-nav-pad', 'true');
+                    document.body.style.setProperty('padding-top', '44px', 'important');
+                }
+
+                nav.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <div id="_sm_nav_step_badge" style="background:rgba(255,255,255,0.08);border:1px solid ${stepColor};color:#ffffff;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;">
+                            <span id="_sm_nav_step_dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${stepColor};box-shadow:0 0 6px ${stepColor};"></span>
+                            <span id="_sm_nav_step_txt">${stepText}</span>
+                        </div>
+                        <span id="_sm_nav_msg" style="color:#e4e4e7;font-size:12px;font-weight:500;"></span>
                     </div>
-                    <span id="_sm_nav_msg" style="color:#e4e4e7;font-size:12px;font-weight:500;"></span>
-                </div>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    ${showHcDoneBtn ? `
-                    <button id="_sm_nav_btn_hc_done" style="background:linear-gradient(135deg,#06b6d4,#0891b2);color:#ffffff;border:none;padding:5px 13px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 10px rgba(6,182,212,0.45);transition:all 0.2s ease;">
-                        <span>🚀 已完成驗證</span>
-                    </button>
-                    ` : ''}
-                    <button id="_sm_nav_btn_skip" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all 0.2s ease;">
-                        <span>⏩ 跳過此步驟</span>
-                    </button>
-                    <button id="_sm_nav_btn_finish" style="background:linear-gradient(135deg,#10b981,#059669);color:#ffffff;border:none;padding:5px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(16,185,129,0.35);transition:all 0.2s ease;">
-                        <span>✅ 完成並關閉沙盒</span>
-                    </button>
-                </div>
-            `;
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <button id="_sm_nav_btn_hc_done" style="${showHcDoneBtn ? 'display:flex' : 'display:none'}!important;background:linear-gradient(135deg,#06b6d4,#0891b2);color:#ffffff;border:none;padding:5px 13px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;align-items:center;gap:5px;box-shadow:0 2px 10px rgba(6,182,212,0.45);transition:all 0.2s ease;">
+                            <span>🚀 已完成驗證</span>
+                        </button>
+                        <button id="_sm_nav_btn_skip" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all 0.2s ease;">
+                            <span>⏩ 跳過此步驟</span>
+                        </button>
+                        <button id="_sm_nav_btn_finish" style="background:linear-gradient(135deg,#10b981,#059669);color:#ffffff;border:none;padding:5px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(16,185,129,0.35);transition:all 0.2s ease;">
+                            <span>✅ 完成並關閉沙盒</span>
+                        </button>
+                    </div>
+                `;
 
-            var hcDoneBtn = document.getElementById('_sm_nav_btn_hc_done');
-            if (hcDoneBtn) {
-                hcDoneBtn.onclick = function() {
-                    window._action_fetch_hc_key = true;
-                    hcDoneBtn.innerHTML = '<span>⏳ 正在前往 API 網頁...</span>';
-                    window.location.href = "https://hubcapmanifest.com/api-keys/stats";
-                };
-            }
+                var hcDoneBtn = document.getElementById('_sm_nav_btn_hc_done');
+                if (hcDoneBtn) {
+                    hcDoneBtn.onclick = function() {
+                        window._action_fetch_hc_key = true;
+                        hcDoneBtn.innerHTML = '<span>⏳ 正在前往 API 網頁...</span>';
+                        window.location.href = "https://hubcapmanifest.com/api-keys/stats";
+                    };
+                }
 
-            var skipBtn = document.getElementById('_sm_nav_btn_skip');
-            if (skipBtn) {
-                skipBtn.onclick = function() {
-                    window._action_skip_step = true;
-                    skipBtn.innerHTML = '<span>⏳ 正在切換步驟...</span>';
-                };
-            }
+                var skipBtn = document.getElementById('_sm_nav_btn_skip');
+                if (skipBtn) {
+                    skipBtn.onclick = function() {
+                        window._action_skip_step = true;
+                        skipBtn.innerHTML = '<span>⏳ 正在切換步驟...</span>';
+                    };
+                }
 
-            var finishBtn = document.getElementById('_sm_nav_btn_finish');
-            if (finishBtn) {
-                finishBtn.onclick = function() {
-                    window._manual_save_requested = true;
-                    window._action_finish_and_close = true;
-                    finishBtn.innerHTML = '<span>⏳ 正在保存並關閉...</span>';
-                };
+                var finishBtn = document.getElementById('_sm_nav_btn_finish');
+                if (finishBtn) {
+                    finishBtn.onclick = function() {
+                        window._manual_save_requested = true;
+                        window._action_finish_and_close = true;
+                        finishBtn.innerHTML = '<span>⏳ 正在保存並關閉...</span>';
+                    };
+                }
+            } else {
+                // 若 Navbar 已存在，僅在步驟切換時做局部標籤與按鈕更新，絕對不摧毀 innerHTML，徹底杜絕閃爍
+                if (nav.getAttribute('data-step') !== String(curStep)) {
+                    nav.setAttribute('data-step', String(curStep));
+                    var stepBadge = document.getElementById('_sm_nav_step_badge');
+                    var stepDot = document.getElementById('_sm_nav_step_dot');
+                    var stepTxt = document.getElementById('_sm_nav_step_txt');
+                    if (stepBadge) stepBadge.style.borderColor = stepColor;
+                    if (stepDot) {
+                        stepDot.style.background = stepColor;
+                        stepDot.style.boxShadow = '0 0 6px ' + stepColor;
+                    }
+                    if (stepTxt) stepTxt.textContent = stepText;
+                    var hcDoneBtn = document.getElementById('_sm_nav_btn_hc_done');
+                    if (hcDoneBtn) {
+                        hcDoneBtn.style.setProperty('display', showHcDoneBtn ? 'flex' : 'none', 'important');
+                    }
+                }
             }
         }
         renderTopNavbar();
@@ -462,18 +487,12 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
                 var curStep = window._sm_current_step || 1;
                 if (curStep === 1 && !window._redirecting_step1_success) {
                     window._redirecting_step1_success = true;
-                    var msgEl = document.getElementById('_sm_nav_msg');
-                    if (msgEl) {
-                        msgEl.innerHTML = '<span style="color:#10b981;font-weight:bold;">🎉 成功加入 Ryuu 伺服器！正在自動返回完成登入...</span>';
-                    }
+                    updateNavMsg('<span style="color:#10b981;font-weight:bold;">🎉 成功加入 Ryuu 伺服器！正在自動返回完成登入...</span>');
                     setTimeout(function() {
                         window.location.href = "https://generator.ryuu.lol/login";
                     }, 600);
                 } else if (curStep === 3) {
-                    var msgEl = document.getElementById('_sm_nav_msg');
-                    if (msgEl) {
-                        msgEl.innerHTML = '<span style="color:#38bdf8;font-weight:bold;">👉 請查看伺服器verify頻道開始驗證並注意私訊，完成後請點擊「🚀 已完成驗證」</span>';
-                    }
+                    updateNavMsg('<span style="color:#38bdf8;font-weight:bold;">👉 請查看伺服器verify頻道開始驗證並注意私訊，完成後請點擊「🚀 已完成驗證」</span>');
                 }
             }
         }
@@ -493,10 +512,7 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
             if (needRyuuJoin) {
                 window._clicked_ryuu_login = true;
                 window._needs_join_ryuu_detected = true;
-                var msgEl = document.getElementById('_sm_nav_msg');
-                if (msgEl) {
-                    msgEl.innerHTML = '<span style="color:#ef4444;font-weight:bold;">⚠️ 帳號尚未加入 Ryuu 伺服器！正在為您跳轉官方邀請連結...</span>';
-                }
+                updateNavMsg('<span style="color:#ef4444;font-weight:bold;">⚠️ 帳號尚未加入 Ryuu 伺服器！正在為您跳轉官方邀請連結...</span>');
                 if (!window._ryuu_invite_auto_redirected) {
                     window._ryuu_invite_auto_redirected = true;
                     window._action_join_ryuu = true;
@@ -534,10 +550,7 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
 
             if (isHcNotJoined) {
                 window._needs_hc_join_detected = true;
-                var msgEl = document.getElementById('_sm_nav_msg');
-                if (msgEl) {
-                    msgEl.innerHTML = '<span style="color:#ef4444;font-weight:bold;">⚠️ 尚未加入 Hubcap Discord 伺服器！正在跳轉官方邀請連結...</span>';
-                }
+                updateNavMsg('<span style="color:#ef4444;font-weight:bold;">⚠️ 尚未加入 Hubcap Discord 伺服器！正在跳轉官方邀請連結...</span>');
                 if (!window._hc_invite_auto_redirected) {
                     window._hc_invite_auto_redirected = true;
                     window._action_join_hc = true;
@@ -568,10 +581,7 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
 
             if (isHcNotVerified) {
                 window._needs_hc_verify_detected = true;
-                var msgEl = document.getElementById('_sm_nav_msg');
-                if (msgEl) {
-                    msgEl.innerHTML = '<span style="color:#f59e0b;font-weight:bold;">⚠️ 帳號尚未完成 Verify 驗證！正在自動跳轉官方驗證頻道...</span>';
-                }
+                updateNavMsg('<span style="color:#f59e0b;font-weight:bold;">⚠️ 帳號尚未完成 Verify 驗證！正在自動跳轉官方驗證頻道...</span>');
                 if (!window._hc_verify_auto_redirected) {
                     window._hc_verify_auto_redirected = true;
                     window._action_go_hc_verify = true;
@@ -593,10 +603,7 @@ def generate_sandbox_helper_script(auto_email: str = "", auto_pwd: str = "") -> 
 
             if (!isStatsPage && isCallbackOrAuthed && !window._hc_redirected_to_stats) {
                 window._hc_redirected_to_stats = true;
-                var msgEl = document.getElementById('_sm_nav_msg');
-                if (msgEl) {
-                    msgEl.innerHTML = '<span style="color:#06b6d4;font-weight:bold;">🚀 授權已確認！正在自動前往 API Keys 統計頁獲取金鑰...</span>';
-                }
+                updateNavMsg('<span style="color:#06b6d4;font-weight:bold;">🚀 授權已確認！正在自動前往 API Keys 統計頁獲取金鑰...</span>');
                 setTimeout(function() {
                     window.location.href = "https://hubcapmanifest.com/api-keys/stats";
                 }, 400);
@@ -1609,15 +1616,19 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                         var finalKey = window._hc_api_key || domKey || "";
                         var userObj = window._hc_user || null;
 
-                        // 即時更新頂部 Navbar 提示訊息
+                        // 即時更新頂部 Navbar 提示訊息 (嚴格比對守衛，消除任何視覺閃爍)
                         var msgEl = document.getElementById('_sm_nav_msg');
                         if (msgEl) {
+                            var targetMsg = '';
                             if (finalKey) {
-                                msgEl.innerHTML = '<span style="color:#10b981;font-weight:bold;">🎉 成功獲取 API Key: ' + finalKey.substring(0, 10) + '... 正在自動綁定儲存！</span>';
+                                targetMsg = '<span style="color:#10b981;font-weight:bold;">🎉 成功獲取 API Key: ' + finalKey.substring(0, 10) + '... 正在自動綁定儲存！</span>';
                             } else if (isStatsPage) {
-                                msgEl.innerHTML = '<span style="color:#06b6d4;font-weight:600;">🔍 已進入 Hubcap API 統計頁！請在網頁中產生並複製 API Key，系統將自動捕獲</span>';
+                                targetMsg = '<span style="color:#06b6d4;font-weight:600;">🔍 已進入 Hubcap API 統計頁！請在網頁中產生並複製 API Key，系統將自動捕獲</span>';
                             } else if (isAuthed) {
-                                msgEl.innerHTML = '<span style="color:#06b6d4;font-weight:600;">🚀 授權已確認！正在自動前往 API Keys 統計頁...</span>';
+                                targetMsg = '<span style="color:#06b6d4;font-weight:600;">🚀 授權已確認！正在自動前往 API Keys 統計頁...</span>';
+                            }
+                            if (targetMsg && msgEl.innerHTML !== targetMsg) {
+                                msgEl.innerHTML = targetMsg;
                             }
                         }
 

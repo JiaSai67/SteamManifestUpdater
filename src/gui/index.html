@@ -40,11 +40,12 @@
   <link rel="stylesheet" href="css/components/splash.css">
   <link rel="stylesheet" href="css/views/search.css">
   <link rel="stylesheet" href="css/views/manage.css">
-  <link rel="stylesheet" href="css/views/party.css">
+  <link rel="stylesheet" href="css/views/party.css?v=20261008_3">
   <link rel="stylesheet" href="css/views/credentials.css">
   <link rel="stylesheet" href="css/views/settings.css">
   <link rel="stylesheet" href="css/views/more.css">
   <link rel="stylesheet" href="css/views/spotlight.css">
+  <link rel="stylesheet" href="css/views/tutorial.css?v=20261010_threejs_v5">
 
 </head>
 <body class="font-normal">
@@ -129,6 +130,7 @@
 <button class="active" data-p="search" onclick="switchPage('search')" title="遊戲入庫">🔍</button>
 <button data-p="manage" onclick="switchPage('manage')" title="管理入庫">📋</button>
 <button data-p="party" onclick="switchPage('party')" title="組隊大廳">👥</button>
+<button data-p="tutorial" onclick="switchPage('tutorial')" title="教學模式">🎓</button>
 <button data-p="credentials" onclick="switchPage('credentials')" title="憑證管理">🪪</button>
 <button data-p="settings" onclick="switchPage('settings')" title="設置">⚙</button>
 </div>
@@ -303,6 +305,14 @@
                 <span class="party-room-role-badge" id="party-room-role-val">隊員</span>
               </div>
               <div class="party-room-note" id="party-room-note-val" style="display:none"></div>
+              <!-- 房主專屬：預填聯絡資訊卡片 (支援開房後隨時預先填寫或修改，組建完成直接進入倒數) -->
+              <div class="party-room-pre-contact-wrap" id="party-room-pre-contact-wrap" style="display:none;margin-top:8px">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span style="font-size:12px;font-weight:700;color:var(--fg);white-space:nowrap">📢 預填聯絡資訊：</span>
+                  <input type="text" id="party-room-pre-contact-input" class="party-room-pre-contact-input" placeholder="例如：+dc: username 或 語音群組/連線房號" oninput="savePartyPreFilledContact(this.value)" style="flex:1;min-width:220px;max-width:360px;padding:5px 10px;border:1.2px solid var(--pink-light);border-radius:8px;font-size:11.5px;background:var(--bg);color:var(--fg);outline:none">
+                  <span class="party-room-pre-contact-tag" style="font-size:11px;color:#1976D2;font-weight:700;white-space:nowrap">⚡ 全員就緒自動發布並直接進入倒數</span>
+                </div>
+              </div>
             </div>
             <div class="party-room-ctrl-btns">
               <button class="btn btn-danger btn-s" id="party-btn-leave-or-close" onclick="leaveOrCloseCurrentRoom()">🚪 退出房間</button>
@@ -407,12 +417,6 @@
       <button class="btn btn-p btn-s" onclick="startDualPlatformSandboxLogin()" style="font-weight:700;display:flex;align-items:center;gap:6px;box-shadow:0 3px 12px rgba(255,102,153,.35)">
         <span>🔑</span><span>登入 / 綁定 Discord</span>
       </button>
-      <button class="btn btn-o btn-s" onclick="syncRyuuAllQuotas()" style="display:flex;align-items:center;gap:6px" title="從 Ryuu 官方伺服器同步即時配額">
-        <span>🔄</span><span>同步配額</span>
-      </button>
-      <button class="btn btn-o btn-s" onclick="clearInvalidCreds()" style="display:flex;align-items:center;gap:6px" title="清理過期與無效之憑證記錄">
-        <span>🧹</span><span>清理過期</span>
-      </button>
       <button class="btn btn-o btn-s" onclick="confirmClearAllAccounts()" style="display:flex;align-items:center;gap:6px;color:#ef4444;border-color:rgba(239,68,68,0.35)" title="清空所有已綁定之帳號憑證與 Cookie 快取">
         <span>🗑️</span><span>清空全部憑證</span>
       </button>
@@ -449,7 +453,7 @@
   <!-- 母分類頁籤切換 -->
   <div class="settings-tab-bar">
     <button type="button" class="settings-tab-btn btn btn-p btn-s" id="btn-stab-ui" onclick="switchSettingsTab('ui')">🎨 介面</button>
-    <button type="button" class="settings-tab-btn btn btn-o btn-s" id="btn-stab-adv" onclick="switchSettingsTab('adv')">⚡ 進階</button>
+    <button type="button" class="settings-tab-btn btn btn-o btn-s" id="btn-stab-adv" onclick="switchSettingsTab('adv')">🌐 網盤</button>
     <button type="button" class="settings-tab-btn btn btn-o btn-s" id="btn-stab-sys" onclick="switchSettingsTab('sys')">💻 系統</button>
   </div>
 </div>
@@ -652,6 +656,115 @@
 
 </div>
 
+<!-- ═══ 教學模式 ═══ -->
+<!-- 📄 View: tutorial.html -->
+<div class="page" id="p-tutorial">
+  <div class="tutorial-page-container">
+    
+    <!-- 頂部標題區域 (大標置中) -->
+    <div class="tutorial-header-wrap">
+      <div class="tutorial-badge">
+        <span>🧭</span>
+        <span>新手快速引導</span>
+      </div>
+      <h1 class="tutorial-main-title">我是</h1>
+      <p class="tutorial-subtitle">請選擇最符合您當前遊玩模式的定位，我們將為您量身引導最順暢的操作流程</p>
+    </div>
+
+    <!-- 雙向子框左右並排佈局 -->
+    <div class="tutorial-cards-grid">
+      
+      <!-- 🐺 左側子框：獨狼玩家 -->
+      <div class="tutorial-card card-solo" onclick="selectTutorialRole('solo')">
+        <div class="card-icon-halo">🐺</div>
+        <h3 class="card-title">獨狼玩家</h3>
+        <div class="card-body-content">
+          <p class="card-desc">通常自己玩單機遊戲</p>
+          <div class="card-tutorial-topics">
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">✦</span>
+              <span>憑證登入教學</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">✦</span>
+              <span>搜尋一鍵入庫</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">✦</span>
+              <span>管理入庫說明</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn-tutorial-start" onclick="event.stopPropagation(); startTutorial('solo')" title="開啟獨狼單機專屬引導流程">
+          <span>開始教學</span>
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2.44z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 🚀 中間子框：線上補丁 -->
+      <div class="tutorial-card card-leader" onclick="selectTutorialRole('leader')">
+        <div class="card-icon-halo">🚀</div>
+        <h3 class="card-title">線上補丁</h3>
+        <div class="card-body-content">
+          <p class="card-desc">經常領頭當隊長必看此教學</p>
+          <div class="card-tutorial-topics">
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">🏷️</span>
+              <span>小卡標籤與線上補丁說明</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">🌐</span>
+              <span>Google Drive 網盤配置</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">🚀</span>
+              <span>線上補丁安裝與移除教學</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn-tutorial-start" onclick="event.stopPropagation(); startTutorial('leader')" title="開啟線上補丁與共享網盤專屬引導流程">
+          <span>開始教學</span>
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2.44z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 🎮 右側子框：組隊教學 -->
+      <div class="tutorial-card card-party" onclick="selectTutorialRole('party')">
+        <div class="card-icon-halo">🎮</div>
+        <h3 class="card-title">組隊教學</h3>
+        <div class="card-body-content">
+          <p class="card-desc">多人聯機開房入隊必看教學</p>
+          <div class="card-tutorial-topics">
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">📥</span>
+              <span>入隊流程與狀態同步</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">👑</span>
+              <span>開房招募與全員就緒</span>
+            </div>
+            <div class="tutorial-topic-item">
+              <span class="topic-bullet">⚡</span>
+              <span>一鍵安裝與連線開玩</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn-tutorial-start" onclick="event.stopPropagation(); startTutorial('party')" title="開啟多人組隊同樂專屬引導流程">
+          <span>開始教學</span>
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42 5.43 5.43H5v2.44z"/>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+</div>
 
 </div><!-- /pages -->
 </div><!-- /main -->
@@ -785,7 +898,7 @@
           <!-- b. Google Drive 補丁庫 -->
           <div class="dt-source-row" id="dt-gdrive-row">
             <div class="dt-source-row-top">
-              <span class="dt-source-name">📁 網盤補丁庫 (GDrive)</span>
+              <span class="dt-source-name"><img src="assets/icons/gdrive.png" style="width:14px;height:14px;vertical-align:-2px;margin-right:5px">Google Drive (網盤補丁庫)</span>
               <span id="dt-gdrive-status" class="chip gray" style="font-size:10px;padding:1px 6px">檢測中</span>
             </div>
             <div class="dt-source-gid-box">
@@ -796,7 +909,7 @@
           <!-- c. Online-Fix -->
           <div class="dt-source-row" id="dt-of-row">
             <div class="dt-source-row-top">
-              <span class="dt-source-name">⚡ Online-Fix</span>
+              <span class="dt-source-name"><img src="assets/icons/onlinefix.png" style="width:14px;height:14px;vertical-align:-2px;margin-right:5px">Online-Fix</span>
               <span id="dt-of-status" class="chip gray" style="font-size:10px;padding:1px 6px">檢測中</span>
             </div>
             <div class="dt-source-gid-box">
@@ -807,7 +920,7 @@
           <!-- d. ZeiGames -->
           <div class="dt-source-row" id="dt-zg-row">
             <div class="dt-source-row-top">
-              <span class="dt-source-name">🎮 ZeiGames</span>
+              <span class="dt-source-name"><img src="assets/icons/zeigames.png" style="width:14px;height:14px;vertical-align:-2px;margin-right:5px">ZeiGames</span>
               <span id="dt-zg-status" class="chip gray" style="font-size:10px;padding:1px 6px">檢測中</span>
             </div>
             <div class="dt-source-gid-box">
@@ -1032,9 +1145,10 @@
 </div>
 
 
-<!-- 彈窗：創建房間 Modal -->
+<!-- 彈窗：創建房間 Modal (左側A組件：創建房間，右側B組件：教學影片) -->
 <div class="modal hidden" id="modal-create-party-room" style="z-index:100070;background:rgba(0,0,0,0.52);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)" onclick="if(isStrictBackdropClick(event, this))closeCreateRoomModal()">
-  <div class="modal-box" style="max-width:480px;width:92%;padding:22px;border-radius:18px;box-shadow:0 16px 48px rgba(0,0,0,0.25)">
+  <!-- 左邊 A 組件：創建組隊房間 (保持原本設計) -->
+  <div class="modal-box party-create-modal-box" id="party-create-modal-box" onclick="event.stopPropagation()">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--fg)">➕ 創建組隊房間</h3>
       <button class="btn btn-o btn-xs" onclick="closeCreateRoomModal()" style="border-radius:50%;width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center">✕</button>
@@ -1117,6 +1231,18 @@
       <input type="text" id="input-party-note" placeholder="例如：新手開荒 / 語音隨意 / 缺 1 人即開" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
     </div>
 
+    <!-- 📢 預填隊伍聯絡資訊 (選填，組隊完成時可一鍵快速發送) -->
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <label style="font-size:12px;color:var(--gray)">📢 預填隊伍聯絡資訊 (選填，省去再次填寫麻煩)：</label>
+        <span style="font-size:10.5px;color:#1976D2;font-weight:700">⚡ 1 分鐘緩衝等待</span>
+      </div>
+      <input type="text" id="input-party-pre-contact" oninput="savePartyPreFilledContact(this.value)" placeholder="例如：+dc: username 或 語音群組/連線房號" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
+      <div style="font-size:11px;color:var(--gray);margin-top:3px;line-height:1.4">
+        💡 預先填寫好聯絡方式，隊伍全員就緒時可一鍵快速發送；若留空，系統將在 1 分鐘倒數中等待您手動填寫與發送！
+      </div>
+    </div>
+
     <!-- 🚀 開房極簡動態過場卡片 (點擊開房後展開，自動帶出轉圈與漸顯動效) -->
     <div id="party-create-flow-status" class="party-create-flow-card" style="display:none">
       <div class="party-create-flow-inner">
@@ -1135,6 +1261,20 @@
     <div style="display:flex;justify-content:flex-end;gap:8px">
       <button class="btn btn-o btn-s" id="btn-cancel-create-party" onclick="closeCreateRoomModal()">取消</button>
       <button class="btn btn-party-create btn-s disabled" id="btn-submit-create-party" onclick="submitCreatePartyRoom()" disabled title="⛔ 開房限制：請先由清單挑選並鎖定遊戲（鎖定遊戲、三檔檢查、Webhook 網址缺一不可）">🚀 立即開房</button>
+    </div>
+  </div>
+
+  <!-- 右邊 B 組件：webhook建立教學 (獨立卡片，移除母包裝，與 A 平級並排，大小至少與 A 一樣大) -->
+  <div id="webhook-tutorial-card" class="webhook-tutorial-card" onclick="event.stopPropagation()">
+    <div class="webhook-tutorial-header">
+      <div class="webhook-tutorial-title">
+        <span style="font-size:15px">🎬</span>
+        <span>webhook建立教學</span>
+      </div>
+      <div class="webhook-tutorial-badge">循環播放</div>
+    </div>
+    <div class="webhook-tutorial-video-wrap">
+      <video id="webhook-tutorial-video" src="assets/videos/webhook_setting.mp4" autoplay loop muted playsinline></video>
     </div>
   </div>
 </div>
@@ -1275,13 +1415,30 @@
 <script src="js/modules/manage.js"></script>
 <script src="js/modules/credentials.js"></script>
 <script src="js/modules/party_p2p.js"></script>
-<script src="js/modules/party.js"></script>
+<script src="js/modules/party.js?v=20261010_party_lifecycle_v2"></script>
 <script src="js/modules/startup_wizard.js"></script>
 <script src="js/modules/download_diag.js"></script>
 <script src="js/modules/more.js"></script>
 <script src="js/modules/settings.js"></script>
 <script src="js/modules/health_check.js"></script>
 <script src="js/modules/gdrive_status.js"></script>
+<!-- 模組化教學系統 (Tutorial Subsystem) -->
+<script src="js/modules/tutorial/engine.js"></script>
+<script src="js/modules/tutorial/steps_credentials.js"></script>
+<script src="js/modules/tutorial/steps_library_add.js"></script>
+<script src="js/modules/tutorial/steps_manage_usage.js"></script>
+<script src="js/modules/tutorial/solo_pipeline.js"></script>
+<script src="js/modules/tutorial/steps_leader_tags.js"></script>
+<script src="js/modules/tutorial/steps_leader_gdrive.js"></script>
+<script src="js/modules/tutorial/steps_leader_deploy.js"></script>
+<script src="js/modules/tutorial/leader_pipeline.js"></script>
+<script src="js/modules/tutorial/steps_party_join.js?v=20261010_party_join_v6"></script>
+<script src="js/modules/tutorial/party_join_pipeline.js"></script>
+<script src="js/modules/tutorial/steps_party_host.js?v=20261010_party_host_v7"></script>
+<script src="js/modules/tutorial/party_host_pipeline.js"></script>
+<script src="js/vendor/three.min.js"></script>
+<script src="js/modules/tutorial/party_orb_overlay.js?v=20261010_threejs_v5"></script>
+<script src="js/modules/tutorial.js?v=20261010_threejs_v5"></script>
 <script src="js/app.js"></script>
 
 <div class="toast" id="toast"></div>

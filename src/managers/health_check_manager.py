@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 SteamManifestUpdater - System Health Check Manager (全方位系統健康診斷體系)
-六大維度深度體檢：
+七大維度深度體檢：
 1. 🏗️ 底層架構與核心環境 (Python, WebView2, 依賴庫, 目錄結構, 設定防損壞)
 2. 🎮 Steam 本機運行與注入核心 (Steam路徑, 進程狀態, 3/3核心DLL, 權限)
 3. ⚡ SteamCMD & SteamDB 官方生態鏈 (SteamCMD PICS API, SteamDB站點與盾牌狀態, 獨立快取庫, 種子庫)
 4. 🌐 多源平台與外聯通訊管道 (DNS海外解析, Ryuu, HubcapDB配額, Lua.tools)
 5. 🪪 帳號憑證與授權健康度 (Discord授權, 多帳號輪換狀態)
 6. 💾 本機儲存與快取健全度 (SteamDB快取庫, 本機Manifest快取空間, 診斷日誌)
+7. 👥 無伺服器組隊大廳與雲端架構 (Supabase, Turso Edge, 時鐘同步, HWID/SteamID/DPAPI, 風控門禁, STUN, 遙測日誌, 整合包空間)
 自動滾動日誌：嚴格保留至多 5 份歷史 Log (FIFO 自動清理)
 """
 
@@ -146,6 +147,22 @@ class HealthCheckManager:
         except Exception as e:
             print(f"[HealthCheckManager] 滾動日誌維護異常: {e}")
 
+    def _probe_party_system(self) -> Dict[str, Any]:
+        """探測無伺服器組隊大廳與雲端架構體檢"""
+        try:
+            from managers.party_manager import get_party_manager
+            return get_party_manager().run_party_health_check()
+        except Exception as e:
+            return {
+                "title": "無伺服器組隊大廳與雲端架構",
+                "status": "WARN",
+                "items": [{
+                    "name": "組隊大廳核心管理器",
+                    "status": "WARN",
+                    "desc": f"體檢過程異常: {e}"
+                }]
+            }
+
     def run_health_check(self) -> Dict[str, Any]:
         """
         執行全方位系統健康體檢 (六大維度全景診斷)
@@ -162,9 +179,9 @@ class HealthCheckManager:
         checks = {}
 
         # ═══════════════════════════════════════════════════════
-        # ⚡ 並行探測：外部網路與生態鏈服務 (ThreadPool 併發 < 1.5s)
+        # ⚡ 並行探測：外部網路、生態鏈與組隊大廳 (ThreadPool 併發 < 1.5s)
         # ═══════════════════════════════════════════════════════
-        with ThreadPoolExecutor(max_workers=8) as pool:
+        with ThreadPoolExecutor(max_workers=10) as pool:
             f_steamcmd = pool.submit(_probe_url, "https://api.steamcmd.net/v1/info/730", 4)
             f_steamdb = pool.submit(_probe_url, "https://steamdb.info/", 4)
             f_ryuu = pool.submit(_probe_url, "https://generator.ryuu.lol/", 4)
@@ -172,6 +189,7 @@ class HealthCheckManager:
             f_dns_sc = pool.submit(_probe_dns, "api.steamcmd.net")
             f_dns_sdb = pool.submit(_probe_dns, "steamdb.info")
             f_dns_ryuu = pool.submit(_probe_dns, "generator.ryuu.lol")
+            f_party = pool.submit(self._probe_party_system)
 
             # 等待併發探測結果
             sc_ok, sc_code, sc_ms, sc_err = f_steamcmd.result()
@@ -689,6 +707,29 @@ class HealthCheckManager:
         })
 
         checks["storage"] = storage_check
+
+        # ═══════════════════════════════════════════════════════
+        # 7. 👥 無伺服器組隊大廳與雲端架構 (party_lobby)
+        # ═══════════════════════════════════════════════════════
+        try:
+            party_check = f_party.result()
+            if party_check.get("status") == "ERROR":
+                score -= 15
+                issues.append("組隊大廳或雲端伺服器架構異常")
+            elif party_check.get("status") == "WARN":
+                score -= 5
+            checks["party_lobby"] = party_check
+        except Exception as pe:
+            score -= 5
+            checks["party_lobby"] = {
+                "title": "無伺服器組隊大廳與雲端架構",
+                "status": "WARN",
+                "items": [{
+                    "name": "組隊大廳核心管理器",
+                    "status": "WARN",
+                    "desc": f"體檢過程異常: {pe}"
+                }]
+            }
 
         # ═══════════════════════════════════════════════════════
         # 綜合評分與狀態分級

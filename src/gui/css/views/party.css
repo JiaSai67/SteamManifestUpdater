@@ -652,6 +652,27 @@
   margin-top: 4px;
 }
 
+/* 房主預填聯絡資訊條 */
+.party-room-pre-contact-wrap {
+  background: rgba(25, 118, 210, 0.06);
+  border: 1px dashed rgba(25, 118, 210, 0.35);
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+.app.dark .party-room-pre-contact-wrap {
+  background: rgba(100, 181, 246, 0.08);
+  border-color: rgba(100, 181, 246, 0.3);
+}
+.party-room-pre-contact-input:focus {
+  border-color: #1976D2 !important;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+}
+.app.dark .party-room-pre-contact-input:focus {
+  border-color: #64B5F6 !important;
+  box-shadow: 0 0 0 2px rgba(100, 181, 246, 0.25);
+}
+
 /* 全員就緒祝賀橫幅 */
 .party-all-ready-banner {
   display: flex;
@@ -2018,5 +2039,338 @@ body.dark .moba-sidebar-collapse-btn:hover {
 @keyframes partyFadeInUp {
   0% { opacity: 0; transform: translateY(6px) scale(0.98); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ═══════════════════════════════════════════════════════
+   組隊創建房間彈窗雙欄並排佈局 (左側 A 組件創建房間 + 右側 B 組件教學影片)
+   無母組件包裝，直接平級顯示於彈窗背景上，兩組件尺寸對等
+   ═══════════════════════════════════════════════════════ */
+#modal-create-party-room {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 16px; /* 🌟 縮小組件間隔，提高空間利用率 */
+  padding: 12px 16px; /* 🌟 縮減留邊，避免邊距過寬 */
+  box-sizing: border-box;
+}
+#modal-create-party-room.active {
+  display: flex !important;
+}
+
+/* 左側 A 組件：創建組隊房間主卡片 (保持原本設計) */
+#modal-create-party-room .party-create-modal-box {
+  max-width: 480px;
+  width: min(480px, 45vw);
+  padding: 18px 20px; /* 🌟 適度精簡留邊 */
+  border-radius: 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+/* 🎥 右側 B 組件：Webhook 建立教學影片組件 (放大寬度且依影片比例 800:650 自適應高度，絕無黑邊) */
+.webhook-tutorial-card {
+  max-width: 530px; /* 🌟 稍微放大卡片寬度，大畫面更清晰 */
+  width: min(530px, 49vw);
+  height: auto !important; /* 🌟 高度自適應影片比例，徹底消滅上下黑邊！ */
+  max-height: 92vh;
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  
+  /* 初始隱藏狀態：等待 0.5 秒 (500ms) 後漸顯 */
+  opacity: 0;
+  transform: translateX(24px) scale(0.97);
+  pointer-events: none;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), 
+              transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.3s ease,
+              box-shadow 0.3s ease,
+              background 0.3s ease;
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
+
+/* 完成延遲後漸顯顯示狀態 */
+.webhook-tutorial-card.fade-in-active {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  pointer-events: auto;
+}
+
+/* 🌟 淺色模式：粉色有色邊框與光暈 */
+.webhook-tutorial-card {
+  border: 2.5px solid #FF6699;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 16px 45px rgba(255, 102, 153, 0.25), 0 0 20px rgba(255, 102, 153, 0.2);
+  color: #1A1A1A;
+}
+
+.webhook-tutorial-card .webhook-tutorial-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 15px; /* 🌟 緊湊標題欄，不浪費高度空間 */
+  background: linear-gradient(135deg, rgba(255, 102, 153, 0.15), rgba(255, 183, 197, 0.1));
+  border-bottom: 2px solid rgba(255, 102, 153, 0.35);
+  flex-shrink: 0;
+}
+
+.webhook-tutorial-card .webhook-tutorial-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #D81B60;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.webhook-tutorial-card .webhook-tutorial-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #FF6699;
+  background: rgba(255, 102, 153, 0.12);
+  border: 1px solid rgba(255, 102, 153, 0.35);
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+/* 🌟 深色模式：深藍色有色邊框與光暈 */
+html.dark .webhook-tutorial-card,
+body.dark .webhook-tutorial-card,
+.app.dark .webhook-tutorial-card {
+  border: 2.5px solid #1D4ED8 !important;
+  background: rgba(15, 23, 42, 0.95) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75), 0 0 24px rgba(37, 99, 235, 0.45) !important;
+  color: #F8FAFC !important;
+}
+
+html.dark .webhook-tutorial-card .webhook-tutorial-header,
+body.dark .webhook-tutorial-card .webhook-tutorial-header,
+.app.dark .webhook-tutorial-card .webhook-tutorial-header {
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.45), rgba(37, 99, 235, 0.2)) !important;
+  border-bottom: 2px solid rgba(37, 99, 235, 0.5) !important;
+}
+
+html.dark .webhook-tutorial-card .webhook-tutorial-title,
+body.dark .webhook-tutorial-card .webhook-tutorial-title,
+.app.dark .webhook-tutorial-card .webhook-tutorial-title {
+  color: #93C5FD !important;
+}
+
+html.dark .webhook-tutorial-card .webhook-tutorial-badge,
+body.dark .webhook-tutorial-card .webhook-tutorial-badge,
+.app.dark .webhook-tutorial-card .webhook-tutorial-badge {
+  color: #60A5FA !important;
+  background: rgba(37, 99, 235, 0.25) !important;
+  border-color: rgba(96, 165, 250, 0.4) !important;
+}
+
+/* 影片視窗主體包裹區 (🌟 精確鎖定影片原生 800:650 比例，覆蓋鋪滿，100% 絕無黑邊) */
+.webhook-tutorial-video-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 800 / 650;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.webhook-tutorial-video-wrap video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* 🌟 滿版鋪滿，100% 無黑邊 */
+  display: block;
+}
+
+/* 🌟 視窗自適應縮小適配：自由適配窗口大小，不要刻意放大，但在 SMU 視窗太小的時候可以刻意縮小影片組件的大小 */
+@media (max-width: 1100px), (max-height: 700px) {
+  #modal-create-party-room {
+    gap: 14px;
+    padding: 12px;
+  }
+  #modal-create-party-room .party-create-modal-box {
+    max-width: 420px;
+    width: clamp(320px, 46vw, 420px);
+    padding: 16px;
+  }
+  .webhook-tutorial-card {
+    max-width: 420px;
+    width: clamp(280px, 44vw, 420px);
+    height: auto;
+    max-height: 84vh;
+  }
+}
+
+@media (max-width: 820px) {
+  #modal-create-party-room {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    overflow-y: auto;
+    padding: 16px 10px;
+  }
+  #modal-create-party-room .party-create-modal-box {
+    width: min(480px, 94%);
+    max-width: 480px;
+  }
+  .webhook-tutorial-card {
+    width: min(480px, 94%);
+    max-width: 480px;
+    height: 380px;
+    margin-bottom: 20px;
+    transform: translateY(16px) scale(0.97);
+  }
+  .webhook-tutorial-card.fade-in-active {
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   組隊完成 SMU 畫面正中央高亮結算卡片 (Central Completion Modal)
+   ═══════════════════════════════════════════════════════ */
+.party-central-completion-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 100080;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  animation: fadeInOverlay 0.25s ease-out;
+}
+
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.party-central-completion-card {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  background: var(--bg-card, #ffffff);
+  border-radius: 20px;
+  padding: 26px 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 30px rgba(46, 160, 67, 0.25);
+  border: 2px solid rgba(46, 160, 67, 0.6);
+  text-align: center;
+  box-sizing: border-box;
+  animation: popInCompletion 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.party-central-completion-card.member-theme {
+  border-color: rgba(25, 118, 210, 0.6);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 30px rgba(25, 118, 210, 0.25);
+}
+
+.app.dark .party-central-completion-card {
+  background: #1A1721;
+  color: #EDE2E5;
+}
+
+@keyframes popInCompletion {
+  from {
+    transform: scale(0.9) translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.party-completion-badge-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(46, 160, 67, 0.15);
+  border: 1px solid rgba(46, 160, 67, 0.4);
+  color: #2EA043;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 3px 12px;
+  border-radius: 20px;
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+.party-completion-badge-top.member {
+  background: rgba(25, 118, 210, 0.15);
+  border-color: rgba(25, 118, 210, 0.4);
+  color: #1976D2;
+}
+
+.app.dark .party-completion-badge-top.member {
+  color: #64B5F6;
+}
+
+.party-completion-icon-ring {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(46, 160, 67, 0.2), rgba(76, 175, 80, 0.1));
+  border: 2px solid rgba(46, 160, 67, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin: 0 auto 12px auto;
+  box-shadow: 0 4px 16px rgba(46, 160, 67, 0.25);
+}
+
+.party-completion-icon-ring.member {
+  background: linear-gradient(135deg, rgba(25, 118, 210, 0.2), rgba(33, 150, 243, 0.1));
+  border-color: rgba(25, 118, 210, 0.4);
+  box-shadow: 0 4px 16px rgba(25, 118, 210, 0.25);
+}
+
+.party-completion-title {
+  font-size: 20px;
+  font-weight: 900;
+  margin: 0 0 8px 0;
+  color: var(--fg);
+}
+
+.party-completion-subtitle {
+  font-size: 12.5px;
+  color: var(--gray);
+  line-height: 1.6;
+  margin: 0 0 16px 0;
+}
+
+.party-completion-section {
+  text-align: left;
+  margin-bottom: 10px;
+}
+
+.party-completion-sec-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--fg);
+  margin-bottom: 6px;
+}
+
+.party-completion-member-item {
+  transition: all 0.2s;
+}
+
+.party-completion-member-item:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
 }
 

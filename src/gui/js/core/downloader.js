@@ -740,21 +740,36 @@
       // B. 原地更新「管理頁面」卡片 DOM
       var mCard = document.querySelector('#glist .card[data-appid="' + aid + '"]');
       if(mCard){
-        var cornerBox = mCard.querySelector('.card-corner-tags');
-        if(!cornerBox){
-          mCard.insertAdjacentHTML('afterbegin', '<div class="card-corner-tags"></div>');
-          cornerBox = mCard.querySelector('.card-corner-tags');
-        }
-        var upTag = cornerBox.querySelector('.tag-up');
+        var tagsRow = mCard.querySelector('.search-tags-row');
+        var upTag = tagsRow ? tagsRow.querySelector('.tag-up') : null;
+        var verTag = tagsRow ? tagsRow.querySelector('.tag-ver') : null;
         var ddEl = mCard.querySelector('.card-dd');
+        var actWrap = mCard.querySelector('.search-action-wrap');
 
         if(hasUp){
           mCard.classList.add('needs-update');
           var rawStatus = String(vStat).replace(/跨越/g, '舊').replace(/⚡/g, '').trim();
-          if(!upTag){
-            cornerBox.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-up" title="' + escHtml(rawStatus) + '">⚡ ' + escHtml(rawStatus) + '</span>');
-          } else {
-            upTag.textContent = '⚡ ' + rawStatus;
+          if(tagsRow){
+            if(!upTag){
+              var upTagHtml = '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700">⚡ ' + escHtml(rawStatus) + '</span>';
+              if(verTag){
+                verTag.insertAdjacentHTML('afterend', upTagHtml);
+              } else {
+                tagsRow.insertAdjacentHTML('beforeend', upTagHtml);
+              }
+            } else {
+              upTag.textContent = '⚡ ' + rawStatus;
+            }
+          }
+          if(actWrap && !actWrap.querySelector('.btn-auto-up')){
+            var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
+            var upBtnHtml = '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\'' + aid + '\',\'' + jsesc(nm) + '\')">⚡ 更新 Manifest</button>';
+            var menuBtn = actWrap.querySelector('.card-menu');
+            if(menuBtn){
+              menuBtn.insertAdjacentHTML('beforebegin', upBtnHtml);
+            } else {
+              actWrap.insertAdjacentHTML('afterbegin', upBtnHtml);
+            }
           }
           if(ddEl && !ddEl.querySelector('.btn-auto-up')){
             var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
@@ -765,6 +780,10 @@
           mCard.classList.remove('needs-update');
           if(upTag) upTag.remove();
           mCard.querySelectorAll('.tag-up, .corner-tag.tag-up').forEach(function(el){ el.remove(); });
+          if(actWrap){
+            var btnAuto = actWrap.querySelector('.btn-auto-up');
+            if(btnAuto) btnAuto.remove();
+          }
           if(ddEl){
             var btnAuto = ddEl.querySelector('.btn-auto-up');
             if(btnAuto) btnAuto.remove();

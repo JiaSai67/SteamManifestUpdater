@@ -37,6 +37,15 @@ window.addEventListener('unhandledrejection', function(event) {
 // 導航
 // ═══════════════════════════════════════════════════════
 function switchPage(p){
+  // 🌟 教學沙盒防殘留防禦：若不在教學進行中，切換一般頁面時自動清理任何殘留的教學示範數據
+  if (p !== 'tutorial' && (!window.TutorialEngine || !window.TutorialEngine.isActive())) {
+    if (window.__tutorialMockCredentialsActive || document.getElementById('tutorial-mock-game-card') || document.getElementById('tutorial-mock-manage-item')) {
+      if (typeof window.cleanupAllTutorialSandbox === 'function') {
+        try { window.cleanupAllTutorialSandbox(); } catch(e){}
+      }
+    }
+  }
+
   // 🌟 依使用者規範：無憑證不阻擋頁面瀏覽，僅在下載或更新無額度時才守衛攔截
   document.querySelectorAll('.sidebar button').forEach(function(x){x.classList.remove('active')});
   document.querySelectorAll('.page').forEach(function(x){x.classList.remove('active')});
@@ -80,6 +89,27 @@ function switchPage(p){
   }
   // 設置頁面：切換時載入 Google Drive 網盤配置
   if(p==='settings') loadGDriveSettings();
+  // 教學模式：切換時為外層容器添加專屬樣式類並初始化角色
+  if(p==='tutorial') {
+    if(pagesContainer) {
+      pagesContainer.classList.add('tutorial-active-pages');
+      pagesContainer.scrollTop = 0;
+    }
+    // 🌟 轉場黑幕防呆防護：切換進入時若存在任何殘留幕簾，立即清理
+    var curtain = document.getElementById('tutorial-transition-curtain');
+    if(curtain) {
+      curtain.classList.remove('active', 'fading-out');
+    }
+    if(window.TutorialModule && typeof window.TutorialModule.init === 'function') {
+      window.TutorialModule.init();
+    }
+  } else {
+    if(pagesContainer) pagesContainer.classList.remove('tutorial-active-pages');
+    var curtain = document.getElementById('tutorial-transition-curtain');
+    if(curtain && (!window.TutorialEngine || !window.TutorialEngine.isActive())) {
+      curtain.classList.remove('active', 'fading-out');
+    }
+  }
   // 清單监控台 UI 已移除，不再輪詢；_monTimer 兜底清理
   if(_monTimer){ clearInterval(_monTimer); _monTimer = null; }
 }

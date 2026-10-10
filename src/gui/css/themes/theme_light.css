@@ -377,9 +377,20 @@ html:not(.dark) .toast.info,
 body:not(.dark) .toast.in,
 body:not(.dark) .toast.info {
   color: #2D2327 !important;
-  background: rgba(255, 245, 247, 0.96) !important;
-  border: 1.5px solid rgba(255, 143, 167, 0.45) !important;
 }
 
-
-
+/* ═══════════════════════════════════════════════════════
+   9. 淺色模式：側邊欄當前所選功能按鈕以質感灰色底色表示
+   ═══════════════════════════════════════════════════════ */
+html:not(.dark) .sidebar button.active,
+body:not(.dark) .sidebar button.active,
+.app:not(.dark) .sidebar button.active {
+  background: rgba(0, 0, 0, 0.16) !important;
+  color: #1A1A1A !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+html:not(.dark) .sidebar button.active:hover,
+body:not(.dark) .sidebar button.active:hover,
+.app:not(.dark) .sidebar button.active:hover {
+  background: rgba(0, 0, 0, 0.22) !important;
+}

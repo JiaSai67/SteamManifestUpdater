@@ -316,3 +316,40 @@ def check_all_web_patches(game_name: str, appid: str = None, force_refresh: bool
     _save_cache()
 
     return result
+
+def get_known_patch_appids():
+    """
+    自記憶體、磁碟快取與種子庫中快速彙整已確認收錄補丁的 AppID 集合
+    回傳: (onlinefix_appids_set, zeigames_appids_set)
+    """
+    _load_cache()
+    of_set = set()
+    zg_set = set()
+
+    # 1. 種子資料庫
+    for k, v in _SEED_PATCHES.items():
+        if k.isdigit():
+            if v.get("onlinefix"):
+                of_set.add(k)
+            if v.get("zeigames"):
+                zg_set.add(k)
+
+    # 2. 磁碟與記憶體快取
+    for k, v in _patch_memory_cache.items():
+        if not isinstance(v, dict):
+            continue
+        aid = ""
+        if k.isdigit():
+            aid = k
+        elif ":" in k:
+            parts = k.split(":", 1)
+            if parts[0].isdigit():
+                aid = parts[0]
+
+        if aid:
+            if v.get("onlinefix", {}).get("available"):
+                of_set.add(aid)
+            if v.get("zeigames", {}).get("available"):
+                zg_set.add(aid)
+
+    return of_set, zg_set

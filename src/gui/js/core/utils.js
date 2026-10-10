@@ -37,13 +37,26 @@ var DEFAULT_GAME_COVER = getDynamicCoverSvg('STEAM GAME');
 
 function imgFb(img, appid, title){
   if(!img) return;
+  var aid = String(appid || '');
+
+  // 🌟 第一優先防護：若管理入庫暫存中已有此遊戲且圖片有效（含 CDN Hash），直接借用
+  if(aid && window._pre && _pre._games){
+    var mg = _pre._games.find(function(x){ return String(x.appid) === aid; });
+    if(mg && mg.image && mg.image !== img.src && mg.image.indexOf('data:image') === -1){
+      img.onerror = function(){ imgFb(img, appid, title); };
+      img.src = mg.image;
+      return;
+    }
+  }
+
   if(img._fbIdx === undefined) img._fbIdx = 0;
   var fallbacks = [
-    'https://cdn.cloudflare.steamstatic.com/steam/apps/' + appid + '/header.jpg',
-    'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/' + appid + '/capsule_616x353.jpg',
-    'https://cdn.cloudflare.steamstatic.com/steam/apps/' + appid + '/capsule_231x87.jpg',
-    'https://cdn.steamchina.pinyuncloud.com/steam/apps/' + appid + '/header.jpg',
-    'https://media.st.dl.pinyuncloud.com/steam/apps/' + appid + '/header.jpg'
+    'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/' + aid + '/header.jpg',
+    'https://cdn.cloudflare.steamstatic.com/steam/apps/' + aid + '/header.jpg',
+    'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/' + aid + '/capsule_616x353.jpg',
+    'https://cdn.cloudflare.steamstatic.com/steam/apps/' + aid + '/capsule_231x87.jpg',
+    'https://cdn.steamchina.pinyuncloud.com/steam/apps/' + aid + '/header.jpg',
+    'https://media.st.dl.pinyuncloud.com/steam/apps/' + aid + '/header.jpg'
   ];
   
   while(img._fbIdx < fallbacks.length){
@@ -53,10 +66,34 @@ function imgFb(img, appid, title){
       return;
     }
   }
+
+  // 🌟 第二優先防護：所有靜態 CDN 均失敗時，非同步向後端獲取真實有效封面（優先快取再在線解析）
+  if(aid && !img._resolved && window.pywebview && pywebview.api && pywebview.api.resolve_game_cover){
+    img._resolved = true;
+    pywebview.api.resolve_game_cover(aid).then(function(realUrl){
+      if(realUrl && realUrl !== img.src && realUrl.indexOf('http') === 0){
+        img.onerror = function(){
+          img.onerror = null;
+          img.src = getDynamicCoverSvg(title || img.getAttribute('alt') || ('Game ' + aid));
+          img.classList.add('i-ok');
+        };
+        img.src = realUrl;
+      } else {
+        img.onerror = null;
+        img.src = getDynamicCoverSvg(title || img.getAttribute('alt') || ('Game ' + aid));
+        img.classList.add('i-ok');
+      }
+    }).catch(function(){
+      img.onerror = null;
+      img.src = getDynamicCoverSvg(title || img.getAttribute('alt') || ('Game ' + aid));
+      img.classList.add('i-ok');
+    });
+    return;
+  }
   
-  // 絕不留空白！所有 CDN 均失敗時，給予帶遊戲名稱的高質感櫻花 SVG 封面
+  // 絕不留空白！所有 CDN 均失敗且無後端支援時，給予帶遊戲名稱的高質感櫻花 SVG 封面
   img.onerror = null;
-  img.src = getDynamicCoverSvg(title || img.getAttribute('alt') || ('Game ' + appid));
+  img.src = getDynamicCoverSvg(title || img.getAttribute('alt') || ('Game ' + aid));
   img.classList.add('i-ok');
 }
 function tt(msg, type, duration){
@@ -280,6 +317,29 @@ async function init(){
     var pParty = (window.pywebview && pywebview.api && pywebview.api.get_party_profile)
       ? pywebview.api.get_party_profile().catch(function(e){ console.warn('[PRELOAD] party error:', e); return null; })
       : Promise.resolve(null);
+
+    // 🌟 預載入 Google Drive 雲端補丁庫與 Online-Fix / ZeiGames 官方補丁已收錄 AppID 清單 (秒開小卡專屬來源標籤)
+    window._onlinefixWebAppids = window._onlinefixWebAppids || new Set();
+    window._zeigamesWebAppids = window._zeigamesWebAppids || new Set();
+    window._gdriveAppids = window._gdriveAppids || new Set();
+
+    var pOnlineFix = (window.pywebview && pywebview.api && pywebview.api.get_onlinefix_appids)
+      ? pywebview.api.get_onlinefix_appids().then(function(ids){
+          if(Array.isArray(ids)){
+            _onlinefixAppids = new Set(ids.map(String));
+            window._gdriveAppids = _onlinefixAppids;
+            console.log('[PRELOAD] GDrive/OnlineFix AppIDs preloaded:', _onlinefixAppids.size);
+          }
+        }).catch(function(e){ console.warn('[PRELOAD] onlinefix error:', e); })
+      : Promise.resolve();
+
+    var pWebPatches = (window.pywebview && pywebview.api && pywebview.api.get_web_patch_appids)
+      ? pywebview.api.get_web_patch_appids().then(function(res){
+          if(res && res.onlinefix) window._onlinefixWebAppids = new Set(res.onlinefix.map(String));
+          if(res && res.zeigames) window._zeigamesWebAppids = new Set(res.zeigames.map(String));
+          console.log('[PRELOAD] Web patches preloaded - OF:', window._onlinefixWebAppids.size, 'ZG:', window._zeigamesWebAppids.size);
+        }).catch(function(e){ console.warn('[PRELOAD] web patches error:', e); })
+      : Promise.resolve();
 
     // ══════════════════════════════════════════════════
     // Step 1 (12%): 讀取偏好設置與主題設定
@@ -671,8 +731,9 @@ function rszMove(e){
   if(_rsz._raf) return;  // rAF 節流：同一帧只發一次 resize_to
   _rsz._raf = true;
   requestAnimationFrame(function(){
+    if(!_rsz) return;
     _rsz._raf = false;
-    if(!_rsz || !_rsz._pend) return;
+    if(!_rsz._pend) return;
     var p = _rsz._pend; _rsz._pend = null;
     var t = _rszSize(_rsz.side, _rsz.W, _rsz.H, p);
     pywebview.api.resize_to(t.w, t.h, _rszFix(_rsz.side)).catch(function(){});
@@ -861,6 +922,7 @@ async function toggleDlcs(appid){
       tt('该遊戲暫無已入庫 DLC','in');
       var dd2 = parentCard.querySelector('.card-dd');
       if(dd2) dd2.classList.remove('show');
+      parentCard.classList.remove('menu-open');
       return;
     }
     _expandedDlcs[appid] = dlcs;

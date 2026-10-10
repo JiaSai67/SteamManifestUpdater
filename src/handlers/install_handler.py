@@ -342,6 +342,18 @@ class InstallHandler:
         except Exception:
             return []
 
+    def get_web_patch_appids(self) -> Dict[str, List[str]]:
+        """取得所有已知收錄 Online-Fix 與 ZeiGames 官網補丁的 AppID 清單"""
+        try:
+            from api import web_patch_checker
+            of_set, zg_set = web_patch_checker.get_known_patch_appids()
+            return {
+                "onlinefix": list(of_set),
+                "zeigames": list(zg_set)
+            }
+        except Exception:
+            return {"onlinefix": [], "zeigames": []}
+
     def get_steam_download_report(self, appid: str) -> Dict[str, Any]:
         """即時查詢 Steam 下載狀態回報與錯誤碼"""
         from managers import onlinefix_manager

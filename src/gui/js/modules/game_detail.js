@@ -544,13 +544,31 @@ async function openGameDetail(appid, name, image){
       }
     }
 
-    // 🌟 聯機標籤：嚴格以 Google Drive 網盤是否收錄為準，不與部署狀態綁定
+    // 🌟 補丁標籤集合同步維護：區分 Google Drive / Online-Fix / ZeiGames
     if(gdrive.available){
       if(!_onlinefixAppids) _onlinefixAppids = new Set();
       _onlinefixAppids.add(targetAppid);
+      if(!window._gdriveAppids) window._gdriveAppids = new Set();
+      window._gdriveAppids.add(targetAppid);
     } else {
       if(_onlinefixAppids) _onlinefixAppids.delete(targetAppid);
+      if(window._gdriveAppids) window._gdriveAppids.delete(targetAppid);
     }
+
+    if(of_info && of_info.available && of_info.url){
+      if(!window._onlinefixWebAppids) window._onlinefixWebAppids = new Set();
+      window._onlinefixWebAppids.add(targetAppid);
+    } else {
+      if(window._onlinefixWebAppids) window._onlinefixWebAppids.delete(targetAppid);
+    }
+
+    if(zg_info && zg_info.available && zg_info.url){
+      if(!window._zeigamesWebAppids) window._zeigamesWebAppids = new Set();
+      window._zeigamesWebAppids.add(targetAppid);
+    } else {
+      if(window._zeigamesWebAppids) window._zeigamesWebAppids.delete(targetAppid);
+    }
+
     // 🌟 部署標籤：嚴格以本地是否已套用補丁為準
     if(gdrive.is_deployed){
       if(!_deployedAppids) _deployedAppids = new Set();
@@ -567,7 +585,12 @@ async function openGameDetail(appid, name, image){
       for(var gi=0; gi<_pre._games.length; gi++){
         if(String(_pre._games[gi].appid) === targetAppid){
           if(gdrive.is_deployed !== undefined) _pre._games[gi].deployed = !!gdrive.is_deployed;
-          if(gdrive.available !== undefined) _pre._games[gi].has_onlinefix = !!gdrive.available;
+          if(gdrive.available !== undefined) {
+            _pre._games[gi].has_gdrive = !!gdrive.available;
+            _pre._games[gi].has_onlinefix = !!gdrive.available;
+          }
+          _pre._games[gi].has_onlinefix_web = !!(of_info && of_info.available && of_info.url);
+          _pre._games[gi].has_zeigames_web = !!(zg_info && zg_info.available && zg_info.url);
           break;
         }
       }
@@ -580,7 +603,7 @@ async function openGameDetail(appid, name, image){
       if(of_info.available && of_info.url){
         ofStatus.className = 'chip ok';
         ofStatus.textContent = '已收錄';
-        ofVal.innerHTML = '<a href="javascript:void(0)" onclick="openExternalUrl(\'' + jsesc(of_info.url) + '\')" style="color:#1976D2;font-weight:bold;text-decoration:underline">已收錄聯機補丁 ↗</a>';
+        ofVal.innerHTML = '<a href="javascript:void(0)" onclick="openExternalUrl(\'' + jsesc(of_info.url) + '\')" style="color:#1976D2;font-weight:bold;text-decoration:underline;display:inline-flex;align-items:center;gap:4px"><img src="assets/icons/onlinefix.png" style="width:12px;height:12px;object-fit:contain"/>已收錄聯機補丁 ↗</a>';
       } else {
         ofStatus.className = 'chip gray';
         ofStatus.textContent = '未收錄';
@@ -593,7 +616,8 @@ async function openGameDetail(appid, name, image){
       if(zg_info.available && zg_info.url){
         zgStatus.className = 'chip ok';
         zgStatus.textContent = '已收錄';
-        zgVal.innerHTML = '<a href="javascript:void(0)" onclick="openExternalUrl(\'' + jsesc(zg_info.url) + '\')" style="color:#7B1FA2;font-weight:bold;text-decoration:underline">已收錄專用補丁 ↗</a>';
+        ofVal_color = '#C2185B';
+        zgVal.innerHTML = '<a href="javascript:void(0)" onclick="openExternalUrl(\'' + jsesc(zg_info.url) + '\')" style="color:#C2185B;font-weight:bold;text-decoration:underline;display:inline-flex;align-items:center;gap:4px"><img src="assets/icons/zeigames.png" style="width:12px;height:12px;object-fit:contain"/>已收錄專用補丁 ↗</a>';
       } else {
         zgStatus.className = 'chip gray';
         zgStatus.textContent = '未收錄';

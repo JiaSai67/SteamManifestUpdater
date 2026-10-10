@@ -64,6 +64,7 @@
 
         <div class="party-header-actions">
           <button class="btn btn-party-create btn-s" id="btn-party-create-room" onclick="handlePartyCreateOrRecruit()" title="創建專屬組隊房間並開始招募隊友">➕ 創建房間</button>
+          <button class="btn btn-o btn-s" id="party-btn-health" onclick="triggerPartyDedicatedHealthCheck()" title="執行組隊大廳、雲端資料庫、時鐘同步與 P2P 全方位健檢" style="display:flex;align-items:center;gap:4px">🩺 組隊健檢</button>
           <button class="btn btn-o btn-s" id="party-btn-telemetry" onclick="openPartyTelemetryModal()" title="檢視本機端到端資料流即時診斷與 LOG" style="display:flex;align-items:center;gap:4px">📊 診斷 LOG</button>
           <button class="btn btn-o btn-s" id="party-btn-refresh" onclick="refreshPartyLobby(true)" title="立即刷新大廳">🔄 刷新</button>
         </div>
@@ -115,6 +116,14 @@
                 <span class="party-room-role-badge" id="party-room-role-val">隊員</span>
               </div>
               <div class="party-room-note" id="party-room-note-val" style="display:none"></div>
+              <!-- 房主專屬：預填聯絡資訊卡片 (支援開房後隨時預先填寫或修改，組建完成直接進入倒數) -->
+              <div class="party-room-pre-contact-wrap" id="party-room-pre-contact-wrap" style="display:none;margin-top:8px">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span style="font-size:12px;font-weight:700;color:var(--fg);white-space:nowrap">📢 預填聯絡資訊：</span>
+                  <input type="text" id="party-room-pre-contact-input" class="party-room-pre-contact-input" placeholder="例如：+dc: username 或 語音群組/連線房號" oninput="savePartyPreFilledContact(this.value)" style="flex:1;min-width:220px;max-width:360px;padding:5px 10px;border:1.2px solid var(--pink-light);border-radius:8px;font-size:11.5px;background:var(--bg);color:var(--fg);outline:none">
+                  <span class="party-room-pre-contact-tag" style="font-size:11px;color:#1976D2;font-weight:700;white-space:nowrap">⚡ 全員就緒時可快速發送 (未填將等待 1 分鐘)</span>
+                </div>
+              </div>
             </div>
             <div class="party-room-ctrl-btns">
               <button class="btn btn-danger btn-s" id="party-btn-leave-or-close" onclick="leaveOrCloseCurrentRoom()">🚪 退出房間</button>
@@ -191,6 +200,7 @@
         <span>本地監控管線：<strong style="color:var(--text)">OAuth ⭢ DPAPI ⭢ Supabase ⭢ Turso ⭢ WebRTC</strong></span>
       </div>
       <div style="display:flex;gap:8px;">
+        <button class="btn btn-s" onclick="triggerPartyDedicatedHealthCheck()" style="background:rgba(76,175,80,0.2);border:1px solid rgba(76,175,80,0.4);color:#81C784;font-size:11px;padding:3px 10px;cursor:pointer" title="全方位檢測雲端大廳、時鐘同步與 P2P 連通度">🩺 一鍵健檢</button>
         <button class="btn btn-s" onclick="refreshPartyTelemetryLogs()" style="background:rgba(88,101,242,0.2);border:1px solid rgba(88,101,242,0.4);font-size:11px;padding:3px 10px;cursor:pointer" title="立即刷新日誌清單">🔄 刷新</button>
         <button class="btn btn-s" onclick="copyPartyTelemetryLogText()" style="background:rgba(88,101,242,0.2);border:1px solid rgba(88,101,242,0.4);font-size:11px;padding:3px 10px;cursor:pointer" title="複製純文字日誌至剪貼簿，可直接貼給工程師">📋 一鍵複製 LOG</button>
         <button class="btn btn-s" onclick="openPartyTelemetryLogInEditor()" style="background:rgba(88,101,242,0.2);border:1px solid rgba(88,101,242,0.4);font-size:11px;padding:3px 10px;cursor:pointer" title="在系統預設編輯器中開啟 party_telemetry.log">📁 開啟 LOG 檔</button>

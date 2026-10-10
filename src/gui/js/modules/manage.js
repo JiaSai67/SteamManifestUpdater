@@ -154,20 +154,48 @@ window.onSingleGameUpdateChecked = function(u){
     // 2. 原地增量更新「管理入庫」卡片 DOM（不閃爍、不重新排版、即時精準點亮）
     var mCard = document.querySelector('#glist .card[data-appid="'+aid+'"]');
     if(mCard){
-      var cornerBox = mCard.querySelector('.card-corner-tags');
-      if(!cornerBox){
-        mCard.insertAdjacentHTML('afterbegin', '<div class="card-corner-tags"></div>');
-        cornerBox = mCard.querySelector('.card-corner-tags');
-      }
-      var upTag = cornerBox.querySelector('.tag-up');
+      var tagsRow = mCard.querySelector('.search-tags-row');
+      var upTag = tagsRow ? tagsRow.querySelector('.tag-up') : null;
+      var verTag = tagsRow ? tagsRow.querySelector('.tag-ver') : null;
       var ddEl = mCard.querySelector('.card-dd');
+      var actWrap = mCard.querySelector('.search-action-wrap');
       if(u.has_update){
         mCard.classList.add('needs-update');
         var rawStatus = String(u.version_status || '可更新').replace(/跨越/g, '舊').replace(/⚡/g, '').trim();
-        if(!upTag){
-          cornerBox.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-up" title="'+escHtml(rawStatus)+'">⚡ ' + escHtml(rawStatus) + '</span>');
+        if(tagsRow){
+          if(!upTag){
+            var upTagHtml = '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700">⚡ ' + escHtml(rawStatus) + '</span>';
+            if(verTag){
+              verTag.insertAdjacentHTML('afterend', upTagHtml);
+            } else {
+              tagsRow.insertAdjacentHTML('beforeend', upTagHtml);
+            }
+          } else {
+            upTag.textContent = '⚡ ' + rawStatus;
+          }
         } else {
-          upTag.textContent = '⚡ ' + rawStatus;
+          var cornerDiv = mCard.querySelector('.card-corner-tags');
+          if(cornerDiv){
+            var cUp = cornerDiv.querySelector('.tag-up');
+            if(!cUp){
+              cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ ' + escHtml(rawStatus) + '</span>');
+            } else {
+              cUp.textContent = '⚡ ' + rawStatus;
+            }
+          }
+        }
+        if(u.latest_date && verTag){
+          verTag.textContent = '📅 版本：' + u.latest_date;
+        }
+        if(actWrap && !actWrap.querySelector('.btn-auto-up')){
+          var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
+          var upBtnHtml = '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>';
+          var menuBtn = actWrap.querySelector('.card-menu');
+          if(menuBtn){
+            menuBtn.insertAdjacentHTML('beforebegin', upBtnHtml);
+          } else {
+            actWrap.insertAdjacentHTML('afterbegin', upBtnHtml);
+          }
         }
         if(ddEl && !ddEl.querySelector('.btn-auto-up')){
           var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
@@ -177,6 +205,10 @@ window.onSingleGameUpdateChecked = function(u){
       } else {
         mCard.classList.remove('needs-update');
         if(upTag) upTag.remove();
+        if(actWrap){
+          var btnAuto = actWrap.querySelector('.btn-auto-up');
+          if(btnAuto) btnAuto.remove();
+        }
         if(ddEl){
           var btnAuto = ddEl.querySelector('.btn-auto-up');
           if(btnAuto) btnAuto.remove();
@@ -268,10 +300,19 @@ async function rg(force){
     if(games && games.length){
       if(!_deployedAppids) _deployedAppids = new Set();
       if(!_onlinefixAppids) _onlinefixAppids = new Set();
+      if(!window._gdriveAppids) window._gdriveAppids = new Set();
+      if(!window._onlinefixWebAppids) window._onlinefixWebAppids = new Set();
+      if(!window._zeigamesWebAppids) window._zeigamesWebAppids = new Set();
+
       games.forEach(function(g){
         var a = String(g.appid);
         if(g.deployed) _deployedAppids.add(a);
-        if(g.has_onlinefix) _onlinefixAppids.add(a);
+        if(g.has_gdrive || g.has_onlinefix) {
+          _onlinefixAppids.add(a);
+          window._gdriveAppids.add(a);
+        }
+        if(g.has_onlinefix_web) window._onlinefixWebAppids.add(a);
+        if(g.has_zeigames_web) window._zeigamesWebAppids.add(a);
       });
     }
     _pre._rendered = true;
@@ -311,20 +352,48 @@ function applyAsyncUpdates(updates){
         }
 
         if(mCard){
-          var cornerBox = mCard.querySelector('.card-corner-tags');
-          if(!cornerBox){
-            mCard.insertAdjacentHTML('afterbegin', '<div class="card-corner-tags"></div>');
-            cornerBox = mCard.querySelector('.card-corner-tags');
-          }
-          var upTag = cornerBox.querySelector('.tag-up');
+          var tagsRow = mCard.querySelector('.search-tags-row');
+          var upTag = tagsRow ? tagsRow.querySelector('.tag-up') : null;
+          var verTag = tagsRow ? tagsRow.querySelector('.tag-ver') : null;
           var ddEl = mCard.querySelector('.card-dd');
+          var actWrap = mCard.querySelector('.search-action-wrap');
           if(u.has_update){
             mCard.classList.add('needs-update');
             var rawStatus = String(g.version_status).replace(/跨越/g, '舊').replace(/⚡/g, '').trim();
-            if(!upTag){
-              cornerBox.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-up" title="'+escHtml(rawStatus)+'">⚡ ' + escHtml(rawStatus) + '</span>');
+            if(tagsRow){
+              if(!upTag){
+                var upTagHtml = '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700">⚡ ' + escHtml(rawStatus) + '</span>';
+                if(verTag){
+                  verTag.insertAdjacentHTML('afterend', upTagHtml);
+                } else {
+                  tagsRow.insertAdjacentHTML('beforeend', upTagHtml);
+                }
+              } else {
+                upTag.textContent = '⚡ ' + rawStatus;
+              }
             } else {
-              upTag.textContent = '⚡ ' + rawStatus;
+              var cornerDiv = mCard.querySelector('.card-corner-tags');
+              if(cornerDiv){
+                var cUp = cornerDiv.querySelector('.tag-up');
+                if(!cUp){
+                  cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ ' + escHtml(rawStatus) + '</span>');
+                } else {
+                  cUp.textContent = '⚡ ' + rawStatus;
+                }
+              }
+            }
+            if(u.latest_date && verTag){
+              verTag.textContent = '📅 版本：' + u.latest_date;
+            }
+            if(actWrap && !actWrap.querySelector('.btn-auto-up')){
+              var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
+              var upBtnHtml = '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>';
+              var menuBtn = actWrap.querySelector('.card-menu');
+              if(menuBtn){
+                menuBtn.insertAdjacentHTML('beforebegin', upBtnHtml);
+              } else {
+                actWrap.insertAdjacentHTML('afterbegin', upBtnHtml);
+              }
             }
             if(ddEl && !ddEl.querySelector('.btn-auto-up')){
               var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
@@ -334,6 +403,10 @@ function applyAsyncUpdates(updates){
           } else {
             mCard.classList.remove('needs-update');
             if(upTag) upTag.remove();
+            if(actWrap){
+              var btnAuto = actWrap.querySelector('.btn-auto-up');
+              if(btnAuto) btnAuto.remove();
+            }
             if(ddEl){
               var btnAuto = ddEl.querySelector('.btn-auto-up');
               if(btnAuto) btnAuto.remove();
@@ -463,7 +536,16 @@ function renderGames(games, filter){
     }
     updateManageQuota();
     var c = document.getElementById('glist');
-    if(!games.length){ c.innerHTML = '<div class=empty><div class=icon>📭</div><p>暫無入庫記錄</p></div>'; _expandedDlcs = {}; return; }
+    if(!c) return;
+    if(!games.length){
+      c.innerHTML = '<div class=empty><div class=icon>📭</div><p>暫無入庫記錄</p></div>';
+      _expandedDlcs = {};
+      return;
+    }
+    var sel = document.getElementById('view-mode');
+    var curMode = (sel ? sel.value : null) || localStorage.getItem('view-mode') || 'grid';
+    var isList = (curMode === 'list') || (c && c.classList.contains('list'));
+
     var h = '';
     for(var i=0; i<games.length; i++){
       var g = games[i];
@@ -471,47 +553,85 @@ function renderGames(games, filter){
       var label = g.type_unknown ? ' <span class=unknown-tag>識別中…</span>' : '';
       var isUp = !!g.has_update;
       var aidStr = String(g.appid);
-      var hasOf = (g.has_onlinefix !== undefined ? !!g.has_onlinefix : (_onlinefixAppids && _onlinefixAppids.has(aidStr)));
+      var hasGdrive = (g.has_gdrive !== undefined ? !!g.has_gdrive : (g.has_onlinefix !== undefined ? !!g.has_onlinefix : (_onlinefixAppids && _onlinefixAppids.has(aidStr))));
+      var hasOfWeb = (g.has_onlinefix_web !== undefined ? !!g.has_onlinefix_web : (window._onlinefixWebAppids && window._onlinefixWebAppids.has(aidStr)));
+      var hasZgWeb = (g.has_zeigames_web !== undefined ? !!g.has_zeigames_web : (window._zeigamesWebAppids && window._zeigamesWebAppids.has(aidStr)));
       var isDeployed = (g.deployed !== undefined ? !!g.deployed : (_deployedAppids && _deployedAppids.has(aidStr)));
-
+      var hasOf = hasGdrive || hasOfWeb || hasZgWeb;
       var cardClass = 'card' + (isUp ? ' needs-update' : '') + (hasOf ? ' has-onlinefix' : '');
       var rawStatus = String(g.version_status || '可更新').replace(/跨越/g, '舊').replace(/⚡/g, '').trim();
-      
-      // 🌟 右上角垂直堆疊標籤（從右上開始由上往下直排）
-      var tagsHtml = '';
-      if(hasOf) tagsHtml += '<span class="corner-tag tag-of" title="支援 Online-Fix 聯機補丁">🎮 聯機</span>';
-      if(isDeployed) tagsHtml += '<span class="corner-tag tag-dep" title="本地已成功部署線上補丁">✅ 部署</span>';
-      if(isUp) tagsHtml += '<span class="corner-tag tag-up" title="'+escHtml(rawStatus)+'">⚡ ' + escHtml(rawStatus) + '</span>';
-      var cornerTagsDiv = tagsHtml ? '<div class="card-corner-tags">' + tagsHtml + '</div>' : '';
 
       var upMenuBtn = isUp ? '<button style="color:#ffd700;font-weight:bold" onclick="autoUpdateSingle(\''+g.appid+'\',\''+jsesc(nm)+'\')">⚡ 一鍵更新 Manifest</button>' : '';
-      
-      // 頂部：純遊戲名稱
-      var topTitle = escHtml(nm) + label;
-      // 底部：純粹乾淨的 AppID
-      var bottomTitle = '<span class="aid-num">' + escHtml(g.appid) + '</span>';
-      
-      // Manifest ID 不用顯示，卡片整體更清爽工整
-      h += '<div class="'+cardClass+'" data-appid="'+g.appid+'" style="--i:'+i+'" onclick="openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\',\''+jsesc(g.image||'')+'\')">' +
-             cornerTagsDiv +
-             '<div class="name" title="'+escHtml(nm)+'">'+topTitle+'</div>' +
-             '<img src="'+g.image+'" loading="lazy" onerror="imgFb(this,'+g.appid+')">' +
-             '<button class="card-menu" title="更多選項" onclick="event.stopPropagation()"><svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><circle cx="2.5" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13.5" cy="8" r="1.5"/></svg></button>' +
-             '<div class="card-dd" onclick="event.stopPropagation()">' +
-               upMenuBtn +
-                (hasOf ? '<button style="color:#00bcd4;font-weight:600" onclick="event.stopPropagation(); installOnlinePatch(\''+g.appid+'\',\''+jsesc(nm)+'\')">🚀 安裝線上補丁</button><button style="color:var(--err)" onclick="event.stopPropagation(); removeOnlinePatch(\''+g.appid+'\',\''+jsesc(nm)+'\')">🗑️ 移除線上補丁</button>' : '') +
-               '<button onclick="event.stopPropagation(); editLua(\''+g.appid+'\')">📝 編輯 Lua</button>' +
-               '<button class="vfbtn" onclick="event.stopPropagation(); toggleVf(\''+g.appid+'\')">'+(g.locked?'解除版本鎖定':'固定版本')+'</button>' +
-               '<button onclick="event.stopPropagation(); viewDlcs(\''+g.appid+'\')">📦 查看 DLC</button>' +
-               '<button onclick="event.stopPropagation(); inspectDriveStatus(\''+g.appid+'\',\''+jsesc(nm)+'\')">🌐 檢視網盤狀況</button>' +
-               '<button onclick="event.stopPropagation(); delGame(\''+g.appid+'\',\''+jsesc(nm)+'\')">🗑 刪除</button>' +
-             '</div>' +
-             '<div class="aid" title="'+escHtml(g.appid)+'">'+bottomTitle+'</div>' +
-           '</div>';
+      var upQuickBtn = isUp ? '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+g.appid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>' : '';
+
+      var commonMenuHtml = '<button class="card-menu" title="更多選項" onclick="event.stopPropagation()"><svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><circle cx="2.5" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13.5" cy="8" r="1.5"/></svg></button>' +
+        '<div class="card-dd" onclick="event.stopPropagation()">' +
+          upMenuBtn +
+          (hasOf ? '<button style="color:#00bcd4;font-weight:600" onclick="event.stopPropagation(); installOnlinePatch(\''+g.appid+'\',\''+jsesc(nm)+'\')">🚀 安裝線上補丁</button><button style="color:var(--err)" onclick="event.stopPropagation(); removeOnlinePatch(\''+g.appid+'\',\''+jsesc(nm)+'\')">🗑️ 移除線上補丁</button>' : '') +
+          '<button onclick="event.stopPropagation(); editLua(\''+g.appid+'\')">📝 編輯 Lua</button>' +
+          '<button class="vfbtn" onclick="event.stopPropagation(); toggleVf(\''+g.appid+'\')">'+(g.locked?'解除版本鎖定':'固定版本')+'</button>' +
+          '<button onclick="event.stopPropagation(); viewDlcs(\''+g.appid+'\')">📦 查看 DLC</button>' +
+          '<button onclick="event.stopPropagation(); inspectDriveStatus(\''+g.appid+'\',\''+jsesc(nm)+'\')">🌐 檢視網盤狀況</button>' +
+          '<button onclick="event.stopPropagation(); delGame(\''+g.appid+'\',\''+jsesc(nm)+'\')">🗑 刪除</button>' +
+        '</div>';
+
+      if(isList){
+        // 🌟 列表模式：100% 複製遊戲入庫格式（Header 橫幅 + 三行文字標籤結構 + 靠右居中選單）
+        var verText = (g.latest_date && g.latest_date !== '未知') ? g.latest_date : ((g.version_status && g.version_status.indexOf('0 版') === -1) ? g.version_status : '最新');
+        // 🌟 核心修復：優先使用與網格相同的 g.image 正確圖片網址（帶 CDN Hash），避免寫死 cloudflare 舊路徑導致 404 回退佔位圖
+        var listImgUrl = g.image || ('https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/' + g.appid + '/header.jpg');
+
+        var listTagsHtml = '<span class="aid">' + escHtml(g.appid) + '</span>' +
+          '<span class="search-tag tag-ver" id="mtag-ver-' + g.appid + '">📅 版本：' + escHtml(verText) + '</span>' +
+          '<span class="search-tag tag-gdrive" id="mtag-gdrive-' + g.appid + '" style="' + (hasGdrive ? 'display:inline-flex' : 'display:none') + '" title="Google Drive 網盤補丁庫已收錄補丁檔案"><img src="assets/icons/gdrive.png" class="corner-tag-img" alt="GD"/>Google Drive</span>' +
+          '<span class="search-tag tag-of" id="mtag-of-' + g.appid + '" style="' + (hasOfWeb ? 'display:inline-flex' : 'display:none') + '" title="Online-Fix 官方網站已收錄聯機補丁"><img src="assets/icons/onlinefix.png" class="corner-tag-img" alt="OF"/>Online-Fix</span>' +
+          '<span class="search-tag tag-zg" id="mtag-zg-' + g.appid + '" style="' + (hasZgWeb ? 'display:inline-flex' : 'display:none') + '" title="ZeiGames 官方網站已收錄專用補丁"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>' +
+          '<span class="search-tag tag-dep" id="mtag-dep-' + g.appid + '" style="' + (isDeployed ? 'display:inline-flex' : 'display:none') + '" title="本地已成功部署補丁">✅ 已部署</span>' +
+          (g.locked ? '<span class="search-tag tag-lock" style="background:rgba(255,255,255,0.08);color:var(--gray);border:1px solid rgba(255,255,255,0.18)" title="已固定版本">🔒 已鎖定</span>' : '') +
+          (isUp ? '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700">⚡ ' + escHtml(rawStatus) + '</span>' : '');
+
+        h += '<div class="'+cardClass+'" data-appid="'+g.appid+'" style="--i:'+i+'" onclick="openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\',\''+jsesc(g.image||'')+'\')">' +
+               '<img src="'+listImgUrl+'" loading="lazy" onerror="imgFb(this,'+g.appid+')">' +
+               '<div class="info">' +
+                 '<div class="name" title="'+escHtml(nm)+'">'+escHtml(nm)+label+'</div>' +
+                 '<div class="search-tags-row">' +
+                   listTagsHtml +
+                 '</div>' +
+                 '<div class="link-wrap">' +
+                   '<span class="link link-steam" onclick="event.stopPropagation(); openSteam('+g.appid+')">在 Steam 商店查看 ▶</span>' +
+                 '</div>' +
+               '</div>' +
+               '<div class="search-action-wrap">' +
+                 upQuickBtn +
+                 commonMenuHtml +
+               '</div>' +
+             '</div>';
+      } else {
+        // 🌟 網格模式：保持原本的網格卡片排版，完全不調整
+        var gridTags = '';
+        if(hasGdrive) gridTags += '<span class="corner-tag tag-gdrive" title="Google Drive 網盤補丁庫已收錄補丁檔案"><img src="assets/icons/gdrive.png" class="corner-tag-img" alt="GD"/>Google Drive</span>';
+        if(hasOfWeb) gridTags += '<span class="corner-tag tag-onlinefix" title="Online-Fix 官方網站已收錄聯機補丁"><img src="assets/icons/onlinefix.png" class="corner-tag-img" alt="OF"/>Online-Fix</span>';
+        if(hasZgWeb) gridTags += '<span class="corner-tag tag-zeigames" title="ZeiGames 官方網站已收錄專用補丁"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>';
+        if(isDeployed) gridTags += '<span class="corner-tag tag-dep" title="本地已成功部署補丁">✅ 部署</span>';
+        if(isUp) gridTags += '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ ' + escHtml(rawStatus) + '</span>';
+        var cornerTagsDiv = gridTags ? '<div class="card-corner-tags">' + gridTags + '</div>' : '';
+
+        var topTitle = escHtml(nm) + label;
+        var bottomTitle = '<span class="aid-num">' + escHtml(g.appid) + '</span>';
+
+        h += '<div class="'+cardClass+'" data-appid="'+g.appid+'" style="--i:'+i+'" onclick="openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\',\''+jsesc(g.image||'')+'\')">' +
+               cornerTagsDiv +
+               '<div class="name" title="'+escHtml(nm)+'">'+topTitle+'</div>' +
+               '<img src="'+g.image+'" loading="lazy" onerror="imgFb(this,'+g.appid+')">' +
+               commonMenuHtml +
+               '<div class="aid" title="'+escHtml(g.appid)+'">'+bottomTitle+'</div>' +
+             '</div>';
+      }
     }
     c.innerHTML = h;
     fixImgs(c);
-    // 恢復已展開的 DLC（renderGames 重绘了全部 HTML）
+
+    // 恢復已展開的 DLC（renderGames 重繪了全部 HTML）
     var baseIdx = games.length;
     for(var parentAppid in _expandedDlcs){
       var dlcs = _expandedDlcs[parentAppid];
@@ -525,19 +645,67 @@ function renderGames(games, filter){
         var dMenuBtn = d.is_embedded ? '' : '<button class="card-menu" title="更多選項" onclick="event.stopPropagation()"><svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><circle cx="2.5" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13.5" cy="8" r="1.5"/></svg></button>';
         var dMenu = d.is_embedded ? '' : '<div class="card-dd" onclick="event.stopPropagation()"><button onclick="event.stopPropagation(); editLua(\''+d.appid+'\')">📝 編輯 Lua</button><button class="vfbtn" onclick="event.stopPropagation(); toggleVf(\''+d.appid+'\')">'+(d.locked?'解除版本鎖定':'固定版本')+'</button><button onclick="event.stopPropagation(); inspectDriveStatus(\''+d.appid+'\',\''+jsesc(dnm)+'\')">🌐 檢視網盤狀況</button><button onclick="event.stopPropagation(); delGame(\''+d.appid+'\',\''+jsesc(dnm)+'\')">🗑 刪除</button></div>';
         
-        // DLC 卡片：頂部為 DLC 名稱，底部為純數字 AppID，不顯示 Manifest ID
-        dlcH += '<div class="card dlc-card" data-dlc-parent="'+parentAppid+'" data-appid="'+d.appid+'" style="--i:'+(baseIdx+di)+'">' +
-                  '<div class=name title="'+escHtml(dnm)+'"><span class=dlc-tag>🏷️ DLC</span> '+escHtml(dnm)+'</div>' +
-                  '<img src="'+d.image+'" loading=lazy onerror="imgFb(this,'+d.appid+')">' +
-                  dMenuBtn + dMenu +
-                  '<div class=aid><span class="aid-num">'+escHtml(d.appid)+'</span></div>' +
-                '</div>';
+        if(isList){
+          // 列表模式 DLC
+          var dlcImgUrl = d.image || ('https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/' + d.appid + '/header.jpg');
+          dlcH += '<div class="card dlc-card" data-dlc-parent="'+parentAppid+'" data-appid="'+d.appid+'" style="--i:'+(baseIdx+di)+'">' +
+                    '<img src="'+dlcImgUrl+'" loading=lazy onerror="imgFb(this,'+d.appid+')">' +
+                    '<div class="info">' +
+                      '<div class="name" title="'+escHtml(dnm)+'"><span class="dlc-tag">🏷️ DLC</span> '+escHtml(dnm)+'</div>' +
+                      '<div class="search-tags-row">' +
+                        '<span class="aid">'+escHtml(d.appid)+'</span>' +
+                      '</div>' +
+                      '<div class="link-wrap">' +
+                        '<span class="link link-steam" onclick="event.stopPropagation(); openSteam('+d.appid+')">在 Steam 商店查看 ▶</span>' +
+                      '</div>' +
+                    '</div>' +
+                    '<div class="search-action-wrap">' +
+                      dMenuBtn + dMenu +
+                    '</div>' +
+                  '</div>';
+        } else {
+          // 網格模式 DLC
+          dlcH += '<div class="card dlc-card" data-dlc-parent="'+parentAppid+'" data-appid="'+d.appid+'" style="--i:'+(baseIdx+di)+'">' +
+                    '<div class=name title="'+escHtml(dnm)+'"><span class=dlc-tag>🏷️ DLC</span> '+escHtml(dnm)+'</div>' +
+                    '<img src="'+d.image+'" loading=lazy onerror="imgFb(this,'+d.appid+')">' +
+                    dMenuBtn + dMenu +
+                    '<div class=aid><span class="aid-num">'+escHtml(d.appid)+'</span></div>' +
+                  '</div>';
+        }
       }
       parentCard.insertAdjacentHTML('afterend', dlcH);
       baseIdx += dlcs.length;
     }
     fixImgs(c); bindCardMenus(c); staggerCards(c);
     if(window.syncPendingSteamDBCards) window.syncPendingSteamDBCards();
+
+    // 🌟 複製圖一的方法：列表模式非同步平行查詢，精準補齊版本日期 (如 "9月23日") 與雲端補丁標籤
+    if(isList && window.pywebview && pywebview.api && pywebview.api.get_search_item_status){
+      games.forEach(function(item){
+        var aid = String(item.appid);
+        var nm = item.name || '';
+        pywebview.api.get_search_item_status(aid, nm).then(function(stat){
+          if(!stat) return;
+          var vTag = document.getElementById('mtag-ver-' + aid);
+          if(vTag && stat.version_date){
+            vTag.textContent = '📅 版本：' + stat.version_date;
+          }
+          var cardEl = document.querySelector('#glist.list .card[data-appid="'+aid+'"]');
+          var isGd = !!(stat.has_gdrive || stat.has_onlinefix);
+          var isOfWeb = !!stat.has_onlinefix_web;
+          var isZgWeb = !!stat.has_zeigames_web;
+          var gdTag = document.getElementById('mtag-gdrive-' + aid);
+          var ofTag = document.getElementById('mtag-of-' + aid);
+          var zgTag = document.getElementById('mtag-zg-' + aid);
+          if(gdTag) gdTag.style.display = isGd ? 'inline-flex' : 'none';
+          if(ofTag) ofTag.style.display = isOfWeb ? 'inline-flex' : 'none';
+          if(zgTag) zgTag.style.display = isZgWeb ? 'inline-flex' : 'none';
+          if(cardEl && (isGd || isOfWeb || isZgWeb)){
+            cardEl.classList.add('has-onlinefix');
+          }
+        }).catch(function(){});
+      });
+    }
   } catch(e){ document.getElementById('glist').innerHTML = '<div class=empty><p>ERR: '+(e.message||e)+'</p></div>'; }
 }
 // ═══════════════════════════════════════════════════════
@@ -559,14 +727,20 @@ function toggleView(mode){
     sel.value = m;
   }
 
-  if(typeof staggerCards === 'function') staggerCards(glist);
-
   try { localStorage.setItem('view-mode', m); } catch(e){}
   try {
     if(window.pywebview && pywebview.api && pywebview.api.set_config){
       pywebview.api.set_config('view_mode', m);
     }
   } catch(e){}
+
+  // 🌟 網格與列表徹底分開渲染：模式切換時立即按對應結構重新渲染
+  if(_pre && _pre._games){
+    var filter = (document.getElementById('mf').value||'').trim().toLowerCase();
+    renderGames(_pre._games, filter);
+  } else {
+    if(typeof staggerCards === 'function') staggerCards(glist);
+  }
 }
 // ═══════════════════════════════════════════════════════
 // 管理卡片下拉功能實作：編輯 Lua、版本鎖定、查看 DLC、刪除遊戲
@@ -574,7 +748,7 @@ function toggleView(mode){
 async function editLua(appid){
   if(!appid) return;
   var aid = String(appid);
-  document.querySelectorAll('.card-dd.show').forEach(function(d){ d.classList.remove('show'); });
+  closeAllCardMenus();
   try {
     var content = await pywebview.api.get_lua(aid);
     var modal = document.getElementById('lua-m');
@@ -619,7 +793,7 @@ async function editLua(appid){
 
 async function toggleVf(appid){
   if(!appid) return;
-  document.querySelectorAll('.card-dd.show').forEach(function(d){ d.classList.remove('show'); });
+  closeAllCardMenus();
   try {
     var res = await pywebview.api.toggle_version(String(appid));
     if(res && res.ok){
@@ -652,14 +826,22 @@ async function toggleVf(appid){
 var toggleVer = toggleVf;
 
 function viewDlcs(appid){
-  document.querySelectorAll('.card-dd.show').forEach(function(d){ d.classList.remove('show'); });
+  closeAllCardMenus();
   toggleDlcs(appid);
 }
 
 function delGame(appid, name){
-  document.querySelectorAll('.card-dd.show').forEach(function(d){ d.classList.remove('show'); });
+  closeAllCardMenus();
   ug(appid, name);
 }
+
+// 🌟 全局關閉所有卡片下拉選單並還原卡片層疊層級，徹底防止卡片層級殘留
+function closeAllCardMenus(){
+  document.querySelectorAll('.card-dd.show').forEach(function(d){ d.classList.remove('show'); });
+  document.querySelectorAll('.card.menu-open').forEach(function(c){ c.classList.remove('menu-open'); });
+  document.querySelectorAll('.search-action-wrap.menu-open').forEach(function(w){ w.classList.remove('menu-open'); });
+}
+window.closeAllCardMenus = closeAllCardMenus;
 
 // 全局：给容器內卡片綁定下拉菜單事件（跳過已綁的卡片，防重復綁定）
 function bindCardMenus(container){
@@ -672,15 +854,20 @@ function bindCardMenus(container){
   container.querySelectorAll('.card-menu').forEach(function(m){
     var card = m.closest('.card');
     if(!card || !freshSet.has(card)) return;
+    var actWrap = m.closest('.search-action-wrap');
     m.addEventListener('click', function(e){
       e.stopPropagation();
       var dd = this.nextElementSibling;
       if(!dd || !dd.classList.contains('card-dd')) return;
       if(dd.classList.contains('show')){ 
         dd.classList.remove('show'); 
+        card.classList.remove('menu-open');
+        if(actWrap) actWrap.classList.remove('menu-open');
       } else { 
-        document.querySelectorAll('.card-dd.show').forEach(function(d){ d.classList.remove('show'); }); 
+        closeAllCardMenus();
         dd.classList.add('show'); 
+        card.classList.add('menu-open');
+        if(actWrap) actWrap.classList.add('menu-open');
       }
     });
   });
@@ -698,9 +885,18 @@ function bindCardMenus(container){
   });
 }
 function _cardAid(card){ var a=card.getAttribute('data-appid'); return a ? parseInt(a) : 0; }
-function _closeMenu(el){ var dd = el.closest('.card-dd'); if(dd){ dd.classList.remove('show'); } }
+function _closeMenu(el){ 
+  var dd = el.closest('.card-dd'); 
+  if(dd){ 
+    dd.classList.remove('show'); 
+    var card = dd.closest('.card');
+    if(card) card.classList.remove('menu-open');
+    var actWrap = dd.closest('.search-action-wrap');
+    if(actWrap) actWrap.classList.remove('menu-open');
+  } 
+}
 // 點擊空白處關閉下拉
-document.addEventListener('click', function(){ document.querySelectorAll('.card-dd.show').forEach(function(d){d.classList.remove('show')}); });
+document.addEventListener('click', function(){ closeAllCardMenus(); });
 
 async function ug(appid, name){
   var gameTitle = name || ('App ID: ' + appid);
