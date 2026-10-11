@@ -2,14 +2,18 @@
  * 教學模組：組隊開房引導 (Party Host Tutorial Steps - 旗艦真實彈窗與全週期版)
  * 職責：
  * 步驟 1：在大廳點擊右上角「➕ 創建房間」發起開房
- * 步驟 2：開啟真實創建彈窗，選擇遊戲、說明「核心三檔檢測 (Manifest/Lua/Patch)」
- * 步驟 3：詳細解說「Discord Webhook (整合包託管通道)」與影片教學
- * 步驟 4：點擊「🚀 立即開房」生成全網唯一房號並進入專屬房間
- * 步驟 5：確認連線房號【HOST666】並示範複製分享
- * 步驟 6：設定「預填聯絡資訊」（全員就緒自動廣播給所有隊員）
- * 步驟 7：即時監控全體隊員補丁同步進度（35% -> 80% -> 100%）
- * 步驟 8：全員就緒提示、30 秒安全緩衝、自動廣播與解散生命週期說明
- * 步驟 9：領取房長結業字卡
+ * 步驟 2：選擇組隊遊戲（本機已安裝自動偵測機制說明）
+ * 步驟 3：核心三檔同步檢測（Manifest/Lua/Patch 三綠燈防護）
+ * 步驟 4：Discord Webhook 整合包託管通道解說
+ * 步驟 5：Webhook 建立教學與手把手影片指引
+ * 步驟 6：設定人數上限與大廳公開度（公開/私密房型）
+ * 步驟 7：房間備註與招募宣言（選填提示）
+ * 步驟 8：預填隊伍聯絡資訊（全員就緒自動廣播與 1 分鐘緩衝機制）
+ * 步驟 9：確認配置並點擊「🚀 立即開房」生成連線房號
+ * 步驟 10：確認連線房號【HOST666】並示範複製分享
+ * 步驟 11：即時監控全體隊員補丁同步進度（35% -> 80% -> 100%）
+ * 步驟 12：全員就緒提示、1 分鐘安全緩衝、延遲 5 分鐘與解散生命週期說明
+ * 步驟 13：領取房長結業字卡
  */
 
 (function(window) {
@@ -23,7 +27,7 @@
     host_name: '您 (領航房長)',
     host_discord: 'host_leader#2026',
     max_players: 4,
-    note: '全隊拓荒進行中！補丁版本已釘選，請點擊一鍵安裝同步。',
+    note: '新手開荒 / 語音隨意 / 缺 1 人即開',
     created_at: Math.floor(Date.now() / 1000) - 120,
     members: [
       {
@@ -63,16 +67,22 @@
   };
 
   /**
-   * 進入真實創建彈窗沙盒環境
+   * 進入真實創建彈窗沙盒環境（100% 呈現所有欄位真實設計）
    */
   function injectMockCreateModal(stepType) {
     window.__tutorialMockPartyActive = true;
 
-    // 確保回到大廳視圖
+    // 確保處於大廳視圖
     var lobbyView = document.getElementById('party-lobby-view');
     var roomView = document.getElementById('party-room-view');
     if (lobbyView) { lobbyView.style.display = 'flex'; lobbyView.classList.add('active'); }
     if (roomView) { roomView.style.display = 'none'; roomView.classList.remove('active'); }
+
+    // 大廳導覽列切換為「組隊大廳」
+    var navLobby = document.getElementById('party-nav-lobby');
+    var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
+    if (navLobby) navLobby.classList.add('active');
+    if (navRoom) { navRoom.classList.remove('active'); navRoom.style.display = 'none'; }
 
     var modal = document.getElementById('modal-create-party-room');
     if (!modal) return;
@@ -81,7 +91,7 @@
     modal.classList.remove('hidden');
     modal.classList.add('active');
 
-    // 填充示範遊戲資料
+    // 1. 填充示範遊戲資料
     var select = document.getElementById('select-party-installed-games');
     if (select) {
       select.innerHTML = '<option value="1245620" selected>艾爾登法環 (Elden Ring) [1245620] - 本機已安裝</option>';
@@ -92,7 +102,7 @@
     if (gn) gn.value = '艾爾登法環 (Elden Ring)';
     if (aid) aid.value = '1245620';
 
-    // 點亮三檔綠燈
+    // 2. 點亮三檔綠燈
     var im = document.getElementById('inspect-manifest');
     var il = document.getElementById('inspect-lua');
     var ip = document.getElementById('inspect-patch');
@@ -100,23 +110,53 @@
     if (il) { il.className = 'resource-badge ready'; il.innerHTML = '📜 Lua 腳本: ✔ 已就緒'; il.style.color = '#2EA043'; }
     if (ip) { ip.className = 'resource-badge ready'; ip.innerHTML = '🎮 線上補丁: ✔ 已就緒'; ip.style.color = '#2EA043'; }
 
-    // 填充示範 Webhook
+    // 3. 填充示範 Webhook
     var webhookInput = document.getElementById('input-party-discord-webhook');
     if (webhookInput) {
       webhookInput.value = 'https://discord.com/api/webhooks/1234567890/smu_tutorial_mock_token';
       webhookInput.style.borderColor = '#2ED573';
     }
 
-    // 點亮開房按鈕
+    // 4. 填充人數上限 (4 人房)
+    var maxPlayersSelect = document.getElementById('select-party-max-players');
+    if (maxPlayersSelect) {
+      maxPlayersSelect.value = '4';
+    }
+
+    // 5. 填充大廳公開度 (公開 1)
+    var isPublicSelect = document.getElementById('select-party-is-public');
+    if (isPublicSelect) {
+      isPublicSelect.value = '1';
+    }
+
+    // 6. 填充房間備註 / 招募宣言
+    var noteInput = document.getElementById('input-party-note');
+    if (noteInput) {
+      noteInput.value = '新手開荒 / 語音隨意 / 缺 1 人即開';
+    }
+
+    // 7. 填充預填隊伍聯絡資訊
+    var preContactInput = document.getElementById('input-party-pre-contact');
+    if (preContactInput) {
+      preContactInput.value = '+dc: leader_eldener / 語音房已開';
+    }
+
+    // 8. 點亮開房按鈕
     var createBtn = document.getElementById('btn-submit-create-party');
     if (createBtn) {
       createBtn.disabled = false;
       createBtn.classList.remove('disabled');
     }
 
-    // 漸顯教學影片卡片
+    // 9. 顯示右側 Webhook 教學影片卡片並播放
     var card = document.getElementById('webhook-tutorial-card');
-    if (card) card.classList.add('fade-in-active');
+    if (card) {
+      card.classList.add('fade-in-active');
+      var video = document.getElementById('webhook-tutorial-video');
+      if (video && video.paused) {
+        try { video.play(); } catch(e){}
+      }
+    }
   }
 
   /**
@@ -134,7 +174,7 @@
       modal.classList.remove('active');
     }
 
-    // 🌟 強制切換真實視圖容器：隱藏大廳，顯示房間檢視
+    // 強制切換真實視圖容器：隱藏大廳，顯示房間檢視
     var lobbyView = document.getElementById('party-lobby-view');
     var roomView = document.getElementById('party-room-view');
     if (lobbyView) {
@@ -206,7 +246,7 @@
         allReadyBanner.style.display = 'flex';
         allReadyBanner.classList.add('pulse');
       }
-      // 🌟 核心修復：在橫幅彈出後立即觸發 TutorialEngine 重新校準定位，防止提示框錯位！
+      // 在橫幅彈出後立即觸發 TutorialEngine 重新校準定位
       if (window.TutorialEngine) window.TutorialEngine.reposition();
       if (typeof tt === 'function') tt('🎉 全體隊員補丁已就緒！房主可下達開玩指令', 'ok');
     }, 900);
@@ -237,7 +277,7 @@
     }
   }
 
-  // 🌟 組隊開房專屬結業慶祝彈窗（1:1 比照獨狼與線上補丁字卡樣式）
+  // 組隊開房專屬結業慶祝彈窗（1:1 比照獨狼與線上補丁字卡樣式）
   function showPartyHostCompletionModal() {
     var modal = document.createElement('div');
     modal.className = 'tutorial-sandbox-modal-wrap tutorial-completion-modal-wrap';
@@ -287,7 +327,7 @@
   }
 
   var partyHostSteps = [
-    // 🌟 步驟 1：在大廳點擊「➕ 創建房間」按鈕
+    // 🌟 步驟 1 / 12：在大廳點擊「➕ 創建房間」按鈕
     {
       roleBadge: '👑 組隊招募・房主篇',
       moduleTitle: '單元 1：發起招募與配置檢測',
@@ -304,6 +344,14 @@
         var roomView = document.getElementById('party-room-view');
         if (lobbyView) { lobbyView.style.display = 'flex'; lobbyView.classList.add('active'); }
         if (roomView) { roomView.style.display = 'none'; roomView.classList.remove('active'); }
+
+        // 若從下一步退回，關閉彈窗
+        var modal = document.getElementById('modal-create-party-room');
+        if (modal) {
+          modal.style.display = 'none';
+          modal.classList.add('hidden');
+          modal.classList.remove('active');
+        }
 
         if (!btn) btn = document.getElementById('btn-party-create-room');
         if (!btn) return;
@@ -333,16 +381,35 @@
         }
       }
     },
-    // 🌟 步驟 2：選擇遊戲與「核心三檔檢測」說明 (真實彈窗高亮)
+
+    // 🌟 步驟 2 / 12：選擇組隊遊戲 (僅限自動偵測就緒之遊戲)
     {
       roleBadge: '👑 組隊招募・房主篇',
       moduleTitle: '單元 1：發起招募與配置檢測',
       page: 'party',
-      target: '#party-resources-inspect-box, .party-package-section',
-      title: '選擇遊戲與核心三檔自動檢測',
-      desc: '在彈窗頂部選擇遊戲後，系統會自動對您的本機檔案進行<strong>「核心三檔檢測」</strong>（Manifest 清單、Lua 腳本、線上補丁）。三檔全數就緒才會點亮綠燈，確保房主版本能作為全隊最穩定標準！',
-      hint: '系統會自動打包房主的補丁，隊員入隊時自動下載同步。',
-      placement: 'top',
+      target: '#party-select-game-wrap, #select-party-installed-games',
+      title: '選擇組隊遊戲',
+      desc: '在彈窗最上方挑選您要號召好友組隊的遊戲。SMU 僅允許挑選<strong>本機已偵測且已部署聯機環境</strong>的遊戲，系統會自動鎖定 AppID 與遊戲版本，杜絕手打錯誤造成全隊版本不符！',
+      hint: '若剛安裝新遊戲，可點擊右側「🔄 重新整理」即時掃描更新清單。',
+      placement: 'right',
+      onEnter: function() {
+        injectMockCreateModal('select-game');
+        setTimeout(function() {
+          if (window.TutorialEngine) window.TutorialEngine.reposition();
+        }, 60);
+      }
+    },
+
+    // 🌟 步驟 3 / 12：核心三檔自動檢測 (全就緒綠燈保障)
+    {
+      roleBadge: '👑 組隊招募・房主篇',
+      moduleTitle: '單元 1：發起招募與配置檢測',
+      page: 'party',
+      target: '#party-resources-inspect-box',
+      title: '核心三檔自動檢測',
+      desc: '選擇遊戲後，系統會自動對您的本機檔案進行<strong>「核心三檔檢測」</strong>（Manifest 清單、Lua 腳本、線上補丁）。三檔全數就緒才會亮起綠燈，確保房主版本能作為全隊最穩定的統一標準！',
+      hint: '系統會將房主的三檔自動打包，隊員入隊時一鍵下載同步，完全免手動傳檔。',
+      placement: 'right',
       onEnter: function() {
         injectMockCreateModal('inspect');
         setTimeout(function() {
@@ -350,16 +417,17 @@
         }, 60);
       }
     },
-    // 🌟 步驟 3：Discord Webhook (整合包託管通道) 與教學影片
+
+    // 🌟 步驟 4 / 12：Discord Webhook (整合包託管通道)
     {
       roleBadge: '👑 組隊招募・房主篇',
       moduleTitle: '單元 1：發起招募與配置檢測',
       page: 'party',
-      target: '#party-discord-config-wrap, #webhook-tutorial-card',
-      title: 'Discord Webhook 託管通道與教學',
+      target: '#party-discord-config-wrap',
+      title: 'Discord Webhook 託管通道',
       desc: '<strong>什麼是 Discord Webhook？</strong> 它是 Discord 官方提供的免費自動傳輸通道！SMU 透過 Webhook 將房主的補丁檔案安全發布至您的私人 Discord 頻道中，隊員即可直接從 Discord CDN 超高速下載，房主無須自架伺服器或負擔傳輸費用！',
-      hint: '右側有生動的循環動畫，手把手教學如何在 Discord 頻道建立 Webhook。',
-      placement: 'left',
+      hint: '填入後可點擊「🔗 測試連線」驗證，通過測試後系統會自動記憶保存，下次開房免重複輸入。',
+      placement: 'right',
       onEnter: function() {
         injectMockCreateModal('webhook');
         setTimeout(function() {
@@ -367,14 +435,87 @@
         }, 60);
       }
     },
-    // 🌟 步驟 4：確認配置並一鍵生成房間
+
+    // 🌟 步驟 5 / 12：Webhook 建立教學與影片指引
+    {
+      roleBadge: '👑 組隊招募・房主篇',
+      moduleTitle: '單元 1：發起招募與配置檢測',
+      page: 'party',
+      target: '#webhook-tutorial-card',
+      title: 'Webhook 建立教學與影片指引',
+      desc: '彈窗右側配備生動的循環動畫，手把手教學如何在 Discord 頻道建立專屬 Webhook：在任何伺服器頻道右鍵 ➔ 編輯頻道 ➔ 整合 ➔ 建立 Webhook 複製貼上即可！',
+      hint: '教學卡片會依視窗大小自適應調整，確保大畫面極致清晰、小畫面不佔版面。',
+      placement: 'left',
+      onEnter: function() {
+        injectMockCreateModal('video');
+        setTimeout(function() {
+          if (window.TutorialEngine) window.TutorialEngine.reposition();
+        }, 60);
+      }
+    },
+
+    // 🌟 步驟 6 / 12：設定人數上限與大廳公開度
+    {
+      roleBadge: '👑 組隊招募・房主篇',
+      moduleTitle: '單元 1：發起招募與配置檢測',
+      page: 'party',
+      target: '#party-players-visibility-wrap',
+      title: '設定人數上限與大廳公開度',
+      desc: '房主可依遊戲模式自訂隊伍人數（2 人、4 人、6 人、8 人）。「🌐 公開」會將房間展示於全網組隊大廳供玩家自由加入；若選擇「🔒 私密」，則僅有獲得您 6 碼連線房號的好友才能加入！',
+      hint: '若想與特定好友私下開黑，建議切換為「私密」模式。',
+      placement: 'right',
+      onEnter: function() {
+        injectMockCreateModal('capacity');
+        setTimeout(function() {
+          if (window.TutorialEngine) window.TutorialEngine.reposition();
+        }, 60);
+      }
+    },
+
+    // 🌟 步驟 7 / 12：房間備註與招募宣言 (選填)
+    {
+      roleBadge: '👑 組隊招募・房主篇',
+      moduleTitle: '單元 1：發起招募與配置檢測',
+      page: 'party',
+      target: '#party-room-note-wrap, #input-party-note',
+      title: '房間備註與招募宣言',
+      desc: '在此填寫您的隊伍招募宣言（例如：「新手開荒 / 語音隨意 / 缺 1 人即開」）。清晰的備註能讓大廳瀏覽的玩家一眼了解隊伍節奏與語音需求，大幅提升組隊默契！',
+      hint: '此欄位為選填，若留空大廳將顯示遊戲預設名稱。',
+      placement: 'right',
+      onEnter: function() {
+        injectMockCreateModal('note');
+        setTimeout(function() {
+          if (window.TutorialEngine) window.TutorialEngine.reposition();
+        }, 60);
+      }
+    },
+
+    // 🌟 步驟 8 / 12：預填隊伍聯絡資訊 (自動廣播機制)
+    {
+      roleBadge: '👑 組隊招募・房主篇',
+      moduleTitle: '單元 1：發起招募與配置檢測',
+      page: 'party',
+      target: '#party-modal-pre-contact-wrap, #input-party-pre-contact',
+      title: '📢 預填隊伍聯絡資訊 (自動廣播機制)',
+      desc: '非常實用的房主專屬功能！在此預先填入您的 Discord 語音頻道連結或連線 IP。當全隊成員補丁全部就緒時，系統將在 1 分鐘倒數中自動/一鍵廣播給所有隊員，免除逐一私訊通知的麻煩！若留空，系統亦會在倒數時等待您手動填寫。',
+      hint: '預先填好聯絡方式，隊伍全員就緒時即可一鍵快速發送開拔！',
+      placement: 'right',
+      onEnter: function() {
+        injectMockCreateModal('pre-contact');
+        setTimeout(function() {
+          if (window.TutorialEngine) window.TutorialEngine.reposition();
+        }, 60);
+      }
+    },
+
+    // 🌟 步驟 9 / 12：確認配置並立即開房
     {
       roleBadge: '👑 組隊招募・房主篇',
       moduleTitle: '單元 1：發起招募與配置檢測',
       page: 'party',
       target: '#btn-submit-create-party',
       title: '確認配置並立即開房',
-      desc: '遊戲、三檔檢測與 Webhook 全數就緒後，點擊「🚀 立即開房」按鈕，系統將自動為您生成唯一的全網連線房號（如 HOST666），無須設定路由器或端口映射！',
+      desc: '遊戲、三檔檢測、Webhook 與各項配置確認完畢後，點擊「🚀 立即開房」按鈕，系統將自動為您生成唯一的全網連線房號（如 HOST666），無須設定路由器或端口映射！請親自點擊此按鈕！',
       disableNext: true,
       placement: 'top',
       onEnter: function() {
@@ -383,10 +524,12 @@
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.classList.remove('disabled');
+          submitBtn.classList.add('tutorial-btn-simulating');
           var onClick = function(e) {
             e.preventDefault();
             e.stopPropagation();
             submitBtn.removeEventListener('click', onClick, true);
+            submitBtn.classList.remove('tutorial-btn-simulating');
             if (typeof tt === 'function') tt('🎉 成功創建房間 HOST666！', 'ok');
             injectMockHostRoomView();
             setTimeout(function() {
@@ -398,9 +541,16 @@
         setTimeout(function() {
           if (window.TutorialEngine) window.TutorialEngine.reposition();
         }, 60);
+      },
+      onLeave: function() {
+        var submitBtn = document.getElementById('btn-submit-create-party');
+        if (submitBtn) {
+          submitBtn.classList.remove('tutorial-btn-simulating');
+        }
       }
     },
-    // 🌟 步驟 5：複製連線房號並分發隊友
+
+    // 🌟 步驟 10 / 12：複製連線房號並分發隊友
     {
       roleBadge: '👑 組隊招募・房主篇',
       moduleTitle: '單元 2：邀請分發與全隊開拔',
@@ -417,27 +567,8 @@
         }, 60);
       }
     },
-    // 🌟 步驟 6：預填聯絡資訊（自動廣播）
-    {
-      roleBadge: '👑 組隊招募・房主篇',
-      moduleTitle: '單元 2：邀請分發與全隊開拔',
-      page: 'party',
-      target: '#party-room-pre-contact-wrap',
-      title: '📢 預填聯絡資訊（自動廣播）',
-      desc: '非常實用的房主專屬功能！在此預先填入您的 Discord 語音頻道連結或連線 IP。當全隊成員補丁全部就緒時，系統將自動廣播給所有隊員，免除逐一通知的麻煩！',
-      onEnter: function() {
-        injectMockHostRoomView();
-        var input = document.getElementById('party-room-pre-contact-input');
-        if (input && window.TutorialEngine) {
-          window.TutorialEngine.simulateTyping(input, 'Discord 語音房: https://discord.gg/steam-party', {}, function(){});
-        }
-        setTimeout(function() {
-          if (window.TutorialEngine) window.TutorialEngine.reposition();
-        }, 60);
-      },
-      placement: 'bottom'
-    },
-    // 🌟 步驟 7：即時監控全隊補丁進度 (修復錯位問題)
+
+    // 🌟 步驟 11 / 12：即時監控全隊補丁進度
     {
       roleBadge: '👑 組隊招募・房主篇',
       moduleTitle: '單元 2：邀請分發與全隊開拔',
@@ -454,7 +585,8 @@
       },
       placement: 'top'
     },
-    // 🌟 步驟 8：全員就緒、1 分鐘等待緩衝與房間解散生命週期
+
+    // 🌟 步驟 12 / 12：全員就緒、1 分鐘緩衝與完成解散機制
     {
       roleBadge: '👑 組隊招募・房主篇',
       moduleTitle: '單元 3：完成組隊與房間生命週期',
@@ -462,7 +594,7 @@
       target: '#party-all-ready-banner',
       title: '🎉 全員就緒、1 分鐘緩衝與完成解散機制',
       desc: '當全員就緒時，系統會開啟 1 分鐘緩衝倒數，等待房主手動確認或發送聯絡資訊。房主亦可點擊「延遲 5 分鐘」（最多 2 次）或點擊「馬上完成(解散)」立即清除房間，若未填寫聯絡方式，系統將自動附帶您的 Discord 好友指引！',
-      hint: '點擊「完成」即可領取房長結業證書並返回！',
+      hint: '點擊「完成教學 🎉」即可領取房長結業證書並返回！',
       placement: 'bottom',
       onEnter: function() {
         injectMockHostRoomView();
@@ -474,9 +606,9 @@
             bannerContentEl.innerHTML = 
               '<div class="banner-title">🎉 全員已就緒！等待房主發送聯絡資訊 (倒數 <span id="party-cd-sec" class="banner-cd-sec">01 分 00 秒</span>)</div>' +
               '<div class="banner-desc">' +
-                '<div style="color:#1976D2;font-size:11.5px">💡 已偵測到預填資訊：<strong>Discord 語音房: https://discord.gg/steam-party</strong></div>' +
+                '<div style="color:#1976D2;font-size:11.5px">💡 已偵測到預填資訊：<strong>+dc: leader_eldener / 語音房已開</strong></div>' +
                 '<div class="banner-contact-row" style="margin-top:6px">' +
-                  '<input type="text" class="party-contact-input" value="Discord 語音房: https://discord.gg/steam-party" readonly />' +
+                  '<input type="text" class="party-contact-input" value="+dc: leader_eldener / 語音房已開" readonly />' +
                   '<button class="btn btn-p btn-s">🚀 發送聯絡資訊</button>' +
                   '<button class="btn btn-o btn-s">⏳ 延遲 5 分鐘 (剩餘 2 次)</button>' +
                   '<button class="btn btn-danger btn-s">⚡ 馬上完成(解散)</button>' +

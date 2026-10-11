@@ -470,10 +470,15 @@
       // 捲動至可見區域 (改採 auto 瞬間抵達，徹底杜絕 smooth 動畫延遲導致座標測量偏差)
       if (target !== document.body && step.placement !== 'center' && typeof target.scrollIntoView === 'function') {
         var tRect = target.getBoundingClientRect();
-        if (step.placement === 'bottom' && (tRect.height > 180 || tRect.top > window.innerHeight * 0.35)) {
-          target.scrollIntoView({ behavior: 'auto', block: 'start' });
-        } else {
-          target.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+        // 🌟 防禦：若目標位於 fixed 彈窗中且已經在當前可見視窗內，嚴禁觸發滾動，防止外層容器發生意外震盪位移
+        var inFixedModal = target.closest && (target.closest('.modal') || target.closest('.party-create-modal-box'));
+        var alreadyVisible = (tRect.top >= 20 && tRect.bottom <= window.innerHeight - 20);
+        if (!inFixedModal || !alreadyVisible) {
+          if (step.placement === 'bottom' && (tRect.height > 180 || tRect.top > window.innerHeight * 0.35)) {
+            target.scrollIntoView({ behavior: 'auto', block: 'start' });
+          } else {
+            target.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+          }
         }
       }
 

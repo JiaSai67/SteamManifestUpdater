@@ -468,13 +468,13 @@
    教學聚光燈系統 (Tutorial Spotlight & Interactive Sandbox)
    ═══════════════════════════════════════════════════════ */
 
-/* 1. 聚光燈遮罩容器 */
+/* 1. 聚光燈遮罩容器 (層級必須高於所有模態框，確保聚焦開孔完美穿透) */
 .tutorial-spotlight-overlay {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 99990;
+  z-index: 100100 !important;
   pointer-events: none;
   opacity: 1;
   transition: opacity 0.3s ease;
@@ -495,10 +495,10 @@
               height 0.25s ease;
 }
 
-/* 2. 教學浮動氣泡卡 (Popover Card) - 預設淺色模式：白底黑字、高清晰對比度 */
+/* 2. 教學浮動氣泡卡 (Popover Card) - 全站最頂層 100200，保證絕不被任何彈窗或遮罩覆蓋 */
 .tutorial-step-popover {
   position: fixed;
-  z-index: 99995;
+  z-index: 100200 !important;
   width: 350px;
   background: #FFFFFF !important; /* 🌟 偏白底不透明，徹底杜絕黑夜聚光燈遮罩穿透 */
   border: 1.5px solid rgba(255, 143, 167, 0.5) !important;

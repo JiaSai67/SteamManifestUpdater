@@ -45,7 +45,7 @@
   <link rel="stylesheet" href="css/views/settings.css">
   <link rel="stylesheet" href="css/views/more.css">
   <link rel="stylesheet" href="css/views/spotlight.css">
-  <link rel="stylesheet" href="css/views/tutorial.css?v=20261010_threejs_v5">
+  <link rel="stylesheet" href="css/views/tutorial.css?v=20261012_host_v9">
 
 </head>
 <body class="font-normal">
@@ -1155,7 +1155,7 @@
     </div>
     
     <!-- 🎮 選擇已偵測之遊戲 (唯一合法來源，杜絕手打錯誤) -->
-    <div style="margin-bottom:12px">
+    <div style="margin-bottom:12px" id="party-select-game-wrap">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <label style="font-size:12px;font-weight:700;color:var(--fg)">🎮 選擇組隊遊戲 (僅限自動偵測就緒之遊戲)：</label>
         <button type="button" class="btn btn-o btn-xs" onclick="loadInstalledGamesDropdown()" style="font-size:11px;padding:1px 6px;border-radius:10px" title="重新掃描本地已部署聯機補丁之遊戲">🔄 重新整理</button>
@@ -1207,7 +1207,7 @@
       </div>
     </div>
 
-    <div style="display:flex;gap:10px;margin-bottom:12px">
+    <div style="display:flex;gap:10px;margin-bottom:12px" id="party-players-visibility-wrap">
       <div style="flex:1">
         <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">人數上限：</label>
         <select id="select-party-max-players" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);outline:none">
@@ -1226,13 +1226,13 @@
       </div>
     </div>
 
-    <div style="margin-bottom:12px">
+    <div style="margin-bottom:12px" id="party-room-note-wrap">
       <label style="font-size:12px;display:block;margin-bottom:4px;color:var(--gray)">房間備註 / 招募宣言 (選填)：</label>
       <input type="text" id="input-party-note" placeholder="例如：新手開荒 / 語音隨意 / 缺 1 人即開" style="width:100%;padding:8px 10px;border:1.5px solid var(--pink-light);border-radius:10px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box">
     </div>
 
     <!-- 📢 預填隊伍聯絡資訊 (選填，組隊完成時可一鍵快速發送) -->
-    <div style="margin-bottom:12px">
+    <div style="margin-bottom:12px" id="party-modal-pre-contact-wrap">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <label style="font-size:12px;color:var(--gray)">📢 預填隊伍聯絡資訊 (選填，省去再次填寫麻煩)：</label>
         <span style="font-size:10.5px;color:#1976D2;font-weight:700">⚡ 1 分鐘緩衝等待</span>
@@ -1423,7 +1423,7 @@
 <script src="js/modules/health_check.js"></script>
 <script src="js/modules/gdrive_status.js"></script>
 <!-- 模組化教學系統 (Tutorial Subsystem) -->
-<script src="js/modules/tutorial/engine.js"></script>
+<script src="js/modules/tutorial/engine.js?v=20261012_host_v9"></script>
 <script src="js/modules/tutorial/steps_credentials.js"></script>
 <script src="js/modules/tutorial/steps_library_add.js"></script>
 <script src="js/modules/tutorial/steps_manage_usage.js"></script>
@@ -1434,8 +1434,8 @@
 <script src="js/modules/tutorial/leader_pipeline.js"></script>
 <script src="js/modules/tutorial/steps_party_join.js?v=20261012_party_join_v8"></script>
 <script src="js/modules/tutorial/party_join_pipeline.js"></script>
-<script src="js/modules/tutorial/steps_party_host.js?v=20261012_party_host_v8"></script>
-<script src="js/modules/tutorial/party_host_pipeline.js"></script>
+<script src="js/modules/tutorial/steps_party_host.js?v=20261012_host_v9"></script>
+<script src="js/modules/tutorial/party_host_pipeline.js?v=20261012_host_v9"></script>
 <script src="js/vendor/three.min.js"></script>
 <script src="js/modules/tutorial/party_orb_assets.js"></script>
 <script src="js/modules/tutorial/party_orb_overlay.js?v=20261011_composite_v3"></script>
