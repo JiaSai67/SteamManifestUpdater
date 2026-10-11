@@ -72,7 +72,7 @@
     // 確保回到大廳視圖
     var lobbyView = document.getElementById('party-lobby-view');
     var roomView = document.getElementById('party-room-view');
-    var navRoom = document.getElementById('party-nav-room');
+    var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
     var navLobby = document.getElementById('party-nav-lobby');
 
     if (navLobby) navLobby.classList.add('active');
@@ -131,11 +131,11 @@
       injectMockRoomDetailView();
       setTimeout(function() {
         if (window.TutorialEngine) window.TutorialEngine.next();
-      }, 150);
+      }, 100);
     }
 
-    if (joinBtn) joinBtn.addEventListener('click', doMockJoin);
-    if (cardEl) cardEl.addEventListener('click', doMockJoin);
+    if (joinBtn) joinBtn.onclick = doMockJoin;
+    if (cardEl) cardEl.onclick = doMockJoin;
   }
 
   /**
@@ -143,10 +143,30 @@
    */
   function injectMockRoomDetailView() {
     window.__tutorialMockPartyActive = true;
-    window._partyCurRoom = JSON.parse(JSON.stringify(_mockJoinRoomData));
 
-    // 切換導覽列狀態
-    var navRoom = document.getElementById('party-nav-room');
+    var myName = (window._partyProfile && window._partyProfile.player_name) || '您 (新手冒險者)';
+    var myId = (window._partyProfile && window._partyProfile.client_id) || 'me_p2';
+    var mockData = JSON.parse(JSON.stringify(_mockJoinRoomData));
+    if (mockData.members && mockData.members[1]) {
+      mockData.members[1].name = myName;
+      mockData.members[1].id = myId;
+    }
+    window._partyCurRoom = mockData;
+
+    // 🌟 強制切換真實視圖容器：隱藏大廳，顯示房間檢視
+    var lobbyView = document.getElementById('party-lobby-view');
+    var roomView = document.getElementById('party-room-view');
+    if (lobbyView) {
+      lobbyView.style.display = 'none';
+      lobbyView.classList.remove('active');
+    }
+    if (roomView) {
+      roomView.style.display = 'flex';
+      roomView.classList.add('active');
+    }
+
+    // 切換導覽列標籤狀態
+    var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
     var navLobby = document.getElementById('party-nav-lobby');
     if (navLobby) navLobby.classList.remove('active');
     if (navRoom) {
@@ -159,12 +179,11 @@
     // 調用系統真實的 renderRoomView 渲染完整房間與成員清單
     if (typeof window.renderRoomView === 'function') {
       window.renderRoomView(window._partyCurRoom);
-    } else {
-      var lobbyView = document.getElementById('party-lobby-view');
-      var roomView = document.getElementById('party-room-view');
-      if (lobbyView) { lobbyView.style.display = 'none'; lobbyView.classList.remove('active'); }
-      if (roomView) { roomView.style.display = 'flex'; roomView.classList.add('active'); }
     }
+
+    // 隊員端一鍵安裝按鈕容器保證顯示
+    var syncBtnWrap = document.getElementById('party-sync-btn-wrap');
+    if (syncBtnWrap) syncBtnWrap.style.display = 'block';
   }
 
   /**
@@ -341,19 +360,19 @@
         }, 60);
       }
     },
-    // 🌟 步驟 3：邀請代碼快速直達（需求 2：拆分搜尋與代碼）
+    // 🌟 步驟 3：邀請代碼快速直達（精準局部高亮右上角輸入框與按鈕組合）
     {
       roleBadge: '📥 組隊同樂・隊員篇',
       moduleTitle: '單元 1：大廳探索與房間加入',
       page: 'party',
-      target: '#party-code-input, #btn-party-join-by-code',
+      target: '.party-quick-join-wrap',
       title: '輸入好友邀請碼直達房間',
       desc: '若好友已在 Discord 或私訊發送專屬房間代碼（如 PAL886），直接在右側輸入框填入代碼並點擊「加入房間」，即可瞬間直達好友的專屬房間，省去翻找列表的時間！',
       hint: '房號為 6 ~ 8 位英數代碼，不分大小寫。',
       placement: 'bottom',
       onEnter: function() {
         injectMockLobbyRoom();
-        var codeInput = document.getElementById('party-code-input');
+        var codeInput = document.getElementById('party-quick-code');
         if (codeInput && window.TutorialEngine) {
           window.TutorialEngine.simulateTyping(codeInput, 'PAL886', {}, function(){});
         }
@@ -362,7 +381,7 @@
         }, 60);
       }
     },
-    // 🌟 步驟 4：大廳示範房間模擬加入 (保證示範卡片常駐)
+    // 🌟 步驟 4：大廳示範房間模擬加入 (點擊申請加入直通房間)
     {
       roleBadge: '📥 組隊同樂・隊員篇',
       moduleTitle: '單元 1：大廳探索與房間加入',
@@ -377,6 +396,9 @@
         setTimeout(function() {
           if (window.TutorialEngine) window.TutorialEngine.reposition();
         }, 60);
+      },
+      onBeforeNext: function() {
+        injectMockRoomDetailView();
       }
     },
     // 🌟 步驟 5：進入房間視圖，確認房號與連線代碼 (真實房間渲染，防跳出)
@@ -384,7 +406,7 @@
       roleBadge: '📥 組隊同樂・隊員篇',
       moduleTitle: '單元 2：狀態比對與一鍵安裝',
       page: 'party',
-      target: '.party-room-header, .party-room-code-pill',
+      target: '.party-room-header-card, .party-room-code-pill',
       title: '進入房間與確認連線代碼',
       desc: '入隊後，頂部會顯示房號（如 PAL886）與遊戲名稱。點擊房號旁的 📋 圖示可一鍵複製房號，隨時轉發給其他想一起同樂的好友。',
       hint: '房間人數與房主公告會在此即時更新。',

@@ -134,8 +134,20 @@
       modal.classList.remove('active');
     }
 
+    // 🌟 強制切換真實視圖容器：隱藏大廳，顯示房間檢視
+    var lobbyView = document.getElementById('party-lobby-view');
+    var roomView = document.getElementById('party-room-view');
+    if (lobbyView) {
+      lobbyView.style.display = 'none';
+      lobbyView.classList.remove('active');
+    }
+    if (roomView) {
+      roomView.style.display = 'flex';
+      roomView.classList.add('active');
+    }
+
     // 切換導覽列狀態
-    var navRoom = document.getElementById('party-nav-room');
+    var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
     var navLobby = document.getElementById('party-nav-lobby');
     if (navLobby) navLobby.classList.remove('active');
     if (navRoom) {
@@ -148,11 +160,6 @@
     // 調用系統真實的 renderRoomView 渲染完整房間與真實隊員清單
     if (typeof window.renderRoomView === 'function') {
       window.renderRoomView(window._partyCurRoom);
-    } else {
-      var lobbyView = document.getElementById('party-lobby-view');
-      var roomView = document.getElementById('party-room-view');
-      if (lobbyView) { lobbyView.style.display = 'none'; lobbyView.classList.remove('active'); }
-      if (roomView) { roomView.style.display = 'flex'; roomView.classList.add('active'); }
     }
 
     // 房主預填卡片控制
