@@ -463,20 +463,7 @@
       plasmaMesh2.rotation.x = 0.22;
       mainGroup.add(plasmaMesh2);
 
-      // ── Layer 6：外層全息 3D 線框晶格外殼 (3D Holographic Wireframe Icosahedron Shell) ──
-      var wireframeGeom = new THREE.IcosahedronGeometry(1.58, 2);
-      var wireframeMat = new THREE.MeshBasicMaterial({
-        color: 0x00F5FF,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.24,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-      });
-      var wireframeMesh = new THREE.Mesh(wireframeGeom, wireframeMat);
-      mainGroup.add(wireframeMesh);
-
-      // ── Layer 7：原畫 3D 傾斜科技光環盤 (Artwork Orbit Ring Disk - 空間橫跨公轉) ──
+      // ── Layer 6：原畫 3D 傾斜科技光環盤 (Artwork Orbit Ring Disk - 空間橫跨公轉) ──
       var artworkRingGeom = new THREE.RingGeometry(1.68, 2.45, 96);
       var artworkRingMat = new THREE.MeshBasicMaterial({
         side: THREE.DoubleSide,
@@ -595,8 +582,6 @@
         var py = -mouseTargetTiltY;
         artworkRingMesh.position.x = px * 0.22;
         artworkRingMesh.position.y = py * 0.18;
-        wireframeMesh.position.x = px * 0.12;
-        wireframeMesh.position.y = py * 0.10;
         plasmaMesh1.position.x = px * 0.08;
         plasmaMesh1.position.y = py * 0.06;
         haloMesh.position.x = -px * 0.15; // 背景遠景反向拉伸深度
@@ -619,10 +604,6 @@
         plasmaMesh2.rotation.z += currentSpeed * 0.95;
         plasmaMat1.opacity = 0.72 + 0.18 * Math.sin(time * 1.9);
         plasmaMat2.opacity = 0.48 + 0.16 * Math.cos(time * 1.6);
-
-        // 3D 全息線框晶殼自轉
-        wireframeMesh.rotation.y += currentSpeed * 0.6;
-        wireframeMesh.rotation.x += currentSpeed * 0.35;
 
         // 原畫 3D 科技光環公轉
         artworkRingMesh.rotation.z += currentSpeed * 1.15;
@@ -667,8 +648,6 @@
           plasmaMat1.dispose();
           plasmaGeom2.dispose();
           plasmaMat2.dispose();
-          wireframeGeom.dispose();
-          wireframeMat.dispose();
           artworkRingGeom.dispose();
           artworkRingMat.dispose();
           pGeom.dispose();
@@ -786,20 +765,7 @@
       plasmaMesh2.rotation.x = -0.25;
       mainGroup.add(plasmaMesh2);
 
-      // ── Layer 6：外層全息 3D 線框晶格外殼 (3D Holographic Wireframe Icosahedron Shell) ──
-      var wireframeGeom = new THREE.IcosahedronGeometry(1.58, 2);
-      var wireframeMat = new THREE.MeshBasicMaterial({
-        color: 0xFF2A85,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.24,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-      });
-      var wireframeMesh = new THREE.Mesh(wireframeGeom, wireframeMat);
-      mainGroup.add(wireframeMesh);
-
-      // ── Layer 7：原畫 3D 傾斜科技光環盤 (Artwork Orbit Ring Disk - 空間橫跨公轉) ──
+      // ── Layer 6：原畫 3D 傾斜科技光環盤 (Artwork Orbit Ring Disk - 空間橫跨公轉) ──
       var artworkRingGeom = new THREE.RingGeometry(1.68, 2.45, 96);
       var artworkRingMat = new THREE.MeshBasicMaterial({
         side: THREE.DoubleSide,
@@ -923,8 +889,6 @@
         var py = -mouseTargetTiltY;
         artworkRingMesh.position.x = px * 0.22;
         artworkRingMesh.position.y = py * 0.18;
-        wireframeMesh.position.x = px * 0.12;
-        wireframeMesh.position.y = py * 0.10;
         plasmaMesh1.position.x = px * 0.08;
         plasmaMesh1.position.y = py * 0.06;
         haloMesh.position.x = -px * 0.15; // 背景遠景反向拉伸深度
@@ -947,10 +911,6 @@
         plasmaMesh2.rotation.z -= currentSpeed * 0.9;
         plasmaMat1.opacity = 0.74 + 0.18 * Math.sin(time * 2.0);
         plasmaMat2.opacity = 0.50 + 0.16 * Math.cos(time * 1.7);
-
-        // 3D 全息線框晶殼自轉
-        wireframeMesh.rotation.y -= currentSpeed * 0.6;
-        wireframeMesh.rotation.x -= currentSpeed * 0.35;
 
         // 原畫 3D 科技光環公轉
         artworkRingMesh.rotation.z -= currentSpeed * 1.2;
@@ -995,8 +955,6 @@
           plasmaMat1.dispose();
           plasmaGeom2.dispose();
           plasmaMat2.dispose();
-          wireframeGeom.dispose();
-          wireframeMat.dispose();
           artworkRingGeom.dispose();
           artworkRingMat.dispose();
           pGeom.dispose();
