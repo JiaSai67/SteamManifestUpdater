@@ -1852,13 +1852,13 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* 🌟 維持圖一底層畫面：輕柔半透明磨砂玻璃，透出底層粉色主題與卡片 */
-  background: rgba(253, 242, 244, 0.72) !important;
-  backdrop-filter: blur(12px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(1.2) !important;
+  /* 🌟 如同教學步驟般的聚光燈深邃遮罩：維持底層畫面輪廓，但柔和暗化聚焦 */
+  background: rgba(10, 14, 24, 0.78) !important;
+  backdrop-filter: blur(10px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(1.2) !important;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   padding: 24px;
   box-sizing: border-box;
   overflow-y: auto;
@@ -1866,9 +1866,9 @@ body:not(.dark) .gdrive-step-card .popover-footer {
 
 .app.dark #tutorial-party-orb-overlay,
 .app.dark .party-orb-overlay {
-  background: rgba(24, 18, 25, 0.78) !important;
-  backdrop-filter: blur(14px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(1.2) !important;
+  background: rgba(8, 11, 20, 0.84) !important;
+  backdrop-filter: blur(12px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.2) !important;
 }
 
 #tutorial-party-orb-overlay:not(.active),
@@ -1915,9 +1915,9 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  border: 1.5px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.85);
-  color: #4B5563;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1926,80 +1926,124 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   z-index: 10;
   padding: 0;
   outline: none;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 .party-orb-close-btn:hover {
-  background: #FFFFFF;
-  color: #111827;
-  border-color: rgba(0, 0, 0, 0.25);
-  transform: rotate(90deg) scale(1.08);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-}
-.app.dark .party-orb-close-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
   color: #FFFFFF;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-}
-.app.dark .party-orb-close-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.45);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: rotate(90deg) scale(1.08);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
 }
 
 /* 內容整體容器 (確保所有元素精準置中) */
 .party-orb-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  max-width: 960px;
-  margin: 0 auto;
-  position: r/* 🌟 極致動態字體科技終端小卡 (Kinetic Typography Highlight Portal Card) */
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  max-width: 960px !important;
+  margin: 0 auto !important;
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+/* 🌟 彈出進場動效：整體舞台內容彈性綻放展開 */
+#tutorial-party-orb-overlay.active .party-orb-content {
+  animation: orbContentEntrance 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes orbContentEntrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(18px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 🌟 核心排版：左右橫向並列小卡舞台區 (左右並排，徹底杜絕上下堆疊) */
+.typo-radiant-stage {
+  display: flex !important;
+  flex-direction: row !important; /* 左右並排！ */
+  justify-content: center !important;
+  align-items: stretch !important;
+  gap: 32px !important;
+  width: 100% !important;
+  max-width: 860px !important;
+  margin: 20px auto 0 auto !important;
+  box-sizing: border-box !important;
+}
+
+/* 🌟 類似步驟高亮小卡本體 (Spotlight Stage Visual Language) */
 .typo-card {
   position: relative;
-  width: 320px;
-  min-height: 490px;
-  max-width: 320px;
+  width: 360px !important;
+  min-width: 340px !important;
+  max-width: 380px !important;
+  min-height: 480px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 16px 45px rgba(61, 44, 46, 0.08);
+  background: rgba(18, 22, 36, 0.94);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(24px) saturate(1.3);
   -webkit-backdrop-filter: blur(24px) saturate(1.3);
   overflow: hidden;
   cursor: pointer;
   user-select: none;
-  transform-style: preserve-3d;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, border-color 0.35s ease;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, border-color 0.35s ease;
   display: flex;
   flex-direction: column;
   outline: none;
+  box-sizing: border-box;
 }
 
 .app.dark .typo-card {
-  background: rgba(26, 20, 28, 0.94);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  background: rgba(16, 18, 30, 0.96);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.7);
 }
 
-/* 登場漸顯動效 */
+/* 🌟 彈出進場動效：左小卡由下方彈入，右小卡延遲 0.08s 交錯彈入 */
 #tutorial-party-orb-overlay.active .typo-card.card-join {
-  animation: cardEntranceLeft 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: cardEntranceLeft 0.44s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 #tutorial-party-orb-overlay.active .typo-card.card-host {
-  animation: cardEntranceRight 0.42s cubic-bezier(0.16, 1, 0.3, 1) 0.06s both;
+  animation: cardEntranceRight 0.44s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
 }
 
 @keyframes cardEntranceLeft {
-  0% { opacity: 0; transform: translateX(-35px) scale(0.94); filter: blur(4px); }
-  100% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(35px) scale(0.92);
+    filter: blur(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
 }
 
 @keyframes cardEntranceRight {
-  0% { opacity: 0; transform: translateX(35px) scale(0.94); filter: blur(4px); }
-  100% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(35px) scale(0.92);
+    filter: blur(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
 }
 
-/* 卡片頂部飾條 (比照圖一卡片) */
+/* 游標懸停平滑浮起 (取代 3D 扭曲，呈現乾淨俐落的高級質感) */
+.typo-card:hover {
+  transform: translateY(-6px) scale(1.02);
+}
+
+/* 卡片頂部飾條 */
 .typo-card::before {
   content: "";
   position: absolute;
@@ -2011,50 +2055,36 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   z-index: 3;
 }
 
-/* 🔵 左側小卡高亮 (入隊教學) */
+/* 🔵 左側小卡局部高亮 (入隊教學：電光天青聚光光暈) */
 .typo-card.card-join {
-  --theme-color: #00BCD4;
-  --glow-color: rgba(0, 188, 212, 0.45);
-  --theme-gradient: linear-gradient(135deg, #0891B2 0%, #00BCD4 100%);
-  border: 2.5px solid #00BCD4;
-  box-shadow: 0 0 35px rgba(0, 188, 212, 0.45), 0 0 70px rgba(0, 188, 212, 0.18), 0 16px 45px rgba(61, 44, 46, 0.08);
+  --theme-color: #00F5FF;
+  --glow-color: rgba(0, 245, 255, 0.45);
+  --theme-gradient: linear-gradient(135deg, #0891B2 0%, #00F5FF 100%);
+  border: 2.5px solid #00F5FF;
+  box-shadow: 0 0 35px rgba(0, 245, 255, 0.5), 0 0 75px rgba(0, 245, 255, 0.22), 0 16px 45px rgba(0, 0, 0, 0.45);
 }
 .typo-card.card-join::before {
-  background: linear-gradient(90deg, #00BCD4, #38BDF8);
+  background: linear-gradient(90deg, #00F5FF, #38BDF8);
 }
 .typo-card.card-join:hover {
-  box-shadow: 0 0 50px rgba(0, 188, 212, 0.65), 0 0 95px rgba(0, 188, 212, 0.3), 0 20px 50px rgba(0, 0, 0, 0.12);
-  border-color: #00E5FF;
+  box-shadow: 0 0 50px rgba(0, 245, 255, 0.75), 0 0 100px rgba(0, 245, 255, 0.35), 0 20px 50px rgba(0, 0, 0, 0.6);
+  border-color: #A5F3FC;
 }
 
-.app.dark .typo-card.card-join {
-  --theme-color: #00F5FF;
-  --theme-gradient: linear-gradient(135deg, #FFFFFF 0%, #67E8F9 50%, #00F5FF 100%);
-  border-color: #00F5FF;
-  box-shadow: 0 0 45px rgba(0, 245, 255, 0.45), 0 0 85px rgba(0, 245, 255, 0.2), 0 20px 50px rgba(0, 0, 0, 0.6);
-}
-
-/* 🟣 右側小卡高亮 (開房教學) */
+/* 🟣 右側小卡局部高亮 (開房教學：粉紫霓虹聚光光暈) */
 .typo-card.card-host {
-  --theme-color: #EC4899;
-  --glow-color: rgba(236, 72, 153, 0.45);
-  --theme-gradient: linear-gradient(135deg, #BE185D 0%, #EC4899 100%);
-  border: 2.5px solid #EC4899;
-  box-shadow: 0 0 35px rgba(236, 72, 153, 0.45), 0 0 70px rgba(236, 72, 153, 0.18), 0 16px 45px rgba(61, 44, 46, 0.08);
+  --theme-color: #FF2A85;
+  --glow-color: rgba(255, 42, 133, 0.45);
+  --theme-gradient: linear-gradient(135deg, #BE185D 0%, #FF2A85 100%);
+  border: 2.5px solid #FF2A85;
+  box-shadow: 0 0 35px rgba(255, 42, 133, 0.5), 0 0 75px rgba(255, 42, 133, 0.22), 0 16px 45px rgba(0, 0, 0, 0.45);
 }
 .typo-card.card-host::before {
-  background: linear-gradient(90deg, #EC4899, #A855F7);
+  background: linear-gradient(90deg, #FF2A85, #A855F7);
 }
 .typo-card.card-host:hover {
-  box-shadow: 0 0 50px rgba(236, 72, 153, 0.65), 0 0 95px rgba(236, 72, 153, 0.3), 0 20px 50px rgba(0, 0, 0, 0.12);
-  border-color: #F43F5E;
-}
-
-.app.dark .typo-card.card-host {
-  --theme-color: #FF2A85;
-  --theme-gradient: linear-gradient(135deg, #FFFFFF 0%, #F472B6 50%, #FF2A85 100%);
-  border-color: #FF2A85;
-  box-shadow: 0 0 45px rgba(255, 42, 133, 0.45), 0 0 85px rgba(255, 42, 133, 0.2), 0 20px 50px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 50px rgba(255, 42, 133, 0.75), 0 0 100px rgba(255, 42, 133, 0.35), 0 20px 50px rgba(0, 0, 0, 0.6);
+  border-color: #F472B6;
 }
 
 /* 🌟 動態旋轉激光導軌邊框 (Radiant Laser Border) */

@@ -144,38 +144,20 @@
       var rect = cardEl.getBoundingClientRect();
       var x = e.clientX - rect.left;
       var y = e.clientY - rect.top;
-
       var centerX = rect.width / 2;
       var centerY = rect.height / 2;
 
-      // 計算細微傾角 (-8deg ~ +8deg)
-      var rotateX = ((y - centerY) / centerY) * -8;
-      var rotateY = ((x - centerX) / centerX) * 8;
-
-      cardEl.style.transform = 'perspective(1000px) rotateX(' + rotateX.toFixed(2) + 'deg) rotateY(' + rotateY.toFixed(2) + 'deg) translateY(-6px) scale(1.02)';
-
-      // 背景水印反向微幅位移
-      if (typoWatermarkEl) {
-        var moveX = ((x - centerX) / centerX) * -8;
-        var moveY = ((y - centerY) / centerY) * -6;
-        typoWatermarkEl.style.transform = 'translate(' + moveX.toFixed(1) + 'px, ' + moveY.toFixed(1) + 'px) scale(1.02)';
-      }
-
-      // 極光跟隨游標微動
+      // 柔和光暈跟隨游標微動 (不使用 3D 旋轉傾斜)
       if (auroraGlowEl) {
-        var glowX = ((x - centerX) / centerX) * 16;
-        var glowY = ((y - centerY) / centerY) * 16;
-        auroraGlowEl.style.transform = 'translate(calc(-50% + ' + glowX.toFixed(1) + 'px), calc(-50% + ' + glowY.toFixed(1) + 'px)) scale(1.2)';
+        var glowX = ((x - centerX) / centerX) * 20;
+        var glowY = ((y - centerY) / centerY) * 20;
+        auroraGlowEl.style.transform = 'translate(calc(-50% + ' + glowX.toFixed(1) + 'px), calc(-50% + ' + glowY.toFixed(1) + 'px)) scale(1.15)';
       }
     };
 
     var handleMouseLeave = function() {
-      cardEl.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0px) scale(1)';
-      if (typoWatermarkEl) {
-        typoWatermarkEl.style.transform = 'translate(0px, 0px) scale(1)';
-      }
       if (auroraGlowEl) {
-        auroraGlowEl.style.transform = 'translate(-50%, -50%) scale(0.85)';
+        auroraGlowEl.style.transform = 'translate(-50%, -50%) scale(0.9)';
       }
     };
 
@@ -461,7 +443,13 @@
     overlayEl.style.display = 'flex';
     overlayEl.style.pointerEvents = 'auto';
     overlayEl.classList.remove('fading-out');
-    overlayEl.classList.add('active');
+
+    // 🌟 強制 Reflow，確保瀏覽器完全捕獲從初始隱藏到 active 的進場動畫過渡
+    void overlayEl.offsetWidth;
+
+    requestAnimationFrame(function() {
+      if (overlayEl) overlayEl.classList.add('active');
+    });
 
     playResonanceSound('entrance');
   }
