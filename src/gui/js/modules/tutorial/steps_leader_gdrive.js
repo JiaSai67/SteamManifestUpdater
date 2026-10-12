@@ -61,32 +61,59 @@
     svg.style.inset = '0';
     svg.style.width = '100vw';
     svg.style.height = '100vh';
-    svg.style.zIndex = '99998';
+    svg.style.zIndex = '100150'; // 🌟 高於遮罩 100100，低於彈窗卡片 100200，確保高亮流光清晰浮現於深色遮罩上方
     svg.style.pointerEvents = 'none';
     svg.style.opacity = '1';
     svg.style.transition = 'opacity 0.35s ease';
 
     svg.innerHTML = `
       <defs>
+        <!-- 主漸層色：璀璨天青 -> 高亮白青 -> 翠綠流光 -->
         <linearGradient id="guideArrowGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#00BCD4" stop-opacity="0.9" />
+          <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.95" />
+          <stop offset="35%" stop-color="#38BDF8" stop-opacity="1" />
+          <stop offset="70%" stop-color="#6EE7B7" stop-opacity="1" />
           <stop offset="100%" stop-color="#10B981" stop-opacity="1" />
         </linearGradient>
-        <marker id="guideArrowHead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#10B981" />
-        </marker>
-        <filter id="guideArrowGlow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="3.5" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+
+        <!-- 廣域外發光漸層 -->
+        <linearGradient id="guideArrowGlowGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.75" />
+          <stop offset="50%" stop-color="#38BDF8" stop-opacity="0.85" />
+          <stop offset="100%" stop-color="#34D399" stop-opacity="0.95" />
+        </linearGradient>
+
+        <!-- 雙重高斯模糊霓虹發光濾鏡 -->
+        <filter id="guideArrowNeonGlow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur1" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur2" />
+          <feMerge>
+            <feMergeNode in="blur2" />
+            <feMergeNode in="blur1" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
         </filter>
+
+        <!-- 箭頭端點高光標記 (外發光 + 高亮描邊) -->
+        <marker id="guideArrowHead" viewBox="0 0 12 12" refX="8" refY="6" markerWidth="11" markerHeight="11" orient="auto-start-reverse" overflow="visible">
+          <path d="M 1 2 L 10 6 L 1 10 z" fill="#10B981" stroke="#E0F2FE" stroke-width="1.2" stroke-linejoin="round"
+                style="filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.95)) drop-shadow(0 0 10px rgba(52, 211, 153, 0.8));" />
+        </marker>
       </defs>
-      <!-- 底層光暈 -->
+
+      <!-- 1. 底層廣域霓虹光暈脈衝層 (柔和擴散) -->
       <path d="M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}" 
-            fill="none" stroke="rgba(0, 188, 212, 0.4)" stroke-width="7" filter="url(#guideArrowGlow)" />
-      <!-- 主導引流光線 -->
+            fill="none" stroke="url(#guideArrowGlowGrad)" stroke-width="12" opacity="0.45" filter="url(#guideArrowNeonGlow)" />
+
+      <!-- 2. 中層鮮明高亮霓虹光軌 (增強主色彩飽和度) -->
       <path d="M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}" 
-            fill="none" stroke="url(#guideArrowGrad)" stroke-width="3.2" stroke-dasharray="8 6" 
-            marker-end="url(#guideArrowHead)" style="animation: tutorialDashAnim 1s linear infinite;" />
+            fill="none" stroke="url(#guideArrowGrad)" stroke-width="5" opacity="0.88" filter="url(#guideArrowNeonGlow)" />
+
+      <!-- 3. 內層高光核心流動光束 (純白脈衝穿梭 + 高亮箭頭) -->
+      <path d="M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}" 
+            fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-dasharray="8 5" 
+            marker-end="url(#guideArrowHead)" 
+            style="animation: tutorialDashAnim 0.9s linear infinite; filter: drop-shadow(0 0 5px #A7F3D0);" />
     `;
 
     document.body.appendChild(svg);
