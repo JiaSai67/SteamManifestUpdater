@@ -88,8 +88,29 @@
       _origRoomsGridHTML = container.innerHTML;
     }
 
+    function doMockJoin(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (typeof tt === 'function') tt('🎉 成功申請加入房間 PAL886！', 'ok');
+      try {
+        injectMockRoomDetailView();
+      } catch(err) {
+        console.warn('[TutorialMock] injectMockRoomDetailView error:', err);
+      }
+      setTimeout(function() {
+        if (window.TutorialEngine) window.TutorialEngine.next();
+      }, 100);
+    }
+
     var existingCard = document.getElementById('tutorial-mock-room-card');
-    if (existingCard) return;
+    if (existingCard) {
+      var existingBtn = document.getElementById('tutorial-btn-join-mock');
+      if (existingBtn) existingBtn.onclick = doMockJoin;
+      existingCard.onclick = doMockJoin;
+      return;
+    }
 
     container.innerHTML = `
       <div class="party-room-card tutorial-mock-room" id="tutorial-mock-room-card" style="border: 2px solid var(--cyan, #00E5FF); box-shadow: 0 0 24px rgba(0,229,255,0.4); max-width: 340px; cursor: pointer; transition: all 0.3s ease;">
@@ -122,18 +143,6 @@
     var cardEl = document.getElementById('tutorial-mock-room-card');
     var joinBtn = document.getElementById('tutorial-btn-join-mock');
 
-    function doMockJoin(e) {
-      if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      if (typeof tt === 'function') tt('🎉 成功申請加入房間 PAL886！', 'ok');
-      injectMockRoomDetailView();
-      setTimeout(function() {
-        if (window.TutorialEngine) window.TutorialEngine.next();
-      }, 100);
-    }
-
     if (joinBtn) joinBtn.onclick = doMockJoin;
     if (cardEl) cardEl.onclick = doMockJoin;
   }
@@ -143,6 +152,7 @@
    */
   function injectMockRoomDetailView() {
     window.__tutorialMockPartyActive = true;
+    try {
 
     var myName = (window._partyProfile && window._partyProfile.player_name) || '您 (新手冒險者)';
     var myId = (window._partyProfile && window._partyProfile.client_id) || 'me_p2';
@@ -184,6 +194,9 @@
     // 隊員端一鍵安裝按鈕容器保證顯示
     var syncBtnWrap = document.getElementById('party-sync-btn-wrap');
     if (syncBtnWrap) syncBtnWrap.style.display = 'block';
+    } catch(err) {
+      console.warn('[TutorialMock] injectMockRoomDetailView error:', err);
+    }
   }
 
   /**
@@ -389,7 +402,6 @@
       target: '#tutorial-mock-room-card',
       title: '點選示範房間申請加入',
       desc: '這是為您準備的教學示範房間【幻獸帕魯 - 週末同樂團】！卡片清楚展示遊戲封面、房號、當前人數與房主公告。請點擊卡片下方的「👉 點擊模擬申請加入」按鈕進入房間！',
-      disableNext: true,
       placement: 'right',
       onEnter: function() {
         injectMockLobbyRoom();

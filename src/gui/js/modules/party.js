@@ -1037,6 +1037,22 @@ function joinPartyRoom(roomId) {
 }
 
 /**
+ * 判斷當前使用者是否為指定房間之房主
+ */
+function isHostUser(room) {
+  if (!room) return false;
+  if (room.is_host === true) return true;
+  var myName = (_partyProfile && (_partyProfile.player_name || _partyProfile.nickname)) || '';
+  var myId = (_partyProfile && _partyProfile.client_id) || '';
+  var hostName = room.host_name || room.host_player_name || '';
+  var hostId = room.host_id || '';
+  if (hostId && myId && hostId === myId) return true;
+  if (hostName && myName && hostName === myName) return true;
+  return false;
+}
+window.isHostUser = isHostUser;
+
+/**
  * 渲染房間詳情視圖
  */
 function renderRoomView(room) {
@@ -1049,15 +1065,24 @@ function renderRoomView(room) {
   var gameName = room.game_name || room.app_name || '未知遊戲';
   var maxPlayers = room.max_players || 4;
   var members = room.members || [];
-  var myName = (_partyProfile && _partyProfile.player_name) || '';
+  var myName = (_partyProfile && (_partyProfile.player_name || _partyProfile.nickname)) || '';
   var isHost = isHostUser(room);
 
-  // 標題與基本資訊
-  var titleEl = document.getElementById('party-room-title');
+  // 標題與基本資訊 (雙重相容 ID 匹配)
+  var titleEl = document.getElementById('party-room-game-title') || document.getElementById('party-room-title');
   if (titleEl) titleEl.textContent = '【' + gameName + '】專屬組隊房間';
 
-  var codeEl = document.getElementById('party-room-code-display');
+  var codeEl = document.getElementById('party-room-code-val') || document.getElementById('party-room-code-display');
   if (codeEl) codeEl.textContent = rid;
+
+  // 封面圖片與預留展示
+  var coverImg = document.getElementById('party-room-cover-img');
+  var coverPlaceholder = document.getElementById('party-room-cover-placeholder');
+  if (coverImg && room.cover_url) {
+    coverImg.src = room.cover_url;
+    coverImg.style.display = 'block';
+    if (coverPlaceholder) coverPlaceholder.style.display = 'none';
+  }
 
   var hostVal = document.getElementById('party-room-host-val');
   if (hostVal) hostVal.textContent = '👑 ' + hostName + (hostDiscord ? ' (' + hostDiscord + ')' : '');
