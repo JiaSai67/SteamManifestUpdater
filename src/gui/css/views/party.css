@@ -2263,24 +2263,28 @@ body.dark .webhook-tutorial-card .webhook-tutorial-badge,
   position: relative;
   width: 100%;
   max-width: 520px;
-  background: var(--bg-card, #ffffff);
+  background: #171320 !important; /* 🌟 徹底告別白色！始終採用高品質深黑紫基底 */
+  color: #EDE2E5 !important;
   border-radius: 20px;
   padding: 26px 24px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 30px rgba(46, 160, 67, 0.25);
-  border: 2px solid rgba(46, 160, 67, 0.6);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75), 0 0 32px rgba(46, 160, 67, 0.35);
+  border: 1.5px solid rgba(46, 160, 67, 0.6);
   text-align: center;
   box-sizing: border-box;
   animation: popInCompletion 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .party-central-completion-card.member-theme {
-  border-color: rgba(25, 118, 210, 0.6);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 30px rgba(25, 118, 210, 0.25);
+  border-color: rgba(0, 229, 255, 0.6) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75), 0 0 32px rgba(0, 229, 255, 0.35) !important;
 }
 
-.app.dark .party-central-completion-card {
-  background: #1A1721;
-  color: #EDE2E5;
+html.dark .party-central-completion-card,
+body.dark .party-central-completion-card,
+.app.dark .party-central-completion-card,
+.dark .party-central-completion-card {
+  background: #171320 !important;
+  color: #EDE2E5 !important;
 }
 
 @keyframes popInCompletion {
@@ -2298,79 +2302,113 @@ body.dark .webhook-tutorial-card .webhook-tutorial-badge,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(46, 160, 67, 0.15);
-  border: 1px solid rgba(46, 160, 67, 0.4);
-  color: #2EA043;
+  background: rgba(46, 160, 67, 0.18);
+  border: 1px solid rgba(46, 160, 67, 0.5);
+  color: #4ADE80 !important;
   font-size: 11.5px;
   font-weight: 800;
-  padding: 3px 12px;
+  padding: 4px 14px;
   border-radius: 20px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   letter-spacing: 0.5px;
 }
 
 .party-completion-badge-top.member {
-  background: rgba(25, 118, 210, 0.15);
-  border-color: rgba(25, 118, 210, 0.4);
-  color: #1976D2;
-}
-
-.app.dark .party-completion-badge-top.member {
-  color: #64B5F6;
+  background: rgba(0, 229, 255, 0.18);
+  border-color: rgba(0, 229, 255, 0.5);
+  color: #00E5FF !important;
 }
 
 .party-completion-icon-ring {
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(46, 160, 67, 0.2), rgba(76, 175, 80, 0.1));
-  border: 2px solid rgba(46, 160, 67, 0.4);
+  background: linear-gradient(135deg, rgba(46, 160, 67, 0.25), rgba(76, 175, 80, 0.1));
+  border: 2px solid rgba(46, 160, 67, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 28px;
   margin: 0 auto 12px auto;
-  box-shadow: 0 4px 16px rgba(46, 160, 67, 0.25);
+  box-shadow: 0 4px 18px rgba(46, 160, 67, 0.35);
 }
 
 .party-completion-icon-ring.member {
-  background: linear-gradient(135deg, rgba(25, 118, 210, 0.2), rgba(33, 150, 243, 0.1));
-  border-color: rgba(25, 118, 210, 0.4);
-  box-shadow: 0 4px 16px rgba(25, 118, 210, 0.25);
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.25), rgba(33, 150, 243, 0.1));
+  border-color: rgba(0, 229, 255, 0.5);
+  box-shadow: 0 4px 18px rgba(0, 229, 255, 0.35);
 }
 
 .party-completion-title {
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 900;
   margin: 0 0 8px 0;
-  color: var(--fg);
+  color: #FFFFFF !important;
+  letter-spacing: 0.5px;
 }
 
 .party-completion-subtitle {
-  font-size: 12.5px;
-  color: var(--gray);
+  font-size: 13px;
+  color: #CBD5E1 !important; /* 清晰高對比的淺銀灰，絕不隱形 */
   line-height: 1.6;
   margin: 0 0 16px 0;
 }
 
 .party-completion-section {
   text-align: left;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .party-completion-sec-title {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 800;
-  color: var(--fg);
-  margin-bottom: 6px;
+  color: #F8FAFC !important;
+  margin-bottom: 8px;
 }
 
 .party-completion-member-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  margin-bottom: 6px;
   transition: all 0.2s;
 }
 
 .party-completion-member-item:hover {
   background: rgba(255, 255, 255, 0.12) !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
+
+.party-completion-member-item .member-name-text {
+  font-weight: 700;
+  color: #FFFFFF !important;
+  font-size: 13px;
+}
+
+.party-completion-member-item .member-dc-tag {
+  color: #818CF8 !important;
+  font-weight: 800;
+  font-size: 12.5px;
+}
+
+.party-completion-contact-box {
+  background: rgba(46, 160, 67, 0.15) !important;
+  border: 1.5px solid rgba(46, 160, 67, 0.5) !important;
+  padding: 11px 14px;
+  border-radius: 10px;
+  color: #4ADE80 !important;
+  font-weight: 800;
+  font-size: 13.5px;
+  word-break: break-all;
+}
+
+.party-completion-contact-box.member-box {
+  background: rgba(0, 229, 255, 0.12) !important;
+  border: 1.5px solid rgba(0, 229, 255, 0.45) !important;
+  color: #00E5FF !important;
 }
 

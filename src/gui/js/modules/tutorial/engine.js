@@ -196,9 +196,17 @@
     var isSidebarTarget = targetEl.closest && !!targetEl.closest('.sidebar');
 
     if (isSidebarTarget || placement === 'right') {
-      popLeft = rect.right + 14;
-      popTop = targetCenterY - 40;
-      _popoverEl.dataset.arrow = 'left';
+      var spaceRight = winW - (rect.right + 14);
+      var spaceLeft = rect.left - 14;
+      if (!isSidebarTarget && !stepConfig.forcePlacement && spaceRight < popW && spaceLeft >= popW) {
+        popLeft = rect.left - popW - 14;
+        popTop = targetCenterY - popH / 2;
+        _popoverEl.dataset.arrow = 'right';
+      } else {
+        popLeft = rect.right + 14;
+        popTop = isSidebarTarget ? (targetCenterY - 40) : (targetCenterY - popH / 2);
+        _popoverEl.dataset.arrow = 'left';
+      }
     } 
     // 🌟 智慧判斷 1.5：靠左停靠 (left)，專為右側選單或多邊形延伸區塊設計（自動避開延伸之下拉選單）
     else if (placement === 'left') {

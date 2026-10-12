@@ -718,15 +718,57 @@
                 '<div style="color:#1976D2;font-size:11.5px">💡 已偵測到預填資訊：<strong>+dc: leader_eldener / 語音房已開</strong></div>' +
                 '<div class="banner-contact-row" style="margin-top:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
                   '<input type="text" class="party-contact-input" value="+dc: leader_eldener / 語音房已開" readonly style="flex:1;min-width:220px;max-width:320px" />' +
-                  '<button class="btn btn-p btn-s" id="party-btn-finish-party" style="font-weight:800;background:linear-gradient(135deg,#2EA043,#238636);box-shadow:0 2px 10px rgba(46,160,67,0.35)">🚀 完成組隊並發布資訊 (解散房間)</button>' +
-                  '<button class="btn btn-o btn-s" id="party-btn-delay-countdown">⏳ 延遲 5 分鐘 (剩餘 2 次)</button>' +
+                  '<button class="btn btn-p btn-s" id="party-btn-finish-party" style="font-weight:800;background:linear-gradient(135deg,#2EA043,#238636);box-shadow:0 2px 10px rgba(46,160,67,0.35);cursor:pointer">🚀 完成組隊並發布資訊 (解散房間)</button>' +
+                  '<button class="btn btn-o btn-s" id="party-btn-delay-countdown" style="cursor:pointer">⏳ 延遲 5 分鐘 (剩餘 2 次)</button>' +
                 '</div>' +
               '</div>';
           }
         }
+
+        // 🌟 核心互動加固：點擊延遲或發布按鈕時，友善提示並引導進入下一步
+        var delayBtn = document.getElementById('party-btn-delay-countdown');
+        var finishBtn = document.getElementById('party-btn-finish-party');
+
+        if (delayBtn) {
+          delayBtn.onclick = function(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            var cdSpan = document.getElementById('party-cd-sec');
+            if (cdSpan) cdSpan.innerText = '05 分 00 秒';
+            delayBtn.innerText = '⏳ 延遲 5 分鐘 (剩餘 1 次)';
+            if (typeof tt === 'function') {
+              tt('⏳ 模擬延長緩衝成功！請點擊右下角「下一步 ➔」進入發布開拔演練', 'info');
+            }
+            var nextBtn = document.getElementById('tutorial-popover-next');
+            if (nextBtn) {
+              nextBtn.classList.add('tutorial-btn-simulating');
+              setTimeout(function() { nextBtn.classList.remove('tutorial-btn-simulating'); }, 2000);
+            }
+          };
+        }
+
+        if (finishBtn) {
+          finishBtn.onclick = function(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            if (typeof tt === 'function') {
+              tt('🚀 收到發布請求！即將進入開拔發布步驟…', 'ok');
+            }
+            var nextBtn = document.getElementById('tutorial-popover-next');
+            if (nextBtn) nextBtn.classList.add('tutorial-btn-simulating');
+            setTimeout(function() {
+              if (window.TutorialEngine) window.TutorialEngine.next();
+            }, 260);
+          };
+        }
+
         setTimeout(function() {
           if (window.TutorialEngine) window.TutorialEngine.reposition();
         }, 60);
+      },
+      onLeave: function() {
+        var delayBtn = document.getElementById('party-btn-delay-countdown');
+        var finishBtn = document.getElementById('party-btn-finish-party');
+        if (delayBtn) delayBtn.onclick = null;
+        if (finishBtn) finishBtn.onclick = null;
       }
     },
 
@@ -797,12 +839,13 @@
       roleBadge: '👑 組隊招募・房主篇',
       moduleTitle: '單元 3：完成組隊與房間生命週期',
       page: 'party',
-      target: '#modal-party-host-completion-central .party-central-completion-card, #modal-party-host-completion-central',
+      target: '#modal-party-host-completion-central .party-central-completion-card',
       title: '🏆 隊伍組建完成與資訊廣播確認',
       desc: '發布成功！此時在房主與全體隊友的螢幕中央，都會同步彈出組隊完成大卡！隊員小明與阿華已成功接收您的 Discord 語音頻道「+dc: leader_eldener / 語音房已開」；而房間的雲端招募已圓滿達成使命。請親自點擊中央卡片中的「👥 返回組隊大廳」按鈕！',
       hint: '請親自點擊中央卡片中的「👥 返回組隊大廳」按鈕！',
       disableNext: true,
-      placement: 'bottom',
+      placement: 'right',
+      offsetX: 14,
       onEnter: function() {
         var centralModal = document.getElementById('modal-party-host-completion-central');
         if (!centralModal && typeof window.showPartyHostCompletionCentralModal === 'function') {

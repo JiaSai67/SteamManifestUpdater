@@ -651,12 +651,13 @@
       roleBadge: '📥 組隊同樂・隊員篇',
       moduleTitle: '單元 3：雲端架構與連線廣播接收',
       page: 'party',
-      target: '#modal-party-member-completion-central .party-central-completion-card, #modal-party-member-completion-central',
+      target: '#modal-party-member-completion-central .party-central-completion-card',
       title: '📢 接收房長連線廣播與一鍵複製',
       desc: '【真實連線廣播降臨】！房長已正式發送連線指示！此時在所有隊員的螢幕正中央，都會同步彈出這張完成卡片。您可以點擊「📋 一鍵複製」快速取得房長的語音頻道或連線密碼，全隊進麥一同啟動 Steam 遊戲連線！請點擊下方的「👥 返回組隊大廳」按鈕！',
       hint: '請親自點擊中央卡片中的「👥 返回組隊大廳」按鈕！',
       disableNext: true,
-      placement: 'bottom',
+      placement: 'right',
+      offsetX: 14,
       onEnter: function() {
         if (typeof window.showPartyMemberCompletionCentralModal === 'function') {
           window.showPartyMemberCompletionCentralModal('PalMaster_隊長', 'palmaster#2026', '+dc: pal_voice_room_01 / 語音頻道已開，密碼 886');
