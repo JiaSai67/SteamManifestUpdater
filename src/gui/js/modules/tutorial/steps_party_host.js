@@ -27,6 +27,7 @@
     host_name: '您 (領航房長)',
     host_discord: 'host_leader#2026',
     max_players: 4,
+    is_host: true,
     note: '新手開荒 / 語音隨意 / 缺 1 人即開',
     created_at: Math.floor(Date.now() / 1000) - 120,
     members: [
@@ -164,50 +165,54 @@
    */
   function injectMockHostRoomView() {
     window.__tutorialMockPartyActive = true;
-    window._partyCurRoom = JSON.parse(JSON.stringify(_mockHostRoomData));
+    try {
+      window._partyCurRoom = JSON.parse(JSON.stringify(_mockHostRoomData));
 
-    // 關閉創建彈窗
-    var modal = document.getElementById('modal-create-party-room');
-    if (modal) {
-      modal.style.display = 'none';
-      modal.classList.add('hidden');
-      modal.classList.remove('active');
+      // 關閉創建彈窗
+      var modal = document.getElementById('modal-create-party-room');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.add('hidden');
+        modal.classList.remove('active');
+      }
+
+      // 強制切換真實視圖容器：隱藏大廳，顯示房間檢視
+      var lobbyView = document.getElementById('party-lobby-view');
+      var roomView = document.getElementById('party-room-view');
+      if (lobbyView) {
+        lobbyView.style.display = 'none';
+        lobbyView.classList.remove('active');
+      }
+      if (roomView) {
+        roomView.style.display = 'flex';
+        roomView.classList.add('active');
+      }
+
+      // 切換導覽列狀態
+      var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
+      var navLobby = document.getElementById('party-nav-lobby');
+      if (navLobby) navLobby.classList.remove('active');
+      if (navRoom) {
+        navRoom.classList.add('active');
+        navRoom.style.display = 'flex';
+        var badge = navRoom.querySelector('.nav-badge');
+        if (badge) badge.textContent = '3';
+      }
+
+      // 調用系統真實的 renderRoomView 渲染完整房間與真實隊員清單
+      if (typeof window.renderRoomView === 'function') {
+        window.renderRoomView(window._partyCurRoom);
+      }
+
+      // 房主預填卡片控制
+      var preContactWrap = document.getElementById('party-room-pre-contact-wrap');
+      if (preContactWrap) preContactWrap.style.display = 'block';
+
+      var syncWrap = document.getElementById('party-sync-btn-wrap');
+      if (syncWrap) syncWrap.style.display = 'none';
+    } catch(err) {
+      console.warn('[TutorialMock] injectMockHostRoomView error:', err);
     }
-
-    // 強制切換真實視圖容器：隱藏大廳，顯示房間檢視
-    var lobbyView = document.getElementById('party-lobby-view');
-    var roomView = document.getElementById('party-room-view');
-    if (lobbyView) {
-      lobbyView.style.display = 'none';
-      lobbyView.classList.remove('active');
-    }
-    if (roomView) {
-      roomView.style.display = 'flex';
-      roomView.classList.add('active');
-    }
-
-    // 切換導覽列狀態
-    var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
-    var navLobby = document.getElementById('party-nav-lobby');
-    if (navLobby) navLobby.classList.remove('active');
-    if (navRoom) {
-      navRoom.classList.add('active');
-      navRoom.style.display = 'flex';
-      var badge = navRoom.querySelector('.nav-badge');
-      if (badge) badge.textContent = '3';
-    }
-
-    // 調用系統真實的 renderRoomView 渲染完整房間與真實隊員清單
-    if (typeof window.renderRoomView === 'function') {
-      window.renderRoomView(window._partyCurRoom);
-    }
-
-    // 房主預填卡片控制
-    var preContactWrap = document.getElementById('party-room-pre-contact-wrap');
-    if (preContactWrap) preContactWrap.style.display = 'block';
-
-    var syncWrap = document.getElementById('party-sync-btn-wrap');
-    if (syncWrap) syncWrap.style.display = 'none';
   }
 
   /**
@@ -516,7 +521,6 @@
       target: '#btn-submit-create-party',
       title: '確認配置並立即開房',
       desc: '遊戲、三檔檢測、Webhook 與各項配置確認完畢後，點擊「🚀 立即開房」按鈕，系統將自動為您生成唯一的全網連線房號（如 HOST666），無須設定路由器或端口映射！請親自點擊此按鈕！',
-      disableNext: true,
       placement: 'top',
       onEnter: function() {
         injectMockCreateModal('submit');
@@ -526,26 +530,39 @@
           submitBtn.classList.remove('disabled');
           submitBtn.classList.add('tutorial-btn-simulating');
           var onClick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+            if (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            }
             submitBtn.removeEventListener('click', onClick, true);
+            submitBtn.onclick = null;
             submitBtn.classList.remove('tutorial-btn-simulating');
             if (typeof tt === 'function') tt('🎉 成功創建房間 HOST666！', 'ok');
-            injectMockHostRoomView();
+            try {
+              injectMockHostRoomView();
+            } catch(err) {
+              console.warn('[TutorialMock] injectMockHostRoomView error:', err);
+            }
             setTimeout(function() {
               if (window.TutorialEngine) window.TutorialEngine.next();
-            }, 150);
+            }, 100);
           };
+          submitBtn.onclick = onClick;
           submitBtn.addEventListener('click', onClick, true);
         }
         setTimeout(function() {
           if (window.TutorialEngine) window.TutorialEngine.reposition();
         }, 60);
       },
+      onBeforeNext: function() {
+        injectMockHostRoomView();
+      },
       onLeave: function() {
         var submitBtn = document.getElementById('btn-submit-create-party');
         if (submitBtn) {
           submitBtn.classList.remove('tutorial-btn-simulating');
+          submitBtn.onclick = null;
         }
       }
     },
