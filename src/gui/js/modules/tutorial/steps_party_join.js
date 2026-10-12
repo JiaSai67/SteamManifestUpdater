@@ -1,16 +1,17 @@
 /**
- * 教學模組：組隊入隊引導 (Party Join Tutorial Steps - 旗艦完整版)
+ * 教學模組：組隊入隊引導 (Party Join Tutorial Steps - 旗艦完整生命週期版)
  * 職責：
- * 步驟 1：高亮左側主導航列第 3 個「👥 組隊大廳」按鈕
- * 步驟 2：大廳即時搜尋（遊戲名稱、房號、房主模糊搜尋）
- * 步驟 3：邀請代碼快速加入（輸入 6~8 碼房間邀請碼一鍵直達）
- * 步驟 4：大廳示範房間卡片模擬點選加入
- * 步驟 5：進入房間視圖，確認房號【PAL886】與遊戲資訊
- * 步驟 6：真實模擬房間隊員名單結構與版本狀態比對
- * 步驟 7：學員親自點擊「🚀 一鍵安裝」按鈕觸發同步
- * 步驟 8：3 秒即時下載、校對與進度條推進模擬 (0% -> 100%)
- * 步驟 9：全員就緒與房主連線資訊廣播說明
- * 步驟 10：發車倒數、房間生命週期與解散機制完整教學，並彈出結業圓滿完成字卡
+ * 步驟 1 / 11：大廳即時搜尋（遊戲名稱、房號、房主模糊搜尋）
+ * 步驟 2 / 11：邀請代碼快速加入（輸入 6~8 碼房間邀請碼一鍵直達）
+ * 步驟 3 / 11：大廳示範房間模擬加入（引導親自點擊模擬申請，鎖定下一步）
+ * 步驟 4 / 11：進入房間視圖，確認房號【PAL886】與遊戲資訊
+ * 步驟 5 / 11：隊伍成員名單結構與版本狀態比對
+ * 步驟 6 / 11：模擬一鍵安裝（呈現「🚀 點擊模擬安裝」，親自點擊互動）
+ * 步驟 7 / 11：3 秒平滑即時下載、校對與進度推進模擬 (0% -> 100%)
+ * 步驟 8 / 11：雲端無伺服器與 Discord CDN 傳輸架構解密
+ * 步驟 9 / 11：全員就緒後的房長 1 分鐘緩衝操作與隊員等待機制
+ * 步驟 10 / 11：真實模擬！接收房長開拔廣播卡片與一鍵複製
+ * 步驟 11 / 11：房間生命週期圓滿結束與領取結業證書
  */
 
 (function(window) {
@@ -133,7 +134,7 @@
           </div>
         </div>
         <div class="party-card-footer" style="padding:10px 14px 14px 14px">
-          <button class="btn btn-p btn-s party-join-btn" id="tutorial-btn-join-mock" style="width:100%;font-weight:800;letter-spacing:0.5px;box-shadow:0 0 12px rgba(233,30,99,0.35)">
+          <button class="btn btn-p btn-s party-join-btn tutorial-btn-simulating" id="tutorial-btn-join-mock" style="width:100%;font-weight:800;letter-spacing:0.5px;box-shadow:0 0 12px rgba(233,30,99,0.35);cursor:pointer">
             👉 點擊模擬申請加入
           </button>
         </div>
@@ -200,7 +201,7 @@
   }
 
   /**
-   * 模擬 3 秒真實一鍵安裝與同步進度推進 (0% -> 100%)
+   * 模擬 3 秒真實一鍵安裝與同步進度推進 (0% -> 100% 平滑流暢 60 幀)
    */
   function simulateMockInstallSync3s(callback) {
     var syncBtn = document.getElementById('party-btn-start-sync');
@@ -212,51 +213,82 @@
 
     if (syncBtn) {
       syncBtn.disabled = true;
+      syncBtn.classList.remove('tutorial-btn-simulating');
       syncBtn.innerHTML = '<span class="spinner" style="width:12px;height:12px;display:inline-block;margin-right:4px"></span> 正在一鍵安裝中…';
     }
 
-    var current = 0;
-    var stages = [
-      { pct: 15, text: '🔍 正在比對房主補丁版本宣告與 SHA-256…' },
-      { pct: 35, text: '⚡ 高速 CDN 下載連線修復補丁包 (35%)…' },
-      { pct: 60, text: '📦 下載完成，正在自動解壓縮並覆蓋至 Steam 目錄…' },
-      { pct: 85, text: '🛡️ 正在校對聯機設定檔與 SteamClient 端口…' },
-      { pct: 100, text: '✅ 遊戲與聯機環境已完全就緒 (100%)' }
-    ];
-    var stageIdx = 0;
+    var startTime = Date.now();
+    var duration = 3000; // 3 秒
 
     var timer = setInterval(function() {
-      if (stageIdx < stages.length) {
-        var s = stages[stageIdx];
-        current = s.pct;
+      var elapsed = Date.now() - startTime;
+      var ratio = Math.min(1, elapsed / duration);
+      var current = Math.floor(ratio * 100);
 
-        if (progressBar) {
-          progressBar.style.width = current + '%';
-          progressBar.className = current === 100 ? 'party-my-progress-bar-inner ready' : 'party-my-progress-bar-inner active';
-        }
-        if (progressPct) progressPct.textContent = current + '%';
-        if (progressStage) progressStage.innerHTML = '<span style="color:' + (current === 100 ? '#4CAF50' : 'var(--p)') + '">' + s.text + '</span>';
-
-        // 同步更新隊伍名單中「您」的即時進度
-        if (window._partyCurRoom && window._partyCurRoom.members) {
-          var me = window._partyCurRoom.members.find(function(m) { return m.id === 'me_p2'; });
-          if (me) {
-            me.progress = current;
-            me.status = current === 100 ? '就緒' : '下載中';
-            me.version_status = current === 100 ? '最新' : '更新中';
-          }
-          if (typeof window.renderRoomView === 'function') {
-            window.renderRoomView(window._partyCurRoom);
-          }
-        }
-
-        stageIdx++;
+      // 階段描述文字
+      var stageText = '';
+      if (current < 20) {
+        stageText = '🔍 正在比對房主補丁版本宣告與 SHA-256…';
+      } else if (current < 55) {
+        stageText = '⚡ 直連 Discord 高速 CDN 下載連線修復整合包 (' + current + '%)…';
+      } else if (current < 85) {
+        stageText = '📦 正在自動解壓縮並精準覆蓋至 Steam 遊戲目錄 (' + current + '%)…';
+      } else if (current < 100) {
+        stageText = '🛡️ 正在校對聯機設定檔與 SteamClient 虛擬連線端口…';
       } else {
-        clearInterval(timer);
-        if (myStatusBadge) {
-          myStatusBadge.textContent = '已就緒 (100%)';
-          myStatusBadge.className = 'my-status-badge ready';
+        stageText = '✅ 遊戲補丁與聯機環境已完全就緒 (100%)';
+      }
+
+      // 更新下方進度條
+      if (progressBar) {
+        progressBar.style.width = current + '%';
+        progressBar.className = current === 100 ? 'party-my-progress-bar-inner ready' : 'party-my-progress-bar-inner active';
+      }
+      if (progressPct) progressPct.textContent = current + '%';
+      if (progressStage) {
+        progressStage.innerHTML = '<span style="color:' + (current === 100 ? '#4CAF50' : 'var(--p)') + '">' + stageText + '</span>';
+      }
+
+      // 更新本機狀態標籤
+      if (myStatusBadge) {
+        myStatusBadge.textContent = current === 100 ? '已就緒' : ('下載中 (' + current + '%)');
+        myStatusBadge.className = 'my-status-badge ' + (current === 100 ? 'ready' : 'downloading');
+      }
+
+      // 同步更新隊伍名單中「您」的進度（局部更新 DOM，杜絕重繪閃爍）
+      var myCard = document.querySelector('.party-member-card.is-me');
+      if (myCard) {
+        var myOuterBar = myCard.querySelector('.member-progress-bar');
+        if (myOuterBar) {
+          myOuterBar.style.width = current + '%';
+          myOuterBar.className = 'member-progress-bar ' + (current === 100 ? 'ready' : 'downloading');
         }
+        var myInlineBar = myCard.querySelector('.member-inline-progress-bar');
+        if (myInlineBar) {
+          myInlineBar.style.width = current + '%';
+          myInlineBar.className = 'member-inline-progress-bar ' + (current === 100 ? 'ready' : 'downloading');
+        }
+        var myInlinePct = myCard.querySelector('.member-inline-progress-pct');
+        if (myInlinePct) myInlinePct.textContent = current + '%';
+        var myStatusText = myCard.querySelector('.member-status-text');
+        if (myStatusText) {
+          myStatusText.textContent = current === 100 ? '下載狀況(就緒)' : ('下載狀況(下載中: ' + current + '%)');
+          myStatusText.className = 'member-status-text ' + (current === 100 ? 'status-ready' : 'status-downloading');
+        }
+      }
+
+      // 更新全域 mock 數據
+      if (window._partyCurRoom && window._partyCurRoom.members) {
+        var me = window._partyCurRoom.members.find(function(m) { return m.id === 'me_p2'; });
+        if (me) {
+          me.progress = current;
+          me.status = current === 100 ? '就緒' : '下載中';
+          me.version_status = current === 100 ? '最新' : '更新中';
+        }
+      }
+
+      if (ratio >= 1) {
+        clearInterval(timer);
         if (syncBtn) {
           syncBtn.disabled = true;
           syncBtn.innerHTML = '✔ 已完成同步';
@@ -266,10 +298,10 @@
           allReadyBanner.style.display = 'flex';
           allReadyBanner.classList.add('pulse');
         }
-        if (typeof tt === 'function') tt('🎉 全員補丁版本已同步一致，全員就緒！', 'ok');
+        if (typeof tt === 'function') tt('🎉 模擬安裝完成！您已全速達到 100% 就緒', 'ok');
         if (typeof callback === 'function') callback();
       }
-    }, 600); // 5 次步進，共計 3 秒完成
+    }, 50); // 每 50ms 推進一次，3 秒共 60 幀平滑奔馳
   }
 
   /**
@@ -290,6 +322,9 @@
       quickBtn.removeEventListener('click', quickBtn._tutorialQuickHandler, true);
       delete quickBtn._tutorialQuickHandler;
     }
+
+    var centralModal = document.getElementById('modal-party-member-completion-central');
+    if (centralModal) centralModal.remove();
 
     var roomView = document.getElementById('party-room-view');
     var lobbyView = document.getElementById('party-lobby-view');
@@ -368,7 +403,7 @@
   }
 
   var partyJoinSteps = [
-    // 🌟 步驟 1：大廳即時搜尋（單元 1：大廳探索與房間加入）
+    // 🌟 步驟 1 / 11：大廳即時搜尋（單元 1：大廳探索與房間加入）
     {
       roleBadge: '📥 組隊同樂・隊員篇',
       moduleTitle: '單元 1：大廳探索與房間加入',
@@ -389,7 +424,7 @@
         }, 60);
       }
     },
-    // 🌟 步驟 2：邀請代碼快速直達（支援輸入與點擊「加入房間」按鈕直接進入）
+    // 🌟 步驟 2 / 11：邀請代碼快速直達（支援輸入與點擊「加入房間」按鈕直接進入）
     {
       roleBadge: '📥 組隊同樂・隊員篇',
       moduleTitle: '單元 1：大廳探索與房間加入',
@@ -419,9 +454,7 @@
             injectMockRoomDetailView();
             setTimeout(function() {
               if (window.TutorialEngine) {
-                // 直接跳到進入房間確認步驟 (步驟 4)
-                window.TutorialEngine.retarget(document.querySelector('.party-room-header-card'));
-                window.TutorialEngine.next(); // 進入示範卡片或房間
+                window.TutorialEngine.next();
               }
             }, 120);
           };
@@ -441,29 +474,46 @@
         }
       }
     },
-    // 🌟 步驟 3：大廳示範房間模擬加入 (點擊申請加入直通房間)
+    // 🌟 步驟 3 / 11：大廳示範房間模擬加入 (需求 1：正確引導點擊申請，讓下一步無法被觸發)
     {
       roleBadge: '📥 組隊同樂・隊員篇',
       moduleTitle: '單元 1：大廳探索與房間加入',
       page: 'party',
-      target: '#tutorial-mock-room-card',
+      target: '#tutorial-btn-join-mock, #tutorial-mock-room-card',
       title: '點選示範房間申請加入',
-      desc: '這是為您準備的教學示範房間【幻獸帕魯 - 週末同樂團】！卡片清楚展示遊戲封面、房號、當前人數與房主公告。請點擊卡片下方的「👉 點擊模擬申請加入」按鈕進入房間！',
+      desc: '這是為您準備的教學示範房間【幻獸帕魯 - 週末同樂團】！卡片清楚展示遊戲封面、房號、當前人數與房主公告。請親自點擊卡片下方的<strong>「👉 點擊模擬申請加入」</strong>按鈕進入房間！',
+      hint: '請親自點擊亮起的「👉 點擊模擬申請加入」按鈕，無法直接點擊下一步！',
+      disableNext: true,
       placement: 'right',
       onEnter: function() {
         injectMockLobbyRoom();
+        var joinBtn = document.getElementById('tutorial-btn-join-mock');
+        if (joinBtn) {
+          joinBtn.classList.add('tutorial-btn-simulating');
+          var onJoinClick = function(e) {
+            if (e) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+            joinBtn.removeEventListener('click', onJoinClick, true);
+            joinBtn.classList.remove('tutorial-btn-simulating');
+            if (typeof tt === 'function') tt('🎉 成功申請加入房間 PAL886！', 'ok');
+            injectMockRoomDetailView();
+            setTimeout(function() {
+              if (window.TutorialEngine) window.TutorialEngine.next();
+            }, 120);
+          };
+          joinBtn.addEventListener('click', onJoinClick, true);
+        }
         setTimeout(function() {
           if (window.TutorialEngine) window.TutorialEngine.reposition();
         }, 60);
-      },
-      onBeforeNext: function() {
-        injectMockRoomDetailView();
       }
     },
-    // 🌟 步驟 5：進入房間視圖，確認房號與連線代碼 (真實房間渲染，防跳出)
+    // 🌟 步驟 4 / 11：進入房間視圖，確認房號與連線代碼
     {
       roleBadge: '📥 組隊同樂・隊員篇',
-      moduleTitle: '單元 2：狀態比對與一鍵安裝',
+      moduleTitle: '單元 2：狀態比對與模擬安裝',
       page: 'party',
       target: '.party-room-header-card, .party-room-code-pill',
       title: '進入房間與確認連線代碼',
@@ -477,10 +527,10 @@
         }, 60);
       }
     },
-    // 🌟 步驟 6：隊伍成員補丁狀態檢視 (需求 2：真實隊員結構)
+    // 🌟 步驟 5 / 11：隊伍成員補丁狀態檢視
     {
       roleBadge: '📥 組隊同樂・隊員篇',
-      moduleTitle: '單元 2：狀態比對與一鍵安裝',
+      moduleTitle: '單元 2：狀態比對與模擬安裝',
       page: 'party',
       target: '.party-members-section, #party-members-list',
       title: '隊伍成員補丁狀態檢視',
@@ -494,27 +544,38 @@
         }, 60);
       }
     },
-    // 🌟 步驟 7：一鍵安裝與自動版本同步 (需求 3：學員親自點擊互動)
+    // 🌟 步驟 6 / 11：模擬一鍵安裝 (需求 2：一進到步驟呈現「點擊模擬安裝」字樣，絕不顯示「正在一鍵安裝中」)
     {
       roleBadge: '📥 組隊同樂・隊員篇',
-      moduleTitle: '單元 2：狀態比對與一鍵安裝',
+      moduleTitle: '單元 2：狀態比對與模擬安裝',
       page: 'party',
       target: '#party-btn-start-sync',
       title: '一鍵安裝與自動版本同步',
-      desc: '點擊下方的「🚀 一鍵安裝」按鈕，系統將自動比對並部署與房主完全相同的連線補丁，免去手動尋找補丁與覆蓋檔案的繁瑣流程！',
+      desc: '系統已為您鎖定房主所分發的補丁版本。請親自點擊下方的<strong>「🚀 點擊模擬安裝」</strong>按鈕，體驗自動下載並對齊版本的完整流程！',
       disableNext: true,
-      hint: '請親自點擊下方亮起的「🚀 一鍵安裝」按鈕開始同步！',
+      hint: '請親自點擊下方亮起的「🚀 點擊模擬安裝」按鈕開始同步！',
       placement: 'top',
       onEnter: function() {
         injectMockRoomDetailView();
+        var syncWrap = document.getElementById('party-sync-btn-wrap');
+        if (syncWrap) syncWrap.style.display = 'block';
+
         var syncBtn = document.getElementById('party-btn-start-sync');
         if (syncBtn) {
           syncBtn.disabled = false;
+          syncBtn.classList.remove('disabled');
+          syncBtn.className = 'btn btn-party-install tutorial-btn-simulating';
+          syncBtn.innerHTML = '🚀 點擊模擬安裝';
+          syncBtn.style.cursor = 'pointer';
+
           var onSyncClick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+            if (e) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
             syncBtn.removeEventListener('click', onSyncClick);
-            if (typeof tt === 'function') tt('🚀 已觸發一鍵安裝流程！正在同步房主版本…', 'info');
+            syncBtn.classList.remove('tutorial-btn-simulating');
+            if (typeof tt === 'function') tt('🚀 已觸發模擬安裝流程！正在同步房主版本…', 'info');
             if (window.TutorialEngine) window.TutorialEngine.next();
           };
           syncBtn.addEventListener('click', onSyncClick);
@@ -524,16 +585,16 @@
         }, 60);
       }
     },
-    // 🌟 步驟 8：模擬 3 秒真實下載與同步進度 (需求 3：3 秒動態進度推進)
+    // 🌟 步驟 7 / 11：3 秒平滑進度推進模擬 (需求 3：0~100 模擬進度，僅用 3 秒呈現)
     {
       roleBadge: '📥 組隊同樂・隊員篇',
-      moduleTitle: '單元 2：狀態比對與一鍵安裝',
+      moduleTitle: '單元 2：狀態比對與模擬安裝',
       page: 'party',
       target: '#party-my-progress-container, #party-members-list',
       title: '即時下載進度與檔案比對',
-      desc: '系統正透過高速 CDN 自動下載補丁並部署至 Steam 目錄。請觀察下方進度條與成員清單中您的狀態由「未下載」即時推進至「100% 已就緒」！',
+      desc: '系統正透過高速 CDN 自動下載補丁並部署至 Steam 目錄。請觀察下方進度條與成員清單中您的狀態，正以 3 秒極速由「0%」動態推進至「100% 已就緒」！',
       disableNext: true,
-      hint: '正在執行 3 秒快速下載與自動校對模擬…',
+      hint: '正在執行 3 秒極速下載與自動校對模擬 (0% ~ 100%)…',
       placement: 'top',
       onEnter: function() {
         injectMockRoomDetailView();
@@ -547,15 +608,15 @@
         }, 60);
       }
     },
-    // 🌟 步驟 9：全員就緒與房主連線資訊廣播 (需求 4：多花步驟詳細說明)
+    // 🌟 步驟 8 / 11：雲端無伺服器與 Discord CDN 傳輸架構解說 (需求 4：拆分步驟完整講述當前架構)
     {
       roleBadge: '📥 組隊同樂・隊員篇',
-      moduleTitle: '單元 2：狀態比對與一鍵安裝',
+      moduleTitle: '單元 3：雲端架構與連線廣播接收',
       page: 'party',
       target: '#party-all-ready-banner',
-      title: '🎉 全員就緒！房主發布連線資訊',
-      desc: '當所有成員皆達到 100% 後，頂部將點亮「全員就緒」橫幅！此時系統會自動彈出房主預填的聯絡資訊（如 Discord 語音頻道連結、連線 IP 或入房密碼），方便全隊即時溝通。',
-      hint: '房長通常會在語音頻道中倒數，通知全體隊員同時啟動遊戲！',
+      title: '🌐 邊緣無伺服器與 Discord CDN 託管架構',
+      desc: '【SMU 極速連線架構解密】：組隊大廳採用 <strong>Cloudflare Workers + Turso</strong> 邊緣雲端網絡，提供高可用且零延遲的大廳廣播；補丁傳輸則透過房主的 Discord Webhook 託管於 <strong>Discord 官方高速全球 CDN</strong>！隊員在剛才的 3 秒模擬中，便是直連 Discord CDN 秒級同步補丁，完全無須房主自架伺服器或負擔傳輸頻寬！',
+      hint: '點擊「下一步」，了解全員就緒後隊伍運作機制！',
       placement: 'bottom',
       onEnter: function() {
         injectMockRoomDetailView();
@@ -566,18 +627,101 @@
         }, 60);
       }
     },
-    // 🌟 步驟 10：發車倒數、房間生命週期與解散機制 (需求 4：完整生命週期說明)
+    // 🌟 步驟 9 / 11：全員就緒後的房長操作與隊員等待機制 (需求 5：符合現行開房架構，不再講 30 秒陳舊描述，講述房長做什麼與隊員等待什麼)
     {
       roleBadge: '📥 組隊同樂・隊員篇',
-      moduleTitle: '單元 2：狀態比對與一鍵安裝',
+      moduleTitle: '單元 3：雲端架構與連線廣播接收',
       page: 'party',
-      target: '.party-room-header-card, #party-btn-leave-or-close',
-      title: '🚀 倒數發車與房間生命週期說明',
-      desc: '在全員就緒後，房長可啟動 30 秒發車倒數。倒數結束或隊伍開玩後，房間會維持運行直到遊玩結束。若房長解散房間或離線，房間將自動關閉，隊員本機已同步的補丁仍會妥善保留在 Steam 目錄中！',
-      hint: '點擊「完成」即可領取結業證書並返回！',
+      target: '#party-all-ready-banner',
+      title: '⏳ 房長緩衝確認與隊員等待機制',
+      desc: '【隊伍組建完成後的真實運作】：<br>• <strong>房長在做什麼？</strong> 系統會給予房長 1 分鐘緩衝倒數，供房長確認全員語音是否進麥（可按需延遲 5 分鐘最多 2 次），並一鍵發布語音頻道連結或連線 IP。<br>• <strong>隊員需要做什麼？</strong> 隊員完全無須手動刷新！SMU 會在背景每 0.5 秒輕量輪詢房長廣播；一旦房長發布指令，系統將瞬間在您的螢幕中央彈出開拔通知！',
+      hint: '點擊「下一步」，親自演練接收房長發布的連線資訊！',
       placement: 'bottom',
       onEnter: function() {
         injectMockRoomDetailView();
+        var banner = document.getElementById('party-all-ready-banner');
+        if (banner) banner.style.display = 'flex';
+        setTimeout(function() {
+          if (window.TutorialEngine) window.TutorialEngine.reposition();
+        }, 60);
+      }
+    },
+    // 🌟 步驟 10 / 11：真實模擬！接收房長開拔廣播卡片 (需求 4 & 5：模擬 SMU 真實會收到的資訊與一鍵複製)
+    {
+      roleBadge: '📥 組隊同樂・隊員篇',
+      moduleTitle: '單元 3：雲端架構與連線廣播接收',
+      page: 'party',
+      target: '#modal-party-member-completion-central .party-central-completion-card, #modal-party-member-completion-central',
+      title: '📢 接收房長連線廣播與一鍵複製',
+      desc: '【真實連線廣播降臨】！房長已正式發送連線指示！此時在所有隊員的螢幕正中央，都會同步彈出這張完成卡片。您可以點擊「📋 一鍵複製」快速取得房長的語音頻道或連線密碼，全隊進麥一同啟動 Steam 遊戲連線！請點擊下方的「👥 返回組隊大廳」按鈕！',
+      hint: '請親自點擊中央卡片中的「👥 返回組隊大廳」按鈕！',
+      disableNext: true,
+      placement: 'bottom',
+      onEnter: function() {
+        if (typeof window.showPartyMemberCompletionCentralModal === 'function') {
+          window.showPartyMemberCompletionCentralModal('PalMaster_隊長', 'palmaster#2026', '+dc: pal_voice_room_01 / 語音頻道已開，密碼 886');
+        }
+        var centralModal = document.getElementById('modal-party-member-completion-central');
+        if (centralModal) {
+          var closeBtn = centralModal.querySelector('.party-completion-btn-close');
+          if (closeBtn) {
+            closeBtn.classList.add('tutorial-btn-simulating');
+            var onCloseClick = function(e) {
+              if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+              closeBtn.removeEventListener('click', onCloseClick, true);
+              closeBtn.classList.remove('tutorial-btn-simulating');
+              centralModal.remove();
+
+              // 模擬返回大廳
+              window._partyCurRoom = null;
+              var lobbyView = document.getElementById('party-lobby-view');
+              var roomView = document.getElementById('party-room-view');
+              if (roomView) { roomView.style.display = 'none'; roomView.classList.remove('active'); }
+              if (lobbyView) { lobbyView.style.display = 'flex'; lobbyView.classList.add('active'); }
+
+              var navLobby = document.getElementById('party-nav-lobby');
+              var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
+              if (navLobby) navLobby.classList.add('active');
+              if (navRoom) { navRoom.classList.remove('active'); navRoom.style.display = 'none'; }
+
+              if (typeof tt === 'function') tt('🚪 已安全返回組隊大廳！', 'ok');
+
+              setTimeout(function() {
+                if (window.TutorialEngine) window.TutorialEngine.next();
+              }, 180);
+            };
+            closeBtn.addEventListener('click', onCloseClick, true);
+          }
+        }
+        setTimeout(function() {
+          if (window.TutorialEngine) window.TutorialEngine.reposition();
+        }, 60);
+      }
+    },
+    // 🌟 步驟 11 / 11：房間生命週期收尾與結業祝賀
+    {
+      roleBadge: '📥 組隊同樂・隊員篇',
+      moduleTitle: '單元 3：雲端架構與連線廣播接收',
+      page: 'party',
+      target: '#party-nav-lobby, .party-header-bar, #party-lobby-view',
+      title: '🏁 房間生命週期圓滿結束',
+      desc: '恭喜！房間在房長廣播完成後已功成身退，自動從雲端大廳解散下架，釋放伺服器資源。全隊成員電腦中的補丁皆妥善留存在 Steam 目錄，隨時可以暢玩！',
+      hint: '點擊「完成教學 🎉」即可領取隊員結業證書！',
+      placement: 'bottom',
+      onEnter: function() {
+        var centralModal = document.getElementById('modal-party-member-completion-central');
+        if (centralModal) centralModal.remove();
+        var lobbyView = document.getElementById('party-lobby-view');
+        var roomView = document.getElementById('party-room-view');
+        if (roomView) { roomView.style.display = 'none'; roomView.classList.remove('active'); }
+        if (lobbyView) { lobbyView.style.display = 'flex'; lobbyView.classList.add('active'); }
+        var navLobby = document.getElementById('party-nav-lobby');
+        var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
+        if (navLobby) navLobby.classList.add('active');
+        if (navRoom) { navRoom.classList.remove('active'); navRoom.style.display = 'none'; }
         setTimeout(function() {
           if (window.TutorialEngine) window.TutorialEngine.reposition();
         }, 60);
