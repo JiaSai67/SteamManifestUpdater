@@ -277,14 +277,44 @@
    */
   function cleanupJoinTutorialSandbox() {
     window.__tutorialMockPartyActive = false;
+    window._partyCurRoom = null;
     var container = document.getElementById('party-rooms-container');
     if (container && _origRoomsGridHTML !== null) {
       container.innerHTML = _origRoomsGridHTML;
       _origRoomsGridHTML = null;
     }
-    window._partyCurRoom = null;
+
+    var quickJoinWrap = document.querySelector('.party-quick-join-wrap');
+    var quickBtn = quickJoinWrap ? quickJoinWrap.querySelector('button') : null;
+    if (quickBtn && quickBtn._tutorialQuickHandler) {
+      quickBtn.removeEventListener('click', quickBtn._tutorialQuickHandler, true);
+      delete quickBtn._tutorialQuickHandler;
+    }
+
+    var roomView = document.getElementById('party-room-view');
+    var lobbyView = document.getElementById('party-lobby-view');
+    if (roomView) {
+      roomView.style.display = 'none';
+      roomView.classList.remove('active');
+    }
+    if (lobbyView) {
+      lobbyView.style.display = 'flex';
+      lobbyView.classList.add('active');
+    }
+
+    var navLobby = document.getElementById('party-nav-lobby');
+    var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
+    if (navLobby) navLobby.classList.add('active');
+    if (navRoom) {
+      navRoom.classList.remove('active');
+      navRoom.style.display = 'none';
+    }
+
     if (typeof window.switchPartyNav === 'function') {
       window.switchPartyNav('lobby');
+    }
+    if (typeof window.refreshPartyLobby === 'function') {
+      window.refreshPartyLobby(false);
     }
   }
 
@@ -375,7 +405,6 @@
         if (codeInput && window.TutorialEngine) {
           window.TutorialEngine.simulateTyping(codeInput, 'PAL886', {}, function(){});
         }
-        // 🌟 防呆體驗增強：若學員在步驟 2 依指示點擊了「加入房間」按鈕，立即無縫進入房間視圖
         var quickJoinWrap = document.querySelector('.party-quick-join-wrap');
         var quickBtn = quickJoinWrap ? quickJoinWrap.querySelector('button') : null;
         if (quickBtn) {
@@ -385,6 +414,7 @@
               e.stopPropagation();
             }
             quickBtn.removeEventListener('click', onQuickClick, true);
+            delete quickBtn._tutorialQuickHandler;
             if (typeof tt === 'function') tt('🎉 成功透過邀請碼加入房間 PAL886！', 'ok');
             injectMockRoomDetailView();
             setTimeout(function() {
@@ -395,11 +425,20 @@
               }
             }, 120);
           };
+          quickBtn._tutorialQuickHandler = onQuickClick;
           quickBtn.addEventListener('click', onQuickClick, true);
         }
         setTimeout(function() {
           if (window.TutorialEngine) window.TutorialEngine.reposition();
         }, 60);
+      },
+      onLeave: function() {
+        var quickJoinWrap = document.querySelector('.party-quick-join-wrap');
+        var quickBtn = quickJoinWrap ? quickJoinWrap.querySelector('button') : null;
+        if (quickBtn && quickBtn._tutorialQuickHandler) {
+          quickBtn.removeEventListener('click', quickBtn._tutorialQuickHandler, true);
+          delete quickBtn._tutorialQuickHandler;
+        }
       }
     },
     // 🌟 步驟 3：大廳示範房間模擬加入 (點擊申請加入直通房間)

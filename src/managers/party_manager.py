@@ -767,11 +767,13 @@ class PartyManager:
         else:
             orig_note = raw_note.strip()
 
+        app_id_val = str(r.get("app_id") or r.get("appid") or "").strip()
+
         return {
             "room_id": r.get("room_id", ""),
             "game_name": r.get("game_name", ""),
-            "appid": appid,
-            "app_id": appid,
+            "appid": app_id_val,
+            "app_id": app_id_val,
             "host_name": r.get("host_name", ""),
             "host_id": r.get("host_client_id", ""),
             "host_discord": r.get("host_discord", ""),

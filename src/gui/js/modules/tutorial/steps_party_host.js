@@ -274,6 +274,51 @@
       modal.classList.remove('active');
     }
 
+    // 🌟 徹底還原大廳建房按鈕與事件
+    var btnCreate = document.getElementById('btn-party-create-room');
+    if (btnCreate) {
+      btnCreate.classList.remove('tutorial-btn-simulating');
+      if (btnCreate._tutorialClickHandler) {
+        btnCreate.removeEventListener('click', btnCreate._tutorialClickHandler, true);
+        delete btnCreate._tutorialClickHandler;
+      }
+      btnCreate.setAttribute('onclick', 'handlePartyCreateOrRecruit()');
+      btnCreate.innerHTML = '➕ 創建房間';
+    }
+
+    // 🌟 徹底還原彈窗立即開房按鈕與事件，絕不留空 onclick
+    var submitBtn = document.getElementById('btn-submit-create-party');
+    if (submitBtn) {
+      submitBtn.classList.remove('tutorial-btn-simulating');
+      if (submitBtn._tutorialSubmitHandler) {
+        submitBtn.removeEventListener('click', submitBtn._tutorialSubmitHandler, true);
+        delete submitBtn._tutorialSubmitHandler;
+      }
+      submitBtn.setAttribute('onclick', 'submitCreatePartyRoom()');
+      submitBtn.onclick = function() {
+        if (typeof window.submitCreatePartyRoom === 'function') {
+          window.submitCreatePartyRoom();
+        }
+      };
+    }
+
+    // 🌟 還原真實開房彈窗表單與已安裝遊戲清單
+    var gn = document.getElementById('input-party-gamename');
+    var aid = document.getElementById('input-party-appid');
+    var note = document.getElementById('input-party-note');
+    if (gn) gn.value = '';
+    if (aid) aid.value = '';
+    if (note) note.value = '';
+    if (typeof window.resetResourceInspectBadges === 'function') {
+      window.resetResourceInspectBadges();
+    }
+    if (typeof window.loadInstalledGamesDropdown === 'function') {
+      window.loadInstalledGamesDropdown();
+    }
+    if (typeof window.updateCreateRoomBtnState === 'function') {
+      window.updateCreateRoomBtnState();
+    }
+
     var preContactWrap = document.getElementById('party-room-pre-contact-wrap');
     if (preContactWrap) preContactWrap.style.display = 'none';
 
@@ -304,6 +349,11 @@
 
     if (typeof window.switchPartyNav === 'function') {
       window.switchPartyNav('lobby');
+    }
+
+    // 恢復大廳真實連線輪詢與渲染
+    if (typeof window.refreshPartyLobby === 'function') {
+      window.refreshPartyLobby(false);
     }
   }
 
@@ -393,17 +443,23 @@
           e.preventDefault();
           e.stopPropagation();
           btn.removeEventListener('click', clickHandler, true);
+          delete btn._tutorialClickHandler;
           injectMockCreateModal('select-game');
           setTimeout(function() {
             if (window.TutorialEngine) window.TutorialEngine.next();
           }, 150);
         };
+        btn._tutorialClickHandler = clickHandler;
         btn.addEventListener('click', clickHandler, true);
       },
       onLeave: function() {
         var btn = document.getElementById('btn-party-create-room');
         if (btn) {
           btn.classList.remove('tutorial-btn-simulating');
+          if (btn._tutorialClickHandler) {
+            btn.removeEventListener('click', btn._tutorialClickHandler, true);
+            delete btn._tutorialClickHandler;
+          }
           if (_origCreateBtnHTML !== null) {
             btn.innerHTML = _origCreateBtnHTML;
             _origCreateBtnHTML = null;
@@ -561,8 +617,12 @@
               if (e.stopImmediatePropagation) e.stopImmediatePropagation();
             }
             submitBtn.removeEventListener('click', onClick, true);
-            submitBtn.onclick = null;
+            delete submitBtn._tutorialSubmitHandler;
             submitBtn.classList.remove('tutorial-btn-simulating');
+            submitBtn.setAttribute('onclick', 'submitCreatePartyRoom()');
+            submitBtn.onclick = function() {
+              if (typeof window.submitCreatePartyRoom === 'function') window.submitCreatePartyRoom();
+            };
             if (typeof tt === 'function') tt('🎉 成功創建房間 HOST666！', 'ok');
             try {
               injectMockHostRoomView();
@@ -573,7 +633,7 @@
               if (window.TutorialEngine) window.TutorialEngine.next();
             }, 100);
           };
-          submitBtn.onclick = onClick;
+          submitBtn._tutorialSubmitHandler = onClick;
           submitBtn.addEventListener('click', onClick, true);
         }
         setTimeout(function() {
@@ -587,7 +647,14 @@
         var submitBtn = document.getElementById('btn-submit-create-party');
         if (submitBtn) {
           submitBtn.classList.remove('tutorial-btn-simulating');
-          submitBtn.onclick = null;
+          if (submitBtn._tutorialSubmitHandler) {
+            submitBtn.removeEventListener('click', submitBtn._tutorialSubmitHandler, true);
+            delete submitBtn._tutorialSubmitHandler;
+          }
+          submitBtn.setAttribute('onclick', 'submitCreatePartyRoom()');
+          submitBtn.onclick = function() {
+            if (typeof window.submitCreatePartyRoom === 'function') window.submitCreatePartyRoom();
+          };
         }
       }
     },
