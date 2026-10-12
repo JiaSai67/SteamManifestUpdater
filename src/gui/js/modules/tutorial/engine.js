@@ -655,7 +655,53 @@
       }
     }
 
-    // 4. 調用各註冊模組的專屬 cleanup
+    // 4. 組隊大廳與房間模擬輸入項目全域深度清理
+    var partySearch = document.getElementById('party-search-input');
+    if (partySearch) {
+      partySearch.value = '';
+      try {
+        partySearch.dispatchEvent(new Event('input', { bubbles: true }));
+        partySearch.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch(e){}
+    }
+    var partyQuickCode = document.getElementById('party-quick-code');
+    if (partyQuickCode) {
+      partyQuickCode.value = '';
+      try {
+        partyQuickCode.dispatchEvent(new Event('input', { bubbles: true }));
+        partyQuickCode.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch(e){}
+    }
+    var partyInputs = [
+      'input-party-gamename',
+      'input-party-appid',
+      'input-party-discord-webhook',
+      'input-party-note',
+      'input-party-pre-contact'
+    ];
+    partyInputs.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) {
+        el.value = '';
+        if (el.style && el.style.borderColor) el.style.borderColor = '';
+        try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+      }
+    });
+    var partySelGames = document.getElementById('select-party-installed-games');
+    if (partySelGames) {
+      partySelGames.value = '';
+      try { partySelGames.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
+    }
+    var partyContactInps = document.querySelectorAll('.party-contact-input');
+    partyContactInps.forEach(function(inp) { inp.value = ''; });
+
+    var modalCreateRoom = document.getElementById('modal-create-party-room');
+    if (modalCreateRoom) {
+      modalCreateRoom.classList.add('hidden');
+      modalCreateRoom.style.display = 'none';
+    }
+
+    // 5. 調用各註冊模組的專屬 cleanup
     if (_registeredModules) {
       for (var modId in _registeredModules) {
         var modDef = _registeredModules[modId];

@@ -302,13 +302,50 @@
       };
     }
 
-    // 🌟 還原真實開房彈窗表單與已安裝遊戲清單
+    // 🌟 還原真實開房彈窗表單所有輸入欄位與狀態
     var gn = document.getElementById('input-party-gamename');
     var aid = document.getElementById('input-party-appid');
     var note = document.getElementById('input-party-note');
+    var webhook = document.getElementById('input-party-discord-webhook');
+    var preContact = document.getElementById('input-party-pre-contact');
+    var selGames = document.getElementById('select-party-installed-games');
+    var maxPlayers = document.getElementById('select-party-max-players');
+    var isPublic = document.getElementById('select-party-is-public');
+
     if (gn) gn.value = '';
     if (aid) aid.value = '';
-    if (note) note.value = '';
+    if (note) { note.value = ''; try { note.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){} }
+    if (webhook) {
+      webhook.value = '';
+      webhook.style.borderColor = '';
+      try { webhook.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+    }
+    if (preContact) {
+      preContact.value = '';
+      try { preContact.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+    }
+    if (selGames) {
+      selGames.value = '';
+      try { selGames.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
+    }
+    if (maxPlayers) maxPlayers.value = '4';
+    if (isPublic) isPublic.value = '1';
+
+    // 清理房間內與大廳的所有輸入項目
+    var searchInp = document.getElementById('party-search-input');
+    if (searchInp) { searchInp.value = ''; try { searchInp.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){} }
+    var quickCodeInp = document.getElementById('party-quick-code');
+    if (quickCodeInp) { quickCodeInp.value = ''; try { quickCodeInp.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){} }
+    var contactInps = document.querySelectorAll('.party-contact-input');
+    contactInps.forEach(function(inp) { inp.value = ''; });
+
+    // 強制關閉開房彈窗
+    var modalCreate = document.getElementById('modal-create-party-room');
+    if (modalCreate) {
+      modalCreate.classList.add('hidden');
+      modalCreate.style.display = 'none';
+    }
+
     if (typeof window.resetResourceInspectBadges === 'function') {
       window.resetResourceInspectBadges();
     }

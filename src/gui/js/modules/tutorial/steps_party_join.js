@@ -345,6 +345,25 @@
       navRoom.style.display = 'none';
     }
 
+    // 🌟 核心清理：徹底清除大廳模擬輸入之搜尋文字與邀請代碼
+    var searchInput = document.getElementById('party-search-input');
+    if (searchInput) {
+      searchInput.value = '';
+      try {
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        searchInput.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch(e){}
+    }
+
+    var quickCodeInput = document.getElementById('party-quick-code');
+    if (quickCodeInput) {
+      quickCodeInput.value = '';
+      try {
+        quickCodeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        quickCodeInput.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch(e){}
+    }
+
     if (typeof window.switchPartyNav === 'function') {
       window.switchPartyNav('lobby');
     }
