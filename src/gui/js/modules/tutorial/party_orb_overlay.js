@@ -2,17 +2,24 @@
  * Steam Manifest Updater - 組隊教學 3D 全息星核選擇層 (Three.js WebGL 3A 旗艦旗艦版)
  * 1:1 極限還原 Gemini_Generated_Image_m2o88sm2o88sm2o8.jpg 概念原畫：
  * 
- * 🎨 原畫高保真多圖層立體 3D 架構 (Master High-Detail Volumetric 3D Pipeline):
- *  1. 【深空環境引力場光暈】(Ambient Gravity Halo - Z: -0.8，遠景反向拉伸深度)
- *  2. 【原畫母版高保真視覺核心】(Master Artwork Plane - 100% 忠實呈現原畫極致細節、全息刻度與星雲)
- *  3. 【3D 立體能量光膜球體】(Volumetric 3D Energy Core Sphere - SphereGeometry 64x48 真實幾何球面曲率)
- *  4. 【內部引力奇點十字星芒耀斑】(Singularity Starburst Flare - Z: 0.04，心跳脈衝與獨立自轉)
- *  5. 【雙層逆向流動電漿旋臂】(Swirling Volumetric Plasma - 順逆雙向旋轉體積流體視差，無任何硬線稿)
- *  6. 【立體 3D 傾角科技星環盤】(Artwork 3D Orbit Ring Disk - RingGeometry 空間大角度橫跨公轉，純原畫光學質感)
- *  7. 【全景 3D 浮動星塵微粒力場】(Volumetric Stardust Swarm - 950 顆具備真實 Z 軸深度粒子)
- *  8. 【滑鼠多層次差異化 3D 物理視差】(Differential Parallax System - 隨滑鼠移動產生層層錯位的極致深邃感)
- * 
- * 🚫 徹底杜絕任何粗硬人工線稿、線框幾何籠子與密集硬刻度，100% 呈現原畫奢華純淨的 3A 宇宙星核！
+ * 🎨 深度解構與分層運動光學系統 (Decoupled Multi-Tier Motion & Dispersing Optics):
+ *  1. 【深空發散引力光冕】(Radiating Dispersing Corona - Z: -0.9)
+ *     - 28 道高斯羽化微細射線向外發散擴散，告別死板「一片式」光環，營造宇宙天體向外輻射的深邃感。
+ *  2. 【原畫母版高保真核心】(Master Hi-Res Visual Core - Z: 0.0)
+ *     - 採用 NormalBlending 忠實還原 800px 母版全部細節、深紫/玫瑰紅旋渦、天青經緯點陣，杜絕中心過曝死白！
+ *  3. 【中層雙向對流電漿旋臂】(Dual Counter-Rotating Plasma Streams - Z: 0.06 & -0.05)
+ *     - 順逆雙向獨立差速旋轉，中心自然鏤空，在星核內部呈現流體對流的體積視差。
+ *  4. 【3D 幾何立體菲涅爾球面晶膜】(Volumetric 3D Fresnel Glass Shell - SphereGeometry 64x48)
+ *     - 中心 100% 透明留空 (0 過曝)，邊緣輪廓具有柔和 3D 曲率高光與邊界微點，提供真實玻璃/力場曲率。
+ *  5. 【中心聚能奇點十字星芒】(Singularity Pinpoint Core - Z: 0.08)
+ *     - 緊湊聚焦的微型白熾耀斑，獨立心跳脈衝與反向轉動，如星核內部微型超新星。
+ *  6. 【多重獨立 3D 傾角科技星環】(Multi-Inclination 3D Gyro Tech Rings - 3 條獨立空間傾角軌道)
+ *     - 環 1 (內主弧軌道，傾角 X: 60°，差速公轉)
+ *     - 環 2 (反向空間陀螺儀軌道，傾角 X: -50°，Y: -20°，逆向公轉)
+ *     - 環 3 (外層寬段落科技導軌，傾角 X: 78°，低速公轉)
+ *     - 均以同心圓弧動態映射，杜絕任何邊緣截斷或水平延伸的光片！
+ *  7. 【全景 3D 發散星塵微粒力場】(Dispersing Quantum Stardust - 1050 顆向外擴散微粒)
+ *  8. 【滑鼠多層次物理視差梯度系統】(Differential Parallax System - 隨視角產生前後景深錯位)
  */
 
 (function(window) {
@@ -107,11 +114,314 @@
   }
 
   /* ==========================================================================
-     ✨ 動態光學紋理生成 (Pure Optical FX Generators - 100% 無硬線條)
+     ✨ 動態光學紋理生成器 (Pure Optical FX Generators)
      ========================================================================== */
 
   /**
-   * 1. 高斯羽化微光星塵紋理
+   * 1. 發散式光冕紋理 (Radiating Dispersing Corona Flare)
+   * 以多道羽化微細射線向外發散擴散，徹底杜絕單塊平片死光感
+   */
+  function createRadiatingCoronaTexture(isCyan) {
+    var canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    var ctx = canvas.getContext('2d');
+    var cx = 256;
+    var cy = 256;
+
+    // 寬域高斯柔光基底
+    var baseGrad = ctx.createRadialGradient(cx, cy, 30, cx, cy, 250);
+    if (isCyan) {
+      baseGrad.addColorStop(0, 'rgba(0, 245, 255, 0.35)');
+      baseGrad.addColorStop(0.35, 'rgba(14, 165, 233, 0.18)');
+      baseGrad.addColorStop(0.7, 'rgba(2, 132, 199, 0.06)');
+      baseGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    } else {
+      baseGrad.addColorStop(0, 'rgba(255, 42, 133, 0.35)');
+      baseGrad.addColorStop(0.35, 'rgba(192, 132, 252, 0.18)');
+      baseGrad.addColorStop(0.7, 'rgba(147, 51, 234, 0.06)');
+      baseGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    }
+    ctx.fillStyle = baseGrad;
+    ctx.fillRect(0, 0, 512, 512);
+
+    // 32 道向外發散的微細光芒射線
+    ctx.save();
+    ctx.translate(cx, cy);
+    var numRays = 32;
+    for (var i = 0; i < numRays; i++) {
+      var angle = (i / numRays) * Math.PI * 2;
+      var rayLen = 150 + (i % 3) * 40 + (i % 5) * 20;
+      var rayWidth = (i % 2 === 0) ? 2.4 : 1.2;
+
+      ctx.save();
+      ctx.rotate(angle);
+      var rayGrad = ctx.createLinearGradient(40, 0, rayLen, 0);
+      if (isCyan) {
+        rayGrad.addColorStop(0, 'rgba(0, 245, 255, 0)');
+        rayGrad.addColorStop(0.2, 'rgba(0, 245, 255, 0.32)');
+        rayGrad.addColorStop(0.6, 'rgba(56, 189, 248, 0.18)');
+        rayGrad.addColorStop(1, 'rgba(0, 245, 255, 0)');
+      } else {
+        rayGrad.addColorStop(0, 'rgba(255, 42, 133, 0)');
+        rayGrad.addColorStop(0.2, 'rgba(255, 42, 133, 0.32)');
+        rayGrad.addColorStop(0.6, 'rgba(216, 180, 254, 0.18)');
+        rayGrad.addColorStop(1, 'rgba(255, 42, 133, 0)');
+      }
+      ctx.fillStyle = rayGrad;
+      ctx.fillRect(40, -rayWidth / 2, rayLen - 40, rayWidth);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    var tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  /**
+   * 2. 菲涅爾 3D 球面光膜紋理 (Fresnel Rim-Glow Shell Texture)
+   * ⚠️ 核心防過曝設計：中心 65% 完全透明留空，僅在外緣勾勒立體 3D 菲涅爾曲面光弧！
+   */
+  function createFresnelSphereTexture(isCyan) {
+    var canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    var ctx = canvas.getContext('2d');
+    var cx = 256;
+    var cy = 256;
+
+    ctx.clearRect(0, 0, 512, 512);
+
+    // 中心完全透明，外圈邊緣柔和發光
+    var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 256);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    grad.addColorStop(0.65, 'rgba(0, 0, 0, 0)'); // 65% 中心區域完全留空
+    if (isCyan) {
+      grad.addColorStop(0.82, 'rgba(0, 245, 255, 0.20)');
+      grad.addColorStop(0.93, 'rgba(0, 245, 255, 0.52)');
+      grad.addColorStop(0.98, 'rgba(255, 255, 255, 0.80)');
+      grad.addColorStop(1.0, 'rgba(0, 245, 255, 0)');
+    } else {
+      grad.addColorStop(0.82, 'rgba(255, 42, 133, 0.20)');
+      grad.addColorStop(0.93, 'rgba(255, 42, 133, 0.52)');
+      grad.addColorStop(0.98, 'rgba(255, 255, 255, 0.80)');
+      grad.addColorStop(1.0, 'rgba(255, 42, 133, 0)');
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 512);
+
+    // 沿著邊緣繪製微弱科技光學刻度點
+    ctx.save();
+    ctx.translate(cx, cy);
+    var dots = 64;
+    for (var d = 0; d < dots; d++) {
+      if (d % 2 === 0) continue;
+      var a = (d / dots) * Math.PI * 2;
+      var dotR = 236;
+      ctx.fillStyle = isCyan ? 'rgba(0, 245, 255, 0.40)' : 'rgba(255, 100, 180, 0.40)';
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * dotR, Math.sin(a) * dotR, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    var tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  /**
+   * 3. 獨立 3D 科技星環軌道紋理 (Multi-Ring Gyro Orbit Texture)
+   * 繪製於 512x512 畫布正中心的同心圓弧，具備圓周對稱性，徹底杜絕直角光片！
+   */
+  function createMultiRingTechTexture(isCyan, tier) {
+    var canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    var ctx = canvas.getContext('2d');
+    var cx = 256;
+    var cy = 256;
+
+    ctx.clearRect(0, 0, 512, 512);
+
+    var primaryColor = isCyan ? '#00F5FF' : '#FF2A85';
+    var softColor = isCyan ? 'rgba(0, 245, 255, 0.32)' : 'rgba(255, 42, 133, 0.32)';
+    var brightColor = isCyan ? '#E0F7FF' : '#FFE4F0';
+
+    if (tier === 1) {
+      // 內層軌道環：細緻高光主弧與導航信標點 (Radius: 185)
+      var r1 = 185;
+      ctx.strokeStyle = softColor;
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r1, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 兩段高亮對稱弧
+      ctx.strokeStyle = primaryColor;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r1, -0.6, 1.1);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r1, Math.PI - 0.6, Math.PI + 1.1);
+      ctx.stroke();
+
+      // 信標發光節點
+      var nodeAngles = [0.2, 0.9, Math.PI + 0.2, Math.PI + 0.9];
+      for (var n = 0; n < nodeAngles.length; n++) {
+        var na = nodeAngles[n];
+        var nx = cx + Math.cos(na) * r1;
+        var ny = cy + Math.sin(na) * r1;
+        ctx.fillStyle = brightColor;
+        ctx.beginPath();
+        ctx.arc(nx, ny, 3.0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (tier === 2) {
+      // 中層大角度反傾軌道環：雙重虛線與長流光 (Radius: 216)
+      var r2 = 216;
+      ctx.strokeStyle = isCyan ? 'rgba(14, 165, 233, 0.40)' : 'rgba(192, 132, 252, 0.40)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r2, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = primaryColor;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r2, 0.8, 2.3);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r2, Math.PI + 0.8, Math.PI + 2.3);
+      ctx.stroke();
+
+      // 同心微導軌
+      ctx.strokeStyle = softColor;
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r2 + 6, -0.5, 1.8);
+      ctx.stroke();
+    } else {
+      // 外層大半徑科技環：寬段落弧光 (Radius: 242)
+      var r3 = 242;
+      ctx.strokeStyle = softColor;
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r3, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = primaryColor;
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r3, -1.2, -0.2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r3, Math.PI - 1.2, Math.PI - 0.2);
+      ctx.stroke();
+    }
+
+    var tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  /**
+   * 4. 聚焦奇點白熾十字星芒 (Singularity Pinpoint Flare)
+   * 縮小發光半徑，以細銳焦點聚能，絕不過曝周圍星系細節！
+   */
+  function createSingularityPinpointTexture(isCyan) {
+    var canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    var ctx = canvas.getContext('2d');
+    var cx = 64;
+    var cy = 64;
+
+    ctx.clearRect(0, 0, 128, 128);
+
+    // 中心微型白熾核
+    var gCore = ctx.createRadialGradient(cx, cy, 0, cx, cy, 18);
+    gCore.addColorStop(0, '#FFFFFF');
+    gCore.addColorStop(0.35, isCyan ? 'rgba(0, 245, 255, 0.85)' : 'rgba(255, 120, 200, 0.85)');
+    gCore.addColorStop(0.8, isCyan ? 'rgba(14, 165, 233, 0.25)' : 'rgba(192, 132, 252, 0.25)');
+    gCore.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = gCore;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 水平銳利星芒
+    var gH = ctx.createLinearGradient(0, cy, 128, cy);
+    gH.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    gH.addColorStop(0.45, isCyan ? 'rgba(0, 245, 255, 0.6)' : 'rgba(255, 140, 210, 0.6)');
+    gH.addColorStop(0.5, '#FFFFFF');
+    gH.addColorStop(0.55, isCyan ? 'rgba(0, 245, 255, 0.6)' : 'rgba(255, 140, 210, 0.6)');
+    gH.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = gH;
+    ctx.fillRect(4, cy - 1, 120, 2);
+
+    // 垂直銳利星芒
+    var gV = ctx.createLinearGradient(cx, 0, cx, 128);
+    gV.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    gV.addColorStop(0.45, isCyan ? 'rgba(0, 245, 255, 0.6)' : 'rgba(255, 140, 210, 0.6)');
+    gV.addColorStop(0.5, '#FFFFFF');
+    gV.addColorStop(0.55, isCyan ? 'rgba(0, 245, 255, 0.6)' : 'rgba(255, 140, 210, 0.6)');
+    gV.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = gV;
+    ctx.fillRect(cx - 1, 4, 2, 120);
+
+    var tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  /**
+   * 5. 中層有機電漿流動旋臂紋理 (Procedural Plasma Stream Arms)
+   * 柔和的雙螺旋電漿帶，中心自然留空，在星核內部帶來立體對流視差
+   */
+  function createPlasmaNebulaTexture(isCyan, variant) {
+    var canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    var ctx = canvas.getContext('2d');
+    var cx = 128;
+    var cy = 128;
+
+    ctx.clearRect(0, 0, 256, 256);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    var spiralArms = (variant === 1) ? 2 : 3;
+    for (var a = 0; a < spiralArms; a++) {
+      ctx.save();
+      ctx.rotate((a / spiralArms) * Math.PI * 2);
+      var grad = ctx.createRadialGradient(46, 0, 8, 46, 0, 52);
+      if (isCyan) {
+        grad.addColorStop(0, 'rgba(0, 245, 255, 0.38)');
+        grad.addColorStop(0.5, 'rgba(14, 165, 233, 0.18)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      } else {
+        grad.addColorStop(0, 'rgba(255, 42, 133, 0.38)');
+        grad.addColorStop(0.5, 'rgba(192, 132, 252, 0.18)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      }
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(46, 0, 52, 26, Math.PI / 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+
+    var tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  /**
+   * 6. 高斯羽化微光星塵紋理
    */
   function createStardustTexture() {
     var canvas = document.createElement('canvas');
@@ -136,160 +446,8 @@
     return tex;
   }
 
-  /**
-   * 2. 中心十字星芒奇點光暈 (Cross Starburst Flare)
-   */
-  function createCrossStarburstTexture(isCyan) {
-    var canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    var ctx = canvas.getContext('2d');
-    var cx = 128;
-    var cy = 128;
-
-    ctx.clearRect(0, 0, 256, 256);
-
-    // 寬柔和圓形外暈
-    var gSoft = ctx.createRadialGradient(cx, cy, 0, cx, cy, 115);
-    gSoft.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-    gSoft.addColorStop(0.2, isCyan ? 'rgba(0, 245, 255, 0.65)' : 'rgba(255, 130, 200, 0.65)');
-    gSoft.addColorStop(0.5, isCyan ? 'rgba(14, 165, 233, 0.25)' : 'rgba(255, 42, 133, 0.25)');
-    gSoft.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = gSoft;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 115, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 水平銳利長星芒
-    var gH = ctx.createLinearGradient(0, cy, 256, cy);
-    gH.addColorStop(0, 'rgba(255, 255, 255, 0)');
-    gH.addColorStop(0.35, isCyan ? 'rgba(0, 245, 255, 0.55)' : 'rgba(255, 140, 210, 0.55)');
-    gH.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
-    gH.addColorStop(0.65, isCyan ? 'rgba(0, 245, 255, 0.55)' : 'rgba(255, 140, 210, 0.55)');
-    gH.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = gH;
-    ctx.fillRect(6, cy - 2, 244, 4);
-
-    // 垂直銳利長星芒
-    var gV = ctx.createLinearGradient(cx, 0, cx, 256);
-    gV.addColorStop(0, 'rgba(255, 255, 255, 0)');
-    gV.addColorStop(0.35, isCyan ? 'rgba(0, 245, 255, 0.55)' : 'rgba(255, 140, 210, 0.55)');
-    gV.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
-    gV.addColorStop(0.65, isCyan ? 'rgba(0, 245, 255, 0.55)' : 'rgba(255, 140, 210, 0.55)');
-    gV.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = gV;
-    ctx.fillRect(cx - 2, 6, 4, 244);
-
-    // 45 度次級斜星芒
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(Math.PI / 4);
-    var gD = ctx.createLinearGradient(-85, 0, 85, 0);
-    gD.addColorStop(0, 'rgba(255, 255, 255, 0)');
-    gD.addColorStop(0.5, 'rgba(255, 255, 255, 0.9)');
-    gD.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = gD;
-    ctx.fillRect(-85, -1.5, 170, 3);
-    ctx.rotate(Math.PI / 2);
-    ctx.fillRect(-85, -1.5, 170, 3);
-    ctx.restore();
-
-    // 中心白熾核
-    var gCore = ctx.createRadialGradient(cx, cy, 0, cx, cy, 22);
-    gCore.addColorStop(0, '#FFFFFF');
-    gCore.addColorStop(0.5, isCyan ? '#E0F7FF' : '#FFE4F0');
-    gCore.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = gCore;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 22, 0, Math.PI * 2);
-    ctx.fill();
-
-    var tex = new THREE.CanvasTexture(canvas);
-    tex.needsUpdate = true;
-    return tex;
-  }
-
-  /**
-   * 3. 背景環境引力場光暈紋理 (Ambient Gravity Halo)
-   */
-  function createAmbientHaloTexture(isCyan) {
-    var canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    var ctx = canvas.getContext('2d');
-    var cx = 128;
-    var cy = 128;
-
-    var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 126);
-    if (isCyan) {
-      grad.addColorStop(0, 'rgba(0, 245, 255, 0.55)');
-      grad.addColorStop(0.35, 'rgba(14, 165, 233, 0.32)');
-      grad.addColorStop(0.7, 'rgba(2, 132, 199, 0.1)');
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    } else {
-      grad.addColorStop(0, 'rgba(255, 42, 133, 0.55)');
-      grad.addColorStop(0.35, 'rgba(192, 132, 252, 0.32)');
-      grad.addColorStop(0.7, 'rgba(147, 51, 234, 0.1)');
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    }
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 256, 256);
-
-    var tex = new THREE.CanvasTexture(canvas);
-    tex.needsUpdate = true;
-    return tex;
-  }
-
-  /**
-   * 4. 柔和動態星環光帶紋理 (Smooth Glowing Arc Ring Texture - 零生硬刻度)
-   */
-  function createSmoothGlowRingTexture(isCyan) {
-    var canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 64;
-    var ctx = canvas.getContext('2d');
-
-    ctx.clearRect(0, 0, 512, 64);
-
-    // 圓弧流光漸變，具備平滑淡入淡出段落
-    var grad = ctx.createLinearGradient(0, 0, 512, 0);
-    if (isCyan) {
-      grad.addColorStop(0, 'rgba(0, 245, 255, 0)');
-      grad.addColorStop(0.15, 'rgba(0, 245, 255, 0.7)');
-      grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.95)');
-      grad.addColorStop(0.65, 'rgba(14, 165, 233, 0.75)');
-      grad.addColorStop(0.85, 'rgba(0, 245, 255, 0.4)');
-      grad.addColorStop(1, 'rgba(0, 245, 255, 0)');
-    } else {
-      grad.addColorStop(0, 'rgba(255, 42, 133, 0)');
-      grad.addColorStop(0.15, 'rgba(255, 100, 180, 0.7)');
-      grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.95)');
-      grad.addColorStop(0.65, 'rgba(192, 132, 252, 0.75)');
-      grad.addColorStop(0.85, 'rgba(255, 42, 133, 0.4)');
-      grad.addColorStop(1, 'rgba(255, 42, 133, 0)');
-    }
-
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 16, 512, 32);
-
-    // 兩側高斯柔邊羽化
-    var vGrad = ctx.createLinearGradient(0, 0, 0, 64);
-    vGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    vGrad.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
-    vGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.fillStyle = vGrad;
-    ctx.fillRect(0, 0, 512, 64);
-
-    var tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    tex.needsUpdate = true;
-    return tex;
-  }
-
   /* ==========================================================================
-     🔵 左星核初始化：天青全息晶核 (PROTOCOL // SQUAD JOIN) - 1:1 原畫 3A 純淨版
+     🔵 左星核：天青全息晶核 (PROTOCOL // SQUAD JOIN) - 3A 多層發散與細節還原
      ========================================================================== */
   function initJoinThreeCore(canvas) {
     if (!window.THREE) return null;
@@ -310,22 +468,23 @@
       var mainGroup = new THREE.Group();
       scene.add(mainGroup);
 
-      // ── Layer 1：深空引力場環境光暈 (Ambient Halo - Z: -0.8) ──
-      var haloTex = createAmbientHaloTexture(true);
-      var haloGeom = new THREE.PlaneGeometry(5.6, 5.6);
-      var haloMat = new THREE.MeshBasicMaterial({
-        map: haloTex,
+      // ── Layer 1：深空發散引力光冕 (Radiating Dispersing Corona - Z: -0.9) ──
+      var coronaTex = createRadiatingCoronaTexture(true);
+      var coronaGeom = new THREE.PlaneGeometry(5.8, 5.8);
+      var coronaMat = new THREE.MeshBasicMaterial({
+        map: coronaTex,
         transparent: true,
-        opacity: 0.45,
+        opacity: 0.38,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
-      var haloMesh = new THREE.Mesh(haloGeom, haloMat);
-      haloMesh.position.z = -0.8;
-      mainGroup.add(haloMesh);
+      var coronaMesh = new THREE.Mesh(coronaGeom, coronaMat);
+      coronaMesh.position.z = -0.9;
+      mainGroup.add(coronaMesh);
 
-      // ── Layer 2：原畫母版高保真視覺核心 (Master High-Detail Artwork Plane) ──
-      var masterGeom = new THREE.PlaneGeometry(3.68, 3.68);
+      // ── Layer 2：原畫母版高保真視覺核心 (Master Hi-Res Visual Core - Z: 0.0) ──
+      // ⚠️ 採用 NormalBlending，100% 呈現原畫深邃星雲、經緯點陣與科技環，不自加光防過曝！
+      var masterGeom = new THREE.PlaneGeometry(3.55, 3.55);
       var masterMat = new THREE.MeshBasicMaterial({
         transparent: true,
         opacity: 1.0,
@@ -335,72 +494,107 @@
       var masterMesh = new THREE.Mesh(masterGeom, masterMat);
       mainGroup.add(masterMesh);
 
-      // ── Layer 3：3D 立體能量光膜球體 (Volumetric 3D Energy Core Sphere - 真實球面曲率) ──
-      var coreGlowGeom = new THREE.SphereGeometry(1.42, 64, 48);
-      var coreGlowMat = new THREE.MeshBasicMaterial({
-        transparent: true,
-        opacity: 0.46,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-      });
-      var coreGlowMesh = new THREE.Mesh(coreGlowGeom, coreGlowMat);
-      mainGroup.add(coreGlowMesh);
-
-      // ── Layer 4：奇點白熾十字星芒耀斑 (Singularity Starburst - Z: 0.04) ──
-      var starburstTex = createCrossStarburstTexture(true);
-      var starburstGeom = new THREE.PlaneGeometry(1.45, 1.45);
-      var starburstMat = new THREE.MeshBasicMaterial({
-        map: starburstTex,
-        transparent: true,
-        opacity: 0.94,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-      });
-      var starburstMesh = new THREE.Mesh(starburstGeom, starburstMat);
-      starburstMesh.position.z = 0.04;
-      mainGroup.add(starburstMesh);
-
-      // ── Layer 5：雙層動態流體電漿旋臂 (Swirling Volumetric Plasma - 順逆雙向流動視差) ──
-      var plasmaGeom1 = new THREE.PlaneGeometry(3.1, 3.1);
+      // ── Layer 3：中層雙向對流電漿旋臂 (Dual Counter-Rotating Plasma Streams) ──
+      var plasmaTex1 = createPlasmaNebulaTexture(true, 1);
+      var plasmaGeom1 = new THREE.PlaneGeometry(2.9, 2.9);
       var plasmaMat1 = new THREE.MeshBasicMaterial({
+        map: plasmaTex1,
         transparent: true,
-        opacity: 0.72,
+        opacity: 0.32,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
       var plasmaMesh1 = new THREE.Mesh(plasmaGeom1, plasmaMat1);
-      plasmaMesh1.position.z = 0.10;
+      plasmaMesh1.position.z = 0.06;
       mainGroup.add(plasmaMesh1);
 
-      var plasmaGeom2 = new THREE.PlaneGeometry(2.85, 2.85);
+      var plasmaTex2 = createPlasmaNebulaTexture(true, 2);
+      var plasmaGeom2 = new THREE.PlaneGeometry(2.6, 2.6);
       var plasmaMat2 = new THREE.MeshBasicMaterial({
+        map: plasmaTex2,
         transparent: true,
-        opacity: 0.48,
+        opacity: 0.26,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
       var plasmaMesh2 = new THREE.Mesh(plasmaGeom2, plasmaMat2);
-      plasmaMesh2.position.z = -0.06;
-      plasmaMesh2.rotation.x = 0.18;
+      plasmaMesh2.position.z = -0.05;
+      plasmaMesh2.rotation.x = 0.20;
       mainGroup.add(plasmaMesh2);
 
-      // ── Layer 6：3D 傾角柔光科技星環 (Smooth 3D Orbit Ring Disk - 空間橫跨公轉) ──
-      var ringTex = createSmoothGlowRingTexture(true);
-      var artworkRingGeom = new THREE.RingGeometry(1.68, 2.45, 96);
-      var artworkRingMat = new THREE.MeshBasicMaterial({
-        map: ringTex,
-        side: THREE.DoubleSide,
+      // ── Layer 4：3D 幾何立體菲涅爾球面晶膜 (Volumetric 3D Fresnel Glass Shell) ──
+      // ⚠️ 中心留空防白暴，僅在 3D 邊緣曲率發光！
+      var fresnelTex = createFresnelSphereTexture(true);
+      var fresnelGeom = new THREE.SphereGeometry(1.36, 64, 48);
+      var fresnelMat = new THREE.MeshBasicMaterial({
+        map: fresnelTex,
+        transparent: true,
+        opacity: 0.52,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      var fresnelMesh = new THREE.Mesh(fresnelGeom, fresnelMat);
+      mainGroup.add(fresnelMesh);
+
+      // ── Layer 5：中心聚能奇點十字星芒 (Singularity Pinpoint Flare - Z: 0.08) ──
+      var starburstTex = createSingularityPinpointTexture(true);
+      var starburstGeom = new THREE.PlaneGeometry(0.85, 0.85);
+      var starburstMat = new THREE.MeshBasicMaterial({
+        map: starburstTex,
         transparent: true,
         opacity: 0.88,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
-      var artworkRingMesh = new THREE.Mesh(artworkRingGeom, artworkRingMat);
-      artworkRingMesh.rotation.x = Math.PI / 3.2;
-      artworkRingMesh.rotation.y = 0.15;
-      mainGroup.add(artworkRingMesh);
+      var starburstMesh = new THREE.Mesh(starburstGeom, starburstMat);
+      starburstMesh.position.z = 0.08;
+      mainGroup.add(starburstMesh);
 
-      // ── Layer 7：全景 3D 浮動星塵微粒力場 (950 顆具備真實 Z 軸深度粒子) ──
+      // ── Layer 6：多重獨立 3D 傾角科技星環 (3 條獨立空間傾角軌道，杜絕死板光片) ──
+      var ringTex1 = createMultiRingTechTexture(true, 1);
+      var ringGeom1 = new THREE.PlaneGeometry(3.6, 3.6);
+      var ringMat1 = new THREE.MeshBasicMaterial({
+        map: ringTex1,
+        transparent: true,
+        opacity: 0.78,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      var ringMesh1 = new THREE.Mesh(ringGeom1, ringMat1);
+      ringMesh1.rotation.x = Math.PI / 3.0;
+      ringMesh1.rotation.y = 0.18;
+      mainGroup.add(ringMesh1);
+
+      var ringTex2 = createMultiRingTechTexture(true, 2);
+      var ringGeom2 = new THREE.PlaneGeometry(3.9, 3.9);
+      var ringMat2 = new THREE.MeshBasicMaterial({
+        map: ringTex2,
+        transparent: true,
+        opacity: 0.68,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      var ringMesh2 = new THREE.Mesh(ringGeom2, ringMat2);
+      ringMesh2.rotation.x = -Math.PI / 3.6;
+      ringMesh2.rotation.y = -0.32;
+      ringMesh2.rotation.z = 0.25;
+      mainGroup.add(ringMesh2);
+
+      var ringTex3 = createMultiRingTechTexture(true, 3);
+      var ringGeom3 = new THREE.PlaneGeometry(4.3, 4.3);
+      var ringMat3 = new THREE.MeshBasicMaterial({
+        map: ringTex3,
+        transparent: true,
+        opacity: 0.55,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      var ringMesh3 = new THREE.Mesh(ringGeom3, ringMat3);
+      ringMesh3.rotation.x = Math.PI / 2.3;
+      ringMesh3.rotation.y = 0.08;
+      mainGroup.add(ringMesh3);
+
+      // ── Layer 7：全景 3D 發散星塵微粒力場 (1050 顆向外擴散微粒) ──
       var stardustTex = createStardustTexture();
       var pGeom = new THREE.BufferGeometry();
       var pPos = [];
@@ -409,44 +603,38 @@
       var cCyan = new THREE.Color(0x00F5FF);
       var cBlue = new THREE.Color(0x38BDF8);
 
-      for (var i = 0; i < 950; i++) {
-        var r = 0.4 + Math.random() * 2.2;
+      for (var i = 0; i < 1050; i++) {
+        var r = 0.4 + Math.random() * 2.3;
         var thetaP = Math.random() * Math.PI * 2;
         var phiP = Math.acos(2 * Math.random() - 1);
         pPos.push(r * Math.sin(phiP) * Math.cos(thetaP), r * Math.sin(phiP) * Math.sin(thetaP), r * Math.cos(phiP));
-        var colP = (r < 1.0) ? cWhite.clone().lerp(cCyan, r / 1.0) : cCyan.clone().lerp(cBlue, (r - 1.0) / 1.4);
+        var colP = (r < 1.0) ? cWhite.clone().lerp(cCyan, r / 1.0) : cCyan.clone().lerp(cBlue, (r - 1.0) / 1.5);
         pColors.push(colP.r, colP.g, colP.b);
       }
       pGeom.setAttribute('position', new THREE.Float32BufferAttribute(pPos, 3));
       pGeom.setAttribute('color', new THREE.Float32BufferAttribute(pColors, 3));
       var pMat = new THREE.PointsMaterial({
-        size: 0.044,
+        size: 0.042,
         map: stardustTex,
         vertexColors: true,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.88,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
       var particles = new THREE.Points(pGeom, pMat);
       mainGroup.add(particles);
 
-      // ── 加載 100% 高清原畫母版 ──
+      // ── 加載 800px 超清原畫母版 ──
       var assets = window.SMU_PARTY_ORB_ASSETS || {};
       var joinUri = assets.joinArtworkWebp || assets.joinCore;
       
       loadLayerTexture(joinUri, 'assets/tutorial/orb_join_artwork_800.webp', function(tex) {
         masterMat.map = tex;
         masterMat.needsUpdate = true;
-        coreGlowMat.map = tex;
-        coreGlowMat.needsUpdate = true;
-        plasmaMat1.map = tex;
-        plasmaMat1.needsUpdate = true;
-        plasmaMat2.map = tex;
-        plasmaMat2.needsUpdate = true;
       });
 
-      // ── Layer 8：動態迴圈與滑鼠多層次差異化 3D 視差傾角互動 ──
+      // ── Layer 8：動態迴圈與各層獨立自由運動 ──
       var currentSpeed = 0.0028;
       var targetSpeed = 0.0028;
       var scaleFactor = 1.0;
@@ -463,8 +651,8 @@
         var nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         var ny = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
         if (isNaN(nx) || isNaN(ny)) return;
-        mouseTargetTiltX = nx * 0.44;
-        mouseTargetTiltY = ny * 0.38;
+        mouseTargetTiltX = nx * 0.42;
+        mouseTargetTiltY = ny * 0.36;
       }
       function onMouseLeave() {
         mouseTargetTiltX = 0;
@@ -489,39 +677,47 @@
         mainGroup.rotation.y = THREE.MathUtils.lerp(mainGroup.rotation.y, mouseTargetTiltX, 0.07);
         mainGroup.rotation.x = THREE.MathUtils.lerp(mainGroup.rotation.x, -mouseTargetTiltY, 0.07);
 
-        // 多層次差異化視差補償 (Differential Parallax Gradient)
+        // 各層差異化視差與深度拉伸
         var px = mouseTargetTiltX;
         var py = -mouseTargetTiltY;
-        artworkRingMesh.position.x = px * 0.22;
-        artworkRingMesh.position.y = py * 0.18;
-        plasmaMesh1.position.x = px * 0.08;
-        plasmaMesh1.position.y = py * 0.06;
-        haloMesh.position.x = -px * 0.15; // 背景遠景反向拉伸深度
-        haloMesh.position.y = -py * 0.12;
+        coronaMesh.position.x = -px * 0.16;
+        coronaMesh.position.y = -py * 0.12;
+        ringMesh1.position.x = px * 0.18;
+        ringMesh1.position.y = py * 0.14;
+        ringMesh2.position.x = -px * 0.12;
+        ringMesh2.position.y = -py * 0.10;
+        ringMesh3.position.x = px * 0.26;
+        ringMesh3.position.y = py * 0.20;
 
-        // 原畫主體自轉微調與呼吸
-        var pulse = 1.0 + 0.038 * Math.sin(time * 1.8);
+        // 1. 原畫母版緩慢自然呼吸
+        var pulse = 1.0 + 0.022 * Math.sin(time * 1.5);
         masterMesh.scale.set(pulse, pulse, 1.0);
-        coreGlowMesh.scale.set(pulse * 1.02, pulse * 1.02, pulse * 1.02);
-        coreGlowMesh.rotation.y += currentSpeed * 0.5;
-        coreGlowMat.opacity = 0.42 + 0.18 * Math.sin(time * 2.2);
 
-        // 奇點十字星芒脈衝閃爍與微轉動
-        var starPulse = 1.0 + 0.08 * Math.sin(time * 2.6);
-        starburstMesh.scale.set(starPulse, starPulse, 1.0);
-        starburstMesh.rotation.z += currentSpeed * 0.6;
+        // 2. 菲涅爾 3D 球膜真實三維自轉
+        fresnelMesh.rotation.y += currentSpeed * 0.65;
+        fresnelMesh.rotation.x = 0.08 * Math.sin(time * 0.9);
 
-        // 雙電漿雲盤逆向差速公轉 (立體體積流動視差)
+        // 3. 雙向電漿動態對流
         plasmaMesh1.rotation.z -= currentSpeed * 1.35;
         plasmaMesh2.rotation.z += currentSpeed * 0.95;
-        plasmaMat1.opacity = 0.72 + 0.18 * Math.sin(time * 1.9);
-        plasmaMat2.opacity = 0.48 + 0.16 * Math.cos(time * 1.6);
+        plasmaMat1.opacity = 0.28 + 0.08 * Math.sin(time * 1.8);
+        plasmaMat2.opacity = 0.22 + 0.06 * Math.cos(time * 1.5);
 
-        // 3D 科技光環公轉
-        artworkRingMesh.rotation.z += currentSpeed * 1.15;
+        // 4. 中心聚能奇點十字星芒微動態
+        var starPulse = 1.0 + 0.06 * Math.sin(time * 2.8);
+        starburstMesh.scale.set(starPulse, starPulse, 1.0);
+        starburstMesh.rotation.z -= currentSpeed * 0.6;
 
-        // 星塵旋轉
-        particles.rotation.y += currentSpeed * 0.65;
+        // 5. 三重星環差速交錯公轉 (宛如真實陀螺儀)
+        ringMesh1.rotation.z += currentSpeed * 1.25;
+        ringMesh2.rotation.z -= currentSpeed * 0.95;
+        ringMesh3.rotation.z += currentSpeed * 0.65;
+
+        // 6. 發散光冕微自轉
+        coronaMesh.rotation.z += currentSpeed * 0.4;
+
+        // 7. 星塵旋轉
+        particles.rotation.y += currentSpeed * 0.6;
 
         renderer.render(scene, camera);
       }
@@ -530,27 +726,31 @@
 
       return {
         setHover: function(isHovered) {
-          targetSpeed = isHovered ? 0.0082 : 0.0028;
-          targetScale = isHovered ? 1.08 : 1.0;
+          targetSpeed = isHovered ? 0.0078 : 0.0028;
+          targetScale = isHovered ? 1.07 : 1.0;
         },
         destroy: function() {
           if (animId) cancelAnimationFrame(animId);
           canvas.removeEventListener('mousemove', onMouseMove);
           canvas.removeEventListener('mouseleave', onMouseLeave);
-          haloGeom.dispose();
-          haloMat.dispose();
+          coronaGeom.dispose();
+          coronaMat.dispose();
           masterGeom.dispose();
           masterMat.dispose();
-          coreGlowGeom.dispose();
-          coreGlowMat.dispose();
-          starburstGeom.dispose();
-          starburstMat.dispose();
           plasmaGeom1.dispose();
           plasmaMat1.dispose();
           plasmaGeom2.dispose();
           plasmaMat2.dispose();
-          artworkRingGeom.dispose();
-          artworkRingMat.dispose();
+          fresnelGeom.dispose();
+          fresnelMat.dispose();
+          starburstGeom.dispose();
+          starburstMat.dispose();
+          ringGeom1.dispose();
+          ringMat1.dispose();
+          ringGeom2.dispose();
+          ringMat2.dispose();
+          ringGeom3.dispose();
+          ringMat3.dispose();
           pGeom.dispose();
           pMat.dispose();
           renderer.dispose();
@@ -563,7 +763,7 @@
   }
 
   /* ==========================================================================
-     🟣 右星核初始化：霓虹紫紅星核 (PROTOCOL // SQUAD HOST) - 1:1 原畫 3A 純淨版
+     🟣 右星核：霓虹紫紅星核 (PROTOCOL // SQUAD HOST) - 3A 多層發散與細節還原
      ========================================================================== */
   function initHostThreeCore(canvas) {
     if (!window.THREE) return null;
@@ -584,22 +784,23 @@
       var mainGroup = new THREE.Group();
       scene.add(mainGroup);
 
-      // ── Layer 1：深空引力場環境光暈 (Ambient Halo - Z: -0.8) ──
-      var haloTex = createAmbientHaloTexture(false);
-      var haloGeom = new THREE.PlaneGeometry(5.6, 5.6);
-      var haloMat = new THREE.MeshBasicMaterial({
-        map: haloTex,
+      // ── Layer 1：深空發散引力光冕 (Radiating Dispersing Corona - Z: -0.9) ──
+      var coronaTex = createRadiatingCoronaTexture(false);
+      var coronaGeom = new THREE.PlaneGeometry(5.8, 5.8);
+      var coronaMat = new THREE.MeshBasicMaterial({
+        map: coronaTex,
         transparent: true,
-        opacity: 0.45,
+        opacity: 0.38,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
-      var haloMesh = new THREE.Mesh(haloGeom, haloMat);
-      haloMesh.position.z = -0.8;
-      mainGroup.add(haloMesh);
+      var coronaMesh = new THREE.Mesh(coronaGeom, coronaMat);
+      coronaMesh.position.z = -0.9;
+      mainGroup.add(coronaMesh);
 
-      // ── Layer 2：原畫母版高保真視覺核心 (Master High-Detail Artwork Plane) ──
-      var masterGeom = new THREE.PlaneGeometry(3.68, 3.68);
+      // ── Layer 2：原畫母版高保真視覺核心 (Master Hi-Res Visual Core - Z: 0.0) ──
+      // ⚠️ 採用 NormalBlending，忠實呈現瑰麗星系旋渦與深邃暗影，避免過曝！
+      var masterGeom = new THREE.PlaneGeometry(3.55, 3.55);
       var masterMat = new THREE.MeshBasicMaterial({
         transparent: true,
         opacity: 1.0,
@@ -609,72 +810,106 @@
       var masterMesh = new THREE.Mesh(masterGeom, masterMat);
       mainGroup.add(masterMesh);
 
-      // ── Layer 3：3D 立體能量光膜球體 (Volumetric 3D Energy Core Sphere - 真實球面曲率) ──
-      var coreGlowGeom = new THREE.SphereGeometry(1.42, 64, 48);
-      var coreGlowMat = new THREE.MeshBasicMaterial({
-        transparent: true,
-        opacity: 0.48,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-      });
-      var coreGlowMesh = new THREE.Mesh(coreGlowGeom, coreGlowMat);
-      mainGroup.add(coreGlowMesh);
-
-      // ── Layer 4：奇點白熾十字星芒耀斑 (Singularity Starburst - Z: 0.04) ──
-      var starburstTex = createCrossStarburstTexture(false);
-      var starburstGeom = new THREE.PlaneGeometry(1.5, 1.5);
-      var starburstMat = new THREE.MeshBasicMaterial({
-        map: starburstTex,
-        transparent: true,
-        opacity: 0.96,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-      });
-      var starburstMesh = new THREE.Mesh(starburstGeom, starburstMat);
-      starburstMesh.position.z = 0.04;
-      mainGroup.add(starburstMesh);
-
-      // ── Layer 5：雙層動態流體電漿旋臂 (Swirling Volumetric Plasma - 順逆雙向流動視差) ──
-      var plasmaGeom1 = new THREE.PlaneGeometry(3.15, 3.15);
+      // ── Layer 3：中層雙向對流電漿旋臂 (Dual Counter-Rotating Plasma Streams) ──
+      var plasmaTex1 = createPlasmaNebulaTexture(false, 1);
+      var plasmaGeom1 = new THREE.PlaneGeometry(2.9, 2.9);
       var plasmaMat1 = new THREE.MeshBasicMaterial({
+        map: plasmaTex1,
         transparent: true,
-        opacity: 0.74,
+        opacity: 0.34,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
       var plasmaMesh1 = new THREE.Mesh(plasmaGeom1, plasmaMat1);
-      plasmaMesh1.position.z = 0.10;
+      plasmaMesh1.position.z = 0.06;
       mainGroup.add(plasmaMesh1);
 
-      var plasmaGeom2 = new THREE.PlaneGeometry(2.9, 2.9);
+      var plasmaTex2 = createPlasmaNebulaTexture(false, 2);
+      var plasmaGeom2 = new THREE.PlaneGeometry(2.65, 2.65);
       var plasmaMat2 = new THREE.MeshBasicMaterial({
+        map: plasmaTex2,
+        transparent: true,
+        opacity: 0.28,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      var plasmaMesh2 = new THREE.Mesh(plasmaGeom2, plasmaMat2);
+      plasmaMesh2.position.z = -0.05;
+      plasmaMesh2.rotation.x = -0.22;
+      mainGroup.add(plasmaMesh2);
+
+      // ── Layer 4：3D 幾何立體菲涅爾球面晶膜 (Volumetric 3D Fresnel Glass Shell) ──
+      var fresnelTex = createFresnelSphereTexture(false);
+      var fresnelGeom = new THREE.SphereGeometry(1.36, 64, 48);
+      var fresnelMat = new THREE.MeshBasicMaterial({
+        map: fresnelTex,
         transparent: true,
         opacity: 0.52,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
-      var plasmaMesh2 = new THREE.Mesh(plasmaGeom2, plasmaMat2);
-      plasmaMesh2.position.z = -0.06;
-      plasmaMesh2.rotation.x = -0.20;
-      mainGroup.add(plasmaMesh2);
+      var fresnelMesh = new THREE.Mesh(fresnelGeom, fresnelMat);
+      mainGroup.add(fresnelMesh);
 
-      // ── Layer 6：3D 傾角柔光科技星環 (Smooth 3D Orbit Ring Disk - 空間橫跨公轉) ──
-      var ringTex = createSmoothGlowRingTexture(false);
-      var artworkRingGeom = new THREE.RingGeometry(1.68, 2.45, 96);
-      var artworkRingMat = new THREE.MeshBasicMaterial({
-        map: ringTex,
-        side: THREE.DoubleSide,
+      // ── Layer 5：中心聚能奇點十字星芒 (Singularity Pinpoint Flare - Z: 0.08) ──
+      var starburstTex = createSingularityPinpointTexture(false);
+      var starburstGeom = new THREE.PlaneGeometry(0.85, 0.85);
+      var starburstMat = new THREE.MeshBasicMaterial({
+        map: starburstTex,
         transparent: true,
-        opacity: 0.88,
+        opacity: 0.90,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
-      var artworkRingMesh = new THREE.Mesh(artworkRingGeom, artworkRingMat);
-      artworkRingMesh.rotation.x = -Math.PI / 3.4;
-      artworkRingMesh.rotation.y = 0.22;
-      mainGroup.add(artworkRingMesh);
+      var starburstMesh = new THREE.Mesh(starburstGeom, starburstMat);
+      starburstMesh.position.z = 0.08;
+      mainGroup.add(starburstMesh);
 
-      // ── Layer 7：全景 3D 浮動星塵微粒力場 (950 顆向心星粒) ──
+      // ── Layer 6：多重獨立 3D 傾角科技星環 (3 條獨立空間傾角軌道) ──
+      var ringTex1 = createMultiRingTechTexture(false, 1);
+      var ringGeom1 = new THREE.PlaneGeometry(3.6, 3.6);
+      var ringMat1 = new THREE.MeshBasicMaterial({
+        map: ringTex1,
+        transparent: true,
+        opacity: 0.78,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      var ringMesh1 = new THREE.Mesh(ringGeom1, ringMat1);
+      ringMesh1.rotation.x = -Math.PI / 3.2;
+      ringMesh1.rotation.y = 0.22;
+      mainGroup.add(ringMesh1);
+
+      var ringTex2 = createMultiRingTechTexture(false, 2);
+      var ringGeom2 = new THREE.PlaneGeometry(3.9, 3.9);
+      var ringMat2 = new THREE.MeshBasicMaterial({
+        map: ringTex2,
+        transparent: true,
+        opacity: 0.68,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      var ringMesh2 = new THREE.Mesh(ringGeom2, ringMat2);
+      ringMesh2.rotation.x = Math.PI / 3.8;
+      ringMesh2.rotation.y = -0.28;
+      ringMesh2.rotation.z = -0.20;
+      mainGroup.add(ringMesh2);
+
+      var ringTex3 = createMultiRingTechTexture(false, 3);
+      var ringGeom3 = new THREE.PlaneGeometry(4.3, 4.3);
+      var ringMat3 = new THREE.MeshBasicMaterial({
+        map: ringTex3,
+        transparent: true,
+        opacity: 0.55,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      var ringMesh3 = new THREE.Mesh(ringGeom3, ringMat3);
+      ringMesh3.rotation.x = -Math.PI / 2.4;
+      ringMesh3.rotation.y = 0.10;
+      mainGroup.add(ringMesh3);
+
+      // ── Layer 7：全景 3D 發散星塵微粒力場 (1050 顆向外擴散微粒) ──
       var stardustTex = createStardustTexture();
       var pGeom = new THREE.BufferGeometry();
       var pPos = [];
@@ -683,44 +918,38 @@
       var cMagenta = new THREE.Color(0xFF2A85);
       var cPurple = new THREE.Color(0xC084FC);
 
-      for (var j = 0; j < 950; j++) {
-        var rHost = 0.4 + Math.random() * 2.2;
+      for (var j = 0; j < 1050; j++) {
+        var rHost = 0.4 + Math.random() * 2.3;
         var thetaH = Math.random() * Math.PI * 2;
         var phiH = Math.acos(2 * Math.random() - 1);
         pPos.push(rHost * Math.sin(phiH) * Math.cos(thetaH), rHost * Math.sin(phiH) * Math.sin(thetaH), rHost * Math.cos(phiH));
-        var colH = (rHost < 1.0) ? cWhite.clone().lerp(cMagenta, rHost / 1.0) : cMagenta.clone().lerp(cPurple, (rHost - 1.0) / 1.4);
+        var colH = (rHost < 1.0) ? cWhite.clone().lerp(cMagenta, rHost / 1.0) : cMagenta.clone().lerp(cPurple, (rHost - 1.0) / 1.5);
         pColors.push(colH.r, colH.g, colH.b);
       }
       pGeom.setAttribute('position', new THREE.Float32BufferAttribute(pPos, 3));
       pGeom.setAttribute('color', new THREE.Float32BufferAttribute(pColors, 3));
       var pMat = new THREE.PointsMaterial({
-        size: 0.046,
+        size: 0.044,
         map: stardustTex,
         vertexColors: true,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.88,
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
       var particles = new THREE.Points(pGeom, pMat);
       mainGroup.add(particles);
 
-      // ── 加載 100% 高清原畫母版 ──
+      // ── 加載 800px 超清原畫母版 ──
       var assets = window.SMU_PARTY_ORB_ASSETS || {};
       var hostUri = assets.hostArtworkWebp || assets.hostCore;
 
       loadLayerTexture(hostUri, 'assets/tutorial/orb_host_artwork_800.webp', function(tex) {
         masterMat.map = tex;
         masterMat.needsUpdate = true;
-        coreGlowMat.map = tex;
-        coreGlowMat.needsUpdate = true;
-        plasmaMat1.map = tex;
-        plasmaMat1.needsUpdate = true;
-        plasmaMat2.map = tex;
-        plasmaMat2.needsUpdate = true;
       });
 
-      // ── Layer 8：動態迴圈與滑鼠多層次差異化 3D 視差傾角互動 ──
+      // ── Layer 8：動態迴圈與各層獨立自由運動 ──
       var currentSpeed = 0.0028;
       var targetSpeed = 0.0028;
       var scaleFactor = 1.0;
@@ -737,8 +966,8 @@
         var nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         var ny = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
         if (isNaN(nx) || isNaN(ny)) return;
-        mouseTargetTiltX = nx * 0.44;
-        mouseTargetTiltY = ny * 0.38;
+        mouseTargetTiltX = nx * 0.42;
+        mouseTargetTiltY = ny * 0.36;
       }
       function onMouseLeave() {
         mouseTargetTiltX = 0;
@@ -763,39 +992,47 @@
         mainGroup.rotation.y = THREE.MathUtils.lerp(mainGroup.rotation.y, mouseTargetTiltX, 0.07);
         mainGroup.rotation.x = THREE.MathUtils.lerp(mainGroup.rotation.x, -mouseTargetTiltY, 0.07);
 
-        // 多層次差異化視差補償 (Differential Parallax Gradient)
+        // 各層差異化視差與深度拉伸
         var px = mouseTargetTiltX;
         var py = -mouseTargetTiltY;
-        artworkRingMesh.position.x = px * 0.22;
-        artworkRingMesh.position.y = py * 0.18;
-        plasmaMesh1.position.x = px * 0.08;
-        plasmaMesh1.position.y = py * 0.06;
-        haloMesh.position.x = -px * 0.15; // 背景遠景反向拉伸深度
-        haloMesh.position.y = -py * 0.12;
+        coronaMesh.position.x = -px * 0.16;
+        coronaMesh.position.y = -py * 0.12;
+        ringMesh1.position.x = px * 0.18;
+        ringMesh1.position.y = py * 0.14;
+        ringMesh2.position.x = -px * 0.12;
+        ringMesh2.position.y = -py * 0.10;
+        ringMesh3.position.x = px * 0.26;
+        ringMesh3.position.y = py * 0.20;
 
-        // 原畫主體自轉微調與呼吸
-        var pulse = 1.0 + 0.038 * Math.sin(time * 1.8);
+        // 1. 原畫母版緩慢自然呼吸
+        var pulse = 1.0 + 0.022 * Math.sin(time * 1.5);
         masterMesh.scale.set(pulse, pulse, 1.0);
-        coreGlowMesh.scale.set(pulse * 1.02, pulse * 1.02, pulse * 1.02);
-        coreGlowMesh.rotation.y -= currentSpeed * 0.5;
-        coreGlowMat.opacity = 0.44 + 0.18 * Math.sin(time * 2.2);
 
-        // 十字星芒光爆旋轉與脈動
-        var starPulse = 1.0 + 0.08 * Math.sin(time * 2.4);
-        starburstMesh.scale.set(starPulse, starPulse, 1.0);
-        starburstMesh.rotation.z += currentSpeed * 0.5;
+        // 2. 菲涅爾 3D 球膜真實三維自轉
+        fresnelMesh.rotation.y -= currentSpeed * 0.65;
+        fresnelMesh.rotation.x = 0.08 * Math.sin(time * 0.9);
 
-        // 雙電漿雲盤逆向差速公轉 (立體體積流動視差)
+        // 3. 雙向電漿動態對流
         plasmaMesh1.rotation.z += currentSpeed * 1.4;
-        plasmaMesh2.rotation.z -= currentSpeed * 0.9;
-        plasmaMat1.opacity = 0.74 + 0.18 * Math.sin(time * 2.0);
-        plasmaMat2.opacity = 0.50 + 0.16 * Math.cos(time * 1.7);
+        plasmaMesh2.rotation.z -= currentSpeed * 0.95;
+        plasmaMat1.opacity = 0.30 + 0.08 * Math.sin(time * 1.9);
+        plasmaMat2.opacity = 0.24 + 0.06 * Math.cos(time * 1.6);
 
-        // 3D 科技光環公轉
-        artworkRingMesh.rotation.z -= currentSpeed * 1.2;
+        // 4. 中心聚能奇點十字星芒微動態
+        var starPulse = 1.0 + 0.06 * Math.sin(time * 2.6);
+        starburstMesh.scale.set(starPulse, starPulse, 1.0);
+        starburstMesh.rotation.z += currentSpeed * 0.55;
 
-        // 星塵旋轉
-        particles.rotation.z += currentSpeed * 1.5;
+        // 5. 三重星環差速交錯公轉 (宛如真實陀螺儀)
+        ringMesh1.rotation.z -= currentSpeed * 1.3;
+        ringMesh2.rotation.z += currentSpeed * 0.9;
+        ringMesh3.rotation.z -= currentSpeed * 0.6;
+
+        // 6. 發散光冕微自轉
+        coronaMesh.rotation.z -= currentSpeed * 0.4;
+
+        // 7. 星塵旋轉
+        particles.rotation.z += currentSpeed * 1.4;
 
         renderer.render(scene, camera);
       }
@@ -804,27 +1041,31 @@
 
       return {
         setHover: function(isHovered) {
-          targetSpeed = isHovered ? 0.0082 : 0.0028;
-          targetScale = isHovered ? 1.08 : 1.0;
+          targetSpeed = isHovered ? 0.0078 : 0.0028;
+          targetScale = isHovered ? 1.07 : 1.0;
         },
         destroy: function() {
           if (animId) cancelAnimationFrame(animId);
           canvas.removeEventListener('mousemove', onMouseMove);
           canvas.removeEventListener('mouseleave', onMouseLeave);
-          haloGeom.dispose();
-          haloMat.dispose();
+          coronaGeom.dispose();
+          coronaMat.dispose();
           masterGeom.dispose();
           masterMat.dispose();
-          coreGlowGeom.dispose();
-          coreGlowMat.dispose();
-          starburstGeom.dispose();
-          starburstMat.dispose();
           plasmaGeom1.dispose();
           plasmaMat1.dispose();
           plasmaGeom2.dispose();
           plasmaMat2.dispose();
-          artworkRingGeom.dispose();
-          artworkRingMat.dispose();
+          fresnelGeom.dispose();
+          fresnelMat.dispose();
+          starburstGeom.dispose();
+          starburstMat.dispose();
+          ringGeom1.dispose();
+          ringMat1.dispose();
+          ringGeom2.dispose();
+          ringMat2.dispose();
+          ringGeom3.dispose();
+          ringMat3.dispose();
           pGeom.dispose();
           pMat.dispose();
           renderer.dispose();
