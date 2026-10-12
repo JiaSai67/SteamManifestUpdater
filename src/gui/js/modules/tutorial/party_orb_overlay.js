@@ -1,26 +1,19 @@
 /**
- * Steam Manifest Updater - 組隊教學 賽博動態字體與極致光效選擇層 (Kinetic Typography & Radiant Light FX Portal)
+ * Steam Manifest Updater - 組隊教學 賽博動態字體與極致光效選擇小卡 (Kinetic Typography & Radiant Light FX Highlight Cards)
  * 
- * 🚀 全面取消 3D 球體與星核設計，轉型為極致 3A 賽博動態字體排版與科技光效門戶：
+ * 🚀 原地漸顯/漸消、極致小卡高亮，完全維持底層圖一畫面：
+ *  1. 【全景透光毛玻璃背景】(Transparent Frosted Backdrop - 保持圖一畫面可見)
+ *     - 底層圖一粉嫩首頁與原卡片完全可見，底層三卡片平滑漸消虛化，完美烘托浮層高亮小卡。
  * 
- *  1. 【全景大氣科技光效】(Atmospheric Cyber Light FX)
- *     - 雙向透視動態極光光束 (Ambient Aurora Beams)，左青藍、右粉紫柔和呼吸交織。
- *     - 3D 透視深度科技網格 (Perspective Cyber Grid Floor)，營造無垠深度空間。
+ *  2. 【小卡極致高亮與漸顯漸消】(Fade-In / Fade-Out & Vibrant Neon Glow)
+ *     - 小卡尺寸比照圖一卡片 (320px x 490px)，具備 2.5px 電光青藍 / 霓虹紫粉高亮邊框與外光暈。
+ *     - 登場如絲般順滑漸顯 (cardEntrance)，退場平滑漸消，底層畫面無縫復原。
  * 
- *  2. 【動態字體排版系統】(Kinetic Typography System)
- *     - 超大動態英文字體水印 (Giant Monospaced Watermark: "JOIN" / "HOST")，懸浮透視浮動。
- *     - 核心中文主標題字符獨立動態 (Hero Char Staggering: "入隊教學" / "開房教學")。
- *     - 全光譜霓虹流光掃掠與多重螢光投影 (Shimmer Sweep & Radiant Glow Projection)。
- * 
- *  3. 【旋轉激光導軌與能量護盾】(Radiant Laser Trail & Border Shield)
- *     - 360° 動態旋轉漸層激光邊框 (Conic Laser Border Orbit)。
- *     - 放射狀底層極光光暈 (Backdrop Aurora Flare)。
- * 
- *  4. 【3D 物理視差懸浮傾角】(Interactive 3D Card Tilt & Parallax Physics)
- *     - 游標動態計算 RotateX / RotateY 空間傾角，卡片、水印、光暈產生差分深度視差。
- * 
- *  5. 【超光速進入過渡】(Hyperdrive Launch Burst)
- *     - 點擊時字體與邊框白熾強光爆發，平滑呼叫 PartyJoinPipeline / PartyHostPipeline。
+ *  3. 【全新專業級 Web Audio UI 音效系統】(Crystal Chimes & Harmonic Arpeggios)
+ *     - hover: 水晶微觸敲擊水滴音 (Crystal Chime Tap) - 雙頻清脆諧波，空靈悅耳！
+ *     - launch: 輝煌大三和弦躍遷琶音 (Majestic Harmonic Fanfare) - 升騰開闊，極具成就感！
+ *     - entrance: 全息展屏舒緩空靈音 (Holographic Shimmer Bloom) - 溫潤和音，烘托漸顯氛圍！
+ *     - close: 柔和退場滑降微風 (Gentle Dismiss Breeze) - 乾淨俐落！
  */
 
 (function(window) {
@@ -30,7 +23,7 @@
   var _isOverlayVisible = false;
 
   /**
-   * 輕量級 Web Audio 合成音效 (無需依賴外部音訊資源)
+   * 🌟 專業級 Web Audio UI 音效系統 (純淨、清脆、高級和弦質感)
    */
   function playResonanceSound(type) {
     try {
@@ -41,36 +34,102 @@
       if (ctx.state === 'suspended') ctx.resume();
 
       var now = ctx.currentTime;
-      var osc = ctx.createOscillator();
-      var gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
 
       if (type === 'hover') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, now);
-        osc.frequency.exponentialRampToValueAtTime(1174.66, now + 0.12);
-        gain.gain.setValueAtTime(0.035, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        osc.start(now);
-        osc.stop(now + 0.15);
+        // 💧 水晶微觸輕響 (Crystal Chime Tap: E6 1318.5Hz + A6 1760Hz 諧波)
+        var osc1 = ctx.createOscillator();
+        var osc2 = ctx.createOscillator();
+        var filter = ctx.createBiquadFilter();
+        var gain = ctx.createGain();
+
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1600, now);
+        filter.Q.setValueAtTime(3.5, now);
+
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(1318.51, now);
+        osc1.frequency.exponentialRampToValueAtTime(1396.91, now + 0.05);
+
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1760.00, now);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.025, now + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
+
+        osc1.connect(filter);
+        osc2.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 0.07);
+        osc2.stop(now + 0.07);
+
       } else if (type === 'launch') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(329.63, now);
-        osc.frequency.exponentialRampToValueAtTime(880, now + 0.18);
-        osc.frequency.exponentialRampToValueAtTime(1760, now + 0.38);
-        gain.gain.setValueAtTime(0.075, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-        osc.start(now);
-        osc.stop(now + 0.45);
+        // ✨ 輝煌大三和弦躍遷琶音 (Majestic Harmonic Fanfare: C5 -> E5 -> G5 -> C6 -> E6)
+        var notes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+        notes.forEach(function(freq, index) {
+          var t = now + index * 0.026;
+          var osc = ctx.createOscillator();
+          var filter = ctx.createBiquadFilter();
+          var gain = ctx.createGain();
+
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(1800, t);
+          filter.frequency.exponentialRampToValueAtTime(3600, t + 0.15);
+
+          osc.type = index === 0 ? 'triangle' : 'sine';
+          osc.frequency.setValueAtTime(freq, t);
+
+          gain.gain.setValueAtTime(0.001, t);
+          gain.gain.linearRampToValueAtTime(0.045, t + 0.008);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(t);
+          osc.stop(t + 0.33);
+        });
+
       } else if (type === 'entrance') {
+        // 🌸 全息展屏舒緩空靈音 (Holographic Shimmer Bloom: D5 587.3Hz + A5 880Hz 溫潤和音)
+        [587.33, 880.00].forEach(function(freq, i) {
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.028, now + 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.4);
+        });
+
+      } else if (type === 'close') {
+        // 🍃 柔和退場滑降微風 (Gentle Dismiss Breeze)
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(440, now);
-        osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.28);
-        gain.gain.setValueAtTime(0.04, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.frequency.setValueAtTime(783.99, now);
+        osc.frequency.exponentialRampToValueAtTime(523.25, now + 0.12);
+
+        gain.gain.setValueAtTime(0.02, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
         osc.start(now);
-        osc.stop(now + 0.35);
+        osc.stop(now + 0.14);
       }
     } catch (e) {}
   }
@@ -89,13 +148,13 @@
       var centerX = rect.width / 2;
       var centerY = rect.height / 2;
 
-      // 計算傾角 (-12deg ~ +12deg)
-      var rotateX = ((y - centerY) / centerY) * -11;
-      var rotateY = ((x - centerX) / centerX) * 11;
+      // 計算細微傾角 (-8deg ~ +8deg)
+      var rotateX = ((y - centerY) / centerY) * -8;
+      var rotateY = ((x - centerX) / centerX) * 8;
 
-      cardEl.style.transform = 'perspective(1000px) rotateX(' + rotateX.toFixed(2) + 'deg) rotateY(' + rotateY.toFixed(2) + 'deg) translateY(-8px) scale(1.02)';
+      cardEl.style.transform = 'perspective(1000px) rotateX(' + rotateX.toFixed(2) + 'deg) rotateY(' + rotateY.toFixed(2) + 'deg) translateY(-6px) scale(1.02)';
 
-      // 背景超大英文字母水印反向微幅位移，營造三維深度感
+      // 背景水印反向微幅位移
       if (typoWatermarkEl) {
         var moveX = ((x - centerX) / centerX) * -8;
         var moveY = ((y - centerY) / centerY) * -6;
@@ -104,9 +163,9 @@
 
       // 極光跟隨游標微動
       if (auroraGlowEl) {
-        var glowX = ((x - centerX) / centerX) * 18;
-        var glowY = ((y - centerY) / centerY) * 18;
-        auroraGlowEl.style.transform = 'translate(calc(-50% + ' + glowX.toFixed(1) + 'px), calc(-50% + ' + glowY.toFixed(1) + 'px)) scale(1.25)';
+        var glowX = ((x - centerX) / centerX) * 16;
+        var glowY = ((y - centerY) / centerY) * 16;
+        auroraGlowEl.style.transform = 'translate(calc(-50% + ' + glowX.toFixed(1) + 'px), calc(-50% + ' + glowY.toFixed(1) + 'px)) scale(1.2)';
       }
     };
 
@@ -125,7 +184,7 @@
   }
 
   /**
-   * 構建純字體排版與極致科技光效 DOM 結構 (完全無球體)
+   * 構建純字體排版與極致科技光效 DOM 結構 (完全維持圖一背景)
    */
   function buildOverlayDom() {
     if (overlayEl && overlayEl.parentNode) {
@@ -134,21 +193,8 @@
 
     overlayEl = document.createElement('div');
     overlayEl.id = 'tutorial-party-orb-overlay';
-    overlayEl.className = 'party-orb-overlay entrance-warp';
+    overlayEl.className = 'party-orb-overlay';
     overlayEl.innerHTML = `
-      <!-- 全景大氣背景流光與科技空間網格 -->
-      <div class="typo-ambient-backdrop">
-        <div class="ambient-beam-left"></div>
-        <div class="ambient-beam-right"></div>
-        <div class="cyber-grid-floor"></div>
-      </div>
-
-      <!-- 全息終端 HUD 四角科技括號 -->
-      <div class="party-orb-hud-bracket bracket-tl"></div>
-      <div class="party-orb-hud-bracket bracket-tr"></div>
-      <div class="party-orb-hud-bracket bracket-bl"></div>
-      <div class="party-orb-hud-bracket bracket-br"></div>
-
       <!-- 右上角高亮關閉圓鈕 -->
       <button class="party-orb-close-btn" id="party-orb-close-btn" title="關閉組隊選項，返回教學首頁">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
@@ -167,12 +213,11 @@
           <p class="party-orb-subtitle">選擇受邀加入現有小隊，或是作為房主建立房間並邀請隊員</p>
         </div>
 
-        <!-- 🌟 雙向教學極致字體光效舞台區 -->
+        <!-- 🌟 雙向教學極致高亮小卡舞台區 -->
         <div class="typo-radiant-stage">
 
-          <!-- 🔵 左側卡片：入隊教學 (SQUAD AGENT) -->
+          <!-- 🔵 左側小卡：入隊教學 (SQUAD AGENT) -->
           <div class="typo-card card-join" id="card-join" tabindex="0" role="button" data-role="party-join">
-            <!-- 旋轉激光邊框與極光光暈 -->
             <div class="card-laser-border"></div>
             <div class="card-glow-aurora" id="glow-join"></div>
 
@@ -227,9 +272,8 @@
             </div>
           </div>
 
-          <!-- 🟣 右側卡片：開房教學 (FLEET COMMANDER) -->
+          <!-- 🟣 右側小卡：開房教學 (FLEET COMMANDER) -->
           <div class="typo-card card-host" id="card-host" tabindex="0" role="button" data-role="party-host">
-            <!-- 旋轉激光邊框與極光光暈 -->
             <div class="card-laser-border"></div>
             <div class="card-glow-aurora" id="glow-host"></div>
 
@@ -297,13 +341,20 @@
 
     document.body.appendChild(overlayEl);
 
+    // 點擊背景遮罩空白處自動退場漸消
+    overlayEl.onclick = function(e) {
+      if (e.target === overlayEl) {
+        hideOverlay();
+      }
+    };
+
     // 關閉與返回按鈕
     var closeBtn = overlayEl.querySelector('#party-orb-close-btn');
     var cancelBtn = overlayEl.querySelector('#party-orb-cancel-btn');
     if (closeBtn) closeBtn.onclick = hideOverlay;
     if (cancelBtn) cancelBtn.onclick = hideOverlay;
 
-    // 綁定左卡 (入隊教學)
+    // 綁定左小卡 (入隊教學)
     var cardJoin = overlayEl.querySelector('#card-join');
     var watermarkJoin = overlayEl.querySelector('#watermark-join');
     var glowJoin = overlayEl.querySelector('#glow-join');
@@ -323,7 +374,7 @@
       if (btnJoin) btnJoin.onclick = triggerJoin;
     }
 
-    // 綁定右卡 (開房教學)
+    // 綁定右小卡 (開房教學)
     var cardHost = overlayEl.querySelector('#card-host');
     var watermarkHost = overlayEl.querySelector('#watermark-host');
     var glowHost = overlayEl.querySelector('#glow-host');
@@ -365,6 +416,12 @@
       overlayEl.classList.add('fading-out');
     }
 
+    // 底層圖一的卡片列表平滑漸顯復原
+    var cardsGrid = document.querySelector('.tutorial-cards-grid');
+    if (cardsGrid) {
+      cardsGrid.classList.remove('cards-dimmed-behind');
+    }
+
     try {
       localStorage.removeItem('smu_tutorial_role');
     } catch(e) {}
@@ -389,11 +446,17 @@
   }
 
   /**
-   * 顯示選擇層
+   * 顯示選擇小卡 (漸顯動畫 + 底層畫面維持可見 + 底層卡片柔和虛化)
    */
   function showOverlay() {
     buildOverlayDom();
     _isOverlayVisible = true;
+
+    // 🌟 底層圖一的卡片列表平滑虛化漸消，全力凸顯浮層小卡
+    var cardsGrid = document.querySelector('.tutorial-cards-grid');
+    if (cardsGrid) {
+      cardsGrid.classList.add('cards-dimmed-behind');
+    }
 
     overlayEl.style.display = 'flex';
     overlayEl.style.pointerEvents = 'auto';
@@ -404,15 +467,30 @@
   }
 
   /**
-   * 隱藏並關閉選擇層
+   * 隱藏並關閉選擇小卡 (漸消動畫 + 底層卡片復原)
    */
   function hideOverlay() {
+    if (!_isOverlayVisible) return;
     _isOverlayVisible = false;
+
+    playResonanceSound('close');
+
+    // 🌟 底層圖一的卡片列表平滑漸顯復原
+    var cardsGrid = document.querySelector('.tutorial-cards-grid');
+    if (cardsGrid) {
+      cardsGrid.classList.remove('cards-dimmed-behind');
+    }
+
     if (overlayEl) {
       overlayEl.classList.remove('active');
-      overlayEl.classList.remove('fading-out');
-      overlayEl.style.display = 'none';
-      overlayEl.style.pointerEvents = 'none';
+      overlayEl.classList.add('fading-out');
+      setTimeout(function() {
+        if (!_isOverlayVisible && overlayEl) {
+          overlayEl.style.display = 'none';
+          overlayEl.style.pointerEvents = 'none';
+          overlayEl.classList.remove('fading-out');
+        }
+      }, 260);
     }
   }
 
