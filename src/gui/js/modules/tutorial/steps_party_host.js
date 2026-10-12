@@ -1,22 +1,20 @@
 /**
  * 教學模組：組隊開房引導 (Party Host Tutorial Steps - 旗艦真實彈窗與全生命週期版)
  * 職責：
- * 步驟 1 / 16：在大廳點擊右上角「➕ 創建房間」發起開房
- * 步驟 2 / 16：選擇組隊遊戲（本機已安裝自動偵測機制說明）
- * 步驟 3 / 16：核心三檔同步檢測（Manifest/Lua/Patch 三綠燈防護）
- * 步驟 4 / 16：Discord Webhook 整合包託管通道解說
- * 步驟 5 / 16：Webhook 建立教學與手把手影片指引
- * 步驟 6 / 16：設定人數上限與大廳公開度（公開/私密房型）
- * 步驟 7 / 16：房間備註與招募宣言（選填提示）
- * 步驟 8 / 16：預填隊伍聯絡資訊（全員就緒自動廣播與 1 分鐘緩衝機制）
- * 步驟 9 / 16：確認配置並點擊「🚀 立即開房」生成連線房號
- * 步驟 10 / 16：確認連線房號【HOST666】並示範複製分享
- * 步驟 11 / 16：即時監控全體隊員補丁同步進度（35% -> 80% -> 100%）
- * 步驟 12 / 16：🎉 全員就緒提示與 1 分鐘倒數緩衝機制說明
- * 步驟 13 / 16：🚀 親自發布聯絡資訊與開拔指令 (實戰點擊互動)
- * 步驟 14 / 16：🏆 隊伍組建完成與資訊廣播確認 (實戰點擊返回大廳)
- * 步驟 15 / 16：🚪 房間解散完成與雲端資源釋放說明
- * 步驟 16 / 16：👑 領航房長養成！掌握完整開房生命週期
+ * 步驟 1 / 14：在大廳點擊右上角「➕ 創建房間」發起開房
+ * 步驟 2 / 14：選擇組隊遊戲（本機已安裝自動偵測機制說明）
+ * 步驟 3 / 14：核心三檔同步檢測（Manifest/Lua/Patch 三綠燈防護）
+ * 步驟 4 / 14：Discord Webhook 整合包託管通道解說
+ * 步驟 5 / 14：Webhook 建立教學與手把手影片指引
+ * 步驟 6 / 14：設定人數上限與大廳公開度（公開/私密房型）
+ * 步驟 7 / 14：房間備註與招募宣言（選填提示）
+ * 步驟 8 / 14：預填隊伍聯絡資訊（全員就緒自動廣播與 1 分鐘緩衝機制）
+ * 步驟 9 / 14：確認配置並點擊「🚀 立即開房」生成連線房號
+ * 步驟 10 / 14：確認連線房號【HOST666】並示範複製分享
+ * 步驟 11 / 14：即時監控全體隊員補丁同步進度（35% -> 80% -> 100%）
+ * 步驟 12 / 14：🎉 全員就緒提示與 1 分鐘倒數緩衝機制說明
+ * 步驟 13 / 14：🚀 親自發布聯絡資訊與開拔指令 (實戰點擊互動)
+ * 步驟 14 / 14：🏆 隊伍組建完成與房間生命週期圓滿結束 (終局收尾領取證書)
  */
 
 (function(window) {
@@ -871,16 +869,17 @@
       }
     },
 
-    // 🌟 步驟 14 / 16：🏆 隊伍組建完成與資訊廣播確認 (實戰點擊返回大廳)
+    // 🌟 步驟 14 / 14：🏆 隊伍組建完成與房間生命週期圓滿結束 (終局收尾領取證書)
     {
       roleBadge: '👑 組隊招募・房主篇',
       moduleTitle: '單元 3：完成組隊與房間生命週期',
       page: 'party',
       target: '#modal-party-host-completion-central .party-central-completion-card',
-      title: '🏆 隊伍組建完成與資訊廣播確認',
-      desc: '發布成功！此時在房主與全體隊友的螢幕中央，都會同步彈出組隊完成大卡！隊員小明與阿華已成功接收您的 Discord 語音頻道「+dc: leader_eldener / 語音房已開」；而房間的雲端招募已圓滿達成使命。請親自點擊中央卡片中的「👥 返回組隊大廳」按鈕！',
-      hint: '請親自點擊中央卡片中的「👥 返回組隊大廳」按鈕！',
+      title: '🏆 隊伍組建完成與房間生命週期圓滿結束',
+      desc: '發布成功！此時在房主與全體隊友的螢幕中央，已同步彈出組隊完成大卡，隊友已即時取得您的語音頻道與開拔資訊！雲端房間已圓滿達成使命並自動安全解散。請親自點擊中央大卡中的<strong>「👥 返回組隊大廳」</strong>，即可解散房間並領取榮譽房長結業證書！',
+      hint: '請親自點擊中央大卡中的「👥 返回組隊大廳」按鈕完成教學！',
       disableNext: true,
+      nextText: '完成教學 🎉',
       placement: 'right',
       offsetX: 14,
       onEnter: function() {
@@ -902,79 +901,20 @@
               closeBtn.classList.remove('tutorial-btn-simulating');
               centralModal.remove();
 
-              // 模擬房間解散完畢，回到大廳
-              window._partyCurRoom = null;
-              var lobbyView = document.getElementById('party-lobby-view');
-              var roomView = document.getElementById('party-room-view');
-              if (roomView) { roomView.style.display = 'none'; roomView.classList.remove('active'); }
-              if (lobbyView) { lobbyView.style.display = 'flex'; lobbyView.classList.add('active'); }
-
-              var navLobby = document.getElementById('party-nav-lobby');
-              var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
-              if (navLobby) navLobby.classList.add('active');
-              if (navRoom) { navRoom.classList.remove('active'); navRoom.style.display = 'none'; }
+              // 模擬房間解散完畢，清理沙盒並返回大廳
+              cleanupHostTutorialSandbox();
 
               if (typeof tt === 'function') tt('🚪 房間【HOST666】已圓滿解散，已安全返回組隊大廳！', 'ok');
 
-              setTimeout(function() {
-                if (window.TutorialEngine) window.TutorialEngine.next();
-              }, 180);
+              // 🌟 步驟 14 做為最終收尾：直接圓滿結束教學並展示榮譽房長證書
+              if (window.TutorialEngine) {
+                window.TutorialEngine.stop(true);
+              }
+              showPartyHostCompletionModal();
             };
             closeBtn.addEventListener('click', onCloseClick, true);
           }
         }
-        setTimeout(function() {
-          if (window.TutorialEngine) window.TutorialEngine.reposition();
-        }, 60);
-      }
-    },
-
-    // 🌟 步驟 15 / 16：🚪 房間解散完成與雲端資源釋放說明
-    {
-      roleBadge: '👑 組隊招募・房主篇',
-      moduleTitle: '單元 3：完成組隊與房間生命週期',
-      page: 'party',
-      target: '#party-nav-lobby, .party-header-bar, #party-lobby-view',
-      title: '🚪 房間解散完成與雲端資源釋放',
-      desc: '您已順利返回組隊大廳！房間【HOST666】已正式關閉並從雲端大廳即時下架，連線通道安全釋放。全體隊友本機同步的補丁檔案均完整保留於 Steam 目錄，隨時可以暢快連線！',
-      hint: '平時開房若中途臨時想取消，亦可直接在房間右上角點擊「🚪 退出/解散房間」按鈕手動關閉。',
-      placement: 'bottom',
-      onEnter: function() {
-        var centralModal = document.getElementById('modal-party-host-completion-central');
-        if (centralModal) centralModal.remove();
-        var lobbyView = document.getElementById('party-lobby-view');
-        var roomView = document.getElementById('party-room-view');
-        if (roomView) { roomView.style.display = 'none'; roomView.classList.remove('active'); }
-        if (lobbyView) { lobbyView.style.display = 'flex'; lobbyView.classList.add('active'); }
-        var navLobby = document.getElementById('party-nav-lobby');
-        var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
-        if (navLobby) navLobby.classList.add('active');
-        if (navRoom) { navRoom.classList.remove('active'); navRoom.style.display = 'none'; }
-        setTimeout(function() {
-          if (window.TutorialEngine) window.TutorialEngine.reposition();
-        }, 60);
-      }
-    },
-
-    // 🌟 步驟 16 / 16：👑 領航房長養成！掌握完整生命週期
-    {
-      roleBadge: '👑 組隊招募・房主篇',
-      moduleTitle: '單元 3：完成組隊與房間生命週期',
-      page: 'party',
-      target: '#btn-party-create-room',
-      title: '👑 領航房長養成！掌握完整生命週期',
-      desc: '恭喜您！從「發起開房」、「三檔自動檢驗與 Webhook 託管」、「邀請碼分發」、「全隊補丁監控」到最後的「發布資訊並圓滿解散」，您已完全通曉所有房主管理精髓！',
-      hint: '點擊「完成教學 🎉」即可領取榮譽房長結業證書！',
-      placement: 'bottom',
-      onEnter: function() {
-        var lobbyView = document.getElementById('party-lobby-view');
-        var roomView = document.getElementById('party-room-view');
-        if (roomView) { roomView.style.display = 'none'; roomView.classList.remove('active'); }
-        if (lobbyView) { lobbyView.style.display = 'flex'; lobbyView.classList.add('active'); }
-        var navLobby = document.getElementById('party-nav-lobby');
-        var navRoom = document.getElementById('party-nav-my-room') || document.getElementById('party-nav-room');
-        if (navLobby) navLobby.classList.add('active');
-        if (navRoom) { navRoom.classList.remove('active'); navRoom.style.display = 'none'; }
         setTimeout(function() {
           if (window.TutorialEngine) window.TutorialEngine.reposition();
         }, 60);
