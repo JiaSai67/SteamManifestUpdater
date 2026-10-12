@@ -1642,19 +1642,19 @@ function showPartyHostCompletionCentralModal(members, contactText) {
     membersHtml = nonHostMembers.map(function(m) {
       var dcTag = m.discord || m.discord_name || '';
       var dcDisplay = dcTag ? ('@' + escapeHtml(dcTag.replace(/^@/, ''))) : '未綁定 Discord';
-      return '<div class="party-completion-member-item" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;margin-bottom:6px">' +
+      return '<div class="party-completion-member-item">' +
         '<div style="display:flex;align-items:center;gap:8px">' +
           '<span style="font-size:16px">🎮</span>' +
-          '<span class="member-name-text" style="font-weight:700;color:#FFFFFF;font-size:13px">' + escapeHtml(m.name) + '</span>' +
+          '<span class="member-name-text">' + escapeHtml(m.name) + '</span>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:6px">' +
-          '<span class="member-dc-tag" style="color:#818CF8;font-weight:800;font-size:12.5px">' + dcDisplay + '</span>' +
+          '<span class="member-dc-tag">' + dcDisplay + '</span>' +
           (dcTag ? '<button class="btn btn-o btn-xs" style="padding:2px 8px;font-size:11px" onclick="copyContactText(\'' + escapeHtml(dcTag) + '\')">📋 複製</button>' : '') +
         '</div>' +
       '</div>';
     }).join('');
   } else {
-    membersHtml = '<div style="color:#94A3B8;font-size:12.5px;text-align:center;padding:12px 0">隊伍成員已全數就緒並完成接收</div>';
+    membersHtml = '<div class="party-completion-empty-note" style="font-size:12.5px;text-align:center;padding:12px 0;opacity:0.75">隊伍成員已全數就緒並完成接收</div>';
   }
 
   var modal = document.createElement('div');
@@ -1664,19 +1664,19 @@ function showPartyHostCompletionCentralModal(members, contactText) {
     '<div class="party-central-completion-card host-theme" onclick="event.stopPropagation()">' +
       '<div class="party-completion-badge-top">👑 組隊圓滿完成</div>' +
       '<div class="party-completion-icon-ring">🎉</div>' +
-      '<h2 class="party-completion-title" style="color:#FFFFFF;font-size:21px;font-weight:900;margin:0 0 8px 0;letter-spacing:0.5px">恭喜完成組隊！</h2>' +
-      '<p class="party-completion-subtitle" style="color:#CBD5E1;font-size:13px;line-height:1.6;margin:0 0 16px 0">您已成功組織並完成隊伍開拔，聯絡資訊已自動同步至全體隊員，房間已圓滿解散！</p>' +
+      '<h2 class="party-completion-title">恭喜完成組隊！</h2>' +
+      '<p class="party-completion-subtitle">您已成功組織並完成隊伍開拔，聯絡資訊已自動同步至全體隊員，房間已圓滿解散！</p>' +
       
       '<div class="party-completion-section">' +
-        '<div class="party-completion-sec-title" style="color:#F8FAFC;font-size:12.5px;font-weight:800;margin-bottom:8px">👥 全體隊員 Discord 聯絡清單：</div>' +
+        '<div class="party-completion-sec-title">👥 全體隊員 Discord 聯絡清單：</div>' +
         '<div class="party-completion-members-box" style="max-height:160px;overflow-y:auto">' +
           membersHtml +
         '</div>' +
       '</div>' +
 
       '<div class="party-completion-section" style="margin-top:12px">' +
-        '<div class="party-completion-sec-title" style="color:#F8FAFC;font-size:12.5px;font-weight:800;margin-bottom:8px">📢 您剛才發布的聯絡資訊：</div>' +
-        '<div class="party-completion-contact-box" style="background:rgba(46,160,67,0.15);border:1.5px solid rgba(46,160,67,0.5);padding:11px 14px;border-radius:10px;color:#4ADE80;font-weight:800;font-size:13.5px;word-break:break-all">' +
+        '<div class="party-completion-sec-title">📢 您剛才發布的聯絡資訊：</div>' +
+        '<div class="party-completion-contact-box">' +
           escapeHtml(contactText) +
         '</div>' +
       '</div>' +
@@ -1705,25 +1705,25 @@ function showPartyMemberCompletionCentralModal(hostName, hostDc, contactText) {
     '<div class="party-central-completion-card member-theme" onclick="event.stopPropagation()">' +
       '<div class="party-completion-badge-top member">⚔️ 組隊圓滿完成</div>' +
       '<div class="party-completion-icon-ring member">🎮</div>' +
-      '<h2 class="party-completion-title" style="color:#FFFFFF;font-size:21px;font-weight:900;margin:0 0 8px 0;letter-spacing:0.5px">恭喜完成組隊！</h2>' +
-      '<p class="party-completion-subtitle" style="color:#CBD5E1;font-size:13px;line-height:1.6;margin:0 0 16px 0">全體隊員補丁與聯機環境已全部就緒，房間已圓滿結束！請使用下方房主提供的聯絡資訊立即連線同樂。</p>' +
+      '<h2 class="party-completion-title">恭喜完成組隊！</h2>' +
+      '<p class="party-completion-subtitle">全體隊員補丁與聯機環境已全部就緒，房間已圓滿結束！請使用下方房主提供的聯絡資訊立即連線同樂。</p>' +
       
       '<div class="party-completion-section">' +
-        '<div class="party-completion-sec-title" style="color:#F8FAFC;font-size:12.5px;font-weight:800;margin-bottom:8px">👑 房主傳輸之聯絡資訊：</div>' +
-        '<div class="party-completion-contact-box member-box ' + (isDefaultFallback ? 'fallback' : 'highlight') + '" style="background:rgba(0,229,255,0.12);border:1.5px solid rgba(0,229,255,0.45);padding:12px 14px;border-radius:10px;color:#00E5FF;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;word-break:break-all">' +
+        '<div class="party-completion-sec-title">👑 房主傳輸之聯絡資訊：</div>' +
+        '<div class="party-completion-contact-box member-box ' + (isDefaultFallback ? 'fallback' : 'highlight') + '" style="display:flex;align-items:center;justify-content:space-between;gap:10px">' +
           '<span>' + escapeHtml(contactText) + '</span>' +
           '<button class="btn btn-o btn-s" onclick="copyContactText(\'' + escapeHtml(contactText) + '\')" style="white-space:nowrap;font-size:11.5px;padding:4px 10px">📋 一鍵複製</button>' +
         '</div>' +
       '</div>' +
 
       '<div class="party-completion-section" style="margin-top:12px">' +
-        '<div class="party-completion-sec-title" style="color:#F8FAFC;font-size:12.5px;font-weight:800;margin-bottom:8px">👑 房主資訊：</div>' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px">' +
+        '<div class="party-completion-sec-title">👑 房主資訊：</div>' +
+        '<div class="party-completion-member-item">' +
           '<div style="display:flex;align-items:center;gap:6px">' +
             '<span style="font-size:14px">👑</span>' +
-            '<span class="member-name-text" style="font-weight:700;color:#FFFFFF;font-size:13px">' + escapeHtml(hostName) + '</span>' +
+            '<span class="member-name-text">' + escapeHtml(hostName) + '</span>' +
           '</div>' +
-          '<span class="member-dc-tag" style="color:#818CF8;font-weight:800;font-size:12.5px">@' + escapeHtml((hostDc || '').replace(/^@/, '')) + '</span>' +
+          '<span class="member-dc-tag">@' + escapeHtml((hostDc || '').replace(/^@/, '')) + '</span>' +
         '</div>' +
       '</div>' +
 

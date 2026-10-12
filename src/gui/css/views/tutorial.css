@@ -1852,10 +1852,10 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* 🌟 如同教學步驟般的聚光燈深邃遮罩：維持底層畫面輪廓，但柔和暗化聚焦 */
-  background: rgba(10, 14, 24, 0.78) !important;
-  backdrop-filter: blur(10px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(10px) saturate(1.2) !important;
+  /* 🌟 淺色模式：柔和微暗毛玻璃聚焦，保持底層畫面清晰與明亮通透感 */
+  background: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(8px) saturate(1.1) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(1.1) !important;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1864,8 +1864,14 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   overflow-y: auto;
 }
 
+html.dark #tutorial-party-orb-overlay,
+body.dark #tutorial-party-orb-overlay,
 .app.dark #tutorial-party-orb-overlay,
-.app.dark .party-orb-overlay {
+.dark #tutorial-party-orb-overlay,
+html.dark .party-orb-overlay,
+body.dark .party-orb-overlay,
+.app.dark .party-orb-overlay,
+.dark .party-orb-overlay {
   background: rgba(8, 11, 20, 0.84) !important;
   backdrop-filter: blur(12px) saturate(1.2) !important;
   -webkit-backdrop-filter: blur(12px) saturate(1.2) !important;
@@ -1907,7 +1913,7 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   display: none !important;
 }
 
-/* 右上角獨立關閉圓鈕 */
+/* 右上角獨立關閉圓鈕 - 淺色模式：白底黑字立體投影 */
 .party-orb-close-btn {
   position: absolute;
   top: 24px;
@@ -1915,9 +1921,9 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.12);
-  color: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
+  background: #FFFFFF;
+  color: #1F2937;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1926,14 +1932,32 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   z-index: 10;
   padding: 0;
   outline: none;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
 }
 .party-orb-close-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
-  color: #FFFFFF;
-  border-color: rgba(255, 255, 255, 0.5);
+  background: #F3F4F6;
+  color: #EF4444;
+  border-color: #FCA5A5;
   transform: rotate(90deg) scale(1.08);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.2);
+}
+
+html.dark .party-orb-close-btn,
+body.dark .party-orb-close-btn,
+.app.dark .party-orb-close-btn,
+.dark .party-orb-close-btn {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25) !important;
+}
+html.dark .party-orb-close-btn:hover,
+body.dark .party-orb-close-btn:hover,
+.app.dark .party-orb-close-btn:hover,
+.dark .party-orb-close-btn:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
 }
 
 /* 內容整體容器 (確保所有元素精準置中) */
@@ -1985,10 +2009,8 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   max-width: 380px !important;
   min-height: 480px;
   border-radius: 22px;
-  background: rgba(18, 22, 36, 0.94);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(24px) saturate(1.3);
-  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  background: #FFFFFF !important; /* 🌟 淺色模式：純白溫潤雅緻卡片 */
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.12), 0 0 20px rgba(0, 0, 0, 0.06);
   overflow: hidden;
   cursor: pointer;
   user-select: none;
@@ -1999,9 +2021,14 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   box-sizing: border-box;
 }
 
-.app.dark .typo-card {
-  background: rgba(16, 18, 30, 0.96);
+html.dark .typo-card,
+body.dark .typo-card,
+.app.dark .typo-card,
+.dark .typo-card {
+  background: rgba(16, 18, 30, 0.96) !important; /* 🌟 深色模式：深邃暗黑星空質感 */
   box-shadow: 0 20px 55px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(24px) saturate(1.3);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
 }
 
 /* 🌟 彈出進場動效：左小卡由下方彈入，右小卡延遲 0.08s 交錯彈入 */
@@ -2057,34 +2084,56 @@ body:not(.dark) .gdrive-step-card .popover-footer {
 
 /* 🔵 左側小卡局部高亮 (入隊教學：電光天青聚光光暈) */
 .typo-card.card-join {
+  --theme-color: #0284C7;
+  --glow-color: rgba(2, 132, 199, 0.25);
+  --theme-gradient: linear-gradient(135deg, #0284C7 0%, #00BCD4 100%);
+  border: 2.5px solid #00BCD4;
+  box-shadow: 0 16px 45px rgba(0, 188, 212, 0.22), 0 0 20px rgba(0, 188, 212, 0.15);
+}
+.typo-card.card-join::before {
+  background: linear-gradient(90deg, #00BCD4, #38BDF8);
+}
+.typo-card.card-join:hover {
+  box-shadow: 0 20px 50px rgba(0, 188, 212, 0.35), 0 0 30px rgba(0, 188, 212, 0.25);
+  border-color: #0891B2;
+}
+
+/* 🟣 右側小卡局部高亮 (開房教學：粉紫霓虹聚光光暈) */
+.typo-card.card-host {
+  --theme-color: #BE185D;
+  --glow-color: rgba(190, 24, 93, 0.25);
+  --theme-gradient: linear-gradient(135deg, #BE185D 0%, #FF2A85 100%);
+  border: 2.5px solid #FF2A85;
+  box-shadow: 0 16px 45px rgba(255, 42, 133, 0.22), 0 0 20px rgba(255, 42, 133, 0.15);
+}
+.typo-card.card-host::before {
+  background: linear-gradient(90deg, #FF2A85, #A855F7);
+}
+.typo-card.card-host:hover {
+  box-shadow: 0 20px 50px rgba(255, 42, 133, 0.35), 0 0 30px rgba(255, 42, 133, 0.25);
+  border-color: #DB2777;
+}
+
+html.dark .typo-card.card-join,
+body.dark .typo-card.card-join,
+.app.dark .typo-card.card-join,
+.dark .typo-card.card-join {
   --theme-color: #00F5FF;
   --glow-color: rgba(0, 245, 255, 0.45);
   --theme-gradient: linear-gradient(135deg, #0891B2 0%, #00F5FF 100%);
   border: 2.5px solid #00F5FF;
   box-shadow: 0 0 35px rgba(0, 245, 255, 0.5), 0 0 75px rgba(0, 245, 255, 0.22), 0 16px 45px rgba(0, 0, 0, 0.45);
 }
-.typo-card.card-join::before {
-  background: linear-gradient(90deg, #00F5FF, #38BDF8);
-}
-.typo-card.card-join:hover {
-  box-shadow: 0 0 50px rgba(0, 245, 255, 0.75), 0 0 100px rgba(0, 245, 255, 0.35), 0 20px 50px rgba(0, 0, 0, 0.6);
-  border-color: #A5F3FC;
-}
 
-/* 🟣 右側小卡局部高亮 (開房教學：粉紫霓虹聚光光暈) */
-.typo-card.card-host {
+html.dark .typo-card.card-host,
+body.dark .typo-card.card-host,
+.app.dark .typo-card.card-host,
+.dark .typo-card.card-host {
   --theme-color: #FF2A85;
   --glow-color: rgba(255, 42, 133, 0.45);
   --theme-gradient: linear-gradient(135deg, #BE185D 0%, #FF2A85 100%);
   border: 2.5px solid #FF2A85;
   box-shadow: 0 0 35px rgba(255, 42, 133, 0.5), 0 0 75px rgba(255, 42, 133, 0.22), 0 16px 45px rgba(0, 0, 0, 0.45);
-}
-.typo-card.card-host::before {
-  background: linear-gradient(90deg, #FF2A85, #A855F7);
-}
-.typo-card.card-host:hover {
-  box-shadow: 0 0 50px rgba(255, 42, 133, 0.75), 0 0 100px rgba(255, 42, 133, 0.35), 0 20px 50px rgba(0, 0, 0, 0.6);
-  border-color: #F472B6;
 }
 
 /* 🌟 動態旋轉激光導軌邊框 (Radiant Laser Border) */
@@ -2265,15 +2314,21 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   box-shadow: 0 0 8px #EC4899;
 }
 
-.app.dark .typo-card.card-join .typo-role-tag {
-  background: rgba(0, 245, 255, 0.1);
-  border-color: rgba(0, 245, 255, 0.35);
-  color: #67E8F9;
+html.dark .typo-card.card-join .typo-role-tag,
+body.dark .typo-card.card-join .typo-role-tag,
+.app.dark .typo-card.card-join .typo-role-tag,
+.dark .typo-card.card-join .typo-role-tag {
+  background: rgba(0, 245, 255, 0.1) !important;
+  border-color: rgba(0, 245, 255, 0.35) !important;
+  color: #67E8F9 !important;
 }
-.app.dark .typo-card.card-host .typo-role-tag {
-  background: rgba(255, 42, 133, 0.1);
-  border-color: rgba(255, 42, 133, 0.35);
-  color: #F472B6;
+html.dark .typo-card.card-host .typo-role-tag,
+body.dark .typo-card.card-host .typo-role-tag,
+.app.dark .typo-card.card-host .typo-role-tag,
+.dark .typo-card.card-host .typo-role-tag {
+  background: rgba(255, 42, 133, 0.1) !important;
+  border-color: rgba(255, 42, 133, 0.35) !important;
+  color: #F472B6 !important;
 }
 
 @keyframes pulseDot {
@@ -2326,15 +2381,18 @@ body:not(.dark) .gdrive-step-card .popover-footer {
 
 .typo-subtitle {
   font-size: 13.5px;
-  color: #4B5563;
+  color: #4B5563 !important; /* 淺色模式：清楚易讀深石板灰 */
   line-height: 1.55;
   margin: 0;
   font-weight: 500;
   transition: color 0.3s ease;
 }
 
-.app.dark .typo-subtitle {
-  color: #CBD5E1;
+html.dark .typo-subtitle,
+body.dark .typo-subtitle,
+.app.dark .typo-subtitle,
+.dark .typo-subtitle {
+  color: #CBD5E1 !important;
 }
 
 /* 🌟 特性矩陣清單 */
@@ -2345,14 +2403,17 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   margin: 14px 0 22px;
   padding: 14px 16px;
   border-radius: 14px;
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: #F8FAFC !important; /* 淺色模式：純淨淺粉白底 */
+  border: 1px solid #E2E8F0 !important;
   transition: all 0.3s ease;
 }
 
-.app.dark .typo-feature-list {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.08);
+html.dark .typo-feature-list,
+body.dark .typo-feature-list,
+.app.dark .typo-feature-list,
+.dark .typo-feature-list {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 .typo-feature-item {
@@ -2360,20 +2421,26 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   align-items: center;
   gap: 10px;
   font-size: 13px;
-  color: #374151;
-  font-weight: 500;
+  color: #1E293B !important; /* 淺色模式：清晰深黑字體，杜絕發灰難辨識 */
+  font-weight: 600;
   transition: color 0.3s ease;
 }
 
-.app.dark .typo-feature-item {
-  color: #CBD5E1;
+html.dark .typo-feature-item,
+body.dark .typo-feature-item,
+.app.dark .typo-feature-item,
+.dark .typo-feature-item {
+  color: #CBD5E1 !important;
 }
 
 .typo-card:hover .typo-feature-item {
-  color: #111827;
+  color: #0F172A !important;
 }
-.app.dark .typo-card:hover .typo-feature-item {
-  color: #F8FAFC;
+html.dark .typo-card:hover .typo-feature-item,
+body.dark .typo-card:hover .typo-feature-item,
+.app.dark .typo-card:hover .typo-feature-item,
+.dark .typo-card:hover .typo-feature-item {
+  color: #F8FAFC !important;
 }
 
 .typo-feature-icon {
@@ -2481,632 +2548,75 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   transform: translateY(-1px);
   box-shadow: 0 5px 18px rgba(0, 0, 0, 0.1);
 }
-.app.dark .party-orb-cancel-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #FFFFFF;
+html.dark .party-orb-cancel-btn,
+body.dark .party-orb-cancel-btn,
+.app.dark .party-orb-cancel-btn,
+.dark .party-orb-cancel-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: #FFFFFF !important;
+}
+html.dark .party-orb-cancel-btn:hover,
+body.dark .party-orb-cancel-btn:hover,
+.app.dark .party-orb-cancel-btn:hover,
+.dark .party-orb-cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  color: #FFFFFF !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   🌟 組隊教學結業與全教學模組按鈕 - 淺色模式與深色模式雙主題補全
+   ═══════════════════════════════════════════════════════════════════════ */
+.tutorial-completion-modal-card #btn-party-host-finish-back,
+.tutorial-completion-modal-card #btn-party-join-finish-back {
+  background: #F3F4F6 !important;
+  border: 1.5px solid #111111 !important;
+  color: #111111 !important;
+  font-weight: 700 !important;
+  padding: 8px 16px !important;
+  border-radius: 8px !important;
+}
+.tutorial-completion-modal-card #btn-party-host-finish-back:hover,
+.tutorial-completion-modal-card #btn-party-join-finish-back:hover {
+  background: #E5E7EB !important;
+}
+
+.tutorial-completion-modal-card #btn-party-host-finish-lobby,
+.tutorial-completion-modal-card #btn-party-join-finish-lobby {
+  background: linear-gradient(135deg, #FF6699, #FF4081) !important;
+  border: 1.5px solid #FF4081 !important;
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+  padding: 8px 18px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 14px rgba(255, 64, 129, 0.35) !important;
+}
+
+html.dark .tutorial-completion-modal-card #btn-party-host-finish-back,
+body.dark .tutorial-completion-modal-card #btn-party-host-finish-back,
+.app.dark .tutorial-completion-modal-card #btn-party-host-finish-back,
+.dark .tutorial-completion-modal-card #btn-party-host-finish-back,
+html.dark .tutorial-completion-modal-card #btn-party-join-finish-back,
+body.dark .tutorial-completion-modal-card #btn-party-join-finish-back,
+.app.dark .tutorial-completion-modal-card #btn-party-join-finish-back,
+.dark .tutorial-completion-modal-card #btn-party-join-finish-back {
+  background: #232328 !important;
+  border: 1.5px solid #FFFFFF !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+}
+html.dark .tutorial-completion-modal-card #btn-party-host-finish-back:hover,
+body.dark .tutorial-completion-modal-card #btn-party-host-finish-back:hover,
+.app.dark .tutorial-completion-modal-card #btn-party-host-finish-back:hover,
+.dark .tutorial-completion-modal-card #btn-party-host-finish-back:hover,
+html.dark .tutorial-completion-modal-card #btn-party-join-finish-back:hover,
+body.dark .tutorial-completion-modal-card #btn-party-join-finish-back:hover,
+.app.dark .tutorial-completion-modal-card #btn-party-join-finish-back:hover,
+.dark .tutorial-completion-modal-card #btn-party-join-finish-back:hover {
+  background: #323238 !important;
 }
-.app.dark .party-orb-cancel-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.4);
-}text-char {
-  filter: drop-shadow(0 0 28px var(--theme-color));
-}
-
-.typo-card:hover .typo-hero-title .text-char:nth-child(1) { transform: translateY(-4px) scale(1.05); transition-delay: 0.02s; }
-.typo-card:hover .typo-hero-title .text-char:nth-child(2) { transform: translateY(-4px) scale(1.05); transition-delay: 0.05s; }
-.typo-card:hover .typo-hero-title .text-char:nth-child(3) { transform: translateY(-4px) scale(1.05); transition-delay: 0.08s; }
-.typo-card:hover .typo-hero-title .text-char:nth-child(4) { transform: translateY(-4px) scale(1.05); transition-delay: 0.11s; }
-
-.typo-subtitle {
-  font-size: 14px;
-  color: #94A3B8;
-  line-height: 1.5;
-  margin: 0;
-  font-weight: 500;
-  transition: color 0.3s ease;
-}
-
-.typo-card:hover .typo-subtitle {
-  color: #E2E8F0;
-}
-
-/* 🌟 終端特性矩陣 (Cyber Feature List) */
-.typo-feature-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 16px 0 26px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: all 0.3s ease;
-}
-
-.typo-card:hover .typo-feature-list {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-.typo-feature-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  color: #CBD5E1;
-  font-weight: 500;
-  transition: color 0.3s ease, transform 0.3s ease;
-}
-
-.typo-card:hover .typo-feature-item {
-  color: #F8FAFC;
-}
-
-.typo-feature-icon {
-  font-size: 12px;
-  color: var(--theme-color);
-  text-shadow: 0 0 10px var(--theme-color);
-}
-
-/* 🌟 底部啟動光效膠囊按鈕 (Radiant Launch Capsule Button) */
-.typo-launch-btn {
-  position: relative;
-  width: 100%;
-  padding: 14px 20px;
-  border-radius: 14px;
-  border: 1px solid var(--theme-color);
-  background: rgba(255, 255, 255, 0.06);
-  color: #FFFFFF;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  overflow: hidden;
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-}
-
-.typo-launch-btn::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--theme-color);
-  opacity: 0.15;
-  transition: opacity 0.3s ease;
-}
-
-.typo-card:hover .typo-launch-btn {
-  background: var(--theme-color);
-  color: #060B14;
-  box-shadow: 0 0 25px var(--glow-color), 0 8px 25px rgba(0, 0, 0, 0.4);
-  transform: translateY(-2px);
-}
-
-.typo-card:hover .typo-launch-btn::before {
-  opacity: 0;
-}
-
-.typo-launch-btn .btn-arrow {
-  transition: transform 0.3s ease;
-}
-
-.typo-card:hover .typo-launch-btn .btn-arrow {
-  transform: translateX(6px);
-}
-
-/* 🌟 點擊超光速進入過渡動畫 (Hyperdrive Transition FX) */
-.typo-card.launching {
-  animation: cardLaunchBurst 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
-  z-index: 100 !important;
-}
-
-@keyframes cardLaunchBurst {
-  0% { transform: scale(1); filter: brightness(1); }
-  35% { transform: scale(1.08); filter: brightness(2.8) drop-shadow(0 0 50px var(--theme-color)); }
-  100% { transform: scale(1.35); opacity: 0; filter: brightness(5); }
-}
-
-#tutorial-party-orb-overlay:has(.launching) .typo-card:not(.launching) {
-  opacity: 0;
-  transform: scale(0.9);
-  transition: all 0.3s ease;
-}
-
-/* 底部返回按鈕區 (絕對置中) */
-.party-orb-footer-action {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  margin: 30px auto 0;
-  z-index: 5;
-}
-.party-orb-back-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 28px;
-  border-radius: 99px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
-  color: #CBD5E1;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  outline: none;
-}
-.party-orb-back-btn:hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: #FFFFFF;
-  border-color: rgba(255, 255, 255, 0.45);
-  transform: translateY(-1px);
-  box-shadow: 0 0 16px rgba(255, 255, 255, 0.15);
-}
-
-.party-orb-cancel-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 30px;
-  border-radius: 99px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.06);
-  color: #CBD5E1;
-  font-size: 13.5px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  outline: none;
-}
-.party-orb-cancel-btn:hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: #FFFFFF;
-  border-color: rgba(255, 255, 255, 0.5);
-  transform: translateY(-2px);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
-}
-
-/* ==========================================================================
-   🌟 極致科技光效與動態排版字體選擇層 (Cyberpunk Typography & Radiant Light FX)
-   完全取消球體設計，以巨幅動態排版、霓虹掃光與邊緣激光呈現 3A 級遊戲選單
-   ========================================================================== */
-.typo-ambient-backdrop {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-  z-index: 1;
-}
-
-.light-beam-ambient {
-  position: absolute;
-  width: 520px;
-  height: 520px;
-  border-radius: 50%;
-  filter: blur(85px);
-  opacity: 0.28;
-  animation: ambientAuroraPulse 8s ease-in-out infinite alternate;
-}
-.light-beam-ambient.beam-left {
-  top: 15%;
-  left: 10%;
-  background: radial-gradient(circle, #00F5FF 0%, #0284C7 60%, transparent 80%);
-}
-.light-beam-ambient.beam-right {
-  top: 15%;
-  right: 10%;
-  background: radial-gradient(circle, #FF2A85 0%, #9333EA 60%, transparent 80%);
-  animation-delay: -4s;
-}
-
-@keyframes ambientAuroraPulse {
-  0% { transform: scale(0.9) translate(0, 0); opacity: 0.22; }
-  50% { transform: scale(1.15) translate(20px, -15px); opacity: 0.36; }
-  100% { transform: scale(0.95) translate(-15px, 20px); opacity: 0.25; }
-}
-
-.cyber-grid-plane {
-  position: absolute;
-  inset: 0;
-  background-image: 
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 38px 38px;
-  mask-image: radial-gradient(circle at 50% 50%, black 35%, transparent 80%);
-  -webkit-mask-image: radial-gradient(circle at 50% 50%, black 35%, transparent 80%);
-  opacity: 0.65;
-}
-
-/* 舞台容器 */
-.typo-stage {
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: 52px;
-  z-index: 5;
-  margin: 28px 0 15px;
-  perspective: 1200px;
-}
-
-@media (max-width: 960px) {
-  .typo-stage {
-    flex-direction: column;
-    gap: 30px;
-  }
-}
-
-/* 巨幅排版終端卡片 */
-.typo-card {
-  position: relative;
-  width: 440px;
-  min-height: 480px;
-  padding: 36px 32px 32px;
-  box-sizing: border-box;
-  background: linear-gradient(165deg, rgba(15, 23, 42, 0.90) 0%, rgba(8, 12, 22, 0.96) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 24px;
-  overflow: hidden;
-  cursor: pointer;
-  user-select: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
-              border-color 0.35s ease, 
-              box-shadow 0.4s ease;
-  transform-style: preserve-3d;
-}
-
-.typo-card:hover {
-  transform: translateY(-8px) scale(1.02);
-}
-
-.card-join:hover {
-  border-color: rgba(0, 245, 255, 0.6);
-  box-shadow: 0 32px 80px rgba(0, 245, 255, 0.28), 0 0 30px rgba(0, 245, 255, 0.15);
-}
-
-.card-host:hover {
-  border-color: rgba(255, 42, 133, 0.6);
-  box-shadow: 0 32px 80px rgba(255, 42, 133, 0.28), 0 0 30px rgba(255, 42, 133, 0.15);
-}
-
-/* 邊緣動態激光掃光 */
-.card-laser-border {
-  position: absolute;
-  inset: -2px;
-  border-radius: 26px;
-  background: conic-gradient(from var(--laser-angle, 0deg), transparent 70%, var(--glow-color, #00F5FF) 90%, #FFFFFF 95%, transparent 100%);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  padding: 2px;
-  pointer-events: none;
-  opacity: 0.6;
-  transition: opacity 0.3s ease;
-  animation: laserBorderRotate 4.5s linear infinite;
-}
-
-.card-join { --glow-color: #00F5FF; }
-.card-host { --glow-color: #FF2A85; }
-
-.typo-card:hover .card-laser-border {
-  opacity: 1;
-  animation-duration: 2.2s;
-}
-
-@property --laser-angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
 
-@keyframes laserBorderRotate {
-  from { --laser-angle: 0deg; }
-  to { --laser-angle: 360deg; }
-}
-
-/* 內部發光極光暈 */
-.card-glow-aurora {
-  position: absolute;
-  top: -40px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 320px;
-  height: 260px;
-  border-radius: 50%;
-  pointer-events: none;
-  opacity: 0.45;
-  filter: blur(48px);
-  transition: all 0.4s ease;
-}
-
-.card-join .card-glow-aurora {
-  background: radial-gradient(circle, rgba(0, 245, 255, 0.5) 0%, rgba(14, 165, 233, 0.2) 60%, transparent 80%);
-}
-
-.card-host .card-glow-aurora {
-  background: radial-gradient(circle, rgba(255, 42, 133, 0.5) 0%, rgba(168, 85, 247, 0.2) 60%, transparent 80%);
-}
-
-.typo-card:hover .card-glow-aurora {
-  opacity: 0.85;
-  transform: translateX(-50%) scale(1.15);
-  filter: blur(56px);
-}
-
-/* 背景超大動態英文字體水印 (Kinetic Background Typo) */
-.bg-kinetic-typo {
-  position: absolute;
-  top: 18%;
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: 'Consolas', 'Montserrat', 'Impact', sans-serif;
-  font-size: 130px;
-  font-weight: 900;
-  letter-spacing: 6px;
-  line-height: 1;
-  pointer-events: none;
-  user-select: none;
-  z-index: 1;
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.card-join .bg-kinetic-typo {
-  color: transparent;
-  -webkit-text-stroke: 1.5px rgba(0, 245, 255, 0.12);
-  text-shadow: 0 0 30px rgba(0, 245, 255, 0.08);
-}
-
-.card-host .bg-kinetic-typo {
-  color: transparent;
-  -webkit-text-stroke: 1.5px rgba(255, 42, 133, 0.12);
-  text-shadow: 0 0 30px rgba(255, 42, 133, 0.08);
-}
-
-.typo-card:hover .bg-kinetic-typo {
-  transform: translateX(-50%) translateY(-10px) scale(1.08);
-}
-.card-join:hover .bg-kinetic-typo {
-  -webkit-text-stroke-color: rgba(0, 245, 255, 0.28);
-  text-shadow: 0 0 40px rgba(0, 245, 255, 0.25);
-}
-.card-host:hover .bg-kinetic-typo {
-  -webkit-text-stroke-color: rgba(255, 42, 133, 0.28);
-  text-shadow: 0 0 40px rgba(255, 42, 133, 0.25);
-}
-
-/* 頂部終端協定標記 */
-.card-header-tag {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-  z-index: 2;
-  margin-bottom: 24px;
-}
-
-.tag-badge {
-  font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid;
-}
-
-.card-join .tag-badge {
-  color: #00F5FF;
-  border-color: rgba(0, 245, 255, 0.35);
-  background: rgba(0, 245, 255, 0.08);
-}
-.card-host .tag-badge {
-  color: #FF2A85;
-  border-color: rgba(255, 42, 133, 0.35);
-  background: rgba(255, 42, 133, 0.08);
-}
-
-.tag-status {
-  font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.2px;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-/* 核心字體視覺群組 */
-.typo-hero-group {
-  position: relative;
-  z-index: 2;
-  text-align: center;
-  margin: 20px 0 28px;
-}
-
-.typo-sub-label {
-  font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  margin-bottom: 8px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* 巨幅霓虹光效字體 */
-.typo-hero-title {
-  font-size: 44px;
-  font-weight: 900;
-  letter-spacing: 4px;
-  margin: 0 0 16px 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.typo-hero-title .text-char {
-  display: inline-block;
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  animation: textShimmerSweep 4s linear infinite;
-  animation-delay: calc(var(--i) * 0.12s);
-}
-
-.card-join .typo-hero-title .text-char {
-  background-image: linear-gradient(135deg, #FFFFFF 0%, #E0F7FF 25%, #00F5FF 50%, #38BDF8 75%, #FFFFFF 100%);
-  filter: drop-shadow(0 0 16px rgba(0, 245, 255, 0.8)) drop-shadow(0 0 32px rgba(14, 165, 233, 0.4));
-}
-
-.card-host .typo-hero-title .text-char {
-  background-image: linear-gradient(135deg, #FFFFFF 0%, #FFE4F0 25%, #FF2A85 50%, #C084FC 75%, #FFFFFF 100%);
-  filter: drop-shadow(0 0 16px rgba(255, 42, 133, 0.8)) drop-shadow(0 0 32px rgba(168, 85, 247, 0.4));
-}
-
-.typo-card:hover .typo-hero-title .text-char {
-  transform: translateY(-4px) scale(1.06);
-}
-
-@keyframes textShimmerSweep {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 200% 50%; }
-}
-
-/* 光束光斑分隔線 */
-.typo-light-beam-divider {
-  position: relative;
-  width: 100%;
-  height: 2px;
-  margin: 0 auto;
-}
-
-.card-join .typo-light-beam-divider {
-  background: linear-gradient(90deg, transparent 0%, rgba(0, 245, 255, 0.4) 20%, #FFFFFF 50%, rgba(0, 245, 255, 0.4) 80%, transparent 100%);
-  box-shadow: 0 0 10px #00F5FF;
-}
-
-.card-host .typo-light-beam-divider {
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 42, 133, 0.4) 20%, #FFFFFF 50%, rgba(255, 42, 133, 0.4) 80%, transparent 100%);
-  box-shadow: 0 0 10px #FF2A85;
-}
-
-/* 遙測資訊卡片列 */
-.card-telemetry-list {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  padding: 16px 18px;
-  margin-bottom: 28px;
-}
-
-.telemetry-item {
-  display: flex;
-  align-items: center;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.telemetry-item .t-icon {
-  margin-right: 8px;
-  font-size: 13px;
-}
-.card-join .telemetry-item .t-icon { color: #00F5FF; }
-.card-host .telemetry-item .t-icon { color: #FF2A85; }
-
-.telemetry-item .t-label {
-  font-family: 'Consolas', monospace;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-right: 10px;
-  min-width: 62px;
-  letter-spacing: 0.8px;
-}
-
-.telemetry-item .t-val {
-  color: #E2E8F0;
-  font-weight: 600;
-  font-size: 12.5px;
-}
-.telemetry-item .t-val.highlight {
-  color: #FFFFFF;
-}
-
-/* 底部操作按鈕區 */
-.card-action-wrap {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  justify-content: center;
-}
-
-/* 膠囊發光進入按鈕 */
-.three-launch-pill {
-  padding: 11px 32px;
-  border-radius: 99px;
-  font-size: 14.5px;
-  font-weight: 900;
-  border: 1.8px solid;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  outline: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-
-.btn-pill-cyan {
-  background: linear-gradient(135deg, rgba(0, 245, 255, 0.28) 0%, rgba(2, 132, 199, 0.42) 100%);
-  border-color: #00F5FF;
-  color: #FFFFFF;
-  box-shadow: 0 0 20px rgba(0, 245, 255, 0.6), inset 0 0 12px rgba(0, 245, 255, 0.35);
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
-}
-.typo-card.card-join:hover .btn-pill-cyan,
-.btn-pill-cyan:hover {
-  background: linear-gradient(135deg, rgba(0, 245, 255, 0.52) 0%, rgba(2, 132, 199, 0.72) 100%);
-  border-color: #67E8F9;
-  color: #FFFFFF;
-  box-shadow: 0 0 36px #00F5FF, inset 0 0 16px rgba(255, 255, 255, 0.6);
-  transform: translateY(-2px) scale(1.05);
-}
-
-.btn-pill-magenta {
-  background: linear-gradient(135deg, rgba(255, 42, 133, 0.28) 0%, rgba(147, 51, 234, 0.42) 100%);
-  border-color: #FF2A85;
-  color: #FFFFFF;
-  box-shadow: 0 0 20px rgba(255, 42, 133, 0.6), inset 0 0 12px rgba(255, 42, 133, 0.35);
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
-}
-.typo-card.card-host:hover .btn-pill-magenta,
-.btn-pill-magenta:hover {
-  background: linear-gradient(135deg, rgba(255, 42, 133, 0.52) 0%, rgba(147, 51, 234, 0.72) 100%);
-  border-color: #F472B6;
-  color: #FFFFFF;
-  box-shadow: 0 0 36px #FF2A85, inset 0 0 16px rgba(255, 255, 255, 0.6);
-  transform: translateY(-2px) scale(1.05);
-}
 
 
 

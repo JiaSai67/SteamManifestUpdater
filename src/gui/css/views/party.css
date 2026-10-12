@@ -2259,32 +2259,29 @@ body.dark .webhook-tutorial-card .webhook-tutorial-badge,
   to { opacity: 1; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   🌟 組隊完成中央大卡 (Central Completion Modal) - 淺色模式與深色模式雙主題適配
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* 1. 預設：淺色模式 (Light Mode) 雅緻純白基底、高對比清晰文字與柔和裝飾光 */
 .party-central-completion-card {
   position: relative;
   width: 100%;
   max-width: 520px;
-  background: #171320 !important; /* 🌟 徹底告別白色！始終採用高品質深黑紫基底 */
-  color: #EDE2E5 !important;
+  background: #FFFFFF !important; /* 🌟 淺色模式：純白溫潤高質感 */
+  color: #111827 !important;
   border-radius: 20px;
   padding: 26px 24px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75), 0 0 32px rgba(46, 160, 67, 0.35);
-  border: 1.5px solid rgba(46, 160, 67, 0.6);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.14), 0 0 28px rgba(46, 160, 67, 0.18);
+  border: 2px solid rgba(46, 160, 67, 0.45);
   text-align: center;
   box-sizing: border-box;
   animation: popInCompletion 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .party-central-completion-card.member-theme {
-  border-color: rgba(0, 229, 255, 0.6) !important;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75), 0 0 32px rgba(0, 229, 255, 0.35) !important;
-}
-
-html.dark .party-central-completion-card,
-body.dark .party-central-completion-card,
-.app.dark .party-central-completion-card,
-.dark .party-central-completion-card {
-  background: #171320 !important;
-  color: #EDE2E5 !important;
+  border-color: rgba(2, 132, 199, 0.45) !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.14), 0 0 28px rgba(2, 132, 199, 0.18) !important;
 }
 
 @keyframes popInCompletion {
@@ -2302,9 +2299,9 @@ body.dark .party-central-completion-card,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(46, 160, 67, 0.18);
-  border: 1px solid rgba(46, 160, 67, 0.5);
-  color: #4ADE80 !important;
+  background: rgba(46, 160, 67, 0.12);
+  border: 1px solid rgba(46, 160, 67, 0.4);
+  color: #15803D !important; /* 淺色模式高對比翠綠 */
   font-size: 11.5px;
   font-weight: 800;
   padding: 4px 14px;
@@ -2314,42 +2311,42 @@ body.dark .party-central-completion-card,
 }
 
 .party-completion-badge-top.member {
-  background: rgba(0, 229, 255, 0.18);
-  border-color: rgba(0, 229, 255, 0.5);
-  color: #00E5FF !important;
+  background: rgba(2, 132, 199, 0.12);
+  border-color: rgba(2, 132, 199, 0.4);
+  color: #0284C7 !important; /* 淺色模式高對比天青藍 */
 }
 
 .party-completion-icon-ring {
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(46, 160, 67, 0.25), rgba(76, 175, 80, 0.1));
-  border: 2px solid rgba(46, 160, 67, 0.5);
+  background: linear-gradient(135deg, #ECFDF5, #D1FAE5);
+  border: 2px solid rgba(46, 160, 67, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 28px;
   margin: 0 auto 12px auto;
-  box-shadow: 0 4px 18px rgba(46, 160, 67, 0.35);
+  box-shadow: 0 4px 16px rgba(46, 160, 67, 0.2);
 }
 
 .party-completion-icon-ring.member {
-  background: linear-gradient(135deg, rgba(0, 229, 255, 0.25), rgba(33, 150, 243, 0.1));
-  border-color: rgba(0, 229, 255, 0.5);
-  box-shadow: 0 4px 18px rgba(0, 229, 255, 0.35);
+  background: linear-gradient(135deg, #F0F9FF, #E0F2FE);
+  border-color: rgba(2, 132, 199, 0.4);
+  box-shadow: 0 4px 16px rgba(2, 132, 199, 0.2);
 }
 
 .party-completion-title {
   font-size: 21px;
   font-weight: 900;
   margin: 0 0 8px 0;
-  color: #FFFFFF !important;
+  color: #111827 !important; /* 淺色模式清晰深黑標題，徹底杜絕黑底黑字！ */
   letter-spacing: 0.5px;
 }
 
 .party-completion-subtitle {
   font-size: 13px;
-  color: #CBD5E1 !important; /* 清晰高對比的淺銀灰，絕不隱形 */
+  color: #4B5563 !important; /* 淺色模式深石板灰，清晰不發白 */
   line-height: 1.6;
   margin: 0 0 16px 0;
 }
@@ -2362,7 +2359,7 @@ body.dark .party-central-completion-card,
 .party-completion-sec-title {
   font-size: 12.5px;
   font-weight: 800;
-  color: #F8FAFC !important;
+  color: #111827 !important; /* 淺色模式高對比黑字 */
   margin-bottom: 8px;
 }
 
@@ -2371,44 +2368,207 @@ body.dark .party-central-completion-card,
   align-items: center;
   justify-content: space-between;
   padding: 9px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #F8FAFC !important;
+  border: 1px solid #E2E8F0 !important;
   border-radius: 9px;
   margin-bottom: 6px;
   transition: all 0.2s;
 }
 
 .party-completion-member-item:hover {
-  background: rgba(255, 255, 255, 0.12) !important;
-  border-color: rgba(255, 255, 255, 0.22) !important;
+  background: #F1F5F9 !important;
+  border-color: #CBD5E1 !important;
 }
 
 .party-completion-member-item .member-name-text {
   font-weight: 700;
-  color: #FFFFFF !important;
+  color: #1E293B !important;
   font-size: 13px;
 }
 
 .party-completion-member-item .member-dc-tag {
-  color: #818CF8 !important;
+  color: #4F46E5 !important; /* 淺色模式深邃高對比 Discord 藍紫 */
   font-weight: 800;
   font-size: 12.5px;
 }
 
+.party-completion-member-item .btn-o {
+  background: #FFFFFF !important;
+  border-color: #C7D2FE !important;
+  color: #4338CA !important;
+  font-weight: 700 !important;
+}
+.party-completion-member-item .btn-o:hover {
+  background: #EEF2FF !important;
+  border-color: #818CF8 !important;
+}
+
 .party-completion-contact-box {
-  background: rgba(46, 160, 67, 0.15) !important;
-  border: 1.5px solid rgba(46, 160, 67, 0.5) !important;
+  background: #F0FDF4 !important;
+  border: 1.5px solid rgba(34, 197, 94, 0.45) !important;
   padding: 11px 14px;
   border-radius: 10px;
-  color: #4ADE80 !important;
+  color: #15803D !important; /* 淺色模式高對比深綠字 */
   font-weight: 800;
   font-size: 13.5px;
   word-break: break-all;
 }
 
 .party-completion-contact-box.member-box {
-  background: rgba(0, 229, 255, 0.12) !important;
-  border: 1.5px solid rgba(0, 229, 255, 0.45) !important;
+  background: #F0F9FF !important;
+  border: 1.5px solid rgba(14, 165, 233, 0.45) !important;
+  color: #0369A1 !important; /* 淺色模式高對比天青藍字 */
+}
+.party-completion-contact-box.member-box .btn-o {
+  background: #FFFFFF !important;
+  border-color: #BAE6FD !important;
+  color: #0284C7 !important;
+  font-weight: 700 !important;
+}
+.party-completion-contact-box.member-box .btn-o:hover {
+  background: #E0F2FE !important;
+}
+
+/* 2. 深色模式 (Dark Mode) 賽博深邃黑底、純白高光字體與酷炫電光霓虹 */
+html.dark .party-central-completion-card,
+body.dark .party-central-completion-card,
+.app.dark .party-central-completion-card,
+.dark .party-central-completion-card {
+  background: #171320 !important; /* 🌟 深色模式：深黑紫科幻底色 */
+  color: #EDE2E5 !important;
+  border-color: rgba(46, 160, 67, 0.6) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 32px rgba(46, 160, 67, 0.35) !important;
+}
+
+html.dark .party-central-completion-card.member-theme,
+body.dark .party-central-completion-card.member-theme,
+.app.dark .party-central-completion-card.member-theme,
+.dark .party-central-completion-card.member-theme {
+  border-color: rgba(0, 229, 255, 0.6) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 32px rgba(0, 229, 255, 0.35) !important;
+}
+
+html.dark .party-completion-badge-top,
+body.dark .party-completion-badge-top,
+.app.dark .party-completion-badge-top,
+.dark .party-completion-badge-top {
+  background: rgba(46, 160, 67, 0.18) !important;
+  border-color: rgba(46, 160, 67, 0.5) !important;
+  color: #4ADE80 !important;
+}
+
+html.dark .party-completion-badge-top.member,
+body.dark .party-completion-badge-top.member,
+.app.dark .party-completion-badge-top.member,
+.dark .party-completion-badge-top.member {
+  background: rgba(0, 229, 255, 0.18) !important;
+  border-color: rgba(0, 229, 255, 0.5) !important;
   color: #00E5FF !important;
 }
+
+html.dark .party-completion-icon-ring,
+body.dark .party-completion-icon-ring,
+.app.dark .party-completion-icon-ring,
+.dark .party-completion-icon-ring {
+  background: linear-gradient(135deg, rgba(46, 160, 67, 0.25), rgba(76, 175, 80, 0.1)) !important;
+  border-color: rgba(46, 160, 67, 0.5) !important;
+  box-shadow: 0 4px 18px rgba(46, 160, 67, 0.35) !important;
+}
+
+html.dark .party-completion-icon-ring.member,
+body.dark .party-completion-icon-ring.member,
+.app.dark .party-completion-icon-ring.member,
+.dark .party-completion-icon-ring.member {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.25), rgba(33, 150, 243, 0.1)) !important;
+  border-color: rgba(0, 229, 255, 0.5) !important;
+  box-shadow: 0 4px 18px rgba(0, 229, 255, 0.35) !important;
+}
+
+html.dark .party-completion-title,
+body.dark .party-completion-title,
+.app.dark .party-completion-title,
+.dark .party-completion-title {
+  color: #FFFFFF !important;
+}
+
+html.dark .party-completion-subtitle,
+body.dark .party-completion-subtitle,
+.app.dark .party-completion-subtitle,
+.dark .party-completion-subtitle {
+  color: #CBD5E1 !important;
+}
+
+html.dark .party-completion-sec-title,
+body.dark .party-completion-sec-title,
+.app.dark .party-completion-sec-title,
+.dark .party-completion-sec-title {
+  color: #F8FAFC !important;
+}
+
+html.dark .party-completion-member-item,
+body.dark .party-completion-member-item,
+.app.dark .party-completion-member-item,
+.dark .party-completion-member-item {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html.dark .party-completion-member-item:hover,
+body.dark .party-completion-member-item:hover,
+.app.dark .party-completion-member-item:hover,
+.dark .party-completion-member-item:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
+
+html.dark .party-completion-member-item .member-name-text,
+body.dark .party-completion-member-item .member-name-text,
+.app.dark .party-completion-member-item .member-name-text,
+.dark .party-completion-member-item .member-name-text {
+  color: #FFFFFF !important;
+}
+
+html.dark .party-completion-member-item .member-dc-tag,
+body.dark .party-completion-member-item .member-dc-tag,
+.app.dark .party-completion-member-item .member-dc-tag,
+.dark .party-completion-member-item .member-dc-tag {
+  color: #818CF8 !important;
+}
+
+html.dark .party-completion-member-item .btn-o,
+body.dark .party-completion-member-item .btn-o,
+.app.dark .party-completion-member-item .btn-o,
+.dark .party-completion-member-item .btn-o {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #E2E8F0 !important;
+}
+
+html.dark .party-completion-contact-box,
+body.dark .party-completion-contact-box,
+.app.dark .party-completion-contact-box,
+.dark .party-completion-contact-box {
+  background: rgba(46, 160, 67, 0.15) !important;
+  border-color: rgba(46, 160, 67, 0.5) !important;
+  color: #4ADE80 !important;
+}
+
+html.dark .party-completion-contact-box.member-box,
+body.dark .party-completion-contact-box.member-box,
+.app.dark .party-completion-contact-box.member-box,
+.dark .party-completion-contact-box.member-box {
+  background: rgba(0, 229, 255, 0.12) !important;
+  border-color: rgba(0, 229, 255, 0.45) !important;
+  color: #00E5FF !important;
+}
+
+html.dark .party-completion-contact-box.member-box .btn-o,
+body.dark .party-completion-contact-box.member-box .btn-o,
+.app.dark .party-completion-contact-box.member-box .btn-o,
+.dark .party-completion-contact-box.member-box .btn-o {
+  background: rgba(0, 229, 255, 0.15) !important;
+  border-color: rgba(0, 229, 255, 0.45) !important;
+  color: #00E5FF !important;
+}
+
 
