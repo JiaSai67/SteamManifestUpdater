@@ -197,7 +197,7 @@ class InstallHandler:
         # 嘗試解析遊戲名稱供日誌報告展示
         if not game_name:
             try:
-                cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
+                cache_file = config_manager.get_storage_dir() / "game_cache.json"
                 if cache_file.exists():
                     gc = json.loads(cache_file.read_text(encoding="utf-8"))
                     game_name = gc.get(appid_str, {}).get("name", "")
@@ -251,7 +251,8 @@ class InstallHandler:
 
             # 🌟 核心同步：確定完成更新後，立即將該遊戲更新狀態移出待更新名單，同步寫入快取
             if ok:
-                updates_file = Path(__file__).parent.parent / "data" / "manifest_updates.json"
+                updates_file = config_manager.get_storage_dir() / "manifest_updates.json"
+                updates_file.parent.mkdir(parents=True, exist_ok=True)
                 try:
                     from datetime import datetime
                     updates = {}

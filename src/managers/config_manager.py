@@ -13,6 +13,14 @@ else:
 _storage_dir = _root_dir / "data"
 _storage_dir.mkdir(parents=True, exist_ok=True)
 
+def get_root_dir() -> Path:
+    """獲取專案根目錄 (相容打包環境與原始碼執行環境)"""
+    return _root_dir
+
+def get_storage_dir() -> Path:
+    """獲取 data 儲存資料夾路徑"""
+    return _storage_dir
+
 CONFIG_FILE = str(_storage_dir / "config.json")
 def _get_default_lua_dir():
     try:

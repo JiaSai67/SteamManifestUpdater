@@ -239,7 +239,7 @@ window.onSingleGameUpdateChecked = function(u){
   } catch(e){ console.error('onSingleGameUpdateChecked error:', e); }
 };
 
-// 🌟 全庫比對完全確認後一次性推送通知（無感局部修補 DOM，絕不重新渲染整個畫面）
+// 🌟 全庫比對完全確認後一次性推送通知（局部修補並自動置頂可更新項目）
 window.onAllUpdatesCheckFinished = function(summary){
   try {
     _checkingUpdates = false;
@@ -249,10 +249,25 @@ window.onAllUpdatesCheckFinished = function(summary){
     loadOnlineFixAppids().catch(function(){});
     var upCount = refreshUpdateCountUI();
     if(upCount > 0){
+      // 🌟 當前若為可更新優先預設排序，重新渲染以平滑置頂有更新之遊戲小卡
+      var sel = document.getElementById('manage-sort-mode');
+      var sortMode = (sel ? sel.value : null) || 'default';
+      if(sortMode === 'default' && _pre._games && _pre._games.length){
+        var filter = (document.getElementById('mf').value||'').trim().toLowerCase();
+        renderGames(_pre._games, filter);
+      }
       tt('🔍 主動比對完成：發現 ' + upCount + ' 款遊戲有最新版本 Manifest 可更新！', 'in');
     }
   } catch(e){}
 };
+
+// 雙重保險：同時監聽 CustomEvent 事件
+window.addEventListener('onAllUpdatesCheckFinished', function(e){
+  var detail = e ? e.detail : null;
+  if(detail && typeof window.onAllUpdatesCheckFinished === 'function'){
+    window.onAllUpdatesCheckFinished(detail);
+  }
+});
 
 function refreshUpdateCountUI(){
   var upCount = 0;

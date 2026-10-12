@@ -30,8 +30,8 @@ MAX_CONCURRENT_STEAMDB_TASKS = 3
 class SearchHandler:
     def _load_unified_game_cache(self) -> Dict[str, Any]:
         """讀取全域統一遊戲快取（優先載入 resources/builtin_game_cache.json，再以 data/game_cache.json 覆蓋）"""
-        builtin_cache_file = Path(__file__).parent.parent / "resources" / "builtin_game_cache.json"
-        cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
+        builtin_cache_file = config_manager.get_root_dir() / "resources" / "builtin_game_cache.json"
+        cache_file = config_manager.get_storage_dir() / "game_cache.json"
         game_cache = {}
         if builtin_cache_file.exists():
             try:
@@ -61,7 +61,7 @@ class SearchHandler:
                     hi = d[appid_str].get("data", {}).get("header_image", "")
                     if hi:
                         try:
-                            cf = Path(__file__).parent.parent / "data" / "game_cache.json"
+                            cf = config_manager.get_storage_dir() / "game_cache.json"
                             cf.parent.mkdir(parents=True, exist_ok=True)
                             cur = {}
                             if cf.exists():
@@ -836,7 +836,8 @@ class SearchHandler:
 
         # 🌟 同步更新本地 manifest_updates 快取，確保管理頁秒開與即時同步點亮
         try:
-            updates_file = Path(__file__).parent.parent / "data" / "manifest_updates.json"
+            updates_file = config_manager.get_storage_dir() / "manifest_updates.json"
+            updates_file.parent.mkdir(parents=True, exist_ok=True)
             cached_updates = {}
             if updates_file.exists():
                 try: cached_updates = json.loads(updates_file.read_text(encoding="utf-8"))
@@ -1006,7 +1007,7 @@ class SearchHandler:
             return {"ok": False, "appid": appid_str, "has_update": False, "version_status": "最新版"}
 
         # 🌟 優先讀取剛更新之快取，若已標記為最新版則立即秒回 (0ms 反饋)
-        updates_file = Path(__file__).parent.parent / "data" / "manifest_updates.json"
+        updates_file = config_manager.get_storage_dir() / "manifest_updates.json"
         if updates_file.exists():
             try:
                 updates = json.loads(updates_file.read_text(encoding="utf-8"))
@@ -1057,7 +1058,8 @@ class SearchHandler:
             }
 
             # 同步更新 manifest_updates.json 快取
-            updates_file = Path(__file__).parent.parent / "data" / "manifest_updates.json"
+            updates_file = config_manager.get_storage_dir() / "manifest_updates.json"
+            updates_file.parent.mkdir(parents=True, exist_ok=True)
             try:
                 updates = {}
                 if updates_file.exists():

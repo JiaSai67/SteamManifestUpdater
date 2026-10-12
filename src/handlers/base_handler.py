@@ -42,7 +42,7 @@ class BaseHandler:
         self._window = window
 
     def _push_js_event(self, event_name: str, data: Any = None):
-        """安全向前端拋送 JavaScript 自訂事件"""
+        """安全向前端拋送 JavaScript 自訂事件 (同時相容全域函式回調與 CustomEvent 監聽器)"""
         if not self._window:
             return
         try:
@@ -50,7 +50,12 @@ class BaseHandler:
             js = f"""
             (function() {{
                 try {{
-                    const ev = new CustomEvent({json.dumps(event_name)}, {{ detail: {payload} }});
+                    var evName = {json.dumps(event_name)};
+                    var pData = {payload};
+                    if (typeof window[evName] === 'function') {{
+                        try {{ window[evName](pData); }} catch(fnErr) {{ console.error('[Handler Callback Error]', fnErr); }}
+                    }}
+                    const ev = new CustomEvent(evName, {{ detail: pData }});
                     window.dispatchEvent(ev);
                 }} catch(e) {{
                     console.error('[WebAPI Push Error]', e);

@@ -27,8 +27,8 @@ from managers import version_resolver
 class ManageHandler:
     def _load_unified_game_cache(self) -> Dict[str, Any]:
         """讀取全域統一遊戲快取（優先載入 resources/builtin_game_cache.json，再以 data/game_cache.json 覆蓋）"""
-        builtin_cache_file = Path(__file__).parent.parent / "resources" / "builtin_game_cache.json"
-        cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
+        builtin_cache_file = config_manager.get_root_dir() / "resources" / "builtin_game_cache.json"
+        cache_file = config_manager.get_storage_dir() / "game_cache.json"
         game_cache = {}
         if builtin_cache_file.exists():
             try:
@@ -47,7 +47,7 @@ class ManageHandler:
         全庫精確取得當前真正需要更新的遊戲名單 (杜絕前端快照時序差導致漏更)
         直接從 manifest_updates.json 讀取最新狀態，並交叉校驗本地 Lua 檔案
         """
-        updates_file = Path(__file__).parent.parent / "data" / "manifest_updates.json"
+        updates_file = config_manager.get_storage_dir() / "manifest_updates.json"
         cached_updates = {}
         game_cache = self._load_unified_game_cache()
 
@@ -127,8 +127,8 @@ class ManageHandler:
                 pass
 
             # 讀取遊戲快取（優先載入倉庫內建快取，確保初次抓取 0 延遲秒開）
-            builtin_cache_file = Path(__file__).parent.parent / "resources" / "builtin_game_cache.json"
-            cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
+            builtin_cache_file = config_manager.get_root_dir() / "resources" / "builtin_game_cache.json"
+            cache_file = config_manager.get_storage_dir() / "game_cache.json"
             game_cache = {}
             cache_dirty = False
             if builtin_cache_file.exists():
@@ -143,7 +143,7 @@ class ManageHandler:
                     pass
 
             # 讀取本地已有的版本更新快取（無需重複發起慢速網路請求）
-            updates_file = Path(__file__).parent.parent / "data" / "manifest_updates.json"
+            updates_file = config_manager.get_storage_dir() / "manifest_updates.json"
             cached_updates = {}
             if updates_file.exists():
                 try:
@@ -185,7 +185,7 @@ class ManageHandler:
                     game_name = name_m.group(1).strip() if name_m else ""
 
                 if not game_name or game_name == "未知遊戲" or game_name.startswith("App_"):
-                    sdb_file = Path(__file__).parent.parent / "data" / "steamdb_cache" / f"{appid}.json"
+                    sdb_file = config_manager.get_storage_dir() / "steamdb_cache" / f"{appid}.json"
                     if sdb_file.exists():
                         try:
                             sdb_data = json.loads(sdb_file.read_text(encoding="utf-8"))
@@ -310,8 +310,8 @@ class ManageHandler:
             return {"ok": True, "count": 0, "games": []}
 
         # 1. 載入當前快取（內建快取 + data/game_cache.json）
-        builtin_cache_file = Path(__file__).parent.parent / "resources" / "builtin_game_cache.json"
-        cache_file = Path(__file__).parent.parent / "data" / "game_cache.json"
+        builtin_cache_file = config_manager.get_root_dir() / "resources" / "builtin_game_cache.json"
+        cache_file = config_manager.get_storage_dir() / "game_cache.json"
         game_cache = {}
         if builtin_cache_file.exists():
             try:
@@ -453,7 +453,8 @@ class ManageHandler:
         # 載入遊戲快取以備補全
         game_cache = self._load_unified_game_cache()
 
-        updates_file = Path(__file__).parent.parent / "data" / "manifest_updates.json"
+        updates_file = config_manager.get_storage_dir() / "manifest_updates.json"
+        updates_file.parent.mkdir(parents=True, exist_ok=True)
         updates = {}
         if updates_file.exists() and not force:
             try:
@@ -468,6 +469,7 @@ class ManageHandler:
         def save_progress():
             try:
                 with save_lock:
+                    updates_file.parent.mkdir(parents=True, exist_ok=True)
                     updates_file.write_text(json.dumps(updates, ensure_ascii=False, indent=2), encoding="utf-8")
             except Exception:
                 pass
@@ -594,17 +596,20 @@ class ManageHandler:
 
         if meta_updates:
             try:
+                cache_file = config_manager.get_storage_dir() / "game_cache.json"
+                cache_file.parent.mkdir(parents=True, exist_ok=True)
                 cache_file.write_text(json.dumps(game_cache, ensure_ascii=False, indent=2), encoding="utf-8")
             except Exception:
                 pass
 
         total_up = len([u for u in updates.values() if u.get("has_update")])
         # 🌟 全庫比對完全確認後一次性推送 (Atomic Delivery)
-        self._push_js_event("onAllUpdatesCheckFinished", {
-            "total": len(lua_files),
-            "updated_count": total_up,
-            "updates": updates
-        })
+        if hasattr(self, "_push_js_event"):
+            self._push_js_event("onAllUpdatesCheckFinished", {
+                "total": len(lua_files),
+                "updated_count": total_up,
+                "updates": updates
+            })
 
         return {
             "ok": True, 
@@ -673,7 +678,7 @@ class ManageHandler:
 
         # 清除 manifest_updates.json 中的更新標記快取
         try:
-            updates_file = Path(__file__).parent.parent / "data" / "manifest_updates.json"
+            updates_file = config_manager.get_storage_dir() / "manifest_updates.json"
             if updates_file.exists():
                 u_data = json.loads(updates_file.read_text(encoding="utf-8"))
                 if appid_str in u_data:
