@@ -72,6 +72,11 @@
 
   // 結業慶祝彈窗
   function showSoloCompletionModal() {
+    var oldModals = document.querySelectorAll('.tutorial-completion-modal-wrap');
+    oldModals.forEach(function(m) {
+      try { m.remove(); } catch(e){}
+    });
+
     var modal = document.createElement('div');
     modal.className = 'tutorial-sandbox-modal-wrap tutorial-completion-modal-wrap';
     modal.id = 'tutorial-solo-complete-modal';
@@ -84,8 +89,8 @@
           現在，您可以隨心所欲搜尋喜愛的單機神作，享受流暢無拘的遊戲體驗！
         </p>
         <div style="display:flex;justify-content:center;gap:12px">
-          <button class="btn btn-o btn-s" id="btn-solo-finish-back">🎓 返回教學首頁</button>
-          <button class="btn btn-p btn-s" id="btn-solo-finish-explore" style="font-weight:700">🔍 開始探索入庫</button>
+          <button class="btn btn-o btn-s" id="btn-solo-finish-back" type="button">🎓 返回教學首頁</button>
+          <button class="btn btn-p btn-s" id="btn-solo-finish-explore" type="button" style="font-weight:700">🔍 開始探索入庫</button>
         </div>
       </div>
     `;
@@ -93,30 +98,66 @@
     document.body.appendChild(modal);
     modal.style.display = 'flex';
 
-    var btnBack = document.getElementById('btn-solo-finish-back');
-    var btnExplore = document.getElementById('btn-solo-finish-explore');
+    var btnBack = modal.querySelector('#btn-solo-finish-back');
+    var btnExplore = modal.querySelector('#btn-solo-finish-explore');
 
     if (btnBack) {
-      btnBack.onclick = function() {
-        modal.remove();
-        if (typeof window.cleanupAllTutorialSandbox === 'function') {
-          window.cleanupAllTutorialSandbox();
-        } else {
-          cleanupManageSandbox();
+      btnBack.onclick = function(e) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        if (typeof window.playTutorialSound === 'function') {
+          window.playTutorialSound('step');
         }
-        if (window.switchPage) window.switchPage('tutorial');
+        document.querySelectorAll('.tutorial-completion-modal-wrap').forEach(function(m) {
+          try { m.remove(); } catch(err){}
+        });
+        try {
+          if (typeof window.cleanupAllTutorialSandbox === 'function') {
+            window.cleanupAllTutorialSandbox();
+          } else {
+            cleanupManageSandbox();
+          }
+        } catch(err){}
+
+        // 確保關閉所有教學遮罩與聚光燈
+        var overlay = document.getElementById('tutorial-spotlight-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        var popover = document.getElementById('tutorial-step-popover');
+        if (popover) popover.classList.add('hidden');
+        document.body.classList.remove('tutorial-active-mode');
+
+        if (typeof window.switchPage === 'function') {
+          window.switchPage('tutorial');
+        }
       };
     }
 
     if (btnExplore) {
-      btnExplore.onclick = function() {
-        modal.remove();
-        if (typeof window.cleanupAllTutorialSandbox === 'function') {
-          window.cleanupAllTutorialSandbox();
-        } else {
-          cleanupManageSandbox();
+      btnExplore.onclick = function(e) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        if (typeof window.playTutorialSound === 'function') {
+          window.playTutorialSound('step');
         }
-        if (window.switchPage) window.switchPage('search');
+        document.querySelectorAll('.tutorial-completion-modal-wrap').forEach(function(m) {
+          try { m.remove(); } catch(err){}
+        });
+        try {
+          if (typeof window.cleanupAllTutorialSandbox === 'function') {
+            window.cleanupAllTutorialSandbox();
+          } else {
+            cleanupManageSandbox();
+          }
+        } catch(err){}
+
+        // 確保關閉所有教學遮罩與聚光燈
+        var overlay = document.getElementById('tutorial-spotlight-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        var popover = document.getElementById('tutorial-step-popover');
+        if (popover) popover.classList.add('hidden');
+        document.body.classList.remove('tutorial-active-mode');
+
+        if (typeof window.switchPage === 'function') {
+          window.switchPage('search');
+        }
       };
     }
   }

@@ -394,6 +394,11 @@
 
   // 組隊開房專屬結業慶祝彈窗（1:1 比照獨狼與線上補丁字卡樣式）
   function showPartyHostCompletionModal() {
+    var oldModals = document.querySelectorAll('.tutorial-completion-modal-wrap');
+    oldModals.forEach(function(m) {
+      try { m.remove(); } catch(e){}
+    });
+
     var modal = document.createElement('div');
     modal.className = 'tutorial-sandbox-modal-wrap tutorial-completion-modal-wrap';
     modal.id = 'tutorial-party-host-complete-modal';
@@ -406,8 +411,8 @@
           現在，您可以化身隊伍領航房長，隨時號召好友開房組隊，打造最完美的聯機遊戲體驗！
         </p>
         <div style="display:flex;justify-content:center;gap:12px">
-          <button class="btn btn-o btn-s" id="btn-party-host-finish-back">🎓 返回教學首頁</button>
-          <button class="btn btn-p btn-s" id="btn-party-host-finish-lobby" style="font-weight:700">👥 前往組隊大廳</button>
+          <button class="btn btn-o btn-s" id="btn-party-host-finish-back" type="button">🎓 返回教學首頁</button>
+          <button class="btn btn-p btn-s" id="btn-party-host-finish-lobby" type="button" style="font-weight:700">👥 前往組隊大廳</button>
         </div>
       </div>
     `;
@@ -415,28 +420,64 @@
     document.body.appendChild(modal);
     modal.style.display = 'flex';
 
-    var btnBack = document.getElementById('btn-party-host-finish-back');
-    var btnLobby = document.getElementById('btn-party-host-finish-lobby');
+    var btnBack = modal.querySelector('#btn-party-host-finish-back');
+    var btnLobby = modal.querySelector('#btn-party-host-finish-lobby');
 
     if (btnBack) {
-      btnBack.onclick = function() {
-        modal.remove();
-        cleanupHostTutorialSandbox();
-        if (typeof window.cleanupAllTutorialSandbox === 'function') {
-          window.cleanupAllTutorialSandbox();
+      btnBack.onclick = function(e) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        if (typeof window.playTutorialSound === 'function') {
+          window.playTutorialSound('step');
         }
-        if (window.switchPage) window.switchPage('tutorial');
+        document.querySelectorAll('.tutorial-completion-modal-wrap').forEach(function(m) {
+          try { m.remove(); } catch(err){}
+        });
+        try { cleanupHostTutorialSandbox(); } catch(err){}
+        try {
+          if (typeof window.cleanupAllTutorialSandbox === 'function') {
+            window.cleanupAllTutorialSandbox();
+          }
+        } catch(err){}
+
+        // 確保關閉所有教學遮罩與聚光燈
+        var overlay = document.getElementById('tutorial-spotlight-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        var popover = document.getElementById('tutorial-step-popover');
+        if (popover) popover.classList.add('hidden');
+        document.body.classList.remove('tutorial-active-mode');
+
+        if (typeof window.switchPage === 'function') {
+          window.switchPage('tutorial');
+        }
       };
     }
 
     if (btnLobby) {
-      btnLobby.onclick = function() {
-        modal.remove();
-        cleanupHostTutorialSandbox();
-        if (typeof window.cleanupAllTutorialSandbox === 'function') {
-          window.cleanupAllTutorialSandbox();
+      btnLobby.onclick = function(e) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        if (typeof window.playTutorialSound === 'function') {
+          window.playTutorialSound('step');
         }
-        if (window.switchPage) window.switchPage('party');
+        document.querySelectorAll('.tutorial-completion-modal-wrap').forEach(function(m) {
+          try { m.remove(); } catch(err){}
+        });
+        try { cleanupHostTutorialSandbox(); } catch(err){}
+        try {
+          if (typeof window.cleanupAllTutorialSandbox === 'function') {
+            window.cleanupAllTutorialSandbox();
+          }
+        } catch(err){}
+
+        // 確保關閉所有教學遮罩與聚光燈
+        var overlay = document.getElementById('tutorial-spotlight-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        var popover = document.getElementById('tutorial-step-popover');
+        if (popover) popover.classList.add('hidden');
+        document.body.classList.remove('tutorial-active-mode');
+
+        if (typeof window.switchPage === 'function') {
+          window.switchPage('party');
+        }
       };
     }
   }
@@ -921,7 +962,6 @@
       },
       onLeave: function() {
         cleanupHostTutorialSandbox();
-        showPartyHostCompletionModal();
       }
     }
   ];
