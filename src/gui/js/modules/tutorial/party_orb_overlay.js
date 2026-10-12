@@ -185,16 +185,6 @@
       </button>
 
       <div class="party-orb-content">
-        <!-- 頂部高亮標題列 -->
-        <div class="party-orb-header">
-          <div class="party-orb-badge">
-            <span class="badge-dot"></span>
-            <span>組隊教學模式導引</span>
-          </div>
-          <h2 class="party-orb-title">選擇您的組隊教學旅程</h2>
-          <p class="party-orb-subtitle">選擇受邀加入現有小隊，或是作為房主建立房間並邀請隊員</p>
-        </div>
-
         <!-- 🌟 雙向教學極致高亮小卡舞台區 -->
         <div class="typo-radiant-stage">
 
