@@ -2236,52 +2236,56 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   opacity: 0.65;
 }
 
-/* 🌟 超大動態英文字體水印 (Kinetic Giant Watermark Typography) */
+/* 🌟 超大動態英文字體水印 (Kinetic Ambient Watermark - 下沉右下角微光暗紋) */
 .bg-kinetic-typo {
   position: absolute;
-  top: 18px;
-  right: -15px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 140px;
+  bottom: 24px;
+  right: -8px;
+  font-family: 'Inter', 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 126px;
   font-weight: 900;
-  line-height: 0.85;
-  letter-spacing: -6px;
+  line-height: 0.75;
+  letter-spacing: -3px;
+  font-style: italic;
   pointer-events: none;
   user-select: none;
   z-index: 1;
   text-transform: uppercase;
   color: transparent;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
-  animation: typoFloat 6s ease-in-out infinite alternate;
+  /* 柔和漸層遮罩：往左上方自然羽化消失，不搶前景視線 */
+  mask-image: linear-gradient(145deg, rgba(0, 0, 0, 0.85) 15%, rgba(0, 0, 0, 0.08) 88%);
+  -webkit-mask-image: linear-gradient(145deg, rgba(0, 0, 0, 0.85) 15%, rgba(0, 0, 0, 0.08) 88%);
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease, -webkit-text-stroke 0.4s ease;
+  animation: typoFloat 7s ease-in-out infinite alternate;
 }
 
 .typo-card.card-join .bg-kinetic-typo {
-  -webkit-text-stroke: 1.5px rgba(0, 245, 255, 0.16);
-  text-shadow: 0 0 25px rgba(0, 245, 255, 0.08);
+  -webkit-text-stroke: 1px rgba(0, 245, 255, 0.14);
+  text-shadow: 0 0 20px rgba(0, 245, 255, 0.04);
 }
 
 .typo-card.card-host .bg-kinetic-typo {
-  -webkit-text-stroke: 1.5px rgba(255, 42, 133, 0.16);
-  text-shadow: 0 0 25px rgba(255, 42, 133, 0.08);
+  -webkit-text-stroke: 1px rgba(255, 42, 133, 0.14);
+  text-shadow: 0 0 20px rgba(255, 42, 133, 0.04);
 }
 
 @keyframes typoFloat {
   0% { transform: translateY(0px) rotate(0deg); }
-  100% { transform: translateY(-12px) rotate(-1.5deg); }
+  100% { transform: translateY(-8px) rotate(-1deg); }
 }
 
 .typo-card:hover .bg-kinetic-typo {
-  transform: translateY(-8px) scale(1.04);
+  transform: translateY(-6px) scale(1.03);
 }
 
 .typo-card.card-join:hover .bg-kinetic-typo {
-  -webkit-text-stroke: 2px rgba(0, 245, 255, 0.38);
-  text-shadow: 0 0 35px rgba(0, 245, 255, 0.3);
+  -webkit-text-stroke: 1.5px rgba(0, 245, 255, 0.26);
+  text-shadow: 0 0 30px rgba(0, 245, 255, 0.15);
 }
 
 .typo-card.card-host:hover .bg-kinetic-typo {
-  -webkit-text-stroke: 2px rgba(255, 42, 133, 0.38);
-  text-shadow: 0 0 35px rgba(255, 42, 133, 0.3);
+  -webkit-text-stroke: 1.5px rgba(255, 42, 133, 0.26);
+  text-shadow: 0 0 30px rgba(255, 42, 133, 0.15);
 }
 
 /* 🌟 卡片主內容層 (Card Content Stack) */
@@ -2296,43 +2300,49 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   box-sizing: border-box;
 }
 
-/* 頂部協議小標籤 (Protocol Micro Badge) */
+/* 頂部身分指引標籤列 (Role Tag Row) */
 .typo-protocol-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
-.typo-protocol-badge {
+.typo-role-tag {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 14px;
-  border-radius: 99px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #E2E8F0;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
   transition: all 0.3s ease;
 }
 
-.typo-protocol-badge .badge-pulse-dot {
+.typo-role-tag .role-tag-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  animation: pulseDot 1.8s infinite;
+  animation: pulseDot 2s infinite;
 }
 
-.typo-card.card-join .badge-pulse-dot {
+.typo-card.card-join .typo-role-tag {
+  background: rgba(0, 245, 255, 0.08);
+  border: 1px solid rgba(0, 245, 255, 0.26);
+  color: #A5F3FC;
+}
+.typo-card.card-join .role-tag-dot {
   background: #00F5FF;
   box-shadow: 0 0 8px #00F5FF;
 }
 
-.typo-card.card-host .badge-pulse-dot {
+.typo-card.card-host .typo-role-tag {
+  background: rgba(255, 42, 133, 0.08);
+  border: 1px solid rgba(255, 42, 133, 0.26);
+  color: #FBCFE8;
+}
+.typo-card.card-host .role-tag-dot {
   background: #FF2A85;
   box-shadow: 0 0 8px #FF2A85;
 }
@@ -2343,18 +2353,24 @@ body:not(.dark) .gdrive-step-card .popover-footer {
   100% { transform: scale(0.9); opacity: 0.8; }
 }
 
-.typo-card:hover .typo-protocol-badge {
-  border-color: var(--theme-color);
-  color: #FFFFFF;
-  box-shadow: 0 0 16px var(--glow-color);
+.typo-card.card-join:hover .typo-role-tag {
+  background: rgba(0, 245, 255, 0.14);
+  border-color: #00F5FF;
+  box-shadow: 0 0 16px rgba(0, 245, 255, 0.25);
 }
 
-.typo-index-num {
+.typo-card.card-host:hover .typo-role-tag {
+  background: rgba(255, 42, 133, 0.14);
+  border-color: #FF2A85;
+  box-shadow: 0 0 16px rgba(255, 42, 133, 0.25);
+}
+
+.typo-step-badge {
   font-family: 'JetBrains Mono', Consolas, monospace;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   color: #64748B;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
 }
 
 /* 🌟 中間核心中文標題：動態流光字體 (Kinetic Hero Title) */

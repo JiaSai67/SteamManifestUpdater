@@ -95,17 +95,17 @@
 
       cardEl.style.transform = 'perspective(1000px) rotateX(' + rotateX.toFixed(2) + 'deg) rotateY(' + rotateY.toFixed(2) + 'deg) translateY(-8px) scale(1.02)';
 
-      // 背景超大英文字母水印反向位移，營造三維深度感
+      // 背景超大英文字母水印反向微幅位移，營造三維深度感
       if (typoWatermarkEl) {
-        var moveX = ((x - centerX) / centerX) * -16;
-        var moveY = ((y - centerY) / centerY) * -12;
-        typoWatermarkEl.style.transform = 'translate(' + moveX.toFixed(1) + 'px, ' + moveY.toFixed(1) + 'px) scale(1.04)';
+        var moveX = ((x - centerX) / centerX) * -8;
+        var moveY = ((y - centerY) / centerY) * -6;
+        typoWatermarkEl.style.transform = 'translate(' + moveX.toFixed(1) + 'px, ' + moveY.toFixed(1) + 'px) scale(1.02)';
       }
 
       // 極光跟隨游標微動
       if (auroraGlowEl) {
-        var glowX = ((x - centerX) / centerX) * 22;
-        var glowY = ((y - centerY) / centerY) * 22;
+        var glowX = ((x - centerX) / centerX) * 18;
+        var glowY = ((y - centerY) / centerY) * 18;
         auroraGlowEl.style.transform = 'translate(calc(-50% + ' + glowX.toFixed(1) + 'px), calc(-50% + ' + glowY.toFixed(1) + 'px)) scale(1.25)';
       }
     };
@@ -161,7 +161,7 @@
         <div class="party-orb-header">
           <div class="party-orb-badge">
             <span class="badge-dot"></span>
-            <span>MULTIPLAYER // DUAL SELECTION PROTOCOL</span>
+            <span>組隊教學模式導引</span>
           </div>
           <h2 class="party-orb-title">選擇您的組隊教學旅程</h2>
           <p class="party-orb-subtitle">選擇受邀加入現有小隊，或是作為房主建立房間並邀請隊員</p>
@@ -176,19 +176,19 @@
             <div class="card-laser-border"></div>
             <div class="card-glow-aurora" id="glow-join"></div>
 
-            <!-- 超大動態英文字體水印 -->
+            <!-- 超大動態英文字體水印 (下沉於右下方作為深邃暗紋) -->
             <div class="bg-kinetic-typo" id="watermark-join">JOIN</div>
 
             <!-- 卡片核心內容排版 -->
             <div class="typo-card-content">
               <div>
-                <!-- 頂部協議小標籤 -->
+                <!-- 頂部身分標籤列 -->
                 <div class="typo-protocol-row">
-                  <div class="typo-protocol-badge">
-                    <span class="badge-pulse-dot"></span>
-                    <span>PROTOCOL // SQUAD_RECEPTOR</span>
+                  <div class="typo-role-tag">
+                    <span class="role-tag-dot"></span>
+                    <span>隊員身分 · 加入隊伍</span>
                   </div>
-                  <span class="typo-index-num">01 / DUAL</span>
+                  <span class="typo-step-badge">STEP 01</span>
                 </div>
 
                 <!-- 核心動態字體主標題 -->
@@ -233,19 +233,19 @@
             <div class="card-laser-border"></div>
             <div class="card-glow-aurora" id="glow-host"></div>
 
-            <!-- 超大動態英文字體水印 -->
+            <!-- 超大動態英文字體水印 (下沉於右下方作為深邃暗紋) -->
             <div class="bg-kinetic-typo" id="watermark-host">HOST</div>
 
             <!-- 卡片核心內容排版 -->
             <div class="typo-card-content">
               <div>
-                <!-- 頂部協議小標籤 -->
+                <!-- 頂部身分標籤列 -->
                 <div class="typo-protocol-row">
-                  <div class="typo-protocol-badge">
-                    <span class="badge-pulse-dot"></span>
-                    <span>PROTOCOL // FLEET_COMMANDER</span>
+                  <div class="typo-role-tag">
+                    <span class="role-tag-dot"></span>
+                    <span>房主身分 · 創建房間</span>
                   </div>
-                  <span class="typo-index-num">02 / DUAL</span>
+                  <span class="typo-step-badge">STEP 02</span>
                 </div>
 
                 <!-- 核心動態字體主標題 -->
