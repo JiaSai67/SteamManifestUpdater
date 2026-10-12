@@ -6,16 +6,30 @@
 (function(window) {
   'use strict';
 
-  function startPartyHostTutorial() {
+  function startPartyHostTutorial(retryCount) {
+    retryCount = retryCount || 0;
+    window.__tutorialMockPartyActive = true;
+
+    // 確保頁面處於組隊大廳
+    if (window.switchPage) {
+      window.switchPage('party');
+    }
+
     if (!window.TutorialEngine) {
-      console.error('[PartyHostPipeline] TutorialEngine not found!');
+      console.warn('[PartyHostPipeline] TutorialEngine not found yet, retrying...', retryCount);
+      if (retryCount < 20) {
+        setTimeout(function() { startPartyHostTutorial(retryCount + 1); }, 50);
+      }
       return;
     }
 
     var modHost = window.TutorialEngine.getModule('party_host_guide');
 
     if (!modHost) {
-      console.error('[PartyHostPipeline] Required module party_host_guide not yet loaded.');
+      console.warn('[PartyHostPipeline] Required module party_host_guide not yet loaded, retrying...', retryCount);
+      if (retryCount < 20) {
+        setTimeout(function() { startPartyHostTutorial(retryCount + 1); }, 50);
+      }
       return;
     }
 
