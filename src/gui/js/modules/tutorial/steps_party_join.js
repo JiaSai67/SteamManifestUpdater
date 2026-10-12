@@ -338,21 +338,7 @@
   }
 
   var partyJoinSteps = [
-    // 🌟 步驟 1：認識左側組隊大廳主導航 (精準高亮左側選單)
-    {
-      roleBadge: '📥 組隊同樂・隊員篇',
-      moduleTitle: '單元 1：大廳探索與房間加入',
-      page: 'party',
-      target: '.sidebar button[data-p="party"]',
-      title: '前往組隊同樂大廳',
-      desc: '點擊左側主選單的「👥 組隊同樂」按鈕，即可進入全網雲端連線大廳，瀏覽所有玩家正在招募的組隊房間。',
-      hint: '組隊大廳採用高可用無伺服器架構，支援自動對齊版本與極速一鍵安裝！',
-      placement: 'right',
-      onEnter: function() {
-        injectMockLobbyRoom();
-      }
-    },
-    // 🌟 步驟 2：大廳即時搜尋（需求 2：拆分搜尋與代碼）
+    // 🌟 步驟 1：大廳即時搜尋（單元 1：大廳探索與房間加入）
     {
       roleBadge: '📥 組隊同樂・隊員篇',
       moduleTitle: '單元 1：大廳探索與房間加入',
@@ -373,7 +359,7 @@
         }, 60);
       }
     },
-    // 🌟 步驟 3：邀請代碼快速直達（精準局部高亮右上角輸入框與按鈕組合）
+    // 🌟 步驟 2：邀請代碼快速直達（支援輸入與點擊「加入房間」按鈕直接進入）
     {
       roleBadge: '📥 組隊同樂・隊員篇',
       moduleTitle: '單元 1：大廳探索與房間加入',
@@ -389,12 +375,34 @@
         if (codeInput && window.TutorialEngine) {
           window.TutorialEngine.simulateTyping(codeInput, 'PAL886', {}, function(){});
         }
+        // 🌟 防呆體驗增強：若學員在步驟 2 依指示點擊了「加入房間」按鈕，立即無縫進入房間視圖
+        var quickJoinWrap = document.querySelector('.party-quick-join-wrap');
+        var quickBtn = quickJoinWrap ? quickJoinWrap.querySelector('button') : null;
+        if (quickBtn) {
+          var onQuickClick = function(e) {
+            if (e) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+            quickBtn.removeEventListener('click', onQuickClick, true);
+            if (typeof tt === 'function') tt('🎉 成功透過邀請碼加入房間 PAL886！', 'ok');
+            injectMockRoomDetailView();
+            setTimeout(function() {
+              if (window.TutorialEngine) {
+                // 直接跳到進入房間確認步驟 (步驟 4)
+                window.TutorialEngine.retarget(document.querySelector('.party-room-header-card'));
+                window.TutorialEngine.next(); // 進入示範卡片或房間
+              }
+            }, 120);
+          };
+          quickBtn.addEventListener('click', onQuickClick, true);
+        }
         setTimeout(function() {
           if (window.TutorialEngine) window.TutorialEngine.reposition();
         }, 60);
       }
     },
-    // 🌟 步驟 4：大廳示範房間模擬加入 (點擊申請加入直通房間)
+    // 🌟 步驟 3：大廳示範房間模擬加入 (點擊申請加入直通房間)
     {
       roleBadge: '📥 組隊同樂・隊員篇',
       moduleTitle: '單元 1：大廳探索與房間加入',

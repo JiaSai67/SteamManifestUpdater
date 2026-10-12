@@ -387,10 +387,13 @@
   }
 
   /**
-   * 啟動教學管道並平滑過渡關閉選擇層
+   * 啟動教學管道並平滑過渡跳轉至組隊大廳教學 (零延遲、保證切換至 party 頁面)
    */
   function launchPartyPipeline(role) {
     playResonanceSound('launch');
+
+    // 🌟 教學沙盒保護：第一時間標記教學進行中
+    window.__tutorialMockPartyActive = true;
 
     if (overlayEl) {
       overlayEl.style.pointerEvents = 'none';
@@ -398,33 +401,46 @@
       overlayEl.classList.add('fading-out');
     }
 
-    // 底層圖一的卡片列表平滑漸顯復原
-    var cardsGrid = document.querySelector('.tutorial-cards-grid');
-    if (cardsGrid) {
-      cardsGrid.classList.remove('cards-dimmed-behind');
-    }
-
     try {
       localStorage.removeItem('smu_tutorial_role');
     } catch(e) {}
 
-    setTimeout(function() {
-      hideOverlay();
+    // 🌟 立即切換頁面至組隊大廳，絕不讓使用者停留在教學首頁
+    if (window.switchPage) {
+      window.switchPage('party');
+    }
 
+    // 隱藏覆蓋層 (不播放關閉音效)
+    _isOverlayVisible = false;
+    setTimeout(function() {
+      if (overlayEl) {
+        overlayEl.style.display = 'none';
+        overlayEl.classList.remove('fading-out');
+      }
+      var cardsGrid = document.querySelector('.tutorial-cards-grid');
+      if (cardsGrid) {
+        cardsGrid.classList.remove('cards-dimmed-behind');
+      }
+    }, 240);
+
+    // 🌟 啟動對應教學 Pipeline (附帶健壯的輪詢容錯)
+    function triggerPipeline() {
       if (role === 'party-join') {
         if (window.PartyJoinPipeline && typeof window.PartyJoinPipeline.start === 'function') {
           window.PartyJoinPipeline.start();
-        } else if (typeof tt === 'function') {
-          tt('🚀 正在載入入隊教學流程…', 'info');
+        } else {
+          setTimeout(triggerPipeline, 40);
         }
       } else if (role === 'party-host') {
         if (window.PartyHostPipeline && typeof window.PartyHostPipeline.start === 'function') {
           window.PartyHostPipeline.start();
-        } else if (typeof tt === 'function') {
-          tt('🚀 正在載入開房教學流程…', 'info');
+        } else {
+          setTimeout(triggerPipeline, 40);
         }
       }
-    }, 280);
+    }
+
+    setTimeout(triggerPipeline, 80);
   }
 
   /**

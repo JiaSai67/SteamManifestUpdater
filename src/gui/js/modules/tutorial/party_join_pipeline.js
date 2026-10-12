@@ -6,16 +6,30 @@
 (function(window) {
   'use strict';
 
-  function startPartyJoinTutorial() {
+  function startPartyJoinTutorial(retryCount) {
+    retryCount = retryCount || 0;
+    window.__tutorialMockPartyActive = true;
+
+    // 確保頁面切換至組隊大廳
+    if (window.switchPage) {
+      window.switchPage('party');
+    }
+
     if (!window.TutorialEngine) {
-      console.error('[PartyJoinPipeline] TutorialEngine not found!');
+      console.warn('[PartyJoinPipeline] TutorialEngine not found yet, retrying...', retryCount);
+      if (retryCount < 20) {
+        setTimeout(function() { startPartyJoinTutorial(retryCount + 1); }, 50);
+      }
       return;
     }
 
     var modJoin = window.TutorialEngine.getModule('party_join_guide');
 
     if (!modJoin) {
-      console.error('[PartyJoinPipeline] Required module party_join_guide not yet loaded.');
+      console.warn('[PartyJoinPipeline] Required module party_join_guide not yet loaded, retrying...', retryCount);
+      if (retryCount < 20) {
+        setTimeout(function() { startPartyJoinTutorial(retryCount + 1); }, 50);
+      }
       return;
     }
 
