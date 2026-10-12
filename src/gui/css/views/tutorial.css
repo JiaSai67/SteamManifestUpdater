@@ -1469,9 +1469,32 @@ body .tutorial-step-popover.tutorial-popover-dual-cards,
   display: flex !important;
   flex-direction: row !important;
   align-items: stretch !important;
+  justify-content: center !important;
   gap: 22px !important;
   pointer-events: auto;
   max-width: 96vw !important;
+  /* 🌟 強制上下左右絕對 100% 置中 (完全自適應任何螢幕解析度與縮放) */
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  margin: 0 !important;
+  transition: opacity 0.25s ease !important;
+  animation: popoverDualCenterFadeIn 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2) !important;
+}
+
+@keyframes popoverDualCenterFadeIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  65% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 html.dark .tutorial-step-popover.tutorial-popover-dual-cards::before,

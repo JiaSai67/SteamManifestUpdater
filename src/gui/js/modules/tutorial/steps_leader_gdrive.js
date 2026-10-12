@@ -464,9 +464,9 @@
       moduleTitle: '單元 2：Google Drive 網盤配置',
       title: 'Google Drive 資料夾建立與公開設定',
       width: 1080,
+      height: 460,
       placement: 'center',
       center: true,
-      liftTop: true,
       customLayout: 'dual-cards',
       target: null, // 居中全螢幕半透明遮罩
       desc: '<!-- 🌟 左側：獨立動畫子組件卡片 (大圖展示，充分利用空間，左大右小) -->' +
