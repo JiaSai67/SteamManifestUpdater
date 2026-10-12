@@ -26,6 +26,10 @@
    * 🌟 專業級 Web Audio UI 音效系統 (純淨、清脆、高級和弦質感)
    */
   function playResonanceSound(type) {
+    if (typeof window.playTutorialSound === 'function') {
+      window.playTutorialSound(type);
+      return;
+    }
     try {
       var AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;

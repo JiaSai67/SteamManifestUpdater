@@ -21,6 +21,141 @@
   var _isTyping = false;
   var _registeredModules = {};
 
+  /**
+   * 🌟 專業級 Web Audio UI 音效系統 (純淨、清脆、高級和弦與躍遷質感)
+   */
+  function playTutorialSound(type) {
+    try {
+      var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!window._smuTutorialAudioCtx) {
+        window._smuTutorialAudioCtx = new AudioCtx();
+      }
+      var ctx = window._smuTutorialAudioCtx;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      var now = ctx.currentTime;
+
+      if (type === 'hover' || type === 'tap') {
+        // 💧 水晶微觸輕響 (Crystal Chime Tap: E6 1318.5Hz + A6 1760Hz 諧波)
+        var osc1 = ctx.createOscillator();
+        var osc2 = ctx.createOscillator();
+        var filter = ctx.createBiquadFilter();
+        var gain = ctx.createGain();
+
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1600, now);
+        filter.Q.setValueAtTime(3.5, now);
+
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(1318.51, now);
+        osc1.frequency.exponentialRampToValueAtTime(1396.91, now + 0.05);
+
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1760.00, now);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.025, now + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
+
+        osc1.connect(filter);
+        osc2.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 0.07);
+        osc2.stop(now + 0.07);
+
+      } else if (type === 'step') {
+        // 🔹 步進清脆音 (Crisp Step Shift: G5 783.99Hz -> C6 1046.5Hz 輕快上揚)
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(783.99, now);
+        osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.06);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.028, now + 0.006);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.11);
+
+      } else if (type === 'launch' || type === 'start') {
+        // ✨ 輝煌大三和弦躍遷琶音 (Majestic Harmonic Fanfare: C5 -> E5 -> G5 -> C6 -> E6)
+        var notes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+        notes.forEach(function(freq, index) {
+          var t = now + index * 0.028;
+          var osc = ctx.createOscillator();
+          var filter = ctx.createBiquadFilter();
+          var gain = ctx.createGain();
+
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(1800, t);
+          filter.frequency.exponentialRampToValueAtTime(3600, t + 0.15);
+
+          osc.type = index === 0 ? 'triangle' : 'sine';
+          osc.frequency.setValueAtTime(freq, t);
+
+          gain.gain.setValueAtTime(0.001, t);
+          gain.gain.linearRampToValueAtTime(0.045, t + 0.008);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(t);
+          osc.stop(t + 0.36);
+        });
+
+      } else if (type === 'entrance') {
+        // 🌸 全息展屏舒緩空靈音 (Holographic Shimmer Bloom: D5 587.3Hz + A5 880Hz 溫潤和音)
+        [587.33, 880.00].forEach(function(freq) {
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.028, now + 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.4);
+        });
+
+      } else if (type === 'close') {
+        // 🍃 柔和退場滑降微風 (Gentle Dismiss Breeze)
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(783.99, now);
+        osc.frequency.exponentialRampToValueAtTime(523.25, now + 0.12);
+
+        gain.gain.setValueAtTime(0.02, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.14);
+      }
+    } catch (e) {}
+  }
+
+  window.playTutorialSound = playTutorialSound;
+
   // 1. 初始化或取得遮罩與氣泡容器
   function ensureDOM() {
     if (!_overlayEl) {
@@ -368,7 +503,12 @@
     var btnNext = document.getElementById('tutorial-popover-next');
     var btnAction = document.getElementById('tutorial-popover-auto-action');
 
-    if (btnClose) btnClose.onclick = function() { TutorialEngine.stop(false); };
+    if (btnClose) {
+      btnClose.onclick = function() {
+        playTutorialSound('close');
+        TutorialEngine.stop(false);
+      };
+    }
     if (btnPrev) btnPrev.onclick = function() { TutorialEngine.prev(); };
     if (btnNext) btnNext.onclick = function() {
       if (stepConfig.disableNext) {
@@ -526,13 +666,17 @@
     },
 
     /**
-     * 啟動一系列教學步驟
+     * 啟動一系列教學步驟 (自動觸發震撼開場和弦)
      */
     start: function(steps, options) {
       if (!Array.isArray(steps) || steps.length === 0) {
         console.warn('[TutorialEngine] No steps to run.');
         return;
       }
+
+      // 🌟 核心增強：任何教學開始時立即播放輝煌大三和弦躍遷音效
+      playTutorialSound('launch');
+
       ensureDOM();
       options = options || {};
       _currentSteps = steps;
@@ -544,20 +688,28 @@
     },
 
     next: function() {
+      playTutorialSound('step');
       goToStep(_currentIndex + 1);
     },
 
     prev: function() {
       if (_currentIndex > 0) {
+        playTutorialSound('step');
         goToStep(_currentIndex - 1);
       }
     },
 
     /**
-     * 終止教學流程
+     * 終止教學流程 (完成播放輝煌音，關閉播放輕柔退場音)
      */
     stop: function(isFinished) {
       _isTyping = false;
+      if (isFinished) {
+        playTutorialSound('launch');
+      } else {
+        playTutorialSound('close');
+      }
+
       if (_overlayEl) _overlayEl.classList.add('hidden');
       if (_popoverEl) _popoverEl.classList.add('hidden');
       document.body.classList.remove('tutorial-active-mode');
@@ -584,6 +736,7 @@
       _activeTargetEl = null;
     },
 
+    playSound: playTutorialSound,
     simulateTyping: simulateTyping,
     reposition: handleReposition,
     retarget: function(targetEl, stepOverrides) {

@@ -8,9 +8,12 @@
 
   /**
    * 點選卡片選擇角色定位
-   * @param {'solo'|'leader'} role 
+   * @param {'solo'|'leader'|'party'} role 
    */
   function selectTutorialRole(role){
+    if (typeof window.playTutorialSound === 'function') {
+      window.playTutorialSound('tap');
+    }
     currentSelectedRole = role;
     var cards = document.querySelectorAll('.tutorial-card');
     cards.forEach(function(c){ c.classList.remove('selected'); });
@@ -153,6 +156,11 @@
 
     console.log('[Tutorial] Started tutorial for role:', role, { roleName: roleName, roleDesc: roleDesc });
 
+    // 🌟 開始教學時播放輝煌躍遷琶音
+    if (typeof window.playTutorialSound === 'function') {
+      window.playTutorialSound('launch');
+    }
+
     if(role === 'solo'){
       // 🌟 以電影級極光過場動畫平滑過渡跳轉至步驟一
       playSoloLaunchTransition(function(){
@@ -194,6 +202,19 @@
         selectTutorialRole(savedRole);
       }
     } catch(e){}
+
+    // 🌟 為所有教學角色卡片綁定水晶微觸懸停音效
+    var cards = document.querySelectorAll('.tutorial-card');
+    cards.forEach(function(card){
+      if (!card._soundAttached) {
+        card._soundAttached = true;
+        card.addEventListener('mouseenter', function(){
+          if (typeof window.playTutorialSound === 'function') {
+            window.playTutorialSound('hover');
+          }
+        });
+      }
+    });
   }
 
   // 暴露全域接口供 HTML 元素或外部調用
