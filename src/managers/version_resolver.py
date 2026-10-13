@@ -456,11 +456,6 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
                 has_available_update = True
                 diff_update_depots.append((str(d_id), str(l_m), str(b_m)))
 
-    result["ryuu_manifests"] = ryuu_manifests
-    result["has_available_update"] = has_available_update
-    result["ryuu_has_update"] = has_available_update
-    result["diff_update_depots"] = diff_update_depots
-
     # 6. 比對本地 Manifest 與線上最新清單 (判斷是否已為最新版)
     is_latest = not needs_topology_migration
     if is_latest:
@@ -475,6 +470,15 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
         elif not local_manifests:
             is_latest = False
 
+    # 🌟 核心防護：若本機已經是 SteamDB / 官方最高最新版本，絕對不應標記為待更新 (防止降級覆蓋)
+    if is_latest:
+        has_available_update = False
+        diff_update_depots = []
+
+    result["ryuu_manifests"] = ryuu_manifests
+    result["has_available_update"] = has_available_update
+    result["ryuu_has_update"] = has_available_update
+    result["diff_update_depots"] = diff_update_depots
     result["is_latest"] = is_latest
 
     # 若本地版本已是最新，且先前未能從本機實體檔解析出時間戳，直接自動同步 SteamDB 官方發布時間

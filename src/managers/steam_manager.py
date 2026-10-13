@@ -1002,7 +1002,13 @@ def sync_lua_with_deployed_manifests(appid, manifests_dict, lua_dir=None, deprec
             from managers import version_resolver
             cur_status = get_lua_manifest_status(appid_str, steam_path=steam_p)
             cur_local = {str(d): str(m) for d, m in cur_status.get("declared_manifests", []) if str(m) != "0"}
-            topo = version_resolver.identify_depot_topology(appid_str, local_manifests=cur_local, official_manifests=depot_manifest_map)
+            # 優先使用官方 SteamDB 基準進行拓撲仲裁，避免傳入局部 manifests_dict 導致誤判主程式為棄置
+            sdb = version_resolver.fetch_steamdb_manifests(appid_str, timeout=3)
+            real_official = sdb.get("manifests", {})
+            if real_official:
+                topo = version_resolver.identify_depot_topology(appid_str, local_manifests=cur_local, official_manifests=real_official)
+            else:
+                topo = version_resolver.identify_depot_topology(appid_str, local_manifests=cur_local, official_manifests=depot_manifest_map)
             if topo.get("has_deprecated"):
                 deprecated_depots = topo.get("replaced_map", {})
         except Exception:
@@ -1377,9 +1383,23 @@ def verify_and_sync_local_manifests(appid, steam_path=None, lua_dir=None, target
         healed = True
     else:
         # 自檢模式：若磁碟上最新實體檔與 Lua 不一致且時間戳更新，自動修復 Lua
+        # 🌟 拓撲防護：防止自檢將官方已棄置之歷史殘留 Depot 復活回 Lua
+        known_deprecations = set(deprecated_declared_depots)
+        try:
+            from managers import version_resolver
+            sdb_q = version_resolver.fetch_steamdb_manifests(appid_str, timeout=2)
+            off_q = sdb_q.get("manifests", {})
+            if off_q:
+                topo_check = version_resolver.identify_depot_topology(appid_str, local_manifests={d: "1" for d in app_depot_ids}, official_manifests=off_q)
+                if topo_check.get("has_deprecated"):
+                    for dep_d in topo_check.get("deprecated_depots", {}).keys():
+                        known_deprecations.add(str(dep_d))
+        except Exception:
+            pass
+
         sync_needed = {}
         for d_id in app_depot_ids:
-            if d_id in deprecated_declared_depots:
+            if d_id in known_deprecations:
                 continue
             cur_l_gid = lua_manifests.get(d_id)
             disk_best_gid = disk_latest_manifests.get(d_id)

@@ -190,11 +190,16 @@ def test_connection(api_key: Optional[str] = None) -> Dict[str, Any]:
             "stats": stats
         }
 
-def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int = 8) -> Dict[str, Any]:
+_manifest_zip_cache: Dict[str, Dict[str, Any]] = {}
+
+def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int = 10) -> Dict[str, Any]:
     """
-    向 Hubcap 官方 API 詢問特定遊戲 (AppID) 的 Manifest 與 GID 收錄情況
-    支援回傳格式標準化: {"available": bool, "depots": {depot_id: gid}, "version": str, "source": "HubcapDB"}
+    向 Hubcap 官方 API 詢問特定遊戲 (AppID) 的 Manifest 與 GID 收錄情況。
+    官方 /api/v1/manifest/{appid} 直接回傳包含 .manifest 與 .lua 之二進位 ZIP 壓縮包，
+    本函式主動自記憶體解析其 Depot ID 與 GID，並暫存 ZIP 以供隨後的部署零延遲熱替換。
+    支援回傳格式: {"available": bool, "depots": {depot_id: gid}, "version": str, "source": "HubcapDB"}
     """
+    import io, zipfile, re
     appid_str = str(appid).strip()
     if not appid_str or not appid_str.isdigit():
         return {"available": False, "depots": {}, "error": "無效 AppID"}
@@ -203,13 +208,13 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
     domain = get_domain()
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "application/json"
+        "Accept": "*/*"
     }
     if key:
         headers["Authorization"] = f"Bearer {key}"
         headers["X-Api-Key"] = key
 
-    # 嘗試標準 API 端點格式
+    # 官方標準下載與查詢端點：首選 /api/v1/manifest/{appid}
     test_urls = [
         f"{domain}/api/v1/manifest/{appid_str}",
         f"{domain}/api/v1/app/{appid_str}",
@@ -220,45 +225,92 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
         try:
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                if isinstance(data, dict):
-                    # 容錯解析 depots: 可能是 data["depots"] 或是 data 直接是映射
-                    depots_raw = data.get("depots") or data.get("manifests") or {}
+                data = resp.read()
+                if not data:
+                    continue
+
+                # 🌟 核心情況 1：Hubcap 直接回傳 ZIP 壓縮包 (PK 開頭)
+                if data.startswith(b"PK") and len(data) > 30:
                     extracted_depots = {}
-                    if isinstance(depots_raw, dict):
-                        for k, v in depots_raw.items():
-                            if isinstance(v, dict):
-                                gid = v.get("gid") or v.get("manifest_id") or v.get("manifestId")
-                                if gid: extracted_depots[str(k)] = str(gid)
-                            elif v:
-                                extracted_depots[str(k)] = str(v)
-                    elif isinstance(depots_raw, list):
-                        for item in depots_raw:
-                            if isinstance(item, dict):
-                                did = item.get("depot_id") or item.get("depotId") or item.get("id")
-                                gid = item.get("gid") or item.get("manifest_id") or item.get("manifestId")
-                                if did and gid:
-                                    extracted_depots[str(did)] = str(gid)
+                    try:
+                        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                            for zname in zf.namelist():
+                                if zname.endswith(".manifest"):
+                                    parts = Path(zname).name.replace(".manifest", "").split("_")
+                                    if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                                        extracted_depots[str(parts[0])] = str(parts[1])
+                                elif zname.endswith(".lua"):
+                                    try:
+                                        lua_content = zf.read(zname).decode("utf-8", errors="ignore")
+                                        for m in re.finditer(r'set[M|m]anifest[i|I]d\s*\(\s*(\d+)\s*,\s*"(\d+)"', lua_content):
+                                            extracted_depots[str(m.group(1))] = str(m.group(2))
+                                    except Exception:
+                                        pass
+                    except Exception as ze:
+                        logger.warning("解析 Hubcap ZIP 清單異常: %s", ze)
 
                     if extracted_depots:
+                        # 暫存於記憶體快取 (有效期間 120 秒)，後續 deploy_from_hubcap 可直接取用，免再請求一次
+                        _manifest_zip_cache[appid_str] = {
+                            "time": time.time(),
+                            "data": data
+                        }
                         return {
                             "available": True,
                             "depots": extracted_depots,
                             "source": "HubcapDB",
-                            "raw": data
+                            "has_zip": True
                         }
-        except Exception:
+
+                # 🌟 核心情況 2：回傳 JSON 資料
+                try:
+                    json_data = json.loads(data.decode("utf-8"))
+                    if isinstance(json_data, dict):
+                        depots_raw = json_data.get("depots") or json_data.get("manifests") or {}
+                        extracted_depots = {}
+                        if isinstance(depots_raw, dict):
+                            for k, v in depots_raw.items():
+                                if isinstance(v, dict):
+                                    gid = v.get("gid") or v.get("manifest_id") or v.get("manifestId")
+                                    if gid: extracted_depots[str(k)] = str(gid)
+                                elif v:
+                                    extracted_depots[str(k)] = str(v)
+                        elif isinstance(depots_raw, list):
+                            for item in depots_raw:
+                                if isinstance(item, dict):
+                                    did = item.get("depot_id") or item.get("depotId") or item.get("id")
+                                    gid = item.get("gid") or item.get("manifest_id") or item.get("manifestId")
+                                    if did and gid:
+                                        extracted_depots[str(did)] = str(gid)
+
+                        if extracted_depots:
+                            return {
+                                "available": True,
+                                "depots": extracted_depots,
+                                "source": "HubcapDB",
+                                "raw": json_data
+                            }
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug("嘗試 Hubcap 端點 %s 失敗: %s", url, e)
             continue
 
     return {"available": False, "depots": {}, "source": "HubcapDB"}
 
 def download_manifest_package(appid: str, api_key: Optional[str] = None, timeout: int = 25) -> Tuple[bool, Optional[bytes], str]:
     """
-    向 Hubcap 下載包含 .manifest 與 .lua 之 ZIP 壓縮包二進位資料
+    向 Hubcap 下載包含 .manifest 與 .lua 之 ZIP 壓縮包二進位資料。
+    優先命中 query_manifest_info 所暫存之記憶體二進位資料，實現 0 延遲且節省配額。
     """
     appid_str = str(appid).strip()
     if not appid_str or not appid_str.isdigit():
         return False, None, "無效 AppID"
+
+    # 1. 優先檢查記憶體暫存 (120 秒內有效)
+    cached = _manifest_zip_cache.get(appid_str)
+    if cached and (time.time() - cached.get("time", 0) < 120) and cached.get("data"):
+        return True, cached["data"], "下載成功 (命中記憶體暫存)"
 
     key = (api_key if api_key is not None else get_api_key()).strip()
     if not key:
@@ -267,15 +319,16 @@ def download_manifest_package(appid: str, api_key: Optional[str] = None, timeout
     domain = get_domain()
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "*/*",
         "Authorization": f"Bearer {key}",
         "X-Api-Key": key
     }
 
-    # 嘗試官方標準下載端點格式
+    # 官方直連下載端點：/api/v1/manifest/{appid}
     download_urls = [
+        f"{domain}/api/v1/manifest/{appid_str}",
         f"{domain}/api/v1/manifest/{appid_str}/download",
-        f"{domain}/download?appid={appid_str}",
-        f"{domain}/api/v1/download?appid={appid_str}"
+        f"{domain}/download?appid={appid_str}"
     ]
 
     last_err = ""
@@ -285,7 +338,12 @@ def download_manifest_package(appid: str, api_key: Optional[str] = None, timeout
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 data = resp.read()
                 # 簡單校驗是否為 ZIP (PK 開頭)
-                if data and len(data) > 30 and data[:2] == b"PK":
+                if data and len(data) > 30 and data.startswith(b"PK"):
+                    # 寫入快取
+                    _manifest_zip_cache[appid_str] = {
+                        "time": time.time(),
+                        "data": data
+                    }
                     return True, data, "下載成功"
                 elif data:
                     try:

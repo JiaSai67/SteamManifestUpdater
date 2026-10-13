@@ -308,7 +308,7 @@ class UnifiedManifestManager:
             result["best_source"] = "none"
             result["best_reason"] = "所有來源均無此遊戲 Manifest"
 
-    def deploy_best_manifest(self, appid: str, search_result: Any = None, progress_cb: Optional[Callable[[str], None]] = None, logger: Optional[Any] = None) -> Tuple[bool, str]:
+    def deploy_best_manifest(self, appid: str, search_result: Any = None, progress_cb: Optional[Callable[[str], None]] = None, logger: Optional[Any] = None, steam_path: Optional[str] = None) -> Tuple[bool, str]:
         """
         【先校驗後下載之智慧更新引擎】
         1. 前置校驗：先自檢本機 Lua 與 depotcache 實體檔案一致性 (Auto-heal)。
@@ -322,7 +322,7 @@ class UnifiedManifestManager:
             return False, f"無效或未提供 AppID: '{appid}'"
         from managers import steam_manager
         
-        steam_p = steam_manager.find_steam_path()
+        steam_p = steam_path or steam_manager.find_steam_path()
         if logger:
             logger.log_step("前置檢查", f"開始部署 AppID {appid_str}，Steam 路徑: {steam_p}")
         
@@ -437,9 +437,12 @@ class UnifiedManifestManager:
                 is_official_latest = True
                 for did, off_gid in official_manifests.items():
                     cur_gid = l_manifests.get(str(did))
-                    if cur_gid and str(cur_gid) != str(off_gid):
+                    if not cur_gid or str(cur_gid) != str(off_gid):
                         is_official_latest = False
-                        replace_reason = f"Ryuu 版本落後於官方 (Depot {did} 本地 {cur_gid} != 官方最新 {off_gid})"
+                        if not cur_gid:
+                            replace_reason = f"Ryuu 缺少官方最新 Depot (Depot {did})"
+                        else:
+                            replace_reason = f"Ryuu 版本落後於官方 (Depot {did} 本地 {cur_gid} != 官方最新 {off_gid})"
                         break
                 if not is_official_latest:
                     need_hubcap_replace = True
