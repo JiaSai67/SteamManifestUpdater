@@ -247,7 +247,7 @@ class SearchHandler:
         from managers import version_resolver, unified_manifest_manager, steamdb_history_manager
 
         appid_str = str(appid).strip()
-        sp = self._steam_path or steam_manager.find_steam_path()
+        sp = getattr(self, "_steam_path", None) or steam_manager.find_steam_path()
 
         def _push_step(pct: int, title: str, desc: str, step: int):
             if getattr(self, "_window", None):
@@ -628,6 +628,14 @@ class SearchHandler:
                         continue
 
                     is_h_cur = bool(mid_str and str(mid_str) == h_gid)
+                    # 🌟 實體清單雙重校驗：若 depotcache 目錄下已存在實體 manifest 檔案，確認本地持有
+                    if not is_h_cur and sp:
+                        try:
+                            depot_dir = Path(sp) / "depotcache"
+                            if depot_dir.exists() and (depot_dir / f"{did_str}_{h_gid}.manifest").exists():
+                                is_h_cur = True
+                        except Exception:
+                            pass
                     # 嚴格判定：只有真實吻合官方最新 GID (或無最新 GID 時的首項) 才被視為官方最新 (若已被棄置則絕非官方最新)
                     is_official_latest = (not is_deprecated) and (bool(real_latest_gid and h_gid == real_latest_gid) or (not real_latest_gid and idx_h == 0))
                     h_date_fmt = s_item.get("date") or s_item.get("date_str") or steamdb_date_fmt

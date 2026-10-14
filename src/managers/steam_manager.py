@@ -1007,10 +1007,23 @@ def sync_lua_with_deployed_manifests(appid, manifests_dict, lua_dir=None, deprec
             real_official = sdb.get("manifests", {})
             if real_official:
                 topo = version_resolver.identify_depot_topology(appid_str, local_manifests=cur_local, official_manifests=real_official)
+                if topo.get("has_deprecated"):
+                    deprecated_depots = topo.get("replaced_map", {})
             else:
-                topo = version_resolver.identify_depot_topology(appid_str, local_manifests=cur_local, official_manifests=depot_manifest_map)
-            if topo.get("has_deprecated"):
-                deprecated_depots = topo.get("replaced_map", {})
+                # 🌟 嚴格防護：若無法取得官方真實清單，絕對不可將局部下載的 depot_manifest_map 當作官方全量清單做棄置推斷！
+                deprecated_depots = {}
+        except Exception:
+            pass
+
+    # 🌟 核心防護：官方 active depots 中的 Depot 絕對不能被標記為棄置！
+    if deprecated_depots and isinstance(deprecated_depots, dict):
+        try:
+            from managers import version_resolver
+            sdb_q = version_resolver.fetch_steamdb_manifests(appid_str, timeout=2)
+            act_depots = set(sdb_q.get("manifests", {}).keys())
+            if act_depots:
+                for act_d in act_depots:
+                    deprecated_depots.pop(str(act_d).strip(), None)
         except Exception:
             pass
         
@@ -1026,23 +1039,24 @@ def sync_lua_with_deployed_manifests(appid, manifests_dict, lua_dir=None, deprec
             modified = False
             
             for d_id, new_m_id in depot_manifest_map.items():
-                if deprecated_depots and str(d_id).strip() in deprecated_depots:
+                d_id_str = str(d_id).strip()
+                if deprecated_depots and d_id_str in deprecated_depots:
                     # 🌟 官方已棄置之舊 Depot，嚴禁重新啟用，由後續 deprecated_depots 區塊註解停用
                     continue
-                # 匹配存在的 setManifestid 行（包含已被註解的）
-                pattern = re.compile(rf'^[ \t]*(?:--[^\n\r]*?)?(setManifestid\(\s*{re.escape(str(d_id))}\s*,\s*)["\']?\d+["\']?(.*?\))', re.MULTILINE)
+                # 匹配存在的 setManifestid 行（包含已被註解的，如 -- [官方已棄置此 Depot...] setManifestid(d_id, ...)）
+                pattern = re.compile(rf'^[ \t]*(?:--[^\r\n]*?)?setManifestid\(\s*{re.escape(d_id_str)}\s*,\s*["\']?\d+["\']?(.*?\))[^\r\n]*$', re.MULTILINE)
                 if pattern.search(content):
-                    content = pattern.sub(rf'\g<1>"{new_m_id}"\g<2>', content)
+                    content = pattern.sub(rf'setManifestid({d_id_str},"{new_m_id}"\g<1>', content)
                     modified = True
                 else:
                     # 如果 Lua 中沒有 setManifestid，但有 addappid(d_id, ...)，在其下一行追加
-                    add_pattern = re.compile(rf'(^[ \t]*addappid\(\s*{re.escape(str(d_id))}[^\n\r]*\))', re.MULTILINE)
+                    add_pattern = re.compile(rf'(^[ \t]*addappid\(\s*{re.escape(d_id_str)}[^\n\r]*\))', re.MULTILINE)
                     if add_pattern.search(content):
-                        content = add_pattern.sub(rf'\g<1>\nsetManifestid({d_id},"{new_m_id}")', content)
+                        content = add_pattern.sub(rf'\g<1>\nsetManifestid({d_id_str},"{new_m_id}")', content)
                         modified = True
                     else:
                         # 追加到檔案末尾
-                        content += f'\nsetManifestid({d_id},"{new_m_id}")'
+                        content += f'\nsetManifestid({d_id_str},"{new_m_id}")'
                         modified = True
 
             # 🌟 處理官方已棄置之舊 Depot 停用與註解標記 (Deprecated Depots)
@@ -1326,6 +1340,21 @@ def verify_and_sync_local_manifests(appid, steam_path=None, lua_dir=None, target
         app_depot_ids.add(appid_str)
         app_depot_ids.add(str(int(appid_str) + 1))
 
+    # 🌟 核心修復：主動向 SteamDB 官方索取此 AppID 的所有真實 Depot 清單，全部納入掃描範圍！
+    official_active_depots = set()
+    official_manifests_quick = {}
+    try:
+        from managers import version_resolver
+        sdb_quick = version_resolver.fetch_steamdb_manifests(appid_str, timeout=3)
+        official_manifests_quick = sdb_quick.get("manifests", {})
+        for od in official_manifests_quick.keys():
+            od_str = str(od).strip()
+            if od_str:
+                app_depot_ids.add(od_str)
+                official_active_depots.add(od_str)
+    except Exception:
+        pass
+
     # 2. 掃描本地 depotcache 實體檔案並解析官方時間戳 (僅以標準 Steam/depotcache 為準)
     depot_folders = []
     if steam_path:
@@ -1340,11 +1369,11 @@ def verify_and_sync_local_manifests(appid, steam_path=None, lua_dir=None, target
     if lua_dir and lua_dir.exists() and lua_dir not in depot_folders:
         depot_folders.append(lua_dir)
 
-    # 智能收斂 app_depot_ids：優先保留與 AppID 相關之 Depots
+    # 智能收斂 app_depot_ids：優先保留與 AppID 相關之 Depots (並絕對保留官方 active depots)
     if len(app_depot_ids) > 10:
         filtered_app_depots = set()
         for d in app_depot_ids:
-            if d == appid_str or (appid_str.isdigit() and d == str(int(appid_str) + 1)) or (len(appid_str) >= 4 and d.startswith(appid_str[:4])):
+            if d in official_active_depots or d == appid_str or (appid_str.isdigit() and d == str(int(appid_str) + 1)) or (len(appid_str) >= 4 and d.startswith(appid_str[:4])):
                 filtered_app_depots.add(d)
         if not filtered_app_depots:
             filtered_app_depots = set(list(app_depot_ids)[:10])
@@ -1383,17 +1412,22 @@ def verify_and_sync_local_manifests(appid, steam_path=None, lua_dir=None, target
         healed = True
     else:
         # 自檢模式：若磁碟上最新實體檔與 Lua 不一致且時間戳更新，自動修復 Lua
-        # 🌟 拓撲防護：防止自檢將官方已棄置之歷史殘留 Depot 復活回 Lua
+        # 🌟 官方最高權限仲裁：任何在官方 active_depots 中的 Depot 絕對不能被視為棄置！
+        # 若之前因錯誤歷史推斷被 Lua 寫入棄置註解，在此自檢時必須強制解封
+        for act_d in official_active_depots:
+            deprecated_declared_depots.discard(act_d)
+
         known_deprecations = set(deprecated_declared_depots)
+        calc_deprecated_map = {}
         try:
-            from managers import version_resolver
-            sdb_q = version_resolver.fetch_steamdb_manifests(appid_str, timeout=2)
-            off_q = sdb_q.get("manifests", {})
-            if off_q:
-                topo_check = version_resolver.identify_depot_topology(appid_str, local_manifests={d: "1" for d in app_depot_ids}, official_manifests=off_q)
+            if official_manifests_quick:
+                topo_check = version_resolver.identify_depot_topology(appid_str, local_manifests={d: "1" for d in app_depot_ids}, official_manifests=official_manifests_quick)
                 if topo_check.get("has_deprecated"):
-                    for dep_d in topo_check.get("deprecated_depots", {}).keys():
-                        known_deprecations.add(str(dep_d))
+                    for dep_d, rep_d in topo_check.get("replaced_map", {}).items():
+                        dep_d_str = str(dep_d).strip()
+                        if dep_d_str not in official_active_depots:
+                            known_deprecations.add(dep_d_str)
+                            calc_deprecated_map[dep_d_str] = rep_d
         except Exception:
             pass
 
@@ -1412,8 +1446,8 @@ def verify_and_sync_local_manifests(appid, steam_path=None, lua_dir=None, target
                     if best_ts > l_ts or l_ts == 0:
                         sync_needed[d_id] = disk_best_gid
 
-        if sync_needed:
-            sync_lua_with_deployed_manifests(appid_str, sync_needed, lua_dir)
+        if sync_needed or calc_deprecated_map:
+            sync_lua_with_deployed_manifests(appid_str, sync_needed or lua_manifests, lua_dir, deprecated_depots=calc_deprecated_map)
             healed = True
 
     # 重新讀取更新後的 Lua 宣告 (僅採計未被註解之有效宣告)
