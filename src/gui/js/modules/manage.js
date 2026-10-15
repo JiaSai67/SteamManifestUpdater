@@ -107,24 +107,95 @@ function startProactiveUpdateCheck(force){
   _lastUpdateCheckTime = now;
   _checkingUpdates = true;
 
+  // 🌟 若為強制手動檢查，立即點亮按鈕 Loading 與進度條
+  var refreshBtn = document.getElementById('btn-manage-refresh');
+  if(refreshBtn){
+    refreshBtn.disabled = true;
+    refreshBtn.innerHTML = '<span class="spinner-sm" style="display:inline-block;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px"></span>檢查中…';
+  }
+  var pBox = document.getElementById('manage-check-progress');
+  if(pBox){
+    pBox.style.display = 'block';
+    var pBar = document.getElementById('manage-progress-bar');
+    if(pBar) pBar.style.width = '0%';
+    var pCount = document.getElementById('manage-progress-count');
+    if(pCount) pCount.textContent = '0 / 0 (0%)';
+    var pText = document.getElementById('manage-progress-text');
+    if(pText) pText.textContent = '正在核驗入庫遊戲版本清單…';
+    var pDetail = document.getElementById('manage-progress-detail');
+    if(pDetail) pDetail.textContent = '正在啟動多源 Manifest 比對引擎…';
+  }
+
   try {
     if(window.pywebview && window.pywebview.api && window.pywebview.api.trigger_background_update_check){
       window.pywebview.api.trigger_background_update_check(!!force).then(function(r){
         // 已在背景守護執行緒中啟動
-      }).catch(function(){ _checkingUpdates = false; });
+      }).catch(function(){
+        _checkingUpdates = false;
+        if(refreshBtn){ refreshBtn.disabled = false; refreshBtn.innerHTML = '🔄 檢查更新'; }
+        if(pBox) pBox.style.display = 'none';
+      });
     } else if(window.pywebview && window.pywebview.api && window.pywebview.api.check_updates_async){
       window.pywebview.api.check_updates_async(!!force).then(function(res){
         _checkingUpdates = false;
+        if(refreshBtn){ refreshBtn.disabled = false; refreshBtn.innerHTML = '🔄 檢查更新'; }
+        if(pBox) pBox.style.display = 'none';
         if(res){
           if(res.updates) applyAsyncUpdates(res.updates);
           if(res.metadata) applyAsyncMetadata(res.metadata);
         }
-      }).catch(function(){ _checkingUpdates = false; });
+      }).catch(function(){
+        _checkingUpdates = false;
+        if(refreshBtn){ refreshBtn.disabled = false; refreshBtn.innerHTML = '🔄 檢查更新'; }
+        if(pBox) pBox.style.display = 'none';
+      });
     }
   } catch(e){
     _checkingUpdates = false;
+    if(refreshBtn){ refreshBtn.disabled = false; refreshBtn.innerHTML = '🔄 檢查更新'; }
+    if(pBox) pBox.style.display = 'none';
   }
 }
+
+// 🌟 即時接收全域檢查更新進度廣播 (平滑更新進度條與正在核驗遊戲資訊)
+window.onUpdateProgress = function(data){
+  try {
+    if(!data) return;
+    var pBox = document.getElementById('manage-check-progress');
+    if(pBox && pBox.style.display === 'none'){
+      pBox.style.display = 'block';
+    }
+    var pBar = document.getElementById('manage-progress-bar');
+    if(pBar && data.percent !== undefined){
+      pBar.style.width = Math.min(100, Math.max(0, data.percent)) + '%';
+    }
+    var pCount = document.getElementById('manage-progress-count');
+    if(pCount){
+      pCount.textContent = (data.current || 0) + ' / ' + (data.total || 0) + ' (' + (data.percent || 0) + '%)';
+    }
+    var pText = document.getElementById('manage-progress-text');
+    if(pText){
+      pText.textContent = '正在核驗入庫遊戲 Manifest (' + (data.percent || 0) + '%)';
+    }
+    var pDetail = document.getElementById('manage-progress-detail');
+    if(pDetail && (data.game_name || data.appid)){
+      var gName = data.game_name || ('AppID ' + data.appid);
+      pDetail.textContent = '正在核驗：' + gName + ' (AppID: ' + data.appid + ')';
+    }
+    var refreshBtn = document.getElementById('btn-manage-refresh');
+    if(refreshBtn && refreshBtn.disabled){
+      refreshBtn.innerHTML = '<span class="spinner-sm" style="display:inline-block;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px"></span>檢查中 (' + (data.percent || 0) + '%)';
+    }
+  } catch(e){ console.error('onUpdateProgress error:', e); }
+};
+
+// 雙重保險：監聽 CustomEvent
+window.addEventListener('onUpdateProgress', function(e){
+  var detail = e ? e.detail : null;
+  if(detail && typeof window.onUpdateProgress === 'function'){
+    window.onUpdateProgress(detail);
+  }
+});
 
 // 🌟 即時接收後端單一遊戲比對結果（流式即時點亮，完全無感 0 卡頓）
 window.onSingleGameUpdateChecked = function(u){
@@ -146,6 +217,9 @@ window.onSingleGameUpdateChecked = function(u){
           g.version_status = u.version_status || (u.has_update ? '可更新' : '最新版');
           g.latest_date = u.latest_date || g.latest_date;
           g.best_source = u.best_source || g.best_source;
+          g.best_source_name = u.best_source_name || g.best_source_name;
+          g.hubcap_status = u.hubcap_status || g.hubcap_status;
+          g.can_auto_update = (u.can_auto_update !== undefined) ? u.can_auto_update : g.can_auto_update;
           break;
         }
       }
@@ -173,8 +247,23 @@ window.onSingleGameUpdateChecked = function(u){
           } else {
             upTag.textContent = '⚡ ' + rawStatus;
           }
+          // 來源標籤：若是 Hubcap 來源
+          var srcTag = tagsRow.querySelector('.tag-best-source');
+          if(u.best_source === 'hubcap' || (u.best_source_name && u.best_source_name.indexOf('Hubcap') !== -1)){
+            if(!srcTag){
+              tagsRow.insertAdjacentHTML('beforeend', '<span class="search-tag tag-best-source" style="background:#1e3a5f;color:#60a5fa;border:1px solid rgba(96,165,250,0.3);font-weight:600">🧢 HubcapDB</span>');
+            }
+          } else if(u.hubcap_status && u.hubcap_status.indexOf('配額') !== -1){
+            if(!srcTag){
+              tagsRow.insertAdjacentHTML('beforeend', '<span class="search-tag tag-best-source" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)" title="Hubcap 今日配額已滿 25/25">🧢 額度已滿</span>');
+            }
+          }
         } else {
           var cornerDiv = mCard.querySelector('.card-corner-tags');
+          if(!cornerDiv){
+            mCard.insertAdjacentHTML('afterbegin', '<div class="card-corner-tags"></div>');
+            cornerDiv = mCard.querySelector('.card-corner-tags');
+          }
           if(cornerDiv){
             var cUp = cornerDiv.querySelector('.tag-up');
             if(!cUp){
@@ -182,12 +271,23 @@ window.onSingleGameUpdateChecked = function(u){
             } else {
               cUp.textContent = '⚡ ' + rawStatus;
             }
+            if(u.best_source === 'hubcap'){
+              var cHc = cornerDiv.querySelector('.tag-hc-src');
+              if(!cHc){
+                cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-hc-src" style="background:#1e3a5f;color:#93c5fd">🧢 Hubcap</span>');
+              }
+            } else if(u.hubcap_status && u.hubcap_status.indexOf('配額') !== -1){
+              var cHcEx = cornerDiv.querySelector('.tag-hc-src');
+              if(!cHcEx){
+                cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-hc-src" style="background:rgba(239,68,68,0.25);color:#fca5a5" title="Hubcap 今日配額已滿 25/25">🧢 額度滿</span>');
+              }
+            }
           }
         }
         if(u.latest_date && verTag){
           verTag.textContent = '📅 版本：' + u.latest_date;
         }
-        if(actWrap && !actWrap.querySelector('.btn-auto-up')){
+        if(actWrap && !actWrap.querySelector('.btn-auto-up') && u.can_auto_update !== false){
           var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
           var upBtnHtml = '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>';
           var menuBtn = actWrap.querySelector('.card-menu');
@@ -197,7 +297,7 @@ window.onSingleGameUpdateChecked = function(u){
             actWrap.insertAdjacentHTML('afterbegin', upBtnHtml);
           }
         }
-        if(ddEl && !ddEl.querySelector('.btn-auto-up')){
+        if(ddEl && !ddEl.querySelector('.btn-auto-up') && u.can_auto_update !== false){
           var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
           var upBtnHtml = '<button class="btn-auto-up" style="color:#ffd700;font-weight:bold" onclick="autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 一鍵更新 Manifest</button>';
           ddEl.insertAdjacentHTML('afterbegin', upBtnHtml);
@@ -243,22 +343,46 @@ window.onSingleGameUpdateChecked = function(u){
 window.onAllUpdatesCheckFinished = function(summary){
   try {
     _checkingUpdates = false;
+    var refreshBtn = document.getElementById('btn-manage-refresh');
+    if(refreshBtn){
+      refreshBtn.disabled = false;
+      refreshBtn.innerHTML = '🔄 檢查更新';
+    }
+    var pBox = document.getElementById('manage-check-progress');
+    if(pBox){
+      var pBar = document.getElementById('manage-progress-bar');
+      if(pBar) pBar.style.width = '100%';
+      var pCount = document.getElementById('manage-progress-count');
+      if(pCount && summary) pCount.textContent = (summary.total || 0) + ' / ' + (summary.total || 0) + ' (100%)';
+      var pText = document.getElementById('manage-progress-text');
+      if(pText) pText.textContent = '✅ 比對核驗已全部完成';
+      var pDetail = document.getElementById('manage-progress-detail');
+      if(pDetail && summary) pDetail.textContent = '共檢查 ' + (summary.total || 0) + ' 款入庫遊戲，發現 ' + (summary.updated_count || 0) + ' 款有最新版本！';
+      setTimeout(function(){
+        if(pBox) pBox.style.display = 'none';
+      }, 2500);
+    }
+
     if(summary && summary.updates){
       applyAsyncUpdates(summary.updates);
     }
     loadOnlineFixAppids().catch(function(){});
     var upCount = refreshUpdateCountUI();
-    if(upCount > 0){
-      // 🌟 當前若為可更新優先預設排序，重新渲染以平滑置頂有更新之遊戲小卡
-      var sel = document.getElementById('manage-sort-mode');
-      var sortMode = (sel ? sel.value : null) || 'default';
-      if(sortMode === 'default' && _pre._games && _pre._games.length){
-        var filter = (document.getElementById('mf').value||'').trim().toLowerCase();
-        renderGames(_pre._games, filter);
-      }
-      tt('🔍 主動比對完成：發現 ' + upCount + ' 款遊戲有最新版本 Manifest 可更新！', 'in');
+
+    // 重新排序並置頂有更新的項目
+    var sel = document.getElementById('manage-sort-mode');
+    var sortMode = (sel ? sel.value : null) || 'default';
+    if(_pre._games && _pre._games.length){
+      var filter = (document.getElementById('mf').value||'').trim().toLowerCase();
+      renderGames(_pre._games, filter);
     }
-  } catch(e){}
+
+    if(upCount > 0){
+      tt('🔍 主動比對完成：發現 ' + upCount + ' 款遊戲有最新版本 Manifest 可更新！', 'in');
+    } else {
+      tt('✅ 主動比對完成：所有已入庫遊戲均已是最新版本！', 'ok');
+    }
+  } catch(e){ console.error('onAllUpdatesCheckFinished error:', e); }
 };
 
 // 雙重保險：同時監聽 CustomEvent 事件
@@ -386,8 +510,22 @@ function applyAsyncUpdates(updates){
               } else {
                 upTag.textContent = '⚡ ' + rawStatus;
               }
+              var srcTag = tagsRow.querySelector('.tag-best-source');
+              if(u.best_source === 'hubcap' || (u.best_source_name && u.best_source_name.indexOf('Hubcap') !== -1)){
+                if(!srcTag){
+                  tagsRow.insertAdjacentHTML('beforeend', '<span class="search-tag tag-best-source" style="background:#1e3a5f;color:#60a5fa;border:1px solid rgba(96,165,250,0.3);font-weight:600">🧢 HubcapDB</span>');
+                }
+              } else if(u.hubcap_status && u.hubcap_status.indexOf('配額') !== -1){
+                if(!srcTag){
+                  tagsRow.insertAdjacentHTML('beforeend', '<span class="search-tag tag-best-source" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)" title="Hubcap 今日配額已滿 25/25">🧢 額度已滿</span>');
+                }
+              }
             } else {
               var cornerDiv = mCard.querySelector('.card-corner-tags');
+              if(!cornerDiv){
+                mCard.insertAdjacentHTML('afterbegin', '<div class="card-corner-tags"></div>');
+                cornerDiv = mCard.querySelector('.card-corner-tags');
+              }
               if(cornerDiv){
                 var cUp = cornerDiv.querySelector('.tag-up');
                 if(!cUp){
@@ -395,12 +533,24 @@ function applyAsyncUpdates(updates){
                 } else {
                   cUp.textContent = '⚡ ' + rawStatus;
                 }
+                if(u.best_source === 'hubcap'){
+                  var cHc = cornerDiv.querySelector('.tag-hc-src');
+                  if(!cHc){
+                    cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-hc-src" style="background:#1e3a5f;color:#93c5fd">🧢 Hubcap</span>');
+                  }
+                } else if(u.hubcap_status && u.hubcap_status.indexOf('配額') !== -1){
+                  var cHcEx = cornerDiv.querySelector('.tag-hc-src');
+                  if(!cHcEx){
+                    cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-hc-src" style="background:rgba(239,68,68,0.25);color:#fca5a5" title="Hubcap 今日配額已滿 25/25">🧢 額度滿</span>');
+                  }
+                }
               }
             }
             if(u.latest_date && verTag){
               verTag.textContent = '📅 版本：' + u.latest_date;
             }
-            if(actWrap && !actWrap.querySelector('.btn-auto-up')){
+            var canAuto = (u.can_auto_update !== false);
+            if(actWrap && !actWrap.querySelector('.btn-auto-up') && canAuto){
               var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
               var upBtnHtml = '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>';
               var menuBtn = actWrap.querySelector('.card-menu');
@@ -410,7 +560,7 @@ function applyAsyncUpdates(updates){
                 actWrap.insertAdjacentHTML('afterbegin', upBtnHtml);
               }
             }
-            if(ddEl && !ddEl.querySelector('.btn-auto-up')){
+            if(ddEl && !ddEl.querySelector('.btn-auto-up') && canAuto){
               var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
               var upBtnHtml = '<button class="btn-auto-up" style="color:#ffd700;font-weight:bold" onclick="autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 一鍵更新 Manifest</button>';
               ddEl.insertAdjacentHTML('afterbegin', upBtnHtml);
@@ -576,8 +726,9 @@ function renderGames(games, filter){
       var cardClass = 'card' + (isUp ? ' needs-update' : '') + (hasOf ? ' has-onlinefix' : '');
       var rawStatus = String(g.version_status || '可更新').replace(/跨越/g, '舊').replace(/⚡/g, '').trim();
 
-      var upMenuBtn = isUp ? '<button style="color:#ffd700;font-weight:bold" onclick="autoUpdateSingle(\''+g.appid+'\',\''+jsesc(nm)+'\')">⚡ 一鍵更新 Manifest</button>' : '';
-      var upQuickBtn = isUp ? '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+g.appid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>' : '';
+      var canAuto = (g.can_auto_update !== false);
+      var upMenuBtn = isUp ? (canAuto ? '<button style="color:#ffd700;font-weight:bold" onclick="autoUpdateSingle(\''+g.appid+'\',\''+jsesc(nm)+'\')">⚡ 一鍵更新 Manifest</button>' : '<button style="color:#ffb74d" onclick="openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\')">🔍 檢視多源狀態</button>') : '';
+      var upQuickBtn = isUp ? (canAuto ? '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+g.appid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>' : '<button class="btn btn-s" style="background:rgba(255,152,0,0.2);color:#ffb74d;border:1px solid rgba(255,152,0,0.4);cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\')">🔍 檢視狀態</button>') : '';
 
       var commonMenuHtml = '<button class="card-menu" title="更多選項" onclick="event.stopPropagation()"><svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><circle cx="2.5" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13.5" cy="8" r="1.5"/></svg></button>' +
         '<div class="card-dd" onclick="event.stopPropagation()">' +
@@ -603,7 +754,9 @@ function renderGames(games, filter){
           '<span class="search-tag tag-zg" id="mtag-zg-' + g.appid + '" style="' + (hasZgWeb ? 'display:inline-flex' : 'display:none') + '" title="ZeiGames 官方網站已收錄專用補丁"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>' +
           '<span class="search-tag tag-dep" id="mtag-dep-' + g.appid + '" style="' + (isDeployed ? 'display:inline-flex' : 'display:none') + '" title="本地已成功部署補丁">✅ 已部署</span>' +
           (g.locked ? '<span class="search-tag tag-lock" style="background:rgba(255,255,255,0.08);color:var(--gray);border:1px solid rgba(255,255,255,0.18)" title="已固定版本">🔒 已鎖定</span>' : '') +
-          (isUp ? '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700">⚡ ' + escHtml(rawStatus) + '</span>' : '');
+          (isUp ? '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700">⚡ ' + escHtml(rawStatus) + '</span>' : '') +
+          (g.best_source === 'hubcap' ? '<span class="search-tag tag-source" style="background:#1e3a5f;color:#60a5fa;border:1px solid rgba(96,165,250,0.3);font-weight:600">🧢 HubcapDB</span>' : '') +
+          (g.hubcap_status && g.hubcap_status.indexOf('配額') !== -1 ? '<span class="search-tag tag-quota" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)" title="Hubcap 今日配額已滿 25/25">🧢 額度已滿</span>' : '');
 
         h += '<div class="'+cardClass+'" data-appid="'+g.appid+'" style="--i:'+i+'" onclick="openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\',\''+jsesc(g.image||'')+'\')">' +
                '<img src="'+listImgUrl+'" loading="lazy" onerror="imgFb(this,'+g.appid+')">' +
@@ -629,6 +782,8 @@ function renderGames(games, filter){
         if(hasZgWeb) gridTags += '<span class="corner-tag tag-zeigames" title="ZeiGames 官方網站已收錄專用補丁"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>';
         if(isDeployed) gridTags += '<span class="corner-tag tag-dep" title="本地已成功部署補丁">✅ 部署</span>';
         if(isUp) gridTags += '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ ' + escHtml(rawStatus) + '</span>';
+        if(g.best_source === 'hubcap') gridTags += '<span class="corner-tag" style="background:#1e3a5f;color:#93c5fd">🧢 Hubcap</span>';
+        if(g.hubcap_status && g.hubcap_status.indexOf('配額') !== -1) gridTags += '<span class="corner-tag" style="background:rgba(239,68,68,0.25);color:#fca5a5" title="Hubcap 今日配額已滿 25/25">🧢 額度滿</span>';
         var cornerTagsDiv = gridTags ? '<div class="card-corner-tags">' + gridTags + '</div>' : '';
 
         var topTitle = escHtml(nm) + label;

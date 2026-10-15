@@ -192,6 +192,35 @@ def test_connection(api_key: Optional[str] = None) -> Dict[str, Any]:
 
 _manifest_zip_cache: Dict[str, Dict[str, Any]] = {}
 
+def _get_hubcap_cache_file() -> Path:
+    p = config_manager._root_dir / "data" / "cache" / "hubcap_manifest_cache.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+def _load_hubcap_cached_info(appid: str) -> Optional[Dict[str, Any]]:
+    try:
+        cf = _get_hubcap_cache_file()
+        if cf.exists():
+            c = json.loads(cf.read_text(encoding="utf-8"))
+            return c.get(str(appid))
+    except Exception:
+        pass
+    return None
+
+def _save_hubcap_cached_info(appid: str, data: Dict[str, Any]):
+    try:
+        cf = _get_hubcap_cache_file()
+        c = {}
+        if cf.exists():
+            try:
+                c = json.loads(cf.read_text(encoding="utf-8"))
+            except Exception:
+                c = {}
+        c[str(appid)] = data
+        cf.write_text(json.dumps(c, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
 def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int = 10) -> Dict[str, Any]:
     """
     向 Hubcap 官方 API 詢問特定遊戲 (AppID) 的 Manifest 與 GID 收錄情況。
@@ -220,6 +249,9 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
         f"{domain}/api/v1/app/{appid_str}",
         f"{domain}/api/manifest?appid={appid_str}"
     ]
+
+    quota_exhausted = False
+    last_err = ""
 
     for url in test_urls:
         try:
@@ -255,12 +287,15 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
                             "time": time.time(),
                             "data": data
                         }
-                        return {
+                        res_ok = {
                             "available": True,
                             "depots": extracted_depots,
                             "source": "HubcapDB",
-                            "has_zip": True
+                            "has_zip": True,
+                            "quota_exhausted": False
                         }
+                        _save_hubcap_cached_info(appid_str, res_ok)
+                        return res_ok
 
                 # 🌟 核心情況 2：回傳 JSON 資料
                 try:
@@ -284,19 +319,44 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
                                         extracted_depots[str(did)] = str(gid)
 
                         if extracted_depots:
-                            return {
+                            res_ok = {
                                 "available": True,
                                 "depots": extracted_depots,
                                 "source": "HubcapDB",
-                                "raw": json_data
+                                "raw": json_data,
+                                "quota_exhausted": False
                             }
+                            _save_hubcap_cached_info(appid_str, res_ok)
+                            return res_ok
                 except Exception:
                     pass
+        except urllib.error.HTTPError as he:
+            last_err = f"HTTP {he.code}"
+            if he.code == 429:
+                quota_exhausted = True
+                logger.warning(f"[Hubcap] 請求 {appid_str} 觸發 429 配額用罄限制")
+                break
+            elif he.code == 404:
+                break
         except Exception as e:
+            last_err = str(e)
             logger.debug("嘗試 Hubcap 端點 %s 失敗: %s", url, e)
             continue
 
-    return {"available": False, "depots": {}, "source": "HubcapDB"}
+    # 🌟 若連線失敗或配額耗盡，嘗試自磁碟快取兜底
+    cached = _load_hubcap_cached_info(appid_str)
+    if cached and cached.get("available") and cached.get("depots"):
+        cached["from_cache"] = True
+        cached["quota_exhausted"] = quota_exhausted
+        return cached
+
+    return {
+        "available": False, 
+        "depots": {}, 
+        "source": "HubcapDB", 
+        "quota_exhausted": quota_exhausted,
+        "error": "今日配額已達上限 (25/25)" if quota_exhausted else (last_err or "未收錄")
+    }
 
 def download_manifest_package(appid: str, api_key: Optional[str] = None, timeout: int = 25) -> Tuple[bool, Optional[bytes], str]:
     """

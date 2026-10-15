@@ -70,11 +70,23 @@ class UnifiedManifestManager:
                 "depots": info.get("depots", {}) if info.get("available") else {},
                 "time": info.get("time", "即時在庫"),
                 "is_aligned_steamdb": False,
-                "has_zip": info.get("has_zip", False)
+                "has_zip": info.get("has_zip", False),
+                "quota_exhausted": bool(info.get("quota_exhausted")),
+                "from_cache": bool(info.get("from_cache")),
+                "status_msg": info.get("error", "")
             }
         except Exception as e:
             print(f"[UnifiedManifestManager] Hubcap 查詢異常: {e}")
-            return {"available": False, "depots": {}, "time": "無", "is_aligned_steamdb": False, "has_zip": False}
+            return {
+                "available": False, 
+                "depots": {}, 
+                "time": "無", 
+                "is_aligned_steamdb": False, 
+                "has_zip": False,
+                "quota_exhausted": False,
+                "from_cache": False,
+                "status_msg": str(e)
+            }
 
     def search_all_sources(self, appid: str, timeout: int = 6, steamdb_manifests: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
@@ -388,7 +400,10 @@ class UnifiedManifestManager:
             result["best_reason"] = "HubcapDB 收錄可用版本（Ryuu 未收錄）"
         elif ryuu_ok and not hubcap_ok:
             result["best_source"] = "ryuu"
-            result["best_reason"] = "Ryuu 平台收錄可用版本"
+            if hubcap.get("quota_exhausted"):
+                result["best_reason"] = "Ryuu 庫內可用（HubcapDB 今日配額已滿 25/25，未能檢測最新包）"
+            else:
+                result["best_reason"] = "Ryuu 平台收錄可用版本"
         # 規則 F：備援通道
         elif result.get("luatools", {}).get("available"):
             result["best_source"] = "luatools"
@@ -396,6 +411,13 @@ class UnifiedManifestManager:
         else:
             result["best_source"] = "none"
             result["best_reason"] = "所有來源均無此遊戲 Manifest"
+
+        if hubcap.get("quota_exhausted"):
+            result["hubcap_status"] = "今日配額已達上限 (25/25)"
+        elif hubcap_ok:
+            result["hubcap_status"] = "在庫可用"
+        else:
+            result["hubcap_status"] = "未收錄或無回應"
 
     def deploy_best_manifest(self, appid: str, search_result: Any = None, progress_cb: Optional[Callable[[str], None]] = None, logger: Optional[Any] = None, steam_path: Optional[str] = None) -> Tuple[bool, str]:
         """

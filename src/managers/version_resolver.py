@@ -388,9 +388,13 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
     best_source = unified_search.get("best_source", "ryuu")
     best_reason = unified_search.get("best_reason", "")
 
-    # 取出 Ryuu 庫存
+    # 取出各平台在庫清單 (HubcapDB 或 Ryuu)
     ryuu_manifests = unified_search.get("ryuu", {}).get("depots", {})
-    best_manifests = ryuu_manifests
+    hubcap_manifests = unified_search.get("hubcap", {}).get("depots", {})
+    if best_source == "hubcap":
+        best_manifests = hubcap_manifests or ryuu_manifests
+    else:
+        best_manifests = ryuu_manifests or hubcap_manifests
 
     # 3.5 🌟 拓撲自檢：判斷是否存在已棄置 (Deprecated) 的 Depot 與架構遷移需求
     topo = identify_depot_topology(
@@ -427,7 +431,10 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
     result["latest_manifests"] = latest_manifests
     result["unified_search"] = unified_search
     result["best_source"] = best_source
+    result["best_source_name"] = "HubcapDB" if best_source == "hubcap" else ("Ryuu" if best_source == "ryuu" else "LuaTools")
     result["best_reason"] = best_reason
+    result["hubcap_manifests"] = hubcap_manifests
+    result["best_manifests"] = best_manifests
 
     # 5. 🌟 判斷是否存在真正未完成的架構遷移 (Depot 棄置與替換)
     # 只有當本地「尚未安裝接替的活躍 Depot」或「接替 Depot 的版本落後」時，才算需要架構遷移！
@@ -452,9 +459,9 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
             if d_id in topo.get("deprecated_depots", {}):
                 continue
             l_m = local_manifests.get(str(d_id))
-            if l_m and str(l_m) != str(b_m):
+            if not l_m or str(l_m) != str(b_m):
                 has_available_update = True
-                diff_update_depots.append((str(d_id), str(l_m), str(b_m)))
+                diff_update_depots.append((str(d_id), str(l_m or "無"), str(b_m)))
 
     # 6. 比對本地 Manifest 與線上最新清單 (判斷是否已為最新版)
     is_latest = not needs_topology_migration
@@ -522,6 +529,7 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
         diff_count = max(1, diff_count)
 
     result["diff_count"] = diff_count
+    result["hubcap_status"] = unified_search.get("hubcap_status", "")
     # 版本狀態
     if needs_topology_migration:
         p_dep = topo.get("primary_active_depot", "")
@@ -529,7 +537,11 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
     elif is_latest or diff_count == 0:
         result["version_status"] = "最新版"
     elif not has_available_update:
-        result["version_status"] = "待雲端同步"
+        hc_info = unified_search.get("hubcap", {})
+        if hc_info.get("quota_exhausted"):
+            result["version_status"] = f"舊 {diff_count} 版 (待同步/Hubcap配額滿)"
+        else:
+            result["version_status"] = f"舊 {diff_count} 版 (待雲端同步)"
     else:
         result["version_status"] = f"舊 {diff_count} 版"
 

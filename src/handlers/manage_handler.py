@@ -277,7 +277,10 @@ class ManageHandler:
                     "has_zeigames_web": has_zg_web,      # 🌟 ZeiGames 官方網站收錄標記
                     "version_status": version_status,
                     "latest_date": latest_date,
-                    "best_source": best_source
+                    "best_source": best_source,
+                    "best_source_name": u_info.get("best_source_name", "Ryuu"),
+                    "hubcap_status": u_info.get("hubcap_status", ""),
+                    "can_auto_update": u_info.get("can_auto_update", True)
                 })
 
             # 排序：有更新者（黃色需更新項）置頂排列
@@ -488,18 +491,15 @@ class ManageHandler:
                 is_latest = diff_info.get("is_latest", True)
                 v_stat = diff_info.get("version_status", "")
                 diff_cnt = diff_info.get("diff_count", 0) or 0
+                has_avail = bool(diff_info.get("has_available_update", False))
 
-                # 🌟 統一口徑：只有當線上庫有實質可更新版本時，has_update 才能為 True！
-                # 若 SteamDB 官方有新版，但 Ryuu 尚未收錄（待雲端同步），本地已是目前能取得的最新版，has_update 必須為 False！
+                # 🌟 統一口徑：只要官方 SteamDB 有新版本（not is_latest），這款遊戲就必須跳出可更新提醒！
                 if is_latest:
                     raw_v = "最新版"
                     has_up = False
-                elif v_stat == "待雲端同步" or not diff_info.get("has_available_update"):
-                    raw_v = "待雲端同步"
-                    has_up = False
                 else:
-                    raw_v = f"舊 {diff_cnt} 版" if diff_cnt > 0 else (v_stat or "舊 1 版")
                     has_up = True
+                    raw_v = v_stat or (f"舊 {diff_cnt} 版" if diff_cnt > 0 else "可更新")
 
                 u_item = {
                     "appid": appid,
@@ -507,14 +507,34 @@ class ManageHandler:
                     "has_update": has_up,
                     "version_status": raw_v,
                     "latest_date": diff_info.get("latest_date", "未知"),
-                    "best_source": diff_info.get("best_source", "ryuu")
+                    "best_source": diff_info.get("best_source", "ryuu"),
+                    "best_source_name": diff_info.get("best_source_name", "Ryuu"),
+                    "hubcap_status": diff_info.get("hubcap_status", ""),
+                    "can_auto_update": has_avail
                 }
                 with save_lock:
                     updates[appid] = u_item
                     checked_counter[0] += 1
+                    cur_cnt = checked_counter[0]
 
-                # 每查好 5 筆即時安全落盤快取 (背景靜默，不在前端邊查邊跳動)
-                if checked_counter[0] % 5 == 0:
+                # 🌟 即時向前端推送全域檢查進度事件 (讓使用者看到清晰流暢的進度條)
+                total_files = len(lua_files)
+                pct = int((cur_cnt / total_files) * 100) if total_files > 0 else 100
+                if hasattr(self, "_push_js_event"):
+                    self._push_js_event("onUpdateProgress", {
+                        "current": cur_cnt,
+                        "total": total_files,
+                        "percent": pct,
+                        "appid": appid,
+                        "game_name": u_item.get("name") or f"App_{appid}",
+                        "has_update": has_up
+                    })
+                    # 若判定該遊戲有更新，即時逐筆推播點亮小卡！
+                    if has_up:
+                        self._push_js_event("onSingleGameUpdateChecked", u_item)
+
+                # 每查好 5 筆即時安全落盤快取
+                if cur_cnt % 5 == 0:
                     save_progress()
 
             except Exception as e:
