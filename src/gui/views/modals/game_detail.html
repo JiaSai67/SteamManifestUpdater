@@ -105,6 +105,20 @@
               <div class="dt-source-gid-val" id="dt-zg-val">查詢中…</div>
             </div>
           </div>
+          <!-- e. HubcapDB -->
+          <div class="dt-source-row" id="dt-hubcap-row">
+            <div class="dt-source-row-top">
+              <span class="dt-source-name"><span style="margin-right:5px">🧢</span>HubcapDB</span>
+              <span id="dt-hubcap-status" class="chip gray" style="font-size:10px;padding:1px 6px">未查詢 (節省配額)</span>
+            </div>
+            <div class="dt-source-gid-box">
+              <div class="dt-source-gid-lbl">版本狀態:</div>
+              <div class="dt-source-gid-val" id="dt-hubcap-val" style="display:flex;align-items:center;justify-content:space-between">
+                <span id="dt-hubcap-val-text">未查詢</span>
+                <button type="button" class="btn btn-s" id="dt-btn-query-hubcap" style="padding:1px 8px;font-size:10px;background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);border-radius:4px;cursor:pointer" onclick="event.stopPropagation(); queryHubcapSingleManually()">🔍 手動查詢 (扣1次)</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="detail-actions">

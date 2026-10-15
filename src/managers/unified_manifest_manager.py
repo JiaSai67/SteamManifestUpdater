@@ -60,11 +60,45 @@ class UnifiedManifestManager:
             print(f"[UnifiedManifestManager] 獲取公共 DepotKeys 失敗: {e}")
             return {}
 
-    def _query_hubcap(self, appid: str, timeout: int = 6) -> Dict[str, Any]:
-        """查詢 HubcapDB 平台收錄狀態"""
+    def _query_hubcap(self, appid: str, timeout: int = 6, allow_network: bool = False) -> Dict[str, Any]:
+        """
+        查詢 HubcapDB 平台收錄狀態。
+        ⚠️ 核心安全規範：HubcapDB 沒有免費純查詢端點，每次聯網請求均計入每日 25 次配額！
+        因此在全庫自動檢查更新時，嚴格只讀取本地歷史快取 (allow_network=False)，
+        杜絕在背景批量輪詢時瞬間燒光使用者每日配額！
+        """
         try:
             from managers import hubcap_manager
-            info = hubcap_manager.query_manifest_info(str(appid).strip(), timeout=timeout)
+            appid_str = str(appid).strip()
+            # 優先從本地磁碟快取讀取（0 消耗配額）
+            cached = hubcap_manager._load_hubcap_cached_info(appid_str)
+            if cached and cached.get("available") and cached.get("depots"):
+                return {
+                    "available": True,
+                    "depots": cached.get("depots", {}),
+                    "time": "本地快取",
+                    "is_aligned_steamdb": False,
+                    "has_zip": cached.get("has_zip", True),
+                    "quota_exhausted": False,
+                    "from_cache": True,
+                    "status_msg": "已讀取本地快取"
+                }
+
+            if not allow_network:
+                # 自動全庫比對模式下，不聯網消耗 Hubcap 配額
+                return {
+                    "available": False,
+                    "depots": {},
+                    "time": "未查詢 (節省配額)",
+                    "is_aligned_steamdb": False,
+                    "has_zip": False,
+                    "quota_exhausted": False,
+                    "from_cache": False,
+                    "status_msg": "為保護每日配額，背景比對不主動消耗 Hubcap 額度"
+                }
+
+            # 僅在使用者明確手動指定或允許聯網時發起網路請求
+            info = hubcap_manager.query_manifest_info(appid_str, timeout=timeout)
             return {
                 "available": bool(info.get("available") and info.get("depots")),
                 "depots": info.get("depots", {}) if info.get("available") else {},
@@ -88,7 +122,7 @@ class UnifiedManifestManager:
                 "status_msg": str(e)
             }
 
-    def search_all_sources(self, appid: str, timeout: int = 6, steamdb_manifests: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    def search_all_sources(self, appid: str, timeout: int = 6, steamdb_manifests: Optional[Dict[str, str]] = None, allow_hubcap_network: bool = False) -> Dict[str, Any]:
         """
         異步並行搜尋 Manifest 多源平台 (Ryuu, HubcapDB, Lua.tools)，並以 SteamDB 官方清單為基準仲裁。
         並行執行大幅降低網路等待時間。
@@ -113,11 +147,11 @@ class UnifiedManifestManager:
             except Exception:
                 steamdb_manifests = {}
 
-        # 🌟 異步並行同時查詢 Ryuu、HubcapDB 與 Lua.tools
+        # 🌟 異步並行查詢 Ryuu 與 Lua.tools；HubcapDB 嚴格受 allow_hubcap_network 控制，保護使用者配額
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             fut_ryuu = executor.submit(self._query_ryuu, appid_str, timeout)
-            fut_hubcap = executor.submit(self._query_hubcap, appid_str, timeout)
+            fut_hubcap = executor.submit(self._query_hubcap, appid_str, timeout, allow_hubcap_network)
             fut_luatools = executor.submit(self._query_luatools, appid_str, timeout)
 
             try:

@@ -559,13 +559,28 @@ class SearchHandler:
         web_patches = web_patch_checker.check_all_web_patches(search_query_name, appid=appid_str, on_step=_on_web_patch_step)
         of_info = web_patches.get("onlinefix", {})
         zg_info = web_patches.get("zeigames", {})
-        _push_step(96, "聚合 4 域數據與版本鏈對齊完成...", "各平台數據校準完畢，即將揭曉詳細資訊", 7)
+        _push_step(96, "聚合多域數據與版本鏈對齊完成...", "各平台數據校準完畢，即將揭曉詳細資訊", 7)
+
+        # 🌟 e. HubcapDB 狀態（嚴格只讀本地快取與配額，絕不自動扣除額度）
+        from managers import hubcap_manager
+        hc_key = hubcap_manager.get_api_key()
+        hc_cached = hubcap_manager._load_hubcap_cached_info(appid_str)
+        hc_stats = hubcap_manager.fetch_user_stats() if hc_key else {}
+        hubcap_status = {
+            "is_configured": bool(hc_key),
+            "quota_exhausted": bool(hc_stats and not hc_stats.get("can_make_requests", True)),
+            "remaining": hc_stats.get("remaining", 0) if hc_stats else 0,
+            "has_cache": bool(hc_cached and hc_cached.get("depots")),
+            "depots": hc_cached.get("depots", {}) if hc_cached else {},
+            "source": "HubcapDB"
+        }
 
         res["status_check"] = {
             "ryuu": ryuu_status,
             "gdrive": gdrive_status,
             "onlinefix": of_info,
-            "zeigames": zg_info
+            "zeigames": zg_info,
+            "hubcap": hubcap_status
         }
         res["dual_sources"] = res["status_check"]
 
@@ -1130,4 +1145,49 @@ class SearchHandler:
     def open_steam_store(self, appid: str) -> bool:
         """開啟 Steam 商店頁面"""
         return self.open_url(f"https://store.steampowered.com/app/{appid}/")
+
+    def query_hubcap_manually(self, appid: str) -> Dict[str, Any]:
+        """
+        供使用者在遊戲詳情頁面明確點擊「手動查詢」時觸發。
+        ⚠️ 僅在手動點擊時發送聯網請求，允許消耗 1 次 Hubcap 每日配額。
+        """
+        try:
+            from managers import hubcap_manager
+            appid_str = str(appid).strip()
+            if not hubcap_manager.get_api_key():
+                return {"ok": False, "error": "尚未設定 Hubcap API Key，請至憑證頁面綁定"}
+
+            stats = hubcap_manager.fetch_user_stats(force_refresh=True)
+            if not stats.get("can_make_requests", True):
+                return {
+                    "ok": False,
+                    "error": "HubcapDB 今日配額已達上限 (25/25 次)，請明日重置後再試",
+                    "quota_exhausted": True
+                }
+
+            # 聯網查詢 (允許扣額度)
+            info = hubcap_manager.query_manifest_info(appid_str, timeout=12)
+            if info.get("available") and info.get("depots"):
+                return {
+                    "ok": True,
+                    "available": True,
+                    "depots": info.get("depots", {}),
+                    "source": "HubcapDB",
+                    "remaining": stats.get("remaining", 0)
+                }
+            elif info.get("quota_exhausted"):
+                return {
+                    "ok": False,
+                    "error": "HubcapDB 今日配額已達上限 (25/25 次)",
+                    "quota_exhausted": True
+                }
+            else:
+                return {
+                    "ok": True,
+                    "available": False,
+                    "depots": {},
+                    "msg": "HubcapDB 尚未收錄此遊戲之 Manifest"
+                }
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 

@@ -369,6 +369,7 @@ async function openGameDetail(appid, name, image){
   var gStatus = document.getElementById('dt-gdrive-status'), gVal = document.getElementById('dt-gdrive-val');
   var ofStatus = document.getElementById('dt-of-status'), ofVal = document.getElementById('dt-of-val');
   var zgStatus = document.getElementById('dt-zg-status'), zgVal = document.getElementById('dt-zg-val');
+  var hcStatus = document.getElementById('dt-hubcap-status'), hcValText = document.getElementById('dt-hubcap-val-text'), hcBtn = document.getElementById('dt-btn-query-hubcap');
   if(rStatus){ rStatus.className = 'chip gray'; rStatus.textContent = '檢測中'; }
   if(rGid){ rGid.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
   if(gStatus){ gStatus.className = 'chip gray'; gStatus.textContent = '檢測中'; }
@@ -377,6 +378,9 @@ async function openGameDetail(appid, name, image){
   if(ofVal){ ofVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
   if(zgStatus){ zgStatus.className = 'chip gray'; zgStatus.textContent = '檢測中'; }
   if(zgVal){ zgVal.innerHTML = '<span style="color:var(--gray)">查詢中…</span>'; }
+  if(hcStatus){ hcStatus.className = 'chip gray'; hcStatus.textContent = '未查詢 (節省配額)'; }
+  if(hcValText){ hcValText.innerHTML = '<span style="color:var(--gray)">未聯網查詢</span>'; }
+  if(hcBtn){ hcBtn.disabled = false; hcBtn.style.display = 'inline-block'; hcBtn.textContent = '🔍 手動查詢 (扣1次)'; }
 
   // 清空 Tabs，右側清單顯示極速流光骨架屏
   var tabsEl = document.getElementById('dt-depot-tabs');
@@ -622,6 +626,33 @@ async function openGameDetail(appid, name, image){
         zgStatus.className = 'chip gray';
         zgStatus.textContent = '未收錄';
         zgVal.innerHTML = '<span style="color:var(--gray)">未收錄</span>';
+    }
+
+    // e. HubcapDB (嚴格只讀快取與配額，支援手動點擊查詢)
+    var hc_info = sc.hubcap || {};
+    if(hcStatus && hcValText){
+      if(hc_info.has_cache && hc_info.depots && Object.keys(hc_info.depots).length > 0){
+        hcStatus.className = 'chip ok';
+        hcStatus.textContent = '已收錄 (本地快取)';
+        var firstDid = Object.keys(hc_info.depots)[0];
+        var firstGid = hc_info.depots[firstDid];
+        hcValText.innerHTML = '<span style="color:#2E7D32;font-weight:bold" title="Depot ' + escHtml(firstDid) + ': ' + escHtml(String(firstGid)) + '">已快取 (Depot ' + escHtml(firstDid) + ')</span>';
+        if(hcBtn) hcBtn.style.display = 'none';
+      } else if(hc_info.quota_exhausted){
+        hcStatus.className = 'chip warn';
+        hcStatus.textContent = '今日配額已滿 (25/25)';
+        hcValText.innerHTML = '<span style="color:#D32F2F;font-size:11px">額度已達上限，明日重置</span>';
+        if(hcBtn){ hcBtn.disabled = true; hcBtn.textContent = '今日額度已滿'; }
+      } else if(!hc_info.is_configured){
+        hcStatus.className = 'chip gray';
+        hcStatus.textContent = '未綁定金鑰';
+        hcValText.innerHTML = '<span style="color:var(--gray)">未綁定 (可前往憑證設定)</span>';
+        if(hcBtn) hcBtn.style.display = 'none';
+      } else {
+        hcStatus.className = 'chip gray';
+        hcStatus.textContent = '未查詢 (節省配額)';
+        hcValText.innerHTML = '<span style="color:var(--gray);font-size:11px">未聯網查詢 (剩餘 ' + (hc_info.remaining || 0) + ' 次)</span>';
+        if(hcBtn){ hcBtn.disabled = false; hcBtn.style.display = 'inline-block'; hcBtn.textContent = '🔍 手動查詢 (扣1次)'; }
       }
     }
 
@@ -846,6 +877,50 @@ window.onSteamDBHistoryReady = function(appid, depots){
   if(depots && depots.length){
     _curDepotsData = depots;
     renderDepotHistory(_curSelectedDepotIdx || 0);
+  }
+};
+
+window.queryHubcapSingleManually = async function(){
+  var btn = document.getElementById('dt-btn-query-hubcap');
+  var hcStatus = document.getElementById('dt-hubcap-status');
+  var hcValText = document.getElementById('dt-hubcap-val-text');
+  if(!_curDetailAppid) return;
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-sm" style="display:inline-block;width:10px;height:10px;border:2px solid #60a5fa;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:4px"></span>查詢中…';
+  }
+  try {
+    if(window.pywebview && window.pywebview.api && window.pywebview.api.query_hubcap_manually){
+      var res = await window.pywebview.api.query_hubcap_manually(_curDetailAppid);
+      if(res && res.ok){
+        if(res.available && res.depots && Object.keys(res.depots).length > 0){
+          if(hcStatus){ hcStatus.className = 'chip ok'; hcStatus.textContent = '已收錄 (官方最新)'; }
+          var firstDid = Object.keys(res.depots)[0];
+          var firstGid = res.depots[firstDid];
+          if(hcValText) hcValText.innerHTML = '<span style="color:#2E7D32;font-weight:bold" title="Depot ' + escHtml(firstDid) + ': ' + escHtml(firstGid) + '">' + escHtml(String(firstGid)) + '</span>';
+          if(btn) btn.style.display = 'none';
+          tt('✅ HubcapDB 查詢成功！已獲取最新 Manifest 版本資料 (剩餘 ' + (res.remaining || 0) + ' 次配額)', 'ok');
+        } else {
+          if(hcStatus){ hcStatus.className = 'chip gray'; hcStatus.textContent = '未收錄'; }
+          if(hcValText) hcValText.innerHTML = '<span style="color:var(--gray)">HubcapDB 尚未收錄</span>';
+          if(btn) btn.style.display = 'none';
+          tt('ℹ️ HubcapDB 查詢完畢：此遊戲在 Hubcap 平台尚未收錄。', 'in');
+        }
+      } else {
+        var errMsg = (res && res.error) ? res.error : '查詢失敗';
+        if(res && res.quota_exhausted){
+          if(hcStatus){ hcStatus.className = 'chip warn'; hcStatus.textContent = '配額已耗盡 (25/25)'; }
+          if(hcValText) hcValText.innerHTML = '<span style="color:#D32F2F;font-size:11px">' + escHtml(errMsg) + '</span>';
+        } else {
+          if(hcValText) hcValText.innerHTML = '<span style="color:var(--err)">' + escHtml(errMsg) + '</span>';
+        }
+        if(btn){ btn.disabled = true; btn.textContent = '今日額度已滿'; }
+        tt('⚠️ ' + errMsg, 'err');
+      }
+    }
+  } catch(e){
+    if(btn){ btn.disabled = false; btn.innerHTML = '🔍 手動查詢 (扣1次)'; }
+    tt('連線查詢失敗: ' + e, 'err');
   }
 };
 

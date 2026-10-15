@@ -247,17 +247,6 @@ window.onSingleGameUpdateChecked = function(u){
           } else {
             upTag.textContent = '⚡ ' + rawStatus;
           }
-          // 來源標籤：若是 Hubcap 來源
-          var srcTag = tagsRow.querySelector('.tag-best-source');
-          if(u.best_source === 'hubcap' || (u.best_source_name && u.best_source_name.indexOf('Hubcap') !== -1)){
-            if(!srcTag){
-              tagsRow.insertAdjacentHTML('beforeend', '<span class="search-tag tag-best-source" style="background:#1e3a5f;color:#60a5fa;border:1px solid rgba(96,165,250,0.3);font-weight:600">🧢 HubcapDB</span>');
-            }
-          } else if(u.hubcap_status && u.hubcap_status.indexOf('配額') !== -1){
-            if(!srcTag){
-              tagsRow.insertAdjacentHTML('beforeend', '<span class="search-tag tag-best-source" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)" title="Hubcap 今日配額已滿 25/25">🧢 額度已滿</span>');
-            }
-          }
         } else {
           var cornerDiv = mCard.querySelector('.card-corner-tags');
           if(!cornerDiv){
@@ -270,17 +259,6 @@ window.onSingleGameUpdateChecked = function(u){
               cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ ' + escHtml(rawStatus) + '</span>');
             } else {
               cUp.textContent = '⚡ ' + rawStatus;
-            }
-            if(u.best_source === 'hubcap'){
-              var cHc = cornerDiv.querySelector('.tag-hc-src');
-              if(!cHc){
-                cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-hc-src" style="background:#1e3a5f;color:#93c5fd">🧢 Hubcap</span>');
-              }
-            } else if(u.hubcap_status && u.hubcap_status.indexOf('配額') !== -1){
-              var cHcEx = cornerDiv.querySelector('.tag-hc-src');
-              if(!cHcEx){
-                cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-hc-src" style="background:rgba(239,68,68,0.25);color:#fca5a5" title="Hubcap 今日配額已滿 25/25">🧢 額度滿</span>');
-              }
             }
           }
         }
@@ -510,16 +488,6 @@ function applyAsyncUpdates(updates){
               } else {
                 upTag.textContent = '⚡ ' + rawStatus;
               }
-              var srcTag = tagsRow.querySelector('.tag-best-source');
-              if(u.best_source === 'hubcap' || (u.best_source_name && u.best_source_name.indexOf('Hubcap') !== -1)){
-                if(!srcTag){
-                  tagsRow.insertAdjacentHTML('beforeend', '<span class="search-tag tag-best-source" style="background:#1e3a5f;color:#60a5fa;border:1px solid rgba(96,165,250,0.3);font-weight:600">🧢 HubcapDB</span>');
-                }
-              } else if(u.hubcap_status && u.hubcap_status.indexOf('配額') !== -1){
-                if(!srcTag){
-                  tagsRow.insertAdjacentHTML('beforeend', '<span class="search-tag tag-best-source" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)" title="Hubcap 今日配額已滿 25/25">🧢 額度已滿</span>');
-                }
-              }
             } else {
               var cornerDiv = mCard.querySelector('.card-corner-tags');
               if(!cornerDiv){
@@ -532,17 +500,6 @@ function applyAsyncUpdates(updates){
                   cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ ' + escHtml(rawStatus) + '</span>');
                 } else {
                   cUp.textContent = '⚡ ' + rawStatus;
-                }
-                if(u.best_source === 'hubcap'){
-                  var cHc = cornerDiv.querySelector('.tag-hc-src');
-                  if(!cHc){
-                    cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-hc-src" style="background:#1e3a5f;color:#93c5fd">🧢 Hubcap</span>');
-                  }
-                } else if(u.hubcap_status && u.hubcap_status.indexOf('配額') !== -1){
-                  var cHcEx = cornerDiv.querySelector('.tag-hc-src');
-                  if(!cHcEx){
-                    cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-hc-src" style="background:rgba(239,68,68,0.25);color:#fca5a5" title="Hubcap 今日配額已滿 25/25">🧢 額度滿</span>');
-                  }
                 }
               }
             }
@@ -754,9 +711,7 @@ function renderGames(games, filter){
           '<span class="search-tag tag-zg" id="mtag-zg-' + g.appid + '" style="' + (hasZgWeb ? 'display:inline-flex' : 'display:none') + '" title="ZeiGames 官方網站已收錄專用補丁"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>' +
           '<span class="search-tag tag-dep" id="mtag-dep-' + g.appid + '" style="' + (isDeployed ? 'display:inline-flex' : 'display:none') + '" title="本地已成功部署補丁">✅ 已部署</span>' +
           (g.locked ? '<span class="search-tag tag-lock" style="background:rgba(255,255,255,0.08);color:var(--gray);border:1px solid rgba(255,255,255,0.18)" title="已固定版本">🔒 已鎖定</span>' : '') +
-          (isUp ? '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700">⚡ ' + escHtml(rawStatus) + '</span>' : '') +
-          (g.best_source === 'hubcap' ? '<span class="search-tag tag-source" style="background:#1e3a5f;color:#60a5fa;border:1px solid rgba(96,165,250,0.3);font-weight:600">🧢 HubcapDB</span>' : '') +
-          (g.hubcap_status && g.hubcap_status.indexOf('配額') !== -1 ? '<span class="search-tag tag-quota" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)" title="Hubcap 今日配額已滿 25/25">🧢 額度已滿</span>' : '');
+          (isUp ? '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700">⚡ ' + escHtml(rawStatus) + '</span>' : '');
 
         h += '<div class="'+cardClass+'" data-appid="'+g.appid+'" style="--i:'+i+'" onclick="openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\',\''+jsesc(g.image||'')+'\')">' +
                '<img src="'+listImgUrl+'" loading="lazy" onerror="imgFb(this,'+g.appid+')">' +
@@ -782,8 +737,6 @@ function renderGames(games, filter){
         if(hasZgWeb) gridTags += '<span class="corner-tag tag-zeigames" title="ZeiGames 官方網站已收錄專用補丁"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>';
         if(isDeployed) gridTags += '<span class="corner-tag tag-dep" title="本地已成功部署補丁">✅ 部署</span>';
         if(isUp) gridTags += '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ ' + escHtml(rawStatus) + '</span>';
-        if(g.best_source === 'hubcap') gridTags += '<span class="corner-tag" style="background:#1e3a5f;color:#93c5fd">🧢 Hubcap</span>';
-        if(g.hubcap_status && g.hubcap_status.indexOf('配額') !== -1) gridTags += '<span class="corner-tag" style="background:rgba(239,68,68,0.25);color:#fca5a5" title="Hubcap 今日配額已滿 25/25">🧢 額度滿</span>';
         var cornerTagsDiv = gridTags ? '<div class="card-corner-tags">' + gridTags + '</div>' : '';
 
         var topTitle = escHtml(nm) + label;
