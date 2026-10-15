@@ -489,27 +489,36 @@ class ManageHandler:
                     timeout=6
                 )
                 is_latest = diff_info.get("is_latest", True)
+                update_mode = diff_info.get("update_mode", "none")
                 v_stat = diff_info.get("version_status", "")
                 diff_cnt = diff_info.get("diff_count", 0) or 0
-                has_avail = bool(diff_info.get("has_available_update", False))
+                has_avail = bool(diff_info.get("has_available_update", False) and update_mode == "update")
 
-                # 🌟 統一口徑：只要官方 SteamDB 有新版本（not is_latest），這款遊戲就必須跳出可更新提醒！
+                # 🌟 依照最新規範分流顯示：
+                # 模式 1：原本的黃框，顯示「可更新」，這是 Ryuu 有提供更新源時才呈現
+                # 模式 2：新方法，淺紅框，顯示「可嘗試更新」，這是用戶有輸入 hubcap api 且 Ryuu 與最新版對不上時才觸發
                 if is_latest:
                     raw_v = "最新版"
                     has_up = False
-                else:
+                elif update_mode == "try_update":
+                    raw_v = "可嘗試更新"
                     has_up = True
-                    raw_v = v_stat or (f"舊 {diff_cnt} 版" if diff_cnt > 0 else "可更新")
+                elif update_mode == "update":
+                    raw_v = v_stat or (f"舊 {diff_cnt} 版" if diff_cnt > 1 else "可更新")
+                    has_up = True
+                else:
+                    raw_v = v_stat or "待雲端同步"
+                    has_up = False
 
                 u_item = {
                     "appid": appid,
                     "name": cur_c.get("name") or (game_cache.get(appid, {}).get("name") if appid in game_cache else ""),
                     "has_update": has_up,
+                    "update_mode": update_mode,
                     "version_status": raw_v,
                     "latest_date": diff_info.get("latest_date", "未知"),
-                    "best_source": diff_info.get("best_source", "ryuu"),
-                    "best_source_name": diff_info.get("best_source_name", "Ryuu"),
-                    "hubcap_status": diff_info.get("hubcap_status", ""),
+                    "best_source": "ryuu",
+                    "best_source_name": "Ryuu",
                     "can_auto_update": has_avail
                 }
                 with save_lock:

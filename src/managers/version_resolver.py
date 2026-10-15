@@ -383,18 +383,11 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
     steamdb_date_str = steamdb_info.get("date_str", "")
     steamdb_ts = steamdb_info.get("timestamp", 0)
 
-    # 4. 進行三方優先級仲裁 (以 SteamDB 官方清單為基準)
-    unified_mgr._arbitrate_best_source(unified_search, steamdb_manifests=steamdb_manifests)
-    best_source = unified_search.get("best_source", "ryuu")
-    best_reason = unified_search.get("best_reason", "")
-
-    # 取出各平台在庫清單 (HubcapDB 或 Ryuu)
+    # 🌟 依使用者最新規範：更新檢查回復只比對 Ryuu，Hubcap 絕不自動聯網，保護配額
     ryuu_manifests = unified_search.get("ryuu", {}).get("depots", {})
-    hubcap_manifests = unified_search.get("hubcap", {}).get("depots", {})
-    if best_source == "hubcap":
-        best_manifests = hubcap_manifests or ryuu_manifests
-    else:
-        best_manifests = ryuu_manifests or hubcap_manifests
+    best_manifests = ryuu_manifests
+    best_source = "ryuu"
+    best_reason = "更新檢查以 Ryuu 純查詢中繼數據為基礎"
 
     # 3.5 🌟 拓撲自檢：判斷是否存在已棄置 (Deprecated) 的 Depot 與架構遷移需求
     topo = identify_depot_topology(
@@ -430,14 +423,13 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
     result["latest_date"] = steamdb_date_str if steamdb_date_str else "未知"
     result["latest_manifests"] = latest_manifests
     result["unified_search"] = unified_search
-    result["best_source"] = best_source
-    result["best_source_name"] = "HubcapDB" if best_source == "hubcap" else ("Ryuu" if best_source == "ryuu" else "LuaTools")
+    result["best_source"] = "ryuu"
+    result["best_source_name"] = "Ryuu"
     result["best_reason"] = best_reason
-    result["hubcap_manifests"] = hubcap_manifests
+    result["hubcap_manifests"] = unified_search.get("hubcap", {}).get("depots", {})
     result["best_manifests"] = best_manifests
 
     # 5. 🌟 判斷是否存在真正未完成的架構遷移 (Depot 棄置與替換)
-    # 只有當本地「尚未安裝接替的活躍 Depot」或「接替 Depot 的版本落後」時，才算需要架構遷移！
     needs_topology_migration = False
     if topo.get("has_deprecated"):
         replaced_map = topo.get("replaced_map", {})
@@ -451,17 +443,6 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
                 elif t_m_new and str(l_m_new) != str(t_m_new):
                     needs_topology_migration = True
                     break
-
-    has_available_update = needs_topology_migration
-    diff_update_depots = []
-    if best_manifests and local_manifests:
-        for d_id, b_m in best_manifests.items():
-            if d_id in topo.get("deprecated_depots", {}):
-                continue
-            l_m = local_manifests.get(str(d_id))
-            if not l_m or str(l_m) != str(b_m):
-                has_available_update = True
-                diff_update_depots.append((str(d_id), str(l_m or "無"), str(b_m)))
 
     # 6. 比對本地 Manifest 與線上最新清單 (判斷是否已為最新版)
     is_latest = not needs_topology_migration
@@ -477,26 +458,9 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
         elif not local_manifests:
             is_latest = False
 
-    # 🌟 核心防護：若本機已經是 SteamDB / 官方最高最新版本，絕對不應標記為待更新 (防止降級覆蓋)
-    if is_latest:
-        has_available_update = False
-        diff_update_depots = []
-
-    result["ryuu_manifests"] = ryuu_manifests
-    result["has_available_update"] = has_available_update
-    result["ryuu_has_update"] = has_available_update
-    result["diff_update_depots"] = diff_update_depots
-    result["is_latest"] = is_latest
-
-    # 若本地版本已是最新，且先前未能從本機實體檔解析出時間戳，直接自動同步 SteamDB 官方發布時間
-    if is_latest and steamdb_date_str and (result["local_date"] == "未知" or not result["local_date"]):
-        result["local_date"] = steamdb_date_str
-        actual_local_ts = steamdb_ts
-
     # 7. 計算跨越版本數
     diff_count = 0
     if not is_latest and local_manifests and latest_manifests:
-        # A. 優先從 steamdb_history_manager 計算精確落後版本階數
         for d_id, l_m in local_manifests.items():
             if d_id in topo.get("deprecated_depots", {}):
                 continue
@@ -507,7 +471,6 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
                         if h_idx > diff_count:
                             diff_count = h_idx
                         break
-        # B. 備援從 Steam 官方新聞與更新日誌計算
         if diff_count == 0:
             try:
                 news_url = f"https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid={app_id_str}&count=25&maxlength=200&format=json"
@@ -529,21 +492,75 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
         diff_count = max(1, diff_count)
 
     result["diff_count"] = diff_count
-    result["hubcap_status"] = unified_search.get("hubcap_status", "")
-    # 版本狀態
+
+    # 8. 🌟 判斷 Ryuu 是否與官方最新版完全對齊 (is_ryuu_aligned)
+    is_ryuu_aligned = False
+    if ryuu_manifests and latest_manifests:
+        active_latest = {d: str(gid) for d, gid in latest_manifests.items() if d not in topo.get("deprecated_depots", {})}
+        if active_latest:
+            matches = sum(1 for d, gid in active_latest.items() if str(ryuu_manifests.get(str(d), "")) == gid)
+            if matches == len(active_latest):
+                is_ryuu_aligned = True
+            elif unified_search.get("ryuu", {}).get("is_aligned_steamdb"):
+                is_ryuu_aligned = True
+
+    # 9. 判斷 Ryuu 是否能提供比本地新的更新 (ryuu_has_update)
+    ryuu_has_update = False
+    diff_update_depots = []
+    if ryuu_manifests and local_manifests:
+        for d_id, r_gid in ryuu_manifests.items():
+            if d_id in topo.get("deprecated_depots", {}):
+                continue
+            l_gid = local_manifests.get(str(d_id))
+            if not l_gid or str(l_gid) != str(r_gid):
+                ryuu_has_update = True
+                diff_update_depots.append((str(d_id), str(l_gid or "無"), str(r_gid)))
+    elif ryuu_manifests and not local_manifests:
+        ryuu_has_update = True
     if needs_topology_migration:
-        p_dep = topo.get("primary_active_depot", "")
-        result["version_status"] = f"架構升級 (Depot {p_dep})" if p_dep else "架構升級"
-    elif is_latest or diff_count == 0:
-        result["version_status"] = "最新版"
-    elif not has_available_update:
-        hc_info = unified_search.get("hubcap", {})
-        if hc_info.get("quota_exhausted"):
-            result["version_status"] = f"舊 {diff_count} 版 (待同步/Hubcap配額滿)"
-        else:
-            result["version_status"] = f"舊 {diff_count} 版 (待雲端同步)"
+        ryuu_has_update = True
+
+    # 10. 檢查用戶是否已輸入 Hubcap API Key
+    from managers import hubcap_manager
+    has_hubcap_key = bool(hubcap_manager.get_api_key())
+
+    # 11. 🌟 核心雙模式分流仲裁 (依使用者指示)：
+    # 模式 1：原本的黃框，顯示「可更新」，這是 Ryuu 有提供更新源時才呈現
+    # 模式 2：新方法，淺紅框，顯示「可嘗試更新」，這是偵測到用戶有輸入 hubcap api 且發現 ryuu 版本跟最新版對不上時才觸發
+    if is_latest:
+        update_mode = "none"
+        has_available_update = False
+        version_status = "最新版"
+    elif is_ryuu_aligned and ryuu_has_update:
+        # 模式 1：黃框，顯示可更新
+        update_mode = "update"
+        has_available_update = True
+        version_status = f"舊 {diff_count} 版" if diff_count > 1 else "可更新"
+    elif has_hubcap_key and not is_ryuu_aligned:
+        # 模式 2：淺紅框，顯示可嘗試更新
+        update_mode = "try_update"
+        has_available_update = False
+        version_status = "可嘗試更新"
+    elif ryuu_has_update:
+        # Ryuu 雖非官方最新版，但比本地新，且用戶未配置 Hubcap API -> 仍可更新 Ryuu 現有版本
+        update_mode = "update"
+        has_available_update = True
+        version_status = f"舊 {diff_count} 版"
     else:
-        result["version_status"] = f"舊 {diff_count} 版"
+        # Ryuu 無更新，且未綁定 Hubcap API Key -> 待雲端同步
+        update_mode = "pending"
+        has_available_update = False
+        version_status = f"舊 {diff_count} 版 (待雲端同步)"
+
+    result["update_mode"] = update_mode
+    result["is_ryuu_aligned"] = is_ryuu_aligned
+    result["ryuu_has_update"] = ryuu_has_update
+    result["has_hubcap_key"] = has_hubcap_key
+    result["version_status"] = version_status
+    result["has_available_update"] = has_available_update
+    result["diff_update_depots"] = diff_update_depots
+    result["is_latest"] = is_latest
+    result["hubcap_status"] = unified_search.get("hubcap_status", "")
 
     return result
 

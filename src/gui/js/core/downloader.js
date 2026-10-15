@@ -526,7 +526,8 @@
         // 🌟 即刻消除卡片需更新提示與發光邊框 (0ms 反饋)
         if(card){
           card.classList.remove('needs-update');
-          var upTags = card.querySelectorAll('.tag-up, .corner-tag.tag-up');
+          card.classList.remove('needs-try-update');
+          var upTags = card.querySelectorAll('.tag-up, .corner-tag.tag-up, .tag-try-up');
           upTags.forEach(function(t){ t.remove(); });
         }
         if(window.refreshUpdateCountUI) refreshUpdateCountUI();
@@ -580,13 +581,13 @@
         }
       } catch(e){}
 
-      // 雙向合併去重：確保記憶體與磁碟資料庫中的所有待更新項目 100% 納入隊列
+      // 雙向合併去重：確保記憶體與磁碟資料庫中的所有待更新項目 100% 納入隊列（過濾掉無自動更新源的 try_update）
       if(!updatables || !updatables.length){
-        updatables = (window._pre && _pre._games) ? _pre._games.filter(function(g){ return g.has_update; }) : [];
+        updatables = (window._pre && _pre._games) ? _pre._games.filter(function(g){ return g.has_update && g.update_mode !== 'try_update'; }) : [];
       } else if(window._pre && _pre._games){
         var aidSet = new Set(updatables.map(function(u){ return String(u.appid); }));
         _pre._games.forEach(function(g){
-          if(g.has_update && !aidSet.has(String(g.appid))){
+          if(g.has_update && g.update_mode !== 'try_update' && !aidSet.has(String(g.appid))){
             updatables.push({
               appid: String(g.appid),
               name: g.name || ('App_' + g.appid),
@@ -778,8 +779,9 @@
           }
         } else {
           mCard.classList.remove('needs-update');
+          mCard.classList.remove('needs-try-update');
           if(upTag) upTag.remove();
-          mCard.querySelectorAll('.tag-up, .corner-tag.tag-up').forEach(function(el){ el.remove(); });
+          mCard.querySelectorAll('.tag-up, .corner-tag.tag-up, .tag-try-up').forEach(function(el){ el.remove(); });
           if(actWrap){
             var btnAuto = actWrap.querySelector('.btn-auto-up');
             if(btnAuto) btnAuto.remove();
@@ -795,6 +797,7 @@
       var sCard = document.querySelector('#results .card[data-appid="' + aid + '"]');
       if(sCard){
         sCard.classList.remove('needs-update');
+        sCard.classList.remove('needs-try-update');
         var sBtn = sCard.querySelector('.btn');
         if(sBtn){
           sBtn.outerHTML = '<button class="btn btn-o btn-s" style="color:var(--succ);border-color:var(--succ);cursor:default" onclick="event.stopPropagation()">✅ 已在本地</button>';
@@ -805,8 +808,7 @@
         }
         var sCorner = sCard.querySelector('.card-corner-tags');
         if(sCorner){
-          var tagUp = sCorner.querySelector('.tag-up');
-          if(tagUp) tagUp.remove();
+          sCorner.querySelectorAll('.tag-up, .corner-tag.tag-up, .tag-try-up').forEach(function(el){ el.remove(); });
         }
       }
 

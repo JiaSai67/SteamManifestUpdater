@@ -221,6 +221,53 @@ body.dark .card.needs-update {
 #glist.list .card.needs-update * {
   color: #FFE066 !important;
 }
+
+/* 🌟 新增模式 2：淺紅框（可嘗試更新模式：官方有新版，Ryuu 與最新版對不上，且已綁定 Hubcap API） */
+.card.needs-try-update {
+  border: 2px solid #F87171 !important;
+  background: rgba(239, 68, 68, 0.10) !important;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.32) !important;
+}
+.card.needs-try-update .name,
+.card.needs-try-update .aid,
+.card.needs-try-update .ver-info,
+.card.needs-try-update span,
+.card.needs-try-update div {
+  color: #EF4444 !important;
+  font-weight: 700 !important;
+}
+.app.dark .card.needs-try-update,
+#app.dark .card.needs-try-update,
+body.dark .card.needs-try-update {
+  border: 2px solid #F87171 !important;
+  background: rgba(239, 68, 68, 0.15) !important;
+  box-shadow: 0 0 18px rgba(248, 113, 113, 0.4) !important;
+}
+.app.dark .card.needs-try-update .name,
+.app.dark .card.needs-try-update .aid,
+.app.dark .card.needs-try-update .ver-info,
+.app.dark .card.needs-try-update span,
+.app.dark .card.needs-try-update div,
+#app.dark .card.needs-try-update .name,
+#app.dark .card.needs-try-update .aid,
+#app.dark .card.needs-try-update .ver-info,
+#app.dark .card.needs-try-update span,
+#app.dark .card.needs-try-update div {
+  color: #FCA5A5 !important;
+  font-weight: 700 !important;
+  text-shadow: 0 0 6px rgba(239, 68, 68, 0.3);
+}
+#glist .card.needs-try-update .aid .aid-num {
+  color: #F87171 !important;
+  font-weight: 700;
+}
+#glist.list .card.needs-try-update {
+  border-left: 5px solid #F87171 !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+}
+#glist.list .card.needs-try-update * {
+  color: #FCA5A5 !important;
+}
 /* 🌟 依使用者需求：有 Online-Fix / 聯機補丁的遊戲小卡全面套用醒目藍色邊框 */
 .card.has-onlinefix,
 #glist .card.has-onlinefix,
@@ -344,6 +391,16 @@ img.corner-tag-img {
   background: linear-gradient(135deg, #FF9800, #F57C00) !important;
   box-shadow: 0 2px 6px rgba(245, 124, 0, 0.45) !important;
   animation: pulseBadge 1.5s infinite ease-in-out;
+}
+/* 🌟 模式 2：可嘗試更新醒目標籤 (淺紅漸層) */
+.search-tag.tag-try-up,
+.corner-tag.tag-try-up {
+  background: linear-gradient(135deg, #EF4444, #DC2626) !important;
+  border: 1px solid rgba(254, 202, 202, 0.4) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 7px rgba(239, 68, 68, 0.4) !important;
+  font-weight: 700 !important;
+  animation: pulseBadge 1.8s infinite ease-in-out;
 }
 #glist.list .card-corner-tags {
   position: static;

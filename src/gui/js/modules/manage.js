@@ -210,16 +210,16 @@ window.onSingleGameUpdateChecked = function(u){
       for(var i=0; i<_pre._games.length; i++){
         var g = _pre._games[i];
         if(String(g.appid) === aid){
-          if(g.has_update !== !!u.has_update || g.version_status !== u.version_status){
+          if(g.has_update !== !!u.has_update || g.version_status !== u.version_status || g.update_mode !== u.update_mode){
             statusChanged = true;
           }
           g.has_update = !!u.has_update;
-          g.version_status = u.version_status || (u.has_update ? '可更新' : '最新版');
+          g.update_mode = u.update_mode || (u.has_update ? 'update' : 'none');
+          g.version_status = u.version_status || (u.has_update ? (g.update_mode === 'try_update' ? '可嘗試更新' : '可更新') : '最新版');
           g.latest_date = u.latest_date || g.latest_date;
           g.best_source = u.best_source || g.best_source;
           g.best_source_name = u.best_source_name || g.best_source_name;
-          g.hubcap_status = u.hubcap_status || g.hubcap_status;
-          g.can_auto_update = (u.can_auto_update !== undefined) ? u.can_auto_update : g.can_auto_update;
+          g.can_auto_update = (u.can_auto_update !== undefined) ? u.can_auto_update : (g.update_mode !== 'try_update');
           break;
         }
       }
@@ -234,17 +234,32 @@ window.onSingleGameUpdateChecked = function(u){
       var ddEl = mCard.querySelector('.card-dd');
       var actWrap = mCard.querySelector('.search-action-wrap');
       if(u.has_update){
-        mCard.classList.add('needs-update');
-        var rawStatus = String(u.version_status || '可更新').replace(/跨越/g, '舊').replace(/⚡/g, '').trim();
+        var isTry = (u.update_mode === 'try_update');
+        if(isTry){
+          mCard.classList.remove('needs-update');
+          mCard.classList.add('needs-try-update');
+        } else {
+          mCard.classList.remove('needs-try-update');
+          mCard.classList.add('needs-update');
+        }
+        var rawStatus = String(u.version_status || (isTry ? '可嘗試更新' : '可更新')).replace(/跨越/g, '舊').replace(/⚡/g, '').trim();
+        var tagClass = isTry ? 'tag-up tag-try-up' : 'tag-up';
+        var tagStyle = isTry ? '' : 'style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700"';
+        var tagTitle = isTry ? '官方有新版本，但 Ryuu 尚未收錄；您已設定 Hubcap API，可點擊進入手動嘗試更新' : '官方有新版本可更新';
+
         if(tagsRow){
           if(!upTag){
-            var upTagHtml = '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700">⚡ ' + escHtml(rawStatus) + '</span>';
+            var upTagHtml = '<span class="search-tag ' + tagClass + '" ' + tagStyle + ' title="' + escHtml(tagTitle) + '">⚡ ' + escHtml(rawStatus) + '</span>';
             if(verTag){
               verTag.insertAdjacentHTML('afterend', upTagHtml);
             } else {
               tagsRow.insertAdjacentHTML('beforeend', upTagHtml);
             }
           } else {
+            upTag.className = 'search-tag ' + tagClass;
+            if(isTry) upTag.removeAttribute('style');
+            else upTag.setAttribute('style', 'background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700');
+            upTag.title = tagTitle;
             upTag.textContent = '⚡ ' + rawStatus;
           }
         } else {
@@ -256,8 +271,12 @@ window.onSingleGameUpdateChecked = function(u){
           if(cornerDiv){
             var cUp = cornerDiv.querySelector('.tag-up');
             if(!cUp){
-              cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ ' + escHtml(rawStatus) + '</span>');
+              cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag ' + tagClass + '" ' + tagStyle + ' title="' + escHtml(tagTitle) + '">⚡ ' + escHtml(rawStatus) + '</span>');
             } else {
+              cUp.className = 'corner-tag ' + tagClass;
+              if(isTry) cUp.removeAttribute('style');
+              else cUp.setAttribute('style', 'background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700');
+              cUp.title = tagTitle;
               cUp.textContent = '⚡ ' + rawStatus;
             }
           }
@@ -265,24 +284,41 @@ window.onSingleGameUpdateChecked = function(u){
         if(u.latest_date && verTag){
           verTag.textContent = '📅 版本：' + u.latest_date;
         }
-        if(actWrap && !actWrap.querySelector('.btn-auto-up') && u.can_auto_update !== false){
-          var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
-          var upBtnHtml = '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>';
-          var menuBtn = actWrap.querySelector('.card-menu');
-          if(menuBtn){
-            menuBtn.insertAdjacentHTML('beforebegin', upBtnHtml);
-          } else {
-            actWrap.insertAdjacentHTML('afterbegin', upBtnHtml);
+        var canAuto = (u.can_auto_update !== false && !isTry);
+        if(actWrap){
+          var btnAuto = actWrap.querySelector('.btn-auto-up');
+          if(canAuto){
+            if(!btnAuto){
+              var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
+              var upBtnHtml = '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>';
+              var menuBtn = actWrap.querySelector('.card-menu');
+              if(menuBtn){
+                menuBtn.insertAdjacentHTML('beforebegin', upBtnHtml);
+              } else {
+                actWrap.insertAdjacentHTML('afterbegin', upBtnHtml);
+              }
+            }
+          } else if(btnAuto){
+            btnAuto.remove();
           }
         }
-        if(ddEl && !ddEl.querySelector('.btn-auto-up') && u.can_auto_update !== false){
-          var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
-          var upBtnHtml = '<button class="btn-auto-up" style="color:#ffd700;font-weight:bold" onclick="autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 一鍵更新 Manifest</button>';
-          ddEl.insertAdjacentHTML('afterbegin', upBtnHtml);
+        if(ddEl){
+          var btnAuto = ddEl.querySelector('.btn-auto-up');
+          if(canAuto){
+            if(!btnAuto){
+              var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
+              var upBtnHtml = '<button class="btn-auto-up" style="color:#ffd700;font-weight:bold" onclick="autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 一鍵更新 Manifest</button>';
+              ddEl.insertAdjacentHTML('afterbegin', upBtnHtml);
+            }
+          } else if(btnAuto){
+            btnAuto.remove();
+          }
         }
       } else {
         mCard.classList.remove('needs-update');
+        mCard.classList.remove('needs-try-update');
         if(upTag) upTag.remove();
+        mCard.querySelectorAll('.tag-up, .corner-tag.tag-up, .tag-try-up').forEach(function(el){ el.remove(); });
         if(actWrap){
           var btnAuto = actWrap.querySelector('.btn-auto-up');
           if(btnAuto) btnAuto.remove();
@@ -305,13 +341,29 @@ window.onSingleGameUpdateChecked = function(u){
       }
       var bUpTag = bCorner.querySelector('.tag-up');
       if(u.has_update){
-        bCard.classList.add('needs-update');
+        var isTry = (u.update_mode === 'try_update');
+        if(isTry){
+          bCard.classList.remove('needs-update');
+          bCard.classList.add('needs-try-update');
+        } else {
+          bCard.classList.remove('needs-try-update');
+          bCard.classList.add('needs-update');
+        }
+        var tagClass = isTry ? 'tag-up tag-try-up' : 'tag-up';
+        var tagTitle = isTry ? '官方有新版本，但 Ryuu 尚未收錄；您已設定 Hubcap API，可點擊進入手動嘗試更新' : '官方有新版本可更新';
+        var tagText = isTry ? '⚡ 可嘗試更新' : '⚡ 可更新';
         if(!bUpTag){
-          bCorner.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ 可更新</span>');
+          bCorner.insertAdjacentHTML('beforeend', '<span class="corner-tag ' + tagClass + '" title="' + escHtml(tagTitle) + '">' + tagText + '</span>');
+        } else {
+          bUpTag.className = 'corner-tag ' + tagClass;
+          bUpTag.title = tagTitle;
+          bUpTag.textContent = tagText;
         }
       } else {
         bCard.classList.remove('needs-update');
+        bCard.classList.remove('needs-try-update');
         if(bUpTag) bUpTag.remove();
+        bCard.querySelectorAll('.tag-up, .corner-tag.tag-up, .tag-try-up').forEach(function(el){ el.remove(); });
       }
     }
   } catch(e){ console.error('onSingleGameUpdateChecked error:', e); }
@@ -375,17 +427,27 @@ function refreshUpdateCountUI(){
   var upCount = 0;
   try {
     if(!_pre._games) return 0;
-    upCount = _pre._games.filter(function(x){ return x.has_update; }).length;
+    var readyCount = _pre._games.filter(function(x){ return x.has_update && x.update_mode !== 'try_update'; }).length;
+    var tryCount = _pre._games.filter(function(x){ return x.has_update && x.update_mode === 'try_update'; }).length;
+    upCount = readyCount + tryCount;
     var btnBatch = document.getElementById('btn-batch-update');
     var mc = document.getElementById('mc');
     if(btnBatch){
-      if(upCount > 0){
+      if(readyCount > 0){
         btnBatch.style.display = 'inline-block';
-        btnBatch.textContent = '⚡ 批次更新 ('+upCount+' 款可更新)';
-        if(mc) mc.innerHTML = '（共 '+_pre._games.length+' 款，<b style="color:#E65100">'+upCount+' 款可更新</b>）';
+        btnBatch.textContent = '⚡ 批次更新 ('+readyCount+' 款可更新)';
       } else {
         btnBatch.style.display = 'none';
-        if(mc) mc.textContent = _pre._games.length ? '（共 '+_pre._games.length+' 款）' : '';
+      }
+    }
+    if(mc){
+      if(upCount > 0){
+        var desc = [];
+        if(readyCount > 0) desc.push('<b style="color:#E65100">'+readyCount+' 款可更新</b>');
+        if(tryCount > 0) desc.push('<b style="color:#EF4444">'+tryCount+' 款可嘗試更新</b>');
+        mc.innerHTML = '（共 '+_pre._games.length+' 款，'+desc.join('，')+'）';
+      } else {
+        mc.textContent = _pre._games.length ? '（共 '+_pre._games.length+' 款）' : '';
       }
     }
   } catch(e){}
@@ -450,8 +512,10 @@ function applyAsyncUpdates(updates){
         var u = updates[aid];
         _knownUpdates[aid] = u;
         g.has_update = !!u.has_update;
-        g.version_status = u.version_status || (u.has_update ? '可更新' : '最新版');
+        g.update_mode = u.update_mode || (u.has_update ? 'update' : 'none');
+        g.version_status = u.version_status || (u.has_update ? (g.update_mode === 'try_update' ? '可嘗試更新' : '可更新') : '最新版');
         g.latest_date = u.latest_date || g.latest_date;
+        g.can_auto_update = (u.can_auto_update !== undefined) ? u.can_auto_update : (g.update_mode !== 'try_update');
 
         // 局部修補「管理入庫」卡片
         var mCard = document.querySelector('#glist .card[data-appid="'+aid+'"]');
@@ -475,17 +539,32 @@ function applyAsyncUpdates(updates){
           var ddEl = mCard.querySelector('.card-dd');
           var actWrap = mCard.querySelector('.search-action-wrap');
           if(u.has_update){
-            mCard.classList.add('needs-update');
-            var rawStatus = String(g.version_status).replace(/跨越/g, '舊').replace(/⚡/g, '').trim();
+            var isTry = (u.update_mode === 'try_update');
+            if(isTry){
+              mCard.classList.remove('needs-update');
+              mCard.classList.add('needs-try-update');
+            } else {
+              mCard.classList.remove('needs-try-update');
+              mCard.classList.add('needs-update');
+            }
+            var rawStatus = String(u.version_status || (isTry ? '可嘗試更新' : '可更新')).replace(/跨越/g, '舊').replace(/⚡/g, '').trim();
+            var tagClass = isTry ? 'tag-up tag-try-up' : 'tag-up';
+            var tagStyle = isTry ? '' : 'style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700"';
+            var tagTitle = isTry ? '官方有新版本，但 Ryuu 尚未收錄；您已設定 Hubcap API，可點擊進入手動嘗試更新' : '官方有新版本可更新';
+
             if(tagsRow){
               if(!upTag){
-                var upTagHtml = '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700">⚡ ' + escHtml(rawStatus) + '</span>';
+                var upTagHtml = '<span class="search-tag ' + tagClass + '" ' + tagStyle + ' title="' + escHtml(tagTitle) + '">⚡ ' + escHtml(rawStatus) + '</span>';
                 if(verTag){
                   verTag.insertAdjacentHTML('afterend', upTagHtml);
                 } else {
                   tagsRow.insertAdjacentHTML('beforeend', upTagHtml);
                 }
               } else {
+                upTag.className = 'search-tag ' + tagClass;
+                if(isTry) upTag.removeAttribute('style');
+                else upTag.setAttribute('style', 'background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700');
+                upTag.title = tagTitle;
                 upTag.textContent = '⚡ ' + rawStatus;
               }
             } else {
@@ -497,8 +576,12 @@ function applyAsyncUpdates(updates){
               if(cornerDiv){
                 var cUp = cornerDiv.querySelector('.tag-up');
                 if(!cUp){
-                  cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ ' + escHtml(rawStatus) + '</span>');
+                  cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag ' + tagClass + '" ' + tagStyle + ' title="' + escHtml(tagTitle) + '">⚡ ' + escHtml(rawStatus) + '</span>');
                 } else {
+                  cUp.className = 'corner-tag ' + tagClass;
+                  if(isTry) cUp.removeAttribute('style');
+                  else cUp.setAttribute('style', 'background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700');
+                  cUp.title = tagTitle;
                   cUp.textContent = '⚡ ' + rawStatus;
                 }
               }
@@ -506,25 +589,41 @@ function applyAsyncUpdates(updates){
             if(u.latest_date && verTag){
               verTag.textContent = '📅 版本：' + u.latest_date;
             }
-            var canAuto = (u.can_auto_update !== false);
-            if(actWrap && !actWrap.querySelector('.btn-auto-up') && canAuto){
-              var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
-              var upBtnHtml = '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>';
-              var menuBtn = actWrap.querySelector('.card-menu');
-              if(menuBtn){
-                menuBtn.insertAdjacentHTML('beforebegin', upBtnHtml);
-              } else {
-                actWrap.insertAdjacentHTML('afterbegin', upBtnHtml);
+            var canAuto = (u.can_auto_update !== false && !isTry);
+            if(actWrap){
+              var btnAuto = actWrap.querySelector('.btn-auto-up');
+              if(canAuto){
+                if(!btnAuto){
+                  var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
+                  var upBtnHtml = '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>';
+                  var menuBtn = actWrap.querySelector('.card-menu');
+                  if(menuBtn){
+                    menuBtn.insertAdjacentHTML('beforebegin', upBtnHtml);
+                  } else {
+                    actWrap.insertAdjacentHTML('afterbegin', upBtnHtml);
+                  }
+                }
+              } else if(btnAuto){
+                btnAuto.remove();
               }
             }
-            if(ddEl && !ddEl.querySelector('.btn-auto-up') && canAuto){
-              var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
-              var upBtnHtml = '<button class="btn-auto-up" style="color:#ffd700;font-weight:bold" onclick="autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 一鍵更新 Manifest</button>';
-              ddEl.insertAdjacentHTML('afterbegin', upBtnHtml);
+            if(ddEl){
+              var btnAuto = ddEl.querySelector('.btn-auto-up');
+              if(canAuto){
+                if(!btnAuto){
+                  var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
+                  var upBtnHtml = '<button class="btn-auto-up" style="color:#ffd700;font-weight:bold" onclick="autoUpdateSingle(\''+aid+'\',\''+jsesc(nm)+'\')">⚡ 一鍵更新 Manifest</button>';
+                  ddEl.insertAdjacentHTML('afterbegin', upBtnHtml);
+                }
+              } else if(btnAuto){
+                btnAuto.remove();
+              }
             }
           } else {
             mCard.classList.remove('needs-update');
+            mCard.classList.remove('needs-try-update');
             if(upTag) upTag.remove();
+            mCard.querySelectorAll('.tag-up, .corner-tag.tag-up, .tag-try-up').forEach(function(el){ el.remove(); });
             if(actWrap){
               var btnAuto = actWrap.querySelector('.btn-auto-up');
               if(btnAuto) btnAuto.remove();
@@ -644,16 +743,27 @@ function renderGames(games, filter){
         return matchAppid || matchName || matchEn;
       });
     }
-    var upCount = games.filter(function(x){ return x.has_update; }).length;
+    var readyCount = games.filter(function(x){ return x.has_update && x.update_mode !== 'try_update'; }).length;
+    var tryCount = games.filter(function(x){ return x.has_update && x.update_mode === 'try_update'; }).length;
+    var upCount = readyCount + tryCount;
     var btnBatch = document.getElementById('btn-batch-update');
     if(btnBatch){
-      if(upCount > 0){
+      if(readyCount > 0){
         btnBatch.style.display = 'inline-block';
-        btnBatch.textContent = '⚡ 批次更新 ('+upCount+' 款可更新)';
-        document.getElementById('mc').innerHTML = '（共 '+games.length+' 款，<b style="color:#E65100">'+upCount+' 款可更新</b>）';
+        btnBatch.textContent = '⚡ 批次更新 ('+readyCount+' 款可更新)';
       } else {
         btnBatch.style.display = 'none';
-        document.getElementById('mc').textContent = games.length ? '（共 '+games.length+' 款）' : '';
+      }
+    }
+    var mc = document.getElementById('mc');
+    if(mc){
+      if(upCount > 0){
+        var desc = [];
+        if(readyCount > 0) desc.push('<b style="color:#E65100">'+readyCount+' 款可更新</b>');
+        if(tryCount > 0) desc.push('<b style="color:#EF4444">'+tryCount+' 款可嘗試更新</b>');
+        mc.innerHTML = '（共 '+games.length+' 款，'+desc.join('，')+'）';
+      } else {
+        mc.textContent = games.length ? '（共 '+games.length+' 款）' : '';
       }
     }
     updateManageQuota();
@@ -674,18 +784,19 @@ function renderGames(games, filter){
       var nm = g.name || ('App_' + g.appid);
       var label = g.type_unknown ? ' <span class=unknown-tag>識別中…</span>' : '';
       var isUp = !!g.has_update;
+      var isTryUp = (g.update_mode === 'try_update');
       var aidStr = String(g.appid);
       var hasGdrive = (g.has_gdrive !== undefined ? !!g.has_gdrive : (g.has_onlinefix !== undefined ? !!g.has_onlinefix : (_onlinefixAppids && _onlinefixAppids.has(aidStr))));
       var hasOfWeb = (g.has_onlinefix_web !== undefined ? !!g.has_onlinefix_web : (window._onlinefixWebAppids && window._onlinefixWebAppids.has(aidStr)));
       var hasZgWeb = (g.has_zeigames_web !== undefined ? !!g.has_zeigames_web : (window._zeigamesWebAppids && window._zeigamesWebAppids.has(aidStr)));
       var isDeployed = (g.deployed !== undefined ? !!g.deployed : (_deployedAppids && _deployedAppids.has(aidStr)));
       var hasOf = hasGdrive || hasOfWeb || hasZgWeb;
-      var cardClass = 'card' + (isUp ? ' needs-update' : '') + (hasOf ? ' has-onlinefix' : '');
-      var rawStatus = String(g.version_status || '可更新').replace(/跨越/g, '舊').replace(/⚡/g, '').trim();
+      var cardClass = 'card' + (isUp ? (isTryUp ? ' needs-try-update' : ' needs-update') : '') + (hasOf ? ' has-onlinefix' : '');
+      var rawStatus = String(g.version_status || (isTryUp ? '可嘗試更新' : '可更新')).replace(/跨越/g, '舊').replace(/⚡/g, '').trim();
 
-      var canAuto = (g.can_auto_update !== false);
-      var upMenuBtn = isUp ? (canAuto ? '<button style="color:#ffd700;font-weight:bold" onclick="autoUpdateSingle(\''+g.appid+'\',\''+jsesc(nm)+'\')">⚡ 一鍵更新 Manifest</button>' : '<button style="color:#ffb74d" onclick="openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\')">🔍 檢視多源狀態</button>') : '';
-      var upQuickBtn = isUp ? (canAuto ? '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+g.appid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>' : '<button class="btn btn-s" style="background:rgba(255,152,0,0.2);color:#ffb74d;border:1px solid rgba(255,152,0,0.4);cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\')">🔍 檢視狀態</button>') : '';
+      var canAuto = (g.can_auto_update !== false && !isTryUp);
+      var upMenuBtn = isUp ? (canAuto ? '<button style="color:#ffd700;font-weight:bold" onclick="autoUpdateSingle(\''+g.appid+'\',\''+jsesc(nm)+'\')">⚡ 一鍵更新 Manifest</button>' : '<button style="color:#fca5a5" onclick="openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\')">🔍 檢視狀態</button>') : '';
+      var upQuickBtn = isUp ? (canAuto ? '<button class="btn btn-s btn-auto-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); autoUpdateSingle(\''+g.appid+'\',\''+jsesc(nm)+'\')">⚡ 更新 Manifest</button>' : '<button class="btn btn-s" style="background:rgba(239,68,68,0.18);color:#fca5a5;border:1px solid rgba(239,68,68,0.35);cursor:pointer;font-weight:bold;margin-right:8px" onclick="event.stopPropagation(); openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\')">🔍 檢視狀態</button>') : '';
 
       var commonMenuHtml = '<button class="card-menu" title="更多選項" onclick="event.stopPropagation()"><svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><circle cx="2.5" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13.5" cy="8" r="1.5"/></svg></button>' +
         '<div class="card-dd" onclick="event.stopPropagation()">' +
@@ -711,7 +822,7 @@ function renderGames(games, filter){
           '<span class="search-tag tag-zg" id="mtag-zg-' + g.appid + '" style="' + (hasZgWeb ? 'display:inline-flex' : 'display:none') + '" title="ZeiGames 官方網站已收錄專用補丁"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>' +
           '<span class="search-tag tag-dep" id="mtag-dep-' + g.appid + '" style="' + (isDeployed ? 'display:inline-flex' : 'display:none') + '" title="本地已成功部署補丁">✅ 已部署</span>' +
           (g.locked ? '<span class="search-tag tag-lock" style="background:rgba(255,255,255,0.08);color:var(--gray);border:1px solid rgba(255,255,255,0.18)" title="已固定版本">🔒 已鎖定</span>' : '') +
-          (isUp ? '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700">⚡ ' + escHtml(rawStatus) + '</span>' : '');
+          (isUp ? (isTryUp ? '<span class="search-tag tag-up tag-try-up" title="官方有新版本，但 Ryuu 尚未收錄；您已設定 Hubcap API，可點擊進入手動嘗試更新">⚡ ' + escHtml(rawStatus) + '</span>' : '<span class="search-tag tag-up" style="background:linear-gradient(135deg,#FF9800,#F57C00);color:#fff;border:none;font-weight:700" title="官方有新版本可更新">⚡ ' + escHtml(rawStatus) + '</span>') : '');
 
         h += '<div class="'+cardClass+'" data-appid="'+g.appid+'" style="--i:'+i+'" onclick="openGameDetail(\''+g.appid+'\',\''+jsesc(nm)+'\',\''+jsesc(g.image||'')+'\')">' +
                '<img src="'+listImgUrl+'" loading="lazy" onerror="imgFb(this,'+g.appid+')">' +
@@ -736,7 +847,7 @@ function renderGames(games, filter){
         if(hasOfWeb) gridTags += '<span class="corner-tag tag-onlinefix" title="Online-Fix 官方網站已收錄聯機補丁"><img src="assets/icons/onlinefix.png" class="corner-tag-img" alt="OF"/>Online-Fix</span>';
         if(hasZgWeb) gridTags += '<span class="corner-tag tag-zeigames" title="ZeiGames 官方網站已收錄專用補丁"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>';
         if(isDeployed) gridTags += '<span class="corner-tag tag-dep" title="本地已成功部署補丁">✅ 部署</span>';
-        if(isUp) gridTags += '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ ' + escHtml(rawStatus) + '</span>';
+        if(isUp) gridTags += '<span class="corner-tag tag-up' + (isTryUp ? ' tag-try-up' : '') + '" title="' + (isTryUp ? '官方有新版本，但 Ryuu 尚未收錄；您已設定 Hubcap API，可點擊進入手動嘗試更新' : '官方有新版本可更新') + '">⚡ ' + escHtml(rawStatus) + '</span>';
         var cornerTagsDiv = gridTags ? '<div class="card-corner-tags">' + gridTags + '</div>' : '';
 
         var topTitle = escHtml(nm) + label;

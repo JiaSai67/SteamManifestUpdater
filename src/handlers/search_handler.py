@@ -1066,25 +1066,30 @@ class SearchHandler:
                 timeout=4
             )
             is_latest = diff_info.get("is_latest", True)
+            update_mode = diff_info.get("update_mode", "none")
             v_stat = diff_info.get("version_status", "")
             diff_cnt = diff_info.get("diff_count", 0) or 0
 
             if is_latest:
                 raw_v = "最新版"
                 has_up = False
-            elif v_stat == "待雲端同步" or not diff_info.get("has_available_update"):
-                raw_v = "待雲端同步"
-                has_up = False
-            else:
-                raw_v = f"舊 {diff_cnt} 版" if diff_cnt > 0 else (v_stat or "舊 1 版")
+            elif update_mode == "try_update":
+                raw_v = "可嘗試更新"
                 has_up = True
+            elif update_mode == "update":
+                raw_v = f"舊 {diff_cnt} 版" if diff_cnt > 1 else (v_stat or "可更新")
+                has_up = True
+            else:
+                raw_v = v_stat or "待雲端同步"
+                has_up = False
 
             u_item = {
                 "appid": appid_str,
                 "has_update": has_up,
+                "update_mode": update_mode,
                 "version_status": raw_v,
                 "latest_date": diff_info.get("latest_date", "未知"),
-                "best_source": diff_info.get("best_source", "ryuu")
+                "best_source": "ryuu"
             }
 
             # 同步更新 manifest_updates.json 快取

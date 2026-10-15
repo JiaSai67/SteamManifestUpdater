@@ -47,10 +47,11 @@ function _browseCard(g){
   if(hasOfWeb) tagsHtml += '<span class="corner-tag tag-onlinefix" title="Online-Fix 官方網站已收錄聯機補丁"><img src="assets/icons/onlinefix.png" class="corner-tag-img" alt="OF"/>Online-Fix</span>';
   if(hasZgWeb) tagsHtml += '<span class="corner-tag tag-zeigames" title="ZeiGames 官方網站已收錄專用補丁"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>';
   if(isDeployed) tagsHtml += '<span class="corner-tag tag-dep" title="本地已成功部署補丁">✅ 部署</span>';
-  if(hasUp) tagsHtml += '<span class="corner-tag tag-up" title="官方有新版本可更新">⚡ 可更新</span>';
+  var isTryUp = (g.update_mode === 'try_update');
+  if(hasUp) tagsHtml += '<span class="corner-tag tag-up' + (isTryUp ? ' tag-try-up' : '') + '" title="' + (isTryUp ? '官方有新版本，但 Ryuu 尚未收錄；您已設定 Hubcap API，可點擊進入手動嘗試更新' : '官方有新版本可更新') + '">⚡ ' + (isTryUp ? '可嘗試更新' : '可更新') + '</span>';
   var cornerTagsDiv = tagsHtml ? '<div class="card-corner-tags">' + tagsHtml + '</div>' : '';
 
-  var cardClass = 'card' + (hasUp ? ' needs-update' : '') + ((hasGdrive || hasOfWeb || hasZgWeb) ? ' has-onlinefix' : '');
+  var cardClass = 'card' + (hasUp ? (isTryUp ? ' needs-try-update' : ' needs-update') : '') + ((hasGdrive || hasOfWeb || hasZgWeb) ? ' has-onlinefix' : '');
   var actionBtn = '';
   if(isInstalled){
     actionBtn = '<button class="card-menu card-installed" onclick="event.stopPropagation()" title="✅ 已在本地入庫' + (hasUp ? ' (官方有新版本可更新)' : '') + '">' +
