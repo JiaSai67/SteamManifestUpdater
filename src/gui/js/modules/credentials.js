@@ -737,7 +737,7 @@ function renderQuotaMatrix(res, forceRender) {
   // 只要 totals.hubcap.limit > 0 或 totals.hubcap.left > 0，代表系統中已經確認存在有效配額（例如 25 / 25）
   // 此時絕對不允許降級進入「⚠️ 重新配置」，強制將狀態視為有效！
   var hasConfirmedQuota = (totals.hubcap.limit > 0 || totals.hubcap.left > 0 || (globalHc && globalHc.is_valid));
-  var isHubcapValid = hasConfirmedQuota || (configuredHc && configuredHc.is_valid);
+  var isHubcapValid = hasConfirmedQuota || (configuredHc && (configuredHc.is_valid || configuredHc.quota_exhausted));
 
   var singleHubcapCellHtml = '';
   if (isHubcapValid) {

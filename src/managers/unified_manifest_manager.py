@@ -550,11 +550,14 @@ class UnifiedManifestManager:
                 steam_manager.lock_game_version(appid_str, steam_p)
                 is_aligned_sdb = target_source_info.get("is_aligned_steamdb", True)
                 if not is_aligned_sdb:
-                    msg = "本機已是第三方雲端庫目前最高收錄版本（官方最新版尚待上游同步收錄）"
+                    msg = "更新未完成：官方已有最新版本，但 Ryuu 尚未收錄且 Hubcap 配額已耗盡無法下載最新清單"
+                    print(f"[UnifiedManifestManager] AppID {appid_str} {msg}")
+                    if logger: logger.log_step("更新終止", msg, status="WARN")
+                    return False, msg
                 else:
                     msg = "本機 Lua 與實體 Manifest 已與線上最高收錄版本完全吻合，已完成自檢校準！"
-                print(f"[UnifiedManifestManager] AppID {appid_str} {msg}")
-                return True, msg
+                    print(f"[UnifiedManifestManager] AppID {appid_str} {msg}")
+                    return True, msg
 
         # 🌟 步驟 3：依據多源仲裁的最佳來源 (best_source) 執行部署管線
         ok = False
@@ -648,8 +651,12 @@ class UnifiedManifestManager:
                     else:
                         if logger: logger.log_step("Hubcap替換失敗", msg_hc, status="WARN")
 
-        # 若 Ryuu 本身成功且 Hubcap 未能替換，直接採用 Ryuu
+        # 若 Ryuu 本身成功且 Hubcap 未能替換，檢查是否仍落後於官方最新版
         if ok:
+            if need_hubcap_replace and not is_official_latest:
+                msg = f"更新失敗：Ryuu 版本落後於官方最新版 ({replace_reason})，且 Hubcap 今日額度已用罄無法下載最新清單"
+                if logger: logger.log_step("更新未達最新", msg, status="WARN")
+                return False, msg
             return True, ryuu_msg
 
         # 若 HTTP 通道未成功且當前為 Qt 模式，嘗試 WebEngine 通道作為備援

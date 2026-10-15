@@ -47,14 +47,18 @@ async function updateManageQuota(){
 
     // 2. HubcapDB 官方配額與狀態計算
     var hc = res.hubcap || {};
-    var hcLeft = hc.remaining || 0;
-    var hcLimit = hc.daily_limit || (hc.is_configured ? 50 : 0);
-    var hcIsValid = !!hc.is_valid;
+    var hcLeft = (hc.remaining != null) ? hc.remaining : 0;
+    var hcLimit = hc.daily_limit || (hc.is_configured ? 25 : 0);
+    var hcIsValid = !!(hc.is_valid || (hc.is_configured && hcLimit > 0));
+    var hcIsExhausted = !!(hc.quota_exhausted || hcLeft <= 0);
     var hcChipHtml = '';
     if(hc.is_configured){
-      if(hcIsValid){
+      if(hcIsExhausted && (hcIsValid || hcLimit > 0)){
+        var hcExTitle = '🧢 HubcapDB 今日配額已用罄: 0 / ' + hcLimit + ' 次 (今日滿)，點擊查看';
+        hcChipHtml = '<span class="quota-chip quota-chip-exhausted" onclick="switchPage(\'credentials\')" title="' + hcExTitle + '">🧢 Hubcap: <b>0/' + hcLimit + '</b></span>';
+      } else if(hcIsValid){
         var hcTitle = '🧢 HubcapDB 今日剩餘配額: ' + hcLeft + ' / ' + hcLimit + ' 次 (已授權)';
-        hcChipHtml = '<span class="quota-chip quota-chip-hubcap" onclick="switchPage(\'credentials\')" title="' + hcTitle + '">🧢 Hubcap: <b>' + hcLeft + '</b> 次</span>';
+        hcChipHtml = '<span class="quota-chip quota-chip-hubcap" onclick="switchPage(\'credentials\')" title="' + hcTitle + '">🧢 Hubcap: <b>' + hcLeft + '/' + hcLimit + '</b></span>';
       } else {
         hcChipHtml = '<span class="quota-chip quota-chip-expired" onclick="switchPage(\'credentials\')" title="Hubcap 金鑰過期或無效，點擊設定">🧢 Hubcap: <b>⚠️ 待設定</b></span>';
       }

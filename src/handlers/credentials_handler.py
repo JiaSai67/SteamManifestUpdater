@@ -145,9 +145,10 @@ class CredentialsHandler:
                     h_stats = hubcap_manager.fetch_user_stats(h_key)
                     acc["hubcap"] = {
                         "is_configured": True,
-                        "is_valid": bool(h_stats.get("ok")),
+                        "is_valid": bool(h_stats.get("is_valid", h_stats.get("ok"))),
+                        "quota_exhausted": bool(h_stats.get("quota_exhausted") or h_stats.get("remaining", 0) <= 0),
                         "remaining": h_stats.get("remaining", 0),
-                        "daily_limit": h_stats.get("daily_limit", 25),
+                        "daily_limit": h_stats.get("daily_limit", 25) or 25,
                         "daily_usage": h_stats.get("daily_usage", 0),
                         "api_key_masked": (h_key[:4] + "••••••••" + h_key[-4:]) if len(h_key) > 8 else "••••••••",
                         "error": h_stats.get("error", "")
@@ -156,6 +157,7 @@ class CredentialsHandler:
                     acc["hubcap"] = {
                         "is_configured": False,
                         "is_valid": False,
+                        "quota_exhausted": False,
                         "remaining": 0,
                         "daily_limit": 25,
                         "daily_usage": 0,
@@ -175,10 +177,10 @@ class CredentialsHandler:
                 for a in a_list:
                     ah = a.get("hubcap", {})
                     ak = ah.get("api_key_masked")
-                    if ah.get("is_valid") and ak and ak not in seen_hubcap_keys:
+                    if (ah.get("is_valid") or ah.get("is_configured")) and ak and ak not in seen_hubcap_keys:
                         seen_hubcap_keys.add(ak)
                         hubcap_total_left += ah.get("remaining", 0)
-                        hubcap_total_limit += ah.get("daily_limit", 0)
+                        hubcap_total_limit += (ah.get("daily_limit") or 25)
                         hubcap_total_used += ah.get("daily_usage", 0)
 
             # 4. 使用者個人資料 (User Profile)
@@ -209,6 +211,10 @@ class CredentialsHandler:
             preferred_source = cfg.get("preferred_source", "auto")
             auto_rotate = mgr.data.get("auto_rotate", True)
 
+            final_hc_valid = bool(default_hubcap_stats.get("is_valid", default_hubcap_stats.get("ok")) or hubcap_total_limit > 0)
+            final_hc_limit = hubcap_total_limit or default_hubcap_stats.get("daily_limit", 25) or 25
+            final_hc_left = hubcap_total_left if seen_hubcap_keys else default_hubcap_stats.get("remaining", 0)
+
             return {
                 "ok": True,
                 "user_profile": {
@@ -233,11 +239,12 @@ class CredentialsHandler:
                 },
                 "hubcap": {
                     "is_configured": bool(seen_hubcap_keys or raw_hubcap_key),
-                    "is_valid": hubcap_total_limit > 0 or bool(default_hubcap_stats.get("ok")),
+                    "is_valid": final_hc_valid,
+                    "quota_exhausted": bool(default_hubcap_stats.get("quota_exhausted") or final_hc_left <= 0),
                     "api_key_masked": (raw_hubcap_key[:4] + "••••••••" + raw_hubcap_key[-4:]) if len(raw_hubcap_key) > 8 else "",
-                    "daily_limit": hubcap_total_limit or default_hubcap_stats.get("daily_limit", 0),
+                    "daily_limit": final_hc_limit,
                     "daily_usage": hubcap_total_used or default_hubcap_stats.get("daily_usage", 0),
-                    "remaining": hubcap_total_left or default_hubcap_stats.get("remaining", 0),
+                    "remaining": final_hc_left,
                     "resets_at": default_hubcap_stats.get("resets_at", ""),
                     "api_key_expires_at": default_hubcap_stats.get("api_key_expires_at", ""),
                     "can_make_requests": bool(default_hubcap_stats.get("can_make_requests", True)),

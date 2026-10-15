@@ -103,7 +103,8 @@ def fetch_user_stats(api_key: Optional[str] = None, force_refresh: bool = False)
                 "remaining": remaining,
                 "resets_at": data.get("resets_at", ""),
                 "api_key_expires_at": data.get("api_key_expires_at", ""),
-                "can_make_requests": bool(data.get("can_make_requests", True))
+                "can_make_requests": bool(data.get("can_make_requests", True)) and (remaining > 0),
+                "quota_exhausted": (remaining <= 0)
             }
             # 更新快取
             _user_stats_cache[key] = {
@@ -128,13 +129,35 @@ def fetch_user_stats(api_key: Optional[str] = None, force_refresh: bool = False)
                 "error": msg,
                 "raw_error": err_body,
                 "is_configured": True,
+                "is_valid": False,
                 "daily_limit": 0,
                 "daily_usage": 0,
                 "remaining": 0,
                 "can_make_requests": False
             }
         elif he.code == 429:
-            msg = "已超過請求頻率限制或配額耗盡 (429 Too Many Requests)"
+            msg = "已超過請求頻率限制或今日配額耗盡 (429 Too Many Requests)"
+            prev_limit = 25
+            if cached and cached.get("last_valid_stats"):
+                prev_limit = cached["last_valid_stats"].get("daily_limit") or 25
+            res_429 = {
+                "ok": True,
+                "is_configured": True,
+                "is_valid": True,
+                "quota_exhausted": True,
+                "daily_limit": prev_limit,
+                "daily_usage": prev_limit,
+                "remaining": 0,
+                "can_make_requests": False,
+                "error": msg,
+                "raw_error": err_body
+            }
+            _user_stats_cache[key] = {
+                "time": now,
+                "stats": res_429,
+                "last_valid_stats": res_429
+            }
+            return res_429
 
         # 429 或其他暫時性 HTTP 異常：若先前有有效快取，進行寬容回退避免前端瞬間閃紅
         if cached and cached.get("last_valid_stats") and (now - cached.get("time", 0) < FALLBACK_GRACE_PERIOD):
@@ -146,8 +169,9 @@ def fetch_user_stats(api_key: Optional[str] = None, force_refresh: bool = False)
             "error": msg,
             "raw_error": err_body,
             "is_configured": True,
-            "daily_limit": 0,
-            "daily_usage": 0,
+            "is_valid": True,
+            "daily_limit": 25,
+            "daily_usage": 25,
             "remaining": 0,
             "can_make_requests": False
         }
@@ -412,7 +436,10 @@ def download_manifest_package(appid: str, api_key: Optional[str] = None, timeout
                     except Exception:
                         last_err = f"回傳非 ZIP 內容 ({len(data)} bytes)"
         except urllib.error.HTTPError as he:
-            last_err = f"HTTP {he.code}"
+            if he.code == 429:
+                last_err = "Hubcap 今日額度已用罄 (429 Too Many Requests)"
+            else:
+                last_err = f"HTTP {he.code}"
         except Exception as e:
             last_err = str(e)
 

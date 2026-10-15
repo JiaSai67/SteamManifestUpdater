@@ -522,6 +522,10 @@
 
       try {
         var res = await this.downloadManifest(aidStr, gName, { isUpdate: true });
+        if(!res || res.ok === false){
+          var errMsg = (res && (res.msg || (res.data && res.data.msg))) || 'Manifest 更新未完成';
+          throw new Error(errMsg);
+        }
 
         // 🌟 即刻消除卡片需更新提示與發光邊框 (0ms 反饋)
         if(card){
@@ -554,7 +558,8 @@
         if(!options.silentBatch){
           if(window.tt) tt('❌ 「' + gName + '」更新失敗: ' + (err.message || err), 'er');
         }
-        await new Promise(function(r){ setTimeout(r, 1200); });
+        // 🌟 失敗時保留更新標籤與提示，等候 1500ms 供使用者確認錯誤訊息
+        await new Promise(function(r){ setTimeout(r, 1500); });
         throw err;
       } finally {
         if(ov) ov.remove();
@@ -581,20 +586,28 @@
         }
       } catch(e){}
 
+      // 嚴格排除需手動嘗試之 try_update 與 can_auto_update 為 false 的項目
+      if(updatables && updatables.length){
+        updatables = updatables.filter(function(u){
+          return u && u.has_update && u.update_mode !== 'try_update' && u.can_auto_update !== false;
+        });
+      }
+
       // 雙向合併去重：確保記憶體與磁碟資料庫中的所有待更新項目 100% 納入隊列（過濾掉無自動更新源的 try_update）
       if(!updatables || !updatables.length){
-        updatables = (window._pre && _pre._games) ? _pre._games.filter(function(g){ return g.has_update && g.update_mode !== 'try_update'; }) : [];
+        updatables = (window._pre && _pre._games) ? _pre._games.filter(function(g){ return g.has_update && g.update_mode !== 'try_update' && g.can_auto_update !== false; }) : [];
       } else if(window._pre && _pre._games){
         var aidSet = new Set(updatables.map(function(u){ return String(u.appid); }));
         _pre._games.forEach(function(g){
-          if(g.has_update && g.update_mode !== 'try_update' && !aidSet.has(String(g.appid))){
+          if(g.has_update && g.update_mode !== 'try_update' && g.can_auto_update !== false && !aidSet.has(String(g.appid))){
             updatables.push({
               appid: String(g.appid),
               name: g.name || ('App_' + g.appid),
               has_update: true,
               version_status: g.version_status || '可更新',
               latest_date: g.latest_date || '',
-              best_source: g.best_source || 'ryuu'
+              best_source: g.best_source || 'ryuu',
+              update_mode: g.update_mode || 'auto_update'
             });
             aidSet.add(String(g.appid));
           }

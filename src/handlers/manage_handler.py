@@ -64,6 +64,10 @@ class ManageHandler:
         for aid, u in cached_updates.items():
             if not u.get("has_update"):
                 continue
+            # 🌟 批次更新防線：僅針對 Ryuu 明確收錄新版本的項目，排除需手動嘗試更新 (try_update) 的項目
+            if u.get("update_mode") == "try_update" or u.get("can_auto_update") is False:
+                continue
+
             aid_str = str(aid).strip()
             # 確認本地確有此 Lua
             if lua_dir and not (lua_dir / f"{aid_str}.lua").exists():
@@ -77,7 +81,9 @@ class ManageHandler:
                 "has_update": True,
                 "version_status": u.get("version_status", "可更新"),
                 "latest_date": u.get("latest_date", "未知"),
-                "best_source": u.get("best_source", "ryuu")
+                "best_source": u.get("best_source", "ryuu"),
+                "update_mode": u.get("update_mode", "auto_update"),
+                "can_auto_update": u.get("can_auto_update", True)
             })
 
         return results
