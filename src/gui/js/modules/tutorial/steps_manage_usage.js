@@ -202,7 +202,10 @@
       page: 'manage',
       target: '#p-manage button[onclick="rg(true);"]',
       title: '檢查更新與一鍵比對',
-      desc: '當 Steam 官方遊戲有版本釋出時，點擊「🔄 檢查更新」即可自動聯機比對最新 Manifest 清單並進行增量補丁修復，確保您的存檔與遊戲無縫相容！',
+      desc: '當 Steam 官方遊戲有版本釋出時，點擊「🔄 檢查更新」即可自動聯機比對最新 Manifest 清單並進行增量補丁修復，確保您的存檔與遊戲無縫相容！<br><br>' +
+            '💡 <strong>版本狀態標籤說明</strong>：<br>' +
+            '• <strong style="color:#FF9800">⚡ 可更新（黃框）</strong>：主源 Ryuu 已收錄新版本，支援右上角「⚡ 批次更新」一鍵升級。<br>' +
+            '• <strong style="color:#EF4444">⚡ 可嘗試更新（淺紅框）</strong>：官方已有新版但 Ryuu 尚未收錄；若您有設定 Hubcap API，可點入卡片手動嘗試查詢與下載！',
       hint: '亦可使用旁邊的排序模式快速篩選需要更新的遊戲。',
       placement: 'bottom'
     },

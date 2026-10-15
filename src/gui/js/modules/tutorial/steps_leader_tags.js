@@ -81,12 +81,16 @@
     resEl.classList.remove('browse-grid');
     resEl.innerHTML = `
       <div class="card has-onlinefix" data-appid="1245620" id="tutorial-leader-mock-card">
+        <div class="card-corner-tags" id="tut-corner-tags-wrap">
+          <span class="corner-tag tag-up tag-try-up" id="tut-corner-tag-tryup" style="display:inline-flex" title="官方有新版本，但 Ryuu 尚未收錄；您已設定 Hubcap API，可點擊進入手動嘗試更新">⚡ 可嘗試更新</span>
+        </div>
         <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/1245620/header.jpg" loading="lazy" onerror="this.src='https://cdn.cloudflare.steamstatic.com/steam/apps/1245620/capsule_231x87.jpg'" onload="if(window.TutorialEngine) window.TutorialEngine.reposition()">
         <div class="info">
           <div class="name" title="艾爾登法環 (ELDEN RING)">艾爾登法環 (ELDEN RING)</div>
           <div class="search-tags-row" id="tut-leader-tags-row" style="display:inline-flex;width:fit-content;max-width:max-content;align-items:center;gap:6px;flex-wrap:nowrap;overflow:visible">
             <span class="aid">1245620</span>
             <span class="search-tag tag-ver">📅 版本：最新</span>
+            <span class="search-tag tag-up tag-try-up" id="tut-tag-try-up" style="display:inline-flex" title="官方有新版本，但 Ryuu 尚未收錄；您已設定 Hubcap API，可點擊進入手動嘗試更新">⚡ 可嘗試更新</span>
             <span class="search-tag tag-gdrive" id="tut-tag-gdrive" style="display:inline-flex" title="Google Drive 網盤補丁庫已收錄補丁檔案"><img src="assets/icons/gdrive.png" class="corner-tag-img" alt="GD"/>Google Drive</span>
             <span id="tut-source-tags-wrap" style="display:inline-flex;align-items:center;gap:6px">
               <span class="search-tag tag-of" id="tut-tag-of" style="display:inline-flex" title="Online-Fix 官方網站已收錄聯機補丁"><img src="assets/icons/onlinefix.png" class="corner-tag-img" alt="OF"/>Online-Fix</span>
@@ -310,6 +314,59 @@
         }, 100);
       },
       onLeave: function() {
+        clearFocusTags();
+      },
+      hint: '點擊下一步，我們將為您介紹新一代的版本更新狀態標籤！'
+    },
+
+    // 步驟 5：版本狀態指標：⚡ 可更新 vs ⚡ 可嘗試更新 (新增標籤介紹)
+    {
+      role: 'leader',
+      roleBadge: '🚀 線上補丁',
+      moduleTitle: '單元 1：小卡標籤與線上補丁說明',
+      title: '智慧版本比對：⚡ 可更新 vs ⚡ 可嘗試更新',
+      page: 'search',
+      width: 460,
+      placement: 'bottom',
+      forcePlacement: true,
+      desc: '<strong>精準識別版本更新的兩種不同狀態：</strong><br>' +
+            '• <strong style="color:#FF9800">⚡ 可更新（亮黃框）</strong>：Steam 官方釋出新版本，且 <strong>Ryuu 主源已同步收錄</strong>。在管理入庫點擊「⚡ 更新 Manifest」或右上角「⚡ 批次更新」即可 100% 全自動秒級升級！<br>' +
+            '• <strong style="color:#EF4444">⚡ 可嘗試更新（淺紅框）</strong>：官方已有新版本但 <strong>Ryuu 尚未收錄</strong>；當您在憑證管理中配置了 <strong>Hubcap API Key</strong> 時觸發。<br>' +
+            '💡 <strong>貼心配額防護</strong>：為保護您的 Hubcap 每日有限額度（25 次），此類遊戲<strong>不會</strong>被納入一鍵批次更新，而是引導您點擊卡片進入遊戲詳情，手動向 HubcapDB 嘗試查詢並下載最新 Manifest！',
+      target: function() {
+        if (window.switchPage) window.switchPage('search');
+        injectMockLeaderCard();
+        return document.getElementById('tutorial-leader-mock-card');
+      },
+      secondaryTarget: function() {
+        return document.getElementById('tut-tag-try-up');
+      },
+      arrowTarget: function() {
+        return document.getElementById('tut-tag-try-up');
+      },
+      padding: 6,
+      borderRadius: 12,
+      secondaryPadding: 4,
+      secondaryBorderRadius: 8,
+      onEnter: function() {
+        if (window.switchPage) window.switchPage('search');
+        injectMockLeaderCard();
+        scrollMockCardIntoComfortView();
+        var card = document.getElementById('tutorial-leader-mock-card');
+        if (card) {
+          card.classList.remove('needs-update');
+          card.classList.add('needs-try-update');
+        }
+        focusTags(['tut-tag-try-up', 'tut-corner-tag-tryup']);
+        setTimeout(function() {
+          if (window.TutorialEngine) window.TutorialEngine.reposition();
+        }, 100);
+      },
+      onLeave: function() {
+        var card = document.getElementById('tutorial-leader-mock-card');
+        if (card) {
+          card.classList.remove('needs-try-update');
+        }
         clearFocusTags();
       },
       hint: '恭喜您掌握了小卡標籤的核心意義！下一步我們將學習如何建立專屬 Google Drive 網盤！'
