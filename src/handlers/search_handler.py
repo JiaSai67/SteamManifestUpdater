@@ -362,8 +362,12 @@ class SearchHandler:
         ryuu_depots = ryuu_info.get("depots", {})
         ryuu_branches = ryuu_info.get("branch_manifests", {})
 
+        hubcap_info = search_res.get("hubcap", {})
+        hubcap_depots = hubcap_info.get("depots", {})
+
         source_name = "本地"
         if best_source == "ryuu": source_name = "Ryuu"
+        elif best_source == "hubcap": source_name = "HubcapDB"
         elif best_source == "luatools": source_name = "LuaTools"
 
         res["best_source"] = best_source
@@ -641,8 +645,10 @@ class SearchHandler:
                     h_date_fmt = s_item.get("date") or s_item.get("date_str") or steamdb_date_fmt
                     h_branch = s_item.get("branch", "public")
 
-                    # 檢查此 GID 是否在 Ryuu 平台中可供下載
+                    # 檢查此 GID 是否在 Ryuu 或 HubcapDB 平台中可供下載
                     is_in_ryuu = bool(ryuu_has_this_depot and str(cur_ryuu_gid) == h_gid)
+                    is_in_hubcap = bool(hubcap_depots and str(hubcap_depots.get(did_str)) == h_gid)
+                    is_available_online = is_in_ryuu or is_in_hubcap
 
                     # 🌟 依需求完全移除相對時間與「歷史版本」四字，只保留精準日期與來源
                     meta_desc = f"{h_date_fmt}．SteamDB"
@@ -664,23 +670,24 @@ class SearchHandler:
                                 "tag": "💾 本地當前 (SteamCMD)",
                                 "is_official": True
                             })
-                        elif is_in_ryuu:
-                            # 只有當 Ryuu 真正有此檔案，且本地尚未同步時，才標註為可更新！
+                        elif is_available_online:
+                            # 當 Ryuu 或 HubcapDB 真正有此檔案，且本地尚未同步時，標註為可更新！
                             depot_has_update = True
                             any_depot_has_real_update = True
+                            online_note = " (HubcapDB)" if (is_in_hubcap and not is_in_ryuu) else ""
                             depot_history.append({
                                 "manifest_id": h_gid,
                                 "date": h_date_fmt,
-                                "meta": meta_desc,
+                                "meta": meta_desc + online_note,
                                 "is_current": False,
                                 "is_pending": True,
                                 "tag": "⚡ 可更新 (SteamCMD)",
                                 "is_official": True
                             })
                         else:
-                            # 遊戲未上市、Ryuu 未收錄或 Ryuu 尚為舊版
-                            is_depot_ryuu_old = bool(ryuu_has_this_depot and cur_ryuu_gid and str(cur_ryuu_gid) != str(h_gid))
-                            tag_sdb = "SteamDB 最新 (線上庫未收錄)" if is_depot_ryuu_old else "SteamDB 最新"
+                            # 遊戲未上市、Ryuu / HubcapDB 均未收錄或尚為舊版
+                            is_depot_online_old = bool((ryuu_has_this_depot and cur_ryuu_gid and str(cur_ryuu_gid) != str(h_gid)) or (hubcap_depots and str(hubcap_depots.get(did_str)) != str(h_gid)))
+                            tag_sdb = "SteamDB 最新 (線上庫未收錄)" if is_depot_online_old else "SteamDB 最新"
                             depot_history.append({
                                 "manifest_id": h_gid,
                                 "date": h_date_fmt,

@@ -229,7 +229,7 @@ class InstallHandler:
             logger.log_step("SteamDB結果", f"SteamDB 包含 {len(sdb_manifests)} 個 Depot 官方基準清單")
 
             # 2. 進行多源搜尋仲裁（傳入 sdb_manifests）
-            logger.log_step("多源仲裁", "比對 Ryuu 與 Lua.tools 可用來源...")
+            logger.log_step("多源仲裁", "比對 Ryuu, HubcapDB 與 Lua.tools 可用來源...")
             search_res = self._unified_mgr.search_all_sources(appid_str, timeout=8, steamdb_manifests=sdb_manifests)
 
             # 若初次未找到可用源，自動重試一次
