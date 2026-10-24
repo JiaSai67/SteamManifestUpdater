@@ -433,7 +433,8 @@ class InstallHandler:
             appid_str = str(appid).strip()
             sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=game_name, allow_network=True)
             src_info = sources.get(appid_str, {})
-            has_patch = bool(src_info.get('cloud_rar') or src_info.get('cloud_lua') or src_info.get('local_lua'))
+            # 🌟 嚴格定義：線上補丁必須是實體壓縮補丁包 (cloud_rar)，不能將純 Lua 清單配置誤當成線上補丁！
+            has_patch = bool(src_info.get('cloud_rar'))
             return {
                 "ok": True,
                 "has_patch": has_patch,
@@ -470,14 +471,14 @@ class InstallHandler:
             sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=game_name, allow_network=True)
             src_info = sources.get(appid_str, {})
 
-            if not src_info or (not src_info.get('cloud_rar') and not src_info.get('cloud_lua')):
+            if not src_info or not src_info.get('cloud_rar'):
                 # 🌟 自動容錯：若記憶體快取無資料，強制刷新 Google Drive 雲端索引並重試
                 onlinefix_manager.fetch_cloud_cache(force=True)
                 sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=game_name, allow_network=True, force_refresh=True)
                 src_info = sources.get(appid_str, {})
 
-            if not src_info or (not src_info.get('cloud_rar') and not src_info.get('cloud_lua')):
-                return {"ok": True, "has_patch": False, "msg": "網盤無專用聯機補丁"}
+            if not src_info or not src_info.get('cloud_rar'):
+                return {"ok": True, "has_patch": False, "installed": False, "msg": "網盤無專用聯機補丁"}
 
             drive_name = src_info.get('drive_name', '網盤')
 
@@ -523,7 +524,7 @@ class InstallHandler:
                         "msg": f"已自 {drive_name} 備妥聯機補丁，待 Steam 下載遊戲後即可生效！"
                     }
 
-            return {"ok": True, "has_patch": True, "drive_name": drive_name, "msg": "已部署網盤聯機配置"}
+            return {"ok": True, "has_patch": False, "installed": False, "drive_name": drive_name, "msg": "網盤無實體聯機補丁檔案"}
         except Exception as e:
             return {"ok": False, "msg": f"連同安裝補丁過程出錯: {e}"}
 

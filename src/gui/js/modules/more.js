@@ -327,8 +327,15 @@ async function manualDeployPatch(appid, name){
     // ═══════════════════════════════════════════════════════════════
     updateCardProgress(aidStr, 2, '🔍 正在檢查環境與 Google Drive 補丁庫...', false);
     var gdriveCheck = await pywebview.api.check_cloud_patch_available(aidStr, gameTitle).catch(function(){ return {has_patch:false}; });
-    var hasCloudPatch = gdriveCheck && gdriveCheck.has_patch;
+    var hasCloudPatch = !!(gdriveCheck && gdriveCheck.has_patch && gdriveCheck.has_rar);
     var driveName = (gdriveCheck && gdriveCheck.drive_name) || 'Google Drive';
+
+    if(!hasCloudPatch){
+      updateCardProgress(aidStr, 0, 'ℹ️ 網盤無專屬線上補丁', true);
+      finishCardProgress(aidStr, false, 'ℹ️ 此遊戲網盤無專屬線上補丁');
+      if(window.tt) tt('ℹ️ 「' + gameTitle + '」網盤無專屬線上補丁', 'in', 4500);
+      return;
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // 階段 2: 5% ~ 15% 【清單與 Lua 配置確認】
@@ -342,20 +349,18 @@ async function manualDeployPatch(appid, name){
     // ═══════════════════════════════════════════════════════════════
     // 階段 3: 15% ~ 25% 【線上補丁下載】
     // ═══════════════════════════════════════════════════════════════
-    if(hasCloudPatch){
-      updateCardProgress(aidStr, 18, '☁️ 正在自 ' + driveName + ' 下載線上補丁...', false);
-      try {
-        var dlRes = await pywebview.api.download_online_patch(aidStr, gameTitle);
-        if(dlRes && dlRes.ok){
-          updateCardProgress(aidStr, 25, '☁️ ' + driveName + ' 補丁下載就緒！', false);
-        } else {
-          updateCardProgress(aidStr, 25, '⚠️ 補丁下載略過，準備檢查主程式', false);
-        }
-      } catch(e){
-        updateCardProgress(aidStr, 25, '☁️ 補丁暫存就緒', false);
+    var patchDownloaded = false;
+    updateCardProgress(aidStr, 18, '☁️ 正在自 ' + driveName + ' 下載線上補丁...', false);
+    try {
+      var dlRes = await pywebview.api.download_online_patch(aidStr, gameTitle);
+      if(dlRes && dlRes.ok && dlRes.has_patch){
+        patchDownloaded = true;
+        updateCardProgress(aidStr, 25, '☁️ ' + driveName + ' 補丁下載就緒！', false);
+      } else {
+        updateCardProgress(aidStr, 25, 'ℹ️ 網盤無對應線上補丁，準備檢查主程式', false);
       }
-    } else {
-      updateCardProgress(aidStr, 25, '☁️ 正在準備部署...', false);
+    } catch(e){
+      updateCardProgress(aidStr, 25, '⚠️ 補丁下載略過，準備檢查主程式', false);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -459,7 +464,7 @@ async function manualDeployPatch(appid, name){
     updateCardProgress(aidStr, 96, '🚀 正在解壓部署 Online-Fix 聯機補丁...', false);
     var patchRes = await pywebview.api.install_online_patch(aidStr, gameTitle);
     
-    if(patchRes && patchRes.ok){
+    if(patchRes && patchRes.ok && patchRes.installed){
       if(!_deployedAppids) _deployedAppids = new Set();
       _deployedAppids.add(aidStr);
       if(!_protectedAppids) _protectedAppids = new Set();
@@ -483,9 +488,13 @@ async function manualDeployPatch(appid, name){
         var filter = (document.getElementById('mf').value||'').trim().toLowerCase();
         renderGames(_pre._games, filter);
       }
+    } else if(patchRes && patchRes.pending){
+      finishCardProgress(aidStr, true, '⏳ 補丁已備妥至快取，待 Steam 安裝主程式後生效');
+      tt('⏳ 「' + gameTitle + '」補丁已備妥至快取，待主程式安裝完成後即可生效！', 'in', 5000);
     } else {
-      finishCardProgress(aidStr, false, '❌ 部署失敗: ' + ((patchRes && patchRes.msg) || '未知錯誤'));
-      tt('❌ 補丁部署失敗: ' + ((patchRes && patchRes.msg) || '未知錯誤'), 'er');
+      var failMsg = ((patchRes && patchRes.msg) || '此遊戲無專屬線上補丁');
+      finishCardProgress(aidStr, false, 'ℹ️ ' + failMsg);
+      tt('ℹ️ 「' + gameTitle + '」' + failMsg, 'in');
     }
   } catch(e) {
     finishCardProgress(aidStr, false, '❌ 部署出錯: ' + (e.message || e));

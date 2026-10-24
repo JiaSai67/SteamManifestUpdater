@@ -626,6 +626,7 @@ async function openGameDetail(appid, name, image){
         zgStatus.className = 'chip gray';
         zgStatus.textContent = '未收錄';
         zgVal.innerHTML = '<span style="color:var(--gray)">未收錄</span>';
+      }
     }
 
     // e. HubcapDB (嚴格只讀快取與配額，支援手動點擊查詢)
