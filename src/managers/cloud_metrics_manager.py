@@ -41,6 +41,7 @@ class CloudMetricsManager:
         self._last_sync_time: Optional[datetime.datetime] = None
         self._last_management_fetch_time: float = 0.0
         self._management_interval: int = 300  # 🌟 嚴格限制：Management API 探測 5 分鐘 (300 秒) 一次
+        self._supabase_down_until: float = 0.0
 
     def _load_supabase_config(self) -> Dict[str, Any]:
         if self.secrets_file.exists():
@@ -171,16 +172,18 @@ class CloudMetricsManager:
         }
 
         endpoint = f"{supa_url}/rest/v1/server_metrics"
-        try:
-            resp = requests.post(endpoint, json=record, headers=headers, timeout=6)
-            if resp.status_code in (200, 201, 204):
-                logger.info("✅ 成功將雜湊壓縮後的 Egress 脫敏用量同步至 Supabase server_metrics 表")
-                self._cached_metrics = metrics
-                return {"ok": True, "token": encrypted_token, "metrics": metrics}
-            else:
-                logger.warning(f"同步 server_metrics 表回應 HTTP {resp.status_code}: {resp.text}")
-        except Exception as e:
-            logger.warning(f"同步 server_metrics 表連線異常: {e}")
+        if time.time() >= self._supabase_down_until:
+            try:
+                resp = requests.post(endpoint, json=record, headers=headers, timeout=4)
+                if resp.status_code in (200, 201, 204):
+                    logger.info("✅ 成功將雜湊壓縮後的 Egress 脫敏用量同步至 Supabase server_metrics 表")
+                    self._cached_metrics = metrics
+                    return {"ok": True, "token": encrypted_token, "metrics": metrics}
+                else:
+                    logger.debug(f"同步 server_metrics 表回應 HTTP {resp.status_code}")
+            except Exception as e:
+                self._supabase_down_until = time.time() + 300
+                logger.debug(f"同步 server_metrics 表連線受阻 (已啟用本機快取熔斷): {e}")
 
         # 若雲端表寫入受限，仍可將本機加密 Token 保存於記憶體
         self._cached_metrics = metrics
@@ -201,19 +204,21 @@ class CloudMetricsManager:
         }
 
         endpoint = f"{supa_url}/rest/v1/server_metrics?id=eq.global_egress_usage&select=payload,updated_at"
-        try:
-            resp = requests.get(endpoint, headers=headers, timeout=6)
-            if resp.status_code == 200:
-                rows = resp.json()
-                if rows and isinstance(rows, list) and len(rows) > 0:
-                    token = rows[0].get("payload", "")
-                    if token:
-                        decrypted = self.decrypt_metrics_payload(token)
-                        if decrypted:
-                            self._cached_metrics = decrypted
-                            return {"ok": True, "encrypted_token": token, "data": decrypted}
-        except Exception as e:
-            logger.debug(f"讀取 server_metrics 失敗: {e}")
+        if time.time() >= self._supabase_down_until:
+            try:
+                resp = requests.get(endpoint, headers=headers, timeout=4)
+                if resp.status_code == 200:
+                    rows = resp.json()
+                    if rows and isinstance(rows, list) and len(rows) > 0:
+                        token = rows[0].get("payload", "")
+                        if token:
+                            decrypted = self.decrypt_metrics_payload(token)
+                            if decrypted:
+                                self._cached_metrics = decrypted
+                                return {"ok": True, "encrypted_token": token, "data": decrypted}
+            except Exception as e:
+                self._supabase_down_until = time.time() + 300
+                logger.debug(f"讀取 server_metrics 略過 (已啟用本機快取熔斷): {e}")
 
         # 若尚未建立資料表或無法讀取，回傳即時雜湊封裝的資料
         metrics = self._cached_metrics or self.fetch_live_metrics_from_supabase_management()

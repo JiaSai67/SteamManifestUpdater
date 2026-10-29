@@ -5,6 +5,8 @@ import shutil
 import subprocess
 import re
 import stat
+import hashlib
+import urllib.request
 from pathlib import Path
 import winreg
 
@@ -114,6 +116,142 @@ def restart_steam(steam_path, timeout=10):
         
     return False, "Steam 啟動超時，請手動確認 Steam 是否正常開啟", None
 
+_STEAM_MONITOR_MIRRORS = [
+    "https://raw.githubusercontent.com/madoiscool/steam-monitor/{channel}/{component}/{sha256}.toml",
+    "https://cdn.jsdelivr.net/gh/madoiscool/steam-monitor@{channel}/{component}/{sha256}.toml",
+    "https://git.lua.tools/luatools/steam-monitor/raw/branch/{channel}/{component}/{sha256}.toml",
+    "https://raw.githubusercontent.com/OpenSteam001/steam-monitor/{channel}/{component}/{sha256}.toml",
+]
+
+def _compute_file_sha256(file_path: Path) -> str:
+    """計算指定檔案之小寫 SHA-256 雜湊值"""
+    try:
+        if not file_path.exists():
+            return ""
+        h = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            while True:
+                chunk = f.read(65536)
+                if not chunk:
+                    break
+                h.update(chunk)
+        return h.hexdigest().lower()
+    except Exception:
+        return ""
+
+def _fetch_signature_toml(channel: str, component: str, sha256_hex: str, timeout: float = 5.0):
+    """從多節點鏡像抓取 OpenSteamTool 所需的 pattern / ipc TOML 簽章檔"""
+    if not sha256_hex:
+        return None
+    for tpl in _STEAM_MONITOR_MIRRORS:
+        url = tpl.format(channel=channel, component=component, sha256=sha256_hex)
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "OpenSteamTool/1.4.8"})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                if resp.status == 200:
+                    data = resp.read()
+                    text_preview = data.decode("utf-8", errors="ignore")
+                    if len(data) > 32 and "<html" not in text_preview.lower() and ("rva" in text_preview or "interface_id" in text_preview):
+                        return data
+        except Exception:
+            continue
+    return None
+
+def ensure_opensteamtool_signatures(steam_path, opensteam_src_dir=None, extra_targets=None):
+    """
+    確保 <Steam>/opensteamtool/ 目錄下具備當前 Steam 版本 (steamui.dll / steamclient64.dll)
+    對應之 pattern 與 ipc TOML 簽章檔，避免乾淨電腦首次注入或 Steam 更新後彈出 Unsupported Steam Version 視窗。
+    """
+    if not steam_path:
+        return {"ok": False, "synced": 0, "missing": 0}
+    steam_path = Path(steam_path)
+    if not steam_path.exists():
+        return {"ok": False, "synced": 0, "missing": 0}
+
+    if not opensteam_src_dir:
+        from managers import config_manager
+        opensteam_src_dir = config_manager._root_dir / "opensteamtools"
+    opensteam_src_dir = Path(opensteam_src_dir)
+
+    bundled_cache_dir = opensteam_src_dir / "opensteamtool"
+    target_cache_dir = steam_path / "opensteamtool"
+    synced = 0
+    missing = 0
+
+    # 1. 先將工具內建預置之所有 .toml 簽章快取同步至 <Steam>/opensteamtool/
+    try:
+        if bundled_cache_dir.exists():
+            for src_toml in bundled_cache_dir.rglob("*.toml"):
+                try:
+                    rel = src_toml.relative_to(bundled_cache_dir)
+                    dst_toml = target_cache_dir / rel
+                    if not dst_toml.exists() or dst_toml.stat().st_size <= 32:
+                        dst_toml.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(src_toml, dst_toml)
+                        synced += 1
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # 2. 計算當前電腦 Steam 實際 DLL 之 SHA-256 並檢核三項必備 TOML
+    ui_sha = _compute_file_sha256(steam_path / "steamui.dll")
+    sc_sha = _compute_file_sha256(steam_path / "steamclient64.dll")
+
+    required = []
+    if ui_sha:
+        required.append(("pattern", "steamui", ui_sha))
+    if sc_sha:
+        required.append(("pattern", "steamclient", sc_sha))
+        required.append(("ipc", "steamclient", sc_sha))
+    if extra_targets:
+        for item in extra_targets:
+            if item not in required:
+                required.append(item)
+
+    for channel, component, sha in required:
+        dst_file = target_cache_dir / channel / component / f"{sha}.toml"
+        src_file = bundled_cache_dir / channel / component / f"{sha}.toml"
+
+        # 若目標已存在且有效，順便回寫一份至本機套件快取
+        if dst_file.exists() and dst_file.stat().st_size > 32:
+            if not src_file.exists():
+                try:
+                    src_file.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(dst_file, src_file)
+                except Exception:
+                    pass
+            continue
+
+        # 若本機套件快取已有該 SHA，直接複製過去
+        if src_file.exists() and src_file.stat().st_size > 32:
+            try:
+                dst_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_file, dst_file)
+                synced += 1
+                continue
+            except Exception:
+                pass
+
+        # 否則主動從多鏡像節點拉取並雙向落盤
+        data = _fetch_signature_toml(channel, component, sha)
+        if data:
+            try:
+                dst_file.parent.mkdir(parents=True, exist_ok=True)
+                dst_file.write_bytes(data)
+                synced += 1
+            except Exception:
+                missing += 1
+            try:
+                src_file.parent.mkdir(parents=True, exist_ok=True)
+                src_file.write_bytes(data)
+            except Exception:
+                pass
+        else:
+            missing += 1
+
+    return {"ok": missing == 0, "synced": synced, "missing": missing, "ui_sha": ui_sha, "sc_sha": sc_sha}
+
 def install_opensteamtools(steam_path, opensteam_src_dir=None):
     """
     防呆流程：安裝 OpenSteamTools DLLs 並自動重啟 Steam 確保 Hook 立即生效。
@@ -151,10 +289,13 @@ def install_opensteamtools(steam_path, opensteam_src_dir=None):
         if manifest_lua_src.exists():
             shutil.copy2(manifest_lua_src, lua_dir / "manifest.lua")
             
-        # 部署 opensteamtool.toml (核心組態備援)
+        # 部署 opensteamtool.toml (核心組態備援，強制覆寫以確保最新 remote url_template)
         toml_src = opensteam_src_dir / "opensteamtool.toml"
         if toml_src.exists():
             shutil.copy2(toml_src, steam_path / "opensteamtool.toml")
+            
+        # 預先同步與拉取當前 Steam 版本對應之 pattern / ipc 簽章檔，防止啟動時彈窗
+        ensure_opensteamtool_signatures(steam_path, opensteam_src_dir)
     except Exception as e:
         return False, f"複製檔案失敗: {e}"
         
@@ -167,7 +308,7 @@ def install_opensteamtools(steam_path, opensteam_src_dir=None):
 
 def ensure_manifest_lua(steam_path, opensteam_src_dir=None):
     """
-    確保 Steam/config/lua/manifest.lua 與 opensteamtool.toml 存在且為最新。
+    確保 Steam/config/lua/manifest.lua、opensteamtool.toml 與簽章快取存在且為最新。
     OpenSteamTools 具備目錄熱重載，無需重啟 Steam 即可生效。
     """
     if not steam_path:
@@ -191,8 +332,33 @@ def ensure_manifest_lua(steam_path, opensteam_src_dir=None):
             
         toml_src = opensteam_src_dir / "opensteamtool.toml"
         toml_dst = steam_path / "opensteamtool.toml"
-        if toml_src.exists() and not toml_dst.exists():
-            shutil.copy2(toml_src, toml_dst)
+        if toml_src.exists():
+            should_copy_toml = not toml_dst.exists()
+            if not should_copy_toml:
+                try:
+                    existing_txt = toml_dst.read_text(encoding="utf-8", errors="ignore")
+                    if "[remote]" not in existing_txt or "madoiscool/steam-monitor" not in existing_txt:
+                        should_copy_toml = True
+                except Exception:
+                    should_copy_toml = True
+            if should_copy_toml:
+                shutil.copy2(toml_src, toml_dst)
+                
+        # 若已安裝舊版 OpenSteamTool.dll 且當前未被 Steam 鎖定，自動靜默升級至最新 netfix2 核心
+        ost_dst = steam_path / "OpenSteamTool.dll"
+        ost_src = opensteam_src_dir / "OpenSteamTool.dll"
+        if ost_dst.exists() and ost_src.exists():
+            try:
+                if _compute_file_sha256(ost_dst) != _compute_file_sha256(ost_src):
+                    for dll_name in ("OpenSteamTool.dll", "dwmapi.dll", "xinput1_4.dll"):
+                        s_dll = opensteam_src_dir / dll_name
+                        d_dll = steam_path / dll_name
+                        if s_dll.exists():
+                            shutil.copy2(s_dll, d_dll)
+            except Exception:
+                pass
+
+        ensure_opensteamtool_signatures(steam_path, opensteam_src_dir)
         return True
     except Exception as e:
         print(f"[steam_manager] ensure_manifest_lua error: {e}")

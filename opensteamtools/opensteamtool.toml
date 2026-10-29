@@ -4,6 +4,10 @@
 [log]
 level = "info"
 
+[remote]
+# 指向持續更新的 steam-monitor 簽章與 IPC 規範庫，避免舊倉庫 (OpenSteam001) 404 導致彈窗
+url_template = "https://raw.githubusercontent.com/madoiscool/steam-monitor/{channel}/{component}/{sha256}.toml"
+
 [manifest]
 # 預設清單請求碼 (MRC) 來源，當 Lua 未攔截或未定義時之底層備援
 url = "http://gmrc.wudrm.com/manifest"

@@ -261,6 +261,13 @@ class SteamHandler:
     def auto_inject_and_restart(self) -> Dict[str, Any]:
         """自動檢查並注入核心"""
         sp = self._steam_path or steam_manager.find_steam_path()
+        if sp:
+            def _bg_sync_ost():
+                try:
+                    steam_manager.ensure_manifest_lua(Path(sp))
+                except Exception:
+                    pass
+            threading.Thread(target=_bg_sync_ost, daemon=True).start()
         return {
             "injected": True,
             "has_path": bool(sp),
