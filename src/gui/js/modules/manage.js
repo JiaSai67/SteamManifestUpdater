@@ -11,10 +11,13 @@ function _checkAccountValidHelper(platform, acc){
          acc.status_badge !== '憑證無效' && acc.status_badge !== '憑證已過期' && acc.status_badge !== '未登入/憑證缺失';
 }
 
-async function updateManageQuota(){
+async function updateManageQuota(prefetchedRes){
   try {
-    if(!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_credentials_status) return;
-    var res = await pywebview.api.get_credentials_status();
+    var res = (prefetchedRes && prefetchedRes.ok) ? prefetchedRes : null;
+    if(!res){
+      if(!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_credentials_status) return;
+      res = await pywebview.api.get_credentials_status();
+    }
     if(!res || !res.ok) return;
 
     var box = document.getElementById('manage-quota-box');
@@ -34,7 +37,11 @@ async function updateManageQuota(){
     }
 
     var rChipHtml = '';
-    if(rAccounts.length === 0){
+    var rConnErr = !!(res.ryuu && res.ryuu.connection_error);
+    var rErrMsg = (res.ryuu && res.ryuu.error_msg) ? (' (' + res.ryuu.error_msg + ')') : '';
+    if(rConnErr){
+      rChipHtml = '<span class="quota-chip quota-chip-expired" onclick="switchPage(\'credentials\')" title="Ryuu 伺服器連線異常' + rErrMsg + '，點擊查看">🐉 Ryuu: <b>Error</b></span>';
+    } else if(rAccounts.length === 0){
       rChipHtml = '<span class="quota-chip quota-chip-unlogin" onclick="switchPage(\'credentials\')" title="尚未登入 Ryuu 帳號，點擊前往登入">🐉 Ryuu: <b>🔑 未登入</b></span>';
     } else if(rValidAccs.length === 0){
       rChipHtml = '<span class="quota-chip quota-chip-expired" onclick="switchPage(\'credentials\')" title="Ryuu 憑證已過期，點擊重新登入">🐉 Ryuu: <b>⚠️ 待重登</b></span>';
@@ -47,13 +54,17 @@ async function updateManageQuota(){
 
     // 2. HubcapDB 官方配額與狀態計算
     var hc = res.hubcap || {};
+    var hcConnErr = !!hc.connection_error;
+    var hcErrMsg = hc.error_msg || hc.error || '';
     var hcLeft = (hc.remaining != null) ? hc.remaining : 0;
     var hcLimit = hc.daily_limit || (hc.is_configured ? 25 : 0);
-    var hcIsValid = !!(hc.is_valid || (hc.is_configured && hcLimit > 0));
+    var hcIsValid = !!(hc.is_valid || (hc.is_configured && hcLimit > 0 && !hcConnErr));
     var hcIsExhausted = !!(hc.quota_exhausted || hcLeft <= 0);
     var hcChipHtml = '';
     if(hc.is_configured){
-      if(hcIsExhausted && (hcIsValid || hcLimit > 0)){
+      if(hcConnErr){
+        hcChipHtml = '<span class="quota-chip quota-chip-expired" onclick="switchPage(\'credentials\')" title="HubcapDB 伺服器連線異常' + (hcErrMsg ? (' (' + hcErrMsg + ')') : '') + '，點擊查看">🧢 Hubcap: <b>Error</b></span>';
+      } else if(hcIsExhausted && (hcIsValid || hcLimit > 0)){
         var hcExTitle = '🧢 HubcapDB 今日配額已用罄: 0 / ' + hcLimit + ' 次 (今日滿)，點擊查看';
         hcChipHtml = '<span class="quota-chip quota-chip-exhausted" onclick="switchPage(\'credentials\')" title="' + hcExTitle + '">🧢 Hubcap: <b>0/' + hcLimit + '</b></span>';
       } else if(hcIsValid){
@@ -78,7 +89,11 @@ async function updateManageQuota(){
     }
 
     var ltChipHtml = '';
-    if(ltAccounts.length === 0){
+    var ltConnErr = !!(res.lua_tools && res.lua_tools.connection_error);
+    var ltErrMsg = (res.lua_tools && res.lua_tools.error_msg) ? (' (' + res.lua_tools.error_msg + ')') : '';
+    if(ltConnErr){
+      ltChipHtml = '<span class="quota-chip quota-chip-expired" onclick="switchPage(\'credentials\')" title="Lua.tools 伺服器連線異常' + ltErrMsg + '，點擊查看">🌙 Lua: <b>Error</b></span>';
+    } else if(ltAccounts.length === 0){
       ltChipHtml = '<span class="quota-chip quota-chip-unlogin" onclick="switchPage(\'credentials\')" title="尚未登入 Lua.tools 帳號，點擊前往登入">🌙 Lua: <b>🔑 未登入</b></span>';
     } else if(ltValidAccs.length === 0){
       ltChipHtml = '<span class="quota-chip quota-chip-expired" onclick="switchPage(\'credentials\')" title="Lua.tools 憑證已過期，點擊重新登入">🌙 Lua: <b>⚠️ 待重登</b></span>';
@@ -100,6 +115,29 @@ async function updateManageQuota(){
 var _checkingUpdates = false;
 var _lastUpdateCheckTime = 0;
 var _knownUpdates = {};
+var _updateTrackDone = false;
+var _patchTrackDone = false;
+var _exitAnimTimer1 = null;
+var _exitAnimTimer2 = null;
+
+function _getTrackCheckSvgHtml(){
+  return '<svg class="track-check-svg" viewBox="0 0 20 20" fill="none">' +
+    '<circle class="track-check-circle" cx="10" cy="10" r="8" stroke="#4ade80" stroke-width="2" fill="rgba(74,222,128,0.16)"/>' +
+    '<path class="track-check-mark" d="M6.2 10.3L8.8 12.9L14.2 7.5" stroke="#4ade80" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>';
+}
+
+function _ensureDualProgressBoxVisible(){
+  var pBox = document.getElementById('manage-check-progress');
+  if(!pBox) return null;
+  if(pBox.classList.contains('progress-box-exit')){
+    pBox.classList.remove('progress-box-exit');
+  }
+  if(pBox.style.display === 'none' || !pBox.style.display){
+    pBox.style.display = 'flex';
+  }
+  return pBox;
+}
 
 // 🌟 主動全庫比對觸發器（開機自動跑、定時自動跑、切換頁面自動保鮮、按鈕手動強制刷新）
 function startProactiveUpdateCheck(force){
@@ -110,16 +148,24 @@ function startProactiveUpdateCheck(force){
   }
   _lastUpdateCheckTime = now;
   _checkingUpdates = true;
+  _updateTrackDone = false;
+  _patchTrackDone = false;
+  if(_exitAnimTimer1){ clearTimeout(_exitAnimTimer1); _exitAnimTimer1 = null; }
+  if(_exitAnimTimer2){ clearTimeout(_exitAnimTimer2); _exitAnimTimer2 = null; }
 
-  // 🌟 若為強制手動檢查，立即點亮按鈕 Loading 與進度條
+  // 🌟 點亮按鈕 Loading 與雙軌進度條
   var refreshBtn = document.getElementById('btn-manage-refresh');
   if(refreshBtn){
     refreshBtn.disabled = true;
     refreshBtn.innerHTML = '<span class="spinner-sm" style="display:inline-block;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px"></span>檢查中…';
   }
-  var pBox = document.getElementById('manage-check-progress');
+  var pBox = _ensureDualProgressBoxVisible();
   if(pBox){
-    pBox.style.display = 'block';
+    // 左側軌道：版本更新檢查狀態初始化
+    var trackUp = document.getElementById('manage-track-update');
+    if(trackUp) trackUp.classList.remove('track-completed');
+    var upIcon = document.getElementById('manage-update-icon-wrap');
+    if(upIcon) upIcon.innerHTML = '<span class="spinner-sm" style="display:inline-block;width:14px;height:14px;border:2px solid #FF9800;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></span>';
     var pBar = document.getElementById('manage-progress-bar');
     if(pBar) pBar.style.width = '0%';
     var pCount = document.getElementById('manage-progress-count');
@@ -127,13 +173,27 @@ function startProactiveUpdateCheck(force){
     var pText = document.getElementById('manage-progress-text');
     if(pText) pText.textContent = '正在核驗入庫遊戲版本清單…';
     var pDetail = document.getElementById('manage-progress-detail');
-    if(pDetail) pDetail.textContent = '正在啟動多源 Manifest 比對引擎…';
+    if(pDetail) pDetail.textContent = '準備比對 SteamDB · Ryuu · HubcapDB 最新清單…';
+
+    // 右側軌道：線上補丁三大源頭檢查狀態初始化
+    var trackPatch = document.getElementById('manage-track-patch');
+    if(trackPatch) trackPatch.classList.remove('track-completed');
+    var patchIcon = document.getElementById('manage-patch-icon-wrap');
+    if(patchIcon) patchIcon.innerHTML = '<span class="spinner-sm" style="display:inline-block;width:14px;height:14px;border:2px solid #38bdf8;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></span>';
+    var patchBar = document.getElementById('manage-patch-progress-bar');
+    if(patchBar) patchBar.style.width = '0%';
+    var patchCount = document.getElementById('manage-patch-progress-count');
+    if(patchCount) patchCount.textContent = '0 / 0 (0%)';
+    var patchText = document.getElementById('manage-patch-progress-text');
+    if(patchText) patchText.textContent = '正在檢索三大源頭線上補丁…';
+    var patchDetail = document.getElementById('manage-patch-progress-detail');
+    if(patchDetail) patchDetail.textContent = '準備掃描 Online-Fix.me · ZeiGames.com · Google Drive…';
   }
 
   try {
     if(window.pywebview && window.pywebview.api && window.pywebview.api.trigger_background_update_check){
       window.pywebview.api.trigger_background_update_check(!!force).then(function(r){
-        // 已在背景守護執行緒中啟動
+        // 已在背景守護執行緒中啟動雙軌檢查任務
       }).catch(function(){
         _checkingUpdates = false;
         if(refreshBtn){ refreshBtn.disabled = false; refreshBtn.innerHTML = '🔄 檢查更新'; }
@@ -161,14 +221,11 @@ function startProactiveUpdateCheck(force){
   }
 }
 
-// 🌟 即時接收全域檢查更新進度廣播 (平滑更新進度條與正在核驗遊戲資訊)
+// 🌟 即時接收左側軌道：全域檢查更新進度廣播 (平滑更新進度條與正在核驗遊戲資訊)
 window.onUpdateProgress = function(data){
   try {
     if(!data) return;
-    var pBox = document.getElementById('manage-check-progress');
-    if(pBox && pBox.style.display === 'none'){
-      pBox.style.display = 'block';
-    }
+    _ensureDualProgressBoxVisible();
     var pBar = document.getElementById('manage-progress-bar');
     if(pBar && data.percent !== undefined){
       pBar.style.width = Math.min(100, Math.max(0, data.percent)) + '%';
@@ -178,11 +235,11 @@ window.onUpdateProgress = function(data){
       pCount.textContent = (data.current || 0) + ' / ' + (data.total || 0) + ' (' + (data.percent || 0) + '%)';
     }
     var pText = document.getElementById('manage-progress-text');
-    if(pText){
+    if(pText && !_updateTrackDone){
       pText.textContent = '正在核驗入庫遊戲 Manifest (' + (data.percent || 0) + '%)';
     }
     var pDetail = document.getElementById('manage-progress-detail');
-    if(pDetail && (data.game_name || data.appid)){
+    if(pDetail && !_updateTrackDone && (data.game_name || data.appid)){
       var gName = data.game_name || ('AppID ' + data.appid);
       pDetail.textContent = '正在核驗：' + gName + ' (AppID: ' + data.appid + ')';
     }
@@ -198,6 +255,45 @@ window.addEventListener('onUpdateProgress', function(e){
   var detail = e ? e.detail : null;
   if(detail && typeof window.onUpdateProgress === 'function'){
     window.onUpdateProgress(detail);
+  }
+});
+
+// 🌟 即時接收右側軌道：三大源頭線上補丁（Online-Fix.me / ZeiGames.com / Google Drive）進度廣播
+window.onPatchCheckProgress = function(data){
+  try {
+    if(!data) return;
+    _ensureDualProgressBoxVisible();
+    var patchBar = document.getElementById('manage-patch-progress-bar');
+    if(patchBar && data.percent !== undefined){
+      patchBar.style.width = Math.min(100, Math.max(0, data.percent)) + '%';
+    }
+    var patchCount = document.getElementById('manage-patch-progress-count');
+    if(patchCount){
+      patchCount.textContent = (data.current || 0) + ' / ' + (data.total || 0) + ' (' + (data.percent || 0) + '%)';
+    }
+    var patchText = document.getElementById('manage-patch-progress-text');
+    if(patchText && !_patchTrackDone){
+      patchText.textContent = '正在檢索三大源頭線上補丁 (' + (data.percent || 0) + '%)';
+    }
+    var patchDetail = document.getElementById('manage-patch-progress-detail');
+    if(patchDetail && !_patchTrackDone){
+      var gName = data.game_name || (data.appid ? ('AppID ' + data.appid) : '');
+      var hitParts = [];
+      if(data.has_of_web) hitParts.push('Online-Fix');
+      if(data.has_zg_web) hitParts.push('ZeiGames');
+      if(data.has_gdrive) hitParts.push('GDrive');
+      var hitSuffix = hitParts.length > 0 ? (' [命中: ' + hitParts.join(' / ') + ']') : ' [Online-Fix · ZeiGames · GDrive]';
+      if(gName){
+        patchDetail.textContent = '正在檢索：' + gName + hitSuffix;
+      }
+    }
+  } catch(e){ console.error('onPatchCheckProgress error:', e); }
+};
+
+window.addEventListener('onPatchCheckProgress', function(e){
+  var detail = e ? e.detail : null;
+  if(detail && typeof window.onPatchCheckProgress === 'function'){
+    window.onPatchCheckProgress(detail);
   }
 });
 
@@ -373,34 +469,223 @@ window.onSingleGameUpdateChecked = function(u){
   } catch(e){ console.error('onSingleGameUpdateChecked error:', e); }
 };
 
-// 🌟 全庫比對完全確認後一次性推送通知（局部修補並自動置頂可更新項目）
-window.onAllUpdatesCheckFinished = function(summary){
+// 🌟 雙軌非同步檢查系統：軌道 2 聯機補丁（Online-Fix / ZeiGames / Google Drive）即時推播點亮
+window.onSingleGamePatchChecked = function(p){
   try {
-    _checkingUpdates = false;
-    var refreshBtn = document.getElementById('btn-manage-refresh');
-    if(refreshBtn){
-      refreshBtn.disabled = false;
-      refreshBtn.innerHTML = '🔄 檢查更新';
+    if(!p || !p.appid) return;
+    var aid = String(p.appid);
+
+    // 1. 同步至記憶體已載入快取 _pre._games 與全域 Set
+    if(!_onlinefixAppids) _onlinefixAppids = new Set();
+    if(!window._gdriveAppids) window._gdriveAppids = new Set();
+    if(!window._onlinefixWebAppids) window._onlinefixWebAppids = new Set();
+    if(!window._zeigamesWebAppids) window._zeigamesWebAppids = new Set();
+    if(p.has_gdrive) window._gdriveAppids.add(aid); else window._gdriveAppids.delete(aid);
+    if(p.has_of_web) window._onlinefixWebAppids.add(aid); else window._onlinefixWebAppids.delete(aid);
+    if(p.has_zg_web) window._zeigamesWebAppids.add(aid); else window._zeigamesWebAppids.delete(aid);
+    if(p.has_onlinefix) _onlinefixAppids.add(aid); else _onlinefixAppids.delete(aid);
+
+    if(_pre._games && _pre._games.length){
+      for(var i=0; i<_pre._games.length; i++){
+        if(String(_pre._games[i].appid) === aid){
+          _pre._games[i].has_gdrive = !!p.has_gdrive;
+          _pre._games[i].has_onlinefix_web = !!p.has_of_web;
+          _pre._games[i].has_zeigames_web = !!p.has_zg_web;
+          _pre._games[i].has_onlinefix = !!p.has_onlinefix;
+          break;
+        }
+      }
     }
+
+    // 2. 原地增量更新卡片 DOM（相容管理庫網格模式、列表模式與探索瀏覽網格）
+    var cards = document.querySelectorAll('.card[data-appid="'+aid+'"]');
+    cards.forEach(function(mCard){
+      if(p.has_onlinefix){
+        mCard.classList.add('has-onlinefix');
+      } else {
+        mCard.classList.remove('has-onlinefix');
+      }
+
+      // A. 列表視圖：即時切換 search-tags-row 內部標籤顯示狀態
+      var tagsRow = mCard.querySelector('.search-tags-row');
+      if(tagsRow){
+        var tagGd = tagsRow.querySelector('#mtag-gdrive-' + aid);
+        if(tagGd) tagGd.style.display = p.has_gdrive ? 'inline-flex' : 'none';
+        var tagOf = tagsRow.querySelector('#mtag-of-' + aid);
+        if(tagOf) tagOf.style.display = p.has_of_web ? 'inline-flex' : 'none';
+        var tagZg = tagsRow.querySelector('#mtag-zg-' + aid);
+        if(tagZg) tagZg.style.display = p.has_zg_web ? 'inline-flex' : 'none';
+      }
+
+      // B. 網格視圖：即時更新 card-corner-tags 垂直堆疊角標
+      var cornerDiv = mCard.querySelector('.card-corner-tags');
+      if(!cornerDiv && (p.has_gdrive || p.has_of_web || p.has_zg_web)){
+        mCard.insertAdjacentHTML('afterbegin', '<div class="card-corner-tags"></div>');
+        cornerDiv = mCard.querySelector('.card-corner-tags');
+      }
+      if(cornerDiv){
+        // Google Drive 網盤標籤
+        var cGd = cornerDiv.querySelector('.tag-gdrive');
+        if(p.has_gdrive){
+          if(!cGd){
+            cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-gdrive" title="Google Drive 網盤補丁庫已收錄補丁檔案"><img src="assets/icons/gdrive.png" class="corner-tag-img" alt="GD"/>Google Drive</span>');
+          }
+        } else if(cGd){
+          cGd.remove();
+        }
+
+        // Online-Fix 官網標籤
+        var cOf = cornerDiv.querySelector('.tag-onlinefix, .tag-of');
+        if(p.has_of_web){
+          if(!cOf){
+            cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-onlinefix" title="Online-Fix 官方網站已收錄聯機補丁"><img src="assets/icons/onlinefix.png" class="corner-tag-img" alt="OF"/>Online-Fix</span>');
+          }
+        } else if(cOf){
+          cOf.remove();
+        }
+
+        // ZeiGames 官網標籤
+        var cZg = cornerDiv.querySelector('.tag-zeigames, .tag-zg');
+        if(p.has_zg_web){
+          if(!cZg){
+            cornerDiv.insertAdjacentHTML('beforeend', '<span class="corner-tag tag-zeigames" title="ZeiGames 官方網站已收錄專用補丁"><img src="assets/icons/zeigames.png" class="corner-tag-img" alt="ZG"/>ZeiGames</span>');
+          }
+        } else if(cZg){
+          cZg.remove();
+        }
+      }
+
+      // C. 動態補充 card-dd 下拉選單中的線上補丁按鈕
+      var ddEl = mCard.querySelector('.card-dd');
+      if(ddEl && p.has_onlinefix){
+        var hasPatchBtn = ddEl.querySelector('button[onclick*="installOnlinePatch"]');
+        if(!hasPatchBtn){
+          var nm = mCard.querySelector('.name') ? mCard.querySelector('.name').getAttribute('title') : ('App_' + aid);
+          var patchBtns = '<button style="color:#00bcd4;font-weight:600" onclick="event.stopPropagation(); installOnlinePatch(\''+aid+'\',\''+jsesc(nm)+'\')">🚀 安裝線上補丁</button><button style="color:var(--err)" onclick="event.stopPropagation(); removeOnlinePatch(\''+aid+'\',\''+jsesc(nm)+'\')">🗑️ 移除線上補丁</button>';
+          var luaBtn = ddEl.querySelector('button[onclick*="editLua"]');
+          if(luaBtn){
+            luaBtn.insertAdjacentHTML('beforebegin', patchBtns);
+          } else {
+            ddEl.insertAdjacentHTML('afterbegin', patchBtns);
+          }
+        }
+      }
+    });
+  } catch(e){
+    console.error('onSingleGamePatchChecked error:', e);
+  }
+};
+
+window.addEventListener('onSingleGameUpdateChecked', function(e){
+  var detail = e ? e.detail : null;
+  if(detail && typeof window.onSingleGameUpdateChecked === 'function'){
+    window.onSingleGameUpdateChecked(detail);
+  }
+});
+
+window.addEventListener('onSingleGamePatchChecked', function(e){
+  var detail = e ? e.detail : null;
+  if(detail && typeof window.onSingleGamePatchChecked === 'function'){
+    window.onSingleGamePatchChecked(detail);
+  }
+});
+
+// 🌟 當左側「更新檢查」與右側「線上補丁檢查」兩項任務都完成後，執行讀條出場動畫
+function _checkBothTracksFinishedAndExit(){
+  if(!_updateTrackDone || !_patchTrackDone) return;
+  _checkingUpdates = false;
+  var refreshBtn = document.getElementById('btn-manage-refresh');
+  if(refreshBtn){
+    refreshBtn.disabled = false;
+    refreshBtn.innerHTML = '🔄 檢查更新';
+  }
+  if(_exitAnimTimer1) clearTimeout(_exitAnimTimer1);
+  if(_exitAnimTimer2) clearTimeout(_exitAnimTimer2);
+  _exitAnimTimer1 = setTimeout(function(){
     var pBox = document.getElementById('manage-check-progress');
     if(pBox){
+      pBox.classList.add('progress-box-exit');
+      _exitAnimTimer2 = setTimeout(function(){
+        if(pBox){
+          pBox.style.display = 'none';
+          pBox.classList.remove('progress-box-exit');
+        }
+      }, 460);
+    }
+  }, 1100);
+}
+
+// 🌟 右側軌道完成：三大源頭線上補丁（Online-Fix.me / ZeiGames.com / Google Drive）檢查完畢
+window.onAllPatchesCheckFinished = function(stats){
+  try {
+    _patchTrackDone = true;
+    var pBox = _ensureDualProgressBoxVisible();
+    if(pBox){
+      var totalCnt = (stats && stats.total !== undefined) ? stats.total : (_pre._games ? _pre._games.length : 0);
+      var patchBar = document.getElementById('manage-patch-progress-bar');
+      if(patchBar) patchBar.style.width = '100%';
+      var patchCount = document.getElementById('manage-patch-progress-count');
+      if(patchCount) patchCount.textContent = totalCnt + ' / ' + totalCnt + ' (100%)';
+      var patchIcon = document.getElementById('manage-patch-icon-wrap');
+      if(patchIcon) patchIcon.innerHTML = _getTrackCheckSvgHtml();
+      var patchText = document.getElementById('manage-patch-progress-text');
+      if(patchText) patchText.innerHTML = '線上補丁檢查完成 <span class="track-done-badge">✓ 已完成</span>';
+      var patchDetail = document.getElementById('manage-patch-progress-detail');
+      if(patchDetail && stats){
+        patchDetail.textContent = 'Online-Fix: ' + (stats.total_onlinefix || 0) + ' 款 · ZeiGames: ' + (stats.total_zeigames || 0) + ' 款 · GDrive: ' + (stats.total_gdrive || 0) + ' 款';
+      }
+      var trackPatch = document.getElementById('manage-track-patch');
+      if(trackPatch){
+        setTimeout(function(){
+          if(_patchTrackDone && trackPatch) trackPatch.classList.add('track-completed');
+        }, 360);
+      }
+    }
+    if(stats){
+      var msg = '🌐 聯機補丁背景核驗完成：網盤 ' + (stats.total_gdrive || 0) + ' 款，Online-Fix ' + (stats.total_onlinefix || 0) + ' 款，ZeiGames ' + (stats.total_zeigames || 0) + ' 款';
+      console.log('[Manage] ' + msg);
+    }
+    _checkBothTracksFinishedAndExit();
+  } catch(e){ console.error('onAllPatchesCheckFinished error:', e); }
+};
+
+window.addEventListener('onAllPatchesCheckFinished', function(e){
+  var detail = e ? e.detail : null;
+  if(detail && typeof window.onAllPatchesCheckFinished === 'function'){
+    window.onAllPatchesCheckFinished(detail);
+  }
+});
+
+// 🌟 左側軌道完成：全庫版本比對完全確認後一次性推送通知（局部修補並自動置頂可更新項目）
+window.onAllUpdatesCheckFinished = function(summary){
+  try {
+    _updateTrackDone = true;
+    var pBox = _ensureDualProgressBoxVisible();
+    if(pBox){
+      var totalCnt = (summary && summary.total !== undefined) ? summary.total : (_pre._games ? _pre._games.length : 0);
       var pBar = document.getElementById('manage-progress-bar');
       if(pBar) pBar.style.width = '100%';
       var pCount = document.getElementById('manage-progress-count');
-      if(pCount && summary) pCount.textContent = (summary.total || 0) + ' / ' + (summary.total || 0) + ' (100%)';
+      if(pCount) pCount.textContent = totalCnt + ' / ' + totalCnt + ' (100%)';
+      var upIcon = document.getElementById('manage-update-icon-wrap');
+      if(upIcon) upIcon.innerHTML = _getTrackCheckSvgHtml();
       var pText = document.getElementById('manage-progress-text');
-      if(pText) pText.textContent = '✅ 比對核驗已全部完成';
+      if(pText) pText.innerHTML = '版本更新檢查完成 <span class="track-done-badge">✓ 已完成</span>';
       var pDetail = document.getElementById('manage-progress-detail');
       if(pDetail && summary) pDetail.textContent = '共檢查 ' + (summary.total || 0) + ' 款入庫遊戲，發現 ' + (summary.updated_count || 0) + ' 款有最新版本！';
-      setTimeout(function(){
-        if(pBox) pBox.style.display = 'none';
-      }, 2500);
+      var trackUp = document.getElementById('manage-track-update');
+      if(trackUp){
+        setTimeout(function(){
+          if(_updateTrackDone && trackUp) trackUp.classList.add('track-completed');
+        }, 360);
+      }
     }
 
     if(summary && summary.updates){
       applyAsyncUpdates(summary.updates);
     }
     loadOnlineFixAppids().catch(function(){});
+    if(typeof updateManageQuota === 'function') updateManageQuota();
     var upCount = refreshUpdateCountUI();
 
     // 重新排序並置頂有更新的項目
@@ -416,6 +701,7 @@ window.onAllUpdatesCheckFinished = function(summary){
     } else {
       tt('✅ 主動比對完成：所有已入庫遊戲均已是最新版本！', 'ok');
     }
+    _checkBothTracksFinishedAndExit();
   } catch(e){ console.error('onAllUpdatesCheckFinished error:', e); }
 };
 
@@ -468,6 +754,9 @@ async function rg(force){
     if(!c || !c.querySelector('.card')){
       renderGames(_pre._games, filter);
     }
+    if(!_lastUpdateCheckTime){
+      startProactiveUpdateCheck(false);
+    }
     return;
   }
 
@@ -490,10 +779,8 @@ async function rg(force){
       games.forEach(function(g){
         var a = String(g.appid);
         if(g.deployed) _deployedAppids.add(a);
-        if(g.has_gdrive || g.has_onlinefix) {
-          _onlinefixAppids.add(a);
-          window._gdriveAppids.add(a);
-        }
+        if(g.has_gdrive) window._gdriveAppids.add(a);
+        if(g.has_onlinefix || g.has_gdrive || g.has_onlinefix_web || g.has_zeigames_web) _onlinefixAppids.add(a);
         if(g.has_onlinefix_web) window._onlinefixWebAppids.add(a);
         if(g.has_zeigames_web) window._zeigamesWebAppids.add(a);
       });
@@ -740,11 +1027,21 @@ function renderGames(games, filter){
     });
     if(filter){
       var q = filter.trim().toLowerCase();
+      var qClean = q.replace(/[^a-z0-9\u4e00-\u9fff]/g, '');
       games = games.filter(function(g){
-        var matchAppid = String(g.appid).indexOf(q) > -1;
-        var matchName = (g.name || '').toLowerCase().indexOf(q) > -1;
-        var matchEn = (g.english_name || g.name_en || '').toLowerCase().indexOf(q) > -1;
-        return matchAppid || matchName || matchEn;
+        var aidStr = String(g.appid);
+        var nmLower = (g.name || '').toLowerCase();
+        var enLower = (g.english_name || g.name_en || '').toLowerCase();
+        var matchAppid = aidStr.indexOf(q) > -1;
+        var matchName = nmLower.indexOf(q) > -1;
+        var matchEn = enLower.indexOf(q) > -1;
+        if(matchAppid || matchName || matchEn) return true;
+        if(qClean){
+          var nmClean = nmLower.replace(/[^a-z0-9\u4e00-\u9fff]/g, '');
+          var enClean = enLower.replace(/[^a-z0-9\u4e00-\u9fff]/g, '');
+          return nmClean.indexOf(qClean) > -1 || enClean.indexOf(qClean) > -1;
+        }
+        return false;
       });
     }
     var readyCount = games.filter(function(x){ return x.has_update && x.update_mode !== 'try_update'; }).length;

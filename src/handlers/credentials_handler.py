@@ -30,14 +30,22 @@ class CredentialsHandler:
             mgr = account_manager.get_account_manager()
             mgr.reload_data()
 
-            # 🌟 自動從 Ryuu 官方伺服器同步真實配額 (每 10 秒限制頻率，零額度消耗)
+            # 🌟 主動向官方伺服器檢測連線與同步真實配額 (每 3 秒限制頻率，零額度消耗)
             now = time.time()
-            if getattr(self, "_last_ryuu_quota_sync", 0) + 10 < now:
+            if getattr(self, "_last_ryuu_quota_sync", 0) + 3 < now:
                 self._last_ryuu_quota_sync = now
                 try:
-                    mgr.sync_ryuu_quota_from_server()
+                    mgr.sync_all_quotas_from_server()
                 except Exception:
                     pass
+
+            ryuu_conn = mgr.get_platform_connection_status("ryuu")
+            ryuu_conn_err = bool(ryuu_conn.get("connection_error"))
+            ryuu_err_msg = str(ryuu_conn.get("error_msg", "")).strip()
+
+            lt_conn = mgr.get_platform_connection_status("lua_tools")
+            lt_conn_err = bool(lt_conn.get("connection_error"))
+            lt_err_msg = str(lt_conn.get("error_msg", "")).strip()
 
             # 1. Ryuu 狀態
             ryuu_accs = mgr.get_accounts("ryuu")
@@ -52,12 +60,17 @@ class CredentialsHandler:
             default_hubcap_stats = hubcap_manager.fetch_user_stats(raw_hubcap_key) if raw_hubcap_key else {}
             default_hubcap_uid = str(default_hubcap_stats.get("user_id", "")).strip()
             default_hubcap_uname = str(default_hubcap_stats.get("username", "")).strip().lower()
+            hc_conn = mgr.get_platform_connection_status("hubcap")
+            hc_conn_err = bool(default_hubcap_stats.get("connection_error") or hc_conn.get("connection_error"))
+            hc_err_msg = str(default_hubcap_stats.get("error") or hc_conn.get("error_msg") or "").strip()
 
             # 為 Ryuu 帳號清單標註詳細驗證狀態與專屬 Hubcap 狀態
             for acc in ryuu_accs:
                 is_val = mgr.has_valid_credentials(acc, "ryuu")
                 acc["has_valid_credentials"] = is_val
                 acc["is_active"] = bool(ryuu_active and acc.get("id") == ryuu_active.get("id"))
+                acc["connection_error"] = ryuu_conn_err
+                acc["error_msg"] = ryuu_err_msg
                 reset_sec = acc.get("reset_in_seconds")
                 reset_str = ""
                 if reset_sec and reset_sec > 0:
@@ -65,7 +78,9 @@ class CredentialsHandler:
                     r_m = (reset_sec % 3600) // 60
                     reset_str = f" ({r_h}h{r_m}m後重設)"
 
-                if not is_val:
+                if ryuu_conn_err:
+                    acc["status_badge"] = f"Error ({ryuu_err_msg})" if ryuu_err_msg else "Error"
+                elif not is_val:
                     acc["status_badge"] = "憑證無效"
                 elif acc.get("is_exhausted") or (acc.get("quota_used_today", 0) >= acc.get("daily_limit", 50)):
                     acc["status_badge"] = f"配額已滿{reset_str}"
@@ -87,9 +102,14 @@ class CredentialsHandler:
 
                 if h_key:
                     h_stats = hubcap_manager.fetch_user_stats(h_key)
+                    if h_stats.get("connection_error"):
+                        hc_conn_err = True
+                        if h_stats.get("error"):
+                            hc_err_msg = str(h_stats.get("error"))
                     acc["hubcap"] = {
                         "is_configured": True,
                         "is_valid": bool(h_stats.get("ok")),
+                        "connection_error": bool(h_stats.get("connection_error") or hc_conn.get("connection_error")),
                         "remaining": h_stats.get("remaining", 0),
                         "daily_limit": h_stats.get("daily_limit", 25),
                         "daily_usage": h_stats.get("daily_usage", 0),
@@ -100,6 +120,7 @@ class CredentialsHandler:
                     acc["hubcap"] = {
                         "is_configured": False,
                         "is_valid": False,
+                        "connection_error": False,
                         "remaining": 0,
                         "daily_limit": 25,
                         "daily_usage": 0,
@@ -122,7 +143,11 @@ class CredentialsHandler:
                 is_val = mgr.has_valid_credentials(acc, "lua_tools")
                 acc["has_valid_credentials"] = is_val
                 acc["is_active"] = bool(lt_active and acc.get("id") == lt_active.get("id"))
-                if not is_val:
+                acc["connection_error"] = lt_conn_err
+                acc["error_msg"] = lt_err_msg
+                if lt_conn_err:
+                    acc["status_badge"] = f"Error ({lt_err_msg})" if lt_err_msg else "Error"
+                elif not is_val:
                     acc["status_badge"] = "憑證無效"
                 elif acc.get("is_exhausted"):
                     acc["status_badge"] = "配額已滿"
@@ -143,9 +168,14 @@ class CredentialsHandler:
 
                 if h_key:
                     h_stats = hubcap_manager.fetch_user_stats(h_key)
+                    if h_stats.get("connection_error"):
+                        hc_conn_err = True
+                        if h_stats.get("error"):
+                            hc_err_msg = str(h_stats.get("error"))
                     acc["hubcap"] = {
                         "is_configured": True,
                         "is_valid": bool(h_stats.get("is_valid", h_stats.get("ok"))),
+                        "connection_error": bool(h_stats.get("connection_error") or hc_conn.get("connection_error")),
                         "quota_exhausted": bool(h_stats.get("quota_exhausted") or h_stats.get("remaining", 0) <= 0),
                         "remaining": h_stats.get("remaining", 0),
                         "daily_limit": h_stats.get("daily_limit", 25) or 25,
@@ -157,6 +187,7 @@ class CredentialsHandler:
                     acc["hubcap"] = {
                         "is_configured": False,
                         "is_valid": False,
+                        "connection_error": False,
                         "quota_exhausted": False,
                         "remaining": 0,
                         "daily_limit": 25,
@@ -228,6 +259,8 @@ class CredentialsHandler:
                 },
                 "ryuu": {
                     "is_logged_in": ryuu_logged_in,
+                    "connection_error": ryuu_conn_err,
+                    "error_msg": ryuu_err_msg,
                     "active_account": ryuu_active,
                     "accounts": ryuu_accs,
                     "name": ryuu_name,
@@ -239,7 +272,9 @@ class CredentialsHandler:
                 },
                 "hubcap": {
                     "is_configured": bool(seen_hubcap_keys or raw_hubcap_key),
-                    "is_valid": final_hc_valid,
+                    "is_valid": final_hc_valid and not hc_conn_err,
+                    "connection_error": hc_conn_err,
+                    "error_msg": hc_err_msg,
                     "quota_exhausted": bool(default_hubcap_stats.get("quota_exhausted") or final_hc_left <= 0),
                     "api_key_masked": (raw_hubcap_key[:4] + "••••••••" + raw_hubcap_key[-4:]) if len(raw_hubcap_key) > 8 else "",
                     "daily_limit": final_hc_limit,
@@ -247,11 +282,13 @@ class CredentialsHandler:
                     "remaining": final_hc_left,
                     "resets_at": default_hubcap_stats.get("resets_at", ""),
                     "api_key_expires_at": default_hubcap_stats.get("api_key_expires_at", ""),
-                    "can_make_requests": bool(default_hubcap_stats.get("can_make_requests", True)),
-                    "error": default_hubcap_stats.get("error", "")
+                    "can_make_requests": bool(default_hubcap_stats.get("can_make_requests", True)) and not hc_conn_err,
+                    "error": hc_err_msg or default_hubcap_stats.get("error", "")
                 },
                 "lua_tools": {
                     "is_logged_in": lt_logged_in,
+                    "connection_error": lt_conn_err,
+                    "error_msg": lt_err_msg,
                     "active_account": lt_active,
                     "accounts": lt_accs,
                     "name": lt_name,
@@ -316,23 +353,31 @@ class CredentialsHandler:
     def test_credential_connection(self, platform: str) -> Dict[str, Any]:
         """測試指定平台的連線狀態與憑證有效性"""
         try:
+            from managers import account_manager
+            mgr = account_manager.get_account_manager()
             if platform == "ryuu":
                 from managers import ryuu_manager
-                info = ryuu_manager.fetch_ryuu_manifest_info("480")
-                if info.get("error") and "timeout" in str(info.get("error", "")).lower():
-                    return {"ok": False, "msg": "Ryuu 官方伺服器連線逾時，請檢查網路代理"}
+                mgr.sync_ryuu_quota_from_server()
+                info = ryuu_manager.fetch_ryuu_manifest_info("480", timeout=6)
+                err = str(info.get("error") or "").strip()
+                if err and "404" not in err:
+                    mgr.set_platform_connection_status("ryuu", True, err)
+                    return {"ok": False, "msg": f"Ryuu 官方伺服器連線異常 ({err})"}
+                mgr.set_platform_connection_status("ryuu", False, "")
                 return {"ok": True, "msg": "Ryuu 平台連線正常，Manifest 伺服器在線！"}
             elif platform in ("hubcap", "hubcapdb"):
                 from managers import hubcap_manager
                 return hubcap_manager.test_connection()
             elif platform == "lua_tools":
                 import urllib.request
-                req = urllib.request.Request("https://lua.tools", headers={"User-Agent": "Mozilla/5.0"})
+                req = urllib.request.Request("https://lua.tools/api/manifest/check?appid=480", headers={"User-Agent": "Mozilla/5.0"})
                 try:
-                    with urllib.request.urlopen(req, timeout=5) as resp:
+                    with urllib.request.urlopen(req, timeout=6) as resp:
+                        mgr.set_platform_connection_status("lua_tools", False, "")
                         return {"ok": True, "msg": "Lua.tools 平台連線正常！"}
-                except Exception:
-                    return {"ok": True, "msg": "Lua.tools 站點可連通"}
+                except Exception as le:
+                    mgr.set_platform_connection_status("lua_tools", True, str(le))
+                    return {"ok": False, "msg": f"Lua.tools 站點連線異常: {le}"}
             return {"ok": False, "msg": f"未知平台: {platform}"}
         except Exception as e:
             return {"ok": False, "msg": f"連線測試異常: {e}"}

@@ -100,6 +100,9 @@
           return { ok: true, data: res, status: { has_update: false, version_status: '最新版' } };
         } finally {
           delete self._activeDownloads[aidStr];
+          if(typeof window.updateManageQuota === 'function'){
+            try { window.updateManageQuota(); } catch(e){}
+          }
         }
       })();
 
@@ -377,7 +380,7 @@
         if(rep.status === 'COMPLETED'){
           if(window.updateCardProgress) updateCardProgress(aidStr, 90, '✅ Steam 遊戲主程式已就緒 (免下載)', false);
         } else {
-          if(window.updateCardProgress) updateCardProgress(aidStr, 25, '🎮 正在喚起 Steam 開始下載遊戲主程式...', false);
+          if(window.updateCardProgress) updateCardProgress(aidStr, 25, '🔑 正在同步 Steam 遊戲授權並準備喚起下載...', false);
           await pywebview.api.launch_steam_install(aidStr, name);
 
           var downloadDone = false;

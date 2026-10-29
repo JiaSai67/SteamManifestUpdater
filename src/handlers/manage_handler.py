@@ -265,6 +265,7 @@ class ManageHandler:
                 has_gdrive = bool(appid in of_appids)
                 has_of_web = bool(appid in known_of_appids)
                 has_zg_web = bool(appid in known_zg_appids)
+                has_any_patch = has_gdrive or has_of_web or has_zg_web
 
                 games.append({
                     "appid": appid,
@@ -277,7 +278,7 @@ class ManageHandler:
                     "protected": is_protected,           # 🌟 原始檔案已成功備份保護標記
                     "current_mid": current_mid,
                     "has_update": has_update,            # 🌟 秒開即帶有黃色需更新標記
-                    "has_onlinefix": has_gdrive,         # 🌟 相容舊代碼 (代表網盤有補丁)
+                    "has_onlinefix": has_any_patch,      # 🌟 相容舊代碼 (代表任何網盤或外網有補丁)
                     "has_gdrive": has_gdrive,            # 🌟 Google Drive 網盤收錄標記
                     "has_onlinefix_web": has_of_web,     # 🌟 Online-Fix 官方網站收錄標記
                     "has_zeigames_web": has_zg_web,      # 🌟 ZeiGames 官方網站收錄標記
@@ -297,7 +298,100 @@ class ManageHandler:
                 except Exception:
                     pass
             self._cached_games = games
+
+            # 🌟 主動背景補檢：若目前尚未執行雙軌全庫檢查，針對任何未建立有效外網補丁快取的已入庫遊戲於背景執行預檢
+            if not getattr(self, "_is_checking_updates", False):
+                self._ensure_unindexed_games_patch_checked(games)
+
             return list(self._cached_games)
+
+    def _ensure_unindexed_games_patch_checked(self, games: List[Dict[str, Any]]):
+        """檢查是否有尚未完成外網與網盤補丁檢索的已入庫遊戲，若有則立即在背景執行檢索並即時推播更新小卡標籤"""
+        if getattr(self, "_is_checking_unindexed_patches", False):
+            return
+        try:
+            from api import web_patch_checker
+            web_patch_checker._load_cache()
+            mem = web_patch_checker._patch_memory_cache
+            unindexed = []
+            for g in games:
+                aid = str(g.get("appid") or "").strip()
+                if not aid:
+                    continue
+                entry = mem.get(aid)
+                if not entry or not web_patch_checker.is_patch_cache_valid(entry):
+                    unindexed.append(g)
+            if not unindexed:
+                return
+        except Exception:
+            return
+
+        self._is_checking_unindexed_patches = True
+
+        def _bg_worker(items_to_check):
+            try:
+                import concurrent.futures
+                from managers import onlinefix_manager
+                from api import web_patch_checker
+
+                try:
+                    of_appids_set = set(onlinefix_manager.get_all_onlinefix_appids())
+                except Exception:
+                    of_appids_set = set()
+
+                def _check_single(g_item):
+                    aid = str(g_item.get("appid") or "").strip()
+                    g_name = g_item.get("name") or ""
+                    eng_name = g_item.get("english_name") or g_item.get("name_en") or g_name
+                    try:
+                        patch_res = web_patch_checker.check_all_web_patches(eng_name, appid=aid, force_refresh=False)
+                        has_gdrive = bool(aid in of_appids_set)
+                        if not has_gdrive:
+                            try:
+                                p_src = onlinefix_manager.get_patch_sources(target_app_id=aid, target_app_name=eng_name or g_name)
+                                app_src = p_src.get(aid, {})
+                                if app_src.get("cloud_rar") or app_src.get("cloud_lua") or app_src.get("local_lua"):
+                                    has_gdrive = True
+                                    of_appids_set.add(aid)
+                            except Exception:
+                                pass
+                        has_of_web = bool(patch_res.get("onlinefix", {}).get("available"))
+                        has_zg_web = bool(patch_res.get("zeigames", {}).get("available"))
+                        has_any = has_gdrive or has_of_web or has_zg_web
+
+                        # 同步更新 _cached_games 記憶體狀態
+                        if self._cached_games:
+                            for cg in self._cached_games:
+                                if str(cg.get("appid")) == aid:
+                                    cg["has_gdrive"] = has_gdrive
+                                    cg["has_onlinefix_web"] = has_of_web
+                                    cg["has_zeigames_web"] = has_zg_web
+                                    cg["has_onlinefix"] = has_any
+                                    break
+
+                        if hasattr(self, "_push_js_event"):
+                            self._push_js_event("onSingleGamePatchChecked", {
+                                "appid": aid,
+                                "name": g_name,
+                                "has_gdrive": has_gdrive,
+                                "has_of_web": has_of_web,
+                                "has_zg_web": has_zg_web,
+                                "has_onlinefix": has_any,
+                                "onlinefix_url": patch_res.get("onlinefix", {}).get("url", ""),
+                                "zeigames_url": patch_res.get("zeigames", {}).get("url", "")
+                            })
+                    except Exception:
+                        pass
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+                    list(ex.map(_check_single, items_to_check))
+            except Exception:
+                pass
+            finally:
+                self._is_checking_unindexed_patches = False
+
+        import threading
+        threading.Thread(target=_bg_worker, args=(unindexed,), daemon=True).start()
 
     def ensure_installed_games_resolved(self) -> Dict[str, Any]:
         """
@@ -363,6 +457,7 @@ class ManageHandler:
 
             def _fetch_single(aid):
                 url = f"https://store.steampowered.com/api/appdetails?appids={aid}&l=tchinese"
+                s_name, en_name, hdr = None, None, None
                 try:
                     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
                     with urllib.request.urlopen(req, timeout=6, context=ctx) as resp:
@@ -372,10 +467,22 @@ class ManageHandler:
                             raw_name = d.get("name") or f"App_{aid}"
                             s_name = sanitize_game_name(raw_name, aid)
                             hdr = d.get("header_image") or ""
-                            return aid, s_name, raw_name, hdr
+                            if not re.search(r'[\u4e00-\u9fff]', raw_name):
+                                en_name = raw_name
                 except Exception:
                     pass
-                return aid, None, None, None
+                # 若繁中介面回傳名稱含有中文，額外拉取英文原名以供外網 (online-fix / zeigames) 精準檢索
+                if not en_name:
+                    try:
+                        en_url = f"https://store.steampowered.com/api/appdetails?appids={aid}&l=english"
+                        en_req = urllib.request.Request(en_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                        with urllib.request.urlopen(en_req, timeout=5, context=ctx) as en_resp:
+                            en_data = json.loads(en_resp.read().decode("utf-8"))
+                            if en_data and str(aid) in en_data and en_data[str(aid)].get("success"):
+                                en_name = en_data[str(aid)].get("data", {}).get("name") or s_name
+                    except Exception:
+                        en_name = s_name
+                return aid, s_name, en_name, hdr
 
             with ThreadPoolExecutor(max_workers=min(12, total_fetch)) as executor:
                 futures = {executor.submit(_fetch_single, aid): aid for aid in to_fetch}
@@ -417,11 +524,21 @@ class ManageHandler:
 
     def trigger_background_update_check(self, force: bool = False) -> Dict[str, Any]:
         """
-        供前端或啟動時主動呼叫：在背景守護執行緒中啟動全庫 Manifest 更新比對。
+        供前端或啟動時主動呼叫：在背景守護執行緒中啟動雙軌全庫檢查（軌道 1: Manifest 更新比對 ｜ 軌道 2: 三大源頭線上補丁檢查）。
         立即回傳 0 延遲，不阻塞 UI，查出一筆即時向前端推播點亮一筆！
         """
         import threading
         if getattr(self, "_is_checking_updates", False):
+            # 若已在背景運行中，主動補推最新雙軌進度狀態以確保前端 UI 100% 同步
+            if hasattr(self, "_push_js_event"):
+                if getattr(self, "_last_update_finished", None):
+                    self._push_js_event("onAllUpdatesCheckFinished", self._last_update_finished)
+                elif getattr(self, "_last_update_progress", None):
+                    self._push_js_event("onUpdateProgress", self._last_update_progress)
+                if getattr(self, "_last_patch_finished", None):
+                    self._push_js_event("onAllPatchesCheckFinished", self._last_patch_finished)
+                elif getattr(self, "_last_patch_progress", None):
+                    self._push_js_event("onPatchCheckProgress", self._last_patch_progress)
             return {"ok": True, "already_running": True}
 
         t = threading.Thread(target=self.check_updates_async, kwargs={"force": force}, daemon=True)
@@ -430,13 +547,17 @@ class ManageHandler:
 
     def check_updates_async(self, force: bool = False) -> Dict[str, Any]:
         """
-        全域主動搜尋並比對所有已入庫遊戲的最新 Manifest 版本狀態（守護執行緒，不卡頓 UI）
+        全域主動搜尋並比對所有已入庫遊戲的最新 Manifest 版本狀態（軌道 1）與三大源頭線上補丁狀態（軌道 2：Online-Fix.me、ZeiGames.com、Google Drive）
         並自動在背景補齊缺失的遊戲官方繁體名稱、英文原名與 CDN 封面圖片。
-        支援即時逐筆推播 (window.onSingleGameUpdateChecked) 與增量快取持久化。
+        支援即時逐筆推播與增量快取持久化。
         """
         if getattr(self, "_is_checking_updates", False):
             return {"ok": True, "already_running": True, "updates": {}}
         self._is_checking_updates = True
+        self._last_update_progress = None
+        self._last_update_finished = None
+        self._last_patch_progress = None
+        self._last_patch_finished = None
 
         sp = self._steam_path or steam_manager.find_steam_path()
         if not sp: 
@@ -449,18 +570,198 @@ class ManageHandler:
 
         import concurrent.futures
         import threading
-        lua_files = [f for f in lua_dir.glob("*.lua") if f.name != "manifest.lua"]
+        lua_files = [f for f in lua_dir.glob("*.lua") if f.name != "manifest.lua" and f.stem.isdigit()]
         pattern = re.compile(r'^[ \t]*(?:--[^\n\r]*?)?set[M|m]anifest[i|I]d\s*\(\s*(\d+)\s*,\s*"(\d+)"', re.MULTILINE)
 
-        # 🌟 配合全域更新輪詢一併同步 Google Drive 雲端補丁庫（內建 60 秒冷卻保護，最多 1 分鐘 1 次）
-        try:
-            from managers import onlinefix_manager
-            onlinefix_manager.fetch_cloud_cache(force=force)
-        except Exception:
-            pass
+        if not lua_files:
+            empty_u = {"total": 0, "updated_count": 0, "updates": {}}
+            empty_p = {"total": 0, "installed_gdrive": 0, "installed_onlinefix": 0, "installed_zeigames": 0, "total_gdrive": 0, "total_onlinefix": 0, "total_zeigames": 0}
+            self._last_update_finished = empty_u
+            self._last_patch_finished = empty_p
+            if hasattr(self, "_push_js_event"):
+                self._push_js_event("onAllUpdatesCheckFinished", empty_u)
+                self._push_js_event("onAllPatchesCheckFinished", empty_p)
+            self._is_checking_updates = False
+            return {"ok": True, "updates": {}, "count": 0, "metadata": {}}
 
         # 載入遊戲快取以備補全
         game_cache = self._load_unified_game_cache()
+
+        # ═════════════════════════════════════════════════════════════════
+        # 🌟 雙軌非同步檢查系統：軌道 2（線上補丁三大源頭：Online-Fix.me、ZeiGames.com、Google Drive 全面核驗）
+        # ═════════════════════════════════════════════════════════════════
+        def _run_patch_checks():
+            try:
+                from managers import onlinefix_manager
+                from api import web_patch_checker
+
+                # 1. 收集所有已入庫遊戲的中英文名稱（整合 game_cache 與 _cached_games，確保零遺漏）
+                g_cache = self._load_unified_game_cache()
+                cached_map = {}
+                if getattr(self, "_cached_games", None):
+                    for cg in self._cached_games:
+                        if cg.get("appid"):
+                            cached_map[str(cg.get("appid"))] = cg
+
+                patch_items = []
+                target_apps_map = {}
+                for lf_item in lua_files:
+                    aid = lf_item.stem
+                    if not aid.isdigit(): continue
+                    c_info = g_cache.get(aid, {})
+                    cg_info = cached_map.get(aid, {})
+                    disp_name = c_info.get("name") or cg_info.get("name") or f"App_{aid}"
+                    eng_name = c_info.get("english_name") or c_info.get("name_en") or cg_info.get("english_name") or cg_info.get("name_en") or disp_name
+                    patch_items.append((aid, eng_name, disp_name))
+                    target_apps_map[aid] = eng_name or disp_name
+
+                total_p_files = len(patch_items)
+                if hasattr(self, "_push_js_event"):
+                    init_p = {
+                        "current": 0,
+                        "total": total_p_files,
+                        "percent": 0,
+                        "stage": "gdrive_sync",
+                        "appid": "",
+                        "game_name": "同步 Google Drive 雲端補丁庫索引…"
+                    }
+                    self._last_patch_progress = init_p
+                    self._push_js_event("onPatchCheckProgress", init_p)
+
+                # 2. 全面同步源頭 1：Google Drive 雲端補丁庫索引與全域模糊對齊
+                onlinefix_manager.fetch_cloud_cache(force=force)
+                try:
+                    of_appids_set = set(onlinefix_manager.get_all_onlinefix_appids(force=force))
+                except Exception:
+                    of_appids_set = set()
+                try:
+                    gdrive_sources_map = onlinefix_manager.get_patch_sources(target_apps=target_apps_map, allow_network=False, force_refresh=False)
+                except Exception:
+                    gdrive_sources_map = {}
+
+                patch_lock = threading.Lock()
+                patch_checked_counter = [0]
+                gdrive_hits = set()
+                of_hits = set()
+                zg_hits = set()
+
+                def _check_one_patch(item):
+                    aid, eng_name, g_name = item
+                    has_gdrive = False
+                    has_of_web = False
+                    has_zg_web = False
+                    of_url = ""
+                    zg_url = ""
+                    try:
+                        # A. 確保取得真實英文名稱以供外網與網盤精準/模糊匹配
+                        resolved_eng = web_patch_checker.resolve_english_game_name(eng_name or g_name, aid)
+                        search_title = resolved_eng or eng_name or g_name
+
+                        # B. 核驗源頭 2 & 3：Online-Fix.me 與 ZeiGames.com
+                        patch_res = web_patch_checker.check_all_web_patches(search_title, appid=aid, force_refresh=force)
+                        has_of_web = bool(patch_res.get("onlinefix", {}).get("available"))
+                        has_zg_web = bool(patch_res.get("zeigames", {}).get("available"))
+                        of_url = patch_res.get("onlinefix", {}).get("url", "")
+                        zg_url = patch_res.get("zeigames", {}).get("url", "")
+
+                        # C. 核驗源頭 1：Google Drive (結合 AppID 索引、批次映射與最新解析英文名二次比對)
+                        has_gdrive = bool(aid in of_appids_set)
+                        if not has_gdrive:
+                            g_src = gdrive_sources_map.get(aid, {})
+                            if g_src.get("cloud_rar") or g_src.get("cloud_lua") or g_src.get("local_lua"):
+                                has_gdrive = True
+                        if not has_gdrive and search_title:
+                            try:
+                                p_src = onlinefix_manager.get_patch_sources(target_app_id=aid, target_app_name=search_title)
+                                app_src = p_src.get(aid, {})
+                                if app_src.get("cloud_rar") or app_src.get("cloud_lua") or app_src.get("local_lua"):
+                                    has_gdrive = True
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+
+                    has_any_patch = has_gdrive or has_of_web or has_zg_web
+
+                    with patch_lock:
+                        if has_gdrive:
+                            of_appids_set.add(aid)
+                            gdrive_hits.add(aid)
+                        if has_of_web:
+                            of_hits.add(aid)
+                        if has_zg_web:
+                            zg_hits.add(aid)
+                        patch_checked_counter[0] += 1
+                        cur_p_cnt = patch_checked_counter[0]
+
+                    if self._cached_games:
+                        for cg in self._cached_games:
+                            if str(cg.get("appid")) == aid:
+                                cg["has_gdrive"] = has_gdrive
+                                cg["has_onlinefix_web"] = has_of_web
+                                cg["has_zeigames_web"] = has_zg_web
+                                cg["has_onlinefix"] = has_any_patch
+                                break
+
+                    p_pct = int((cur_p_cnt / total_p_files) * 100) if total_p_files > 0 else 100
+                    if hasattr(self, "_push_js_event"):
+                        p_prog = {
+                            "current": cur_p_cnt,
+                            "total": total_p_files,
+                            "percent": p_pct,
+                            "appid": aid,
+                            "game_name": g_name if (g_name and not g_name.startswith("App_")) else (eng_name or f"App_{aid}"),
+                            "has_gdrive": has_gdrive,
+                            "has_of_web": has_of_web,
+                            "has_zg_web": has_zg_web,
+                            "has_onlinefix": has_any_patch
+                        }
+                        self._last_patch_progress = p_prog
+                        self._push_js_event("onPatchCheckProgress", p_prog)
+                        self._push_js_event("onSingleGamePatchChecked", {
+                            "appid": aid,
+                            "name": g_name,
+                            "has_gdrive": has_gdrive,
+                            "has_of_web": has_of_web,
+                            "has_zg_web": has_zg_web,
+                            "has_onlinefix": has_any_patch,
+                            "onlinefix_url": of_url,
+                            "zeigames_url": zg_url
+                        })
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=3) as patch_exec:
+                    list(patch_exec.map(_check_one_patch, patch_items))
+
+                if hasattr(self, "_push_js_event"):
+                    known_of, known_zg = web_patch_checker.get_known_patch_appids()
+                    p_fin = {
+                        "total": total_p_files,
+                        "installed_gdrive": len(gdrive_hits),
+                        "installed_onlinefix": len(of_hits),
+                        "installed_zeigames": len(zg_hits),
+                        "total_gdrive": len(of_appids_set),
+                        "total_onlinefix": len(known_of),
+                        "total_zeigames": len(known_zg)
+                    }
+                    self._last_patch_finished = p_fin
+                    self._push_js_event("onAllPatchesCheckFinished", p_fin)
+            except Exception as e:
+                print(f"[ManageHandler] Patch check background worker error: {e}")
+                if hasattr(self, "_push_js_event"):
+                    p_fin_err = {
+                        "total": len(lua_files),
+                        "installed_gdrive": 0,
+                        "installed_onlinefix": 0,
+                        "installed_zeigames": 0,
+                        "total_gdrive": 0,
+                        "total_onlinefix": 0,
+                        "total_zeigames": 0
+                    }
+                    self._last_patch_finished = p_fin_err
+                    self._push_js_event("onAllPatchesCheckFinished", p_fin_err)
+
+        patch_thread = threading.Thread(target=_run_patch_checks, daemon=True)
+        patch_thread.start()
 
         updates_file = config_manager.get_storage_dir() / "manifest_updates.json"
         updates_file.parent.mkdir(parents=True, exist_ok=True)
@@ -535,15 +836,17 @@ class ManageHandler:
                 # 🌟 即時向前端推送全域檢查進度事件 (讓使用者看到清晰流暢的進度條)
                 total_files = len(lua_files)
                 pct = int((cur_cnt / total_files) * 100) if total_files > 0 else 100
+                prog_payload = {
+                    "current": cur_cnt,
+                    "total": total_files,
+                    "percent": pct,
+                    "appid": appid,
+                    "game_name": u_item.get("name") or f"App_{appid}",
+                    "has_update": has_up
+                }
+                self._last_update_progress = prog_payload
                 if hasattr(self, "_push_js_event"):
-                    self._push_js_event("onUpdateProgress", {
-                        "current": cur_cnt,
-                        "total": total_files,
-                        "percent": pct,
-                        "appid": appid,
-                        "game_name": u_item.get("name") or f"App_{appid}",
-                        "has_update": has_up
-                    })
+                    self._push_js_event("onUpdateProgress", prog_payload)
                     # 若判定該遊戲有更新，即時逐筆推播點亮小卡！
                     if has_up:
                         self._push_js_event("onSingleGameUpdateChecked", u_item)
@@ -553,6 +856,22 @@ class ManageHandler:
                     save_progress()
 
             except Exception as e:
+                with save_lock:
+                    checked_counter[0] += 1
+                    cur_cnt = checked_counter[0]
+                total_files = len(lua_files)
+                pct = int((cur_cnt / total_files) * 100) if total_files > 0 else 100
+                prog_payload = {
+                    "current": cur_cnt,
+                    "total": total_files,
+                    "percent": pct,
+                    "appid": appid,
+                    "game_name": game_cache.get(appid, {}).get("name") or f"App_{appid}",
+                    "has_update": False
+                }
+                self._last_update_progress = prog_payload
+                if hasattr(self, "_push_js_event"):
+                    self._push_js_event("onUpdateProgress", prog_payload)
                 try:
                     from managers import unified_manifest_manager
                     mgr = unified_manifest_manager.UnifiedManifestManager.get_instance()
@@ -639,12 +958,14 @@ class ManageHandler:
 
         total_up = len([u for u in updates.values() if u.get("has_update")])
         # 🌟 全庫比對完全確認後一次性推送 (Atomic Delivery)
+        fin_payload = {
+            "total": len(lua_files),
+            "updated_count": total_up,
+            "updates": updates
+        }
+        self._last_update_finished = fin_payload
         if hasattr(self, "_push_js_event"):
-            self._push_js_event("onAllUpdatesCheckFinished", {
-                "total": len(lua_files),
-                "updated_count": total_up,
-                "updates": updates
-            })
+            self._push_js_event("onAllUpdatesCheckFinished", fin_payload)
 
         return {
             "ok": True, 

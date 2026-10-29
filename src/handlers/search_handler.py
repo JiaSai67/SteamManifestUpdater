@@ -147,12 +147,14 @@ class SearchHandler:
         except Exception as e:
             print(f"[WebApi] search online error: {e}")
 
-        # 若線上 API 暫時連不上，嘗試搜尋本地與已知清單
+        # 若線上 API 暫時連不上，嘗試搜尋本地與已知清單 (支援剔除特殊字元，僅比對英文、中文與數字)
         if not results:
+            q_clean = re.sub(r'[^a-z0-9\u4e00-\u9fff]', '', q.lower())
             known = name_resolver._load_cache() or {}
             for aid, n in known.items():
                 tw_n = sanitize_game_name(str(n), str(aid))
-                if q.lower() in tw_n.lower() or q.lower() in str(aid):
+                tw_clean = re.sub(r'[^a-z0-9\u4e00-\u9fff]', '', tw_n.lower())
+                if q.lower() in tw_n.lower() or q.lower() in str(aid) or (q_clean and q_clean in tw_clean):
                     c_info = c_data.get(str(aid), {})
                     img_url = c_info.get("header_image") or f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{aid}/header.jpg"
                     results.append({
@@ -207,16 +209,45 @@ class SearchHandler:
         items = []
 
         game_cache = self._load_unified_game_cache()
+        of_appids = set()
+        known_of_appids = set()
+        known_zg_appids = set()
+        try:
+            from managers import onlinefix_manager
+            of_appids = set(onlinefix_manager.get_all_onlinefix_appids())
+        except Exception:
+            pass
+        try:
+            from api import web_patch_checker
+            known_of_appids, known_zg_appids = web_patch_checker.get_known_patch_appids()
+        except Exception:
+            pass
 
         for aid, nm in featured_pool[start:end]:
-            c_info = game_cache.get(str(aid), {})
+            aid_s = str(aid)
+            c_info = game_cache.get(aid_s, {})
             img = c_info.get("header_image", f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{aid}/header.jpg")
             c_name = sanitize_game_name(c_info.get("name", nm), aid)
+            en_name = c_info.get("english_name") or c_info.get("name_en") or re.sub(r'\s*\(.*?\)\s*', '', nm).strip()
+            has_gd = bool(aid_s in of_appids)
+            has_of = bool(aid_s in known_of_appids)
+            has_zg = bool(aid_s in known_zg_appids)
             items.append({
-                "appid": str(aid),
+                "appid": aid_s,
                 "name": c_name,
-                "image": img
+                "english_name": en_name,
+                "image": img,
+                "has_gdrive": has_gd,
+                "has_onlinefix_web": has_of,
+                "has_zeigames_web": has_zg,
+                "has_onlinefix": has_gd or has_of or has_zg
             })
+
+        if hasattr(self, "_ensure_unindexed_games_patch_checked"):
+            try:
+                self._ensure_unindexed_games_patch_checked(items)
+            except Exception:
+                pass
 
         return {
             "games": items,
@@ -507,9 +538,16 @@ class SearchHandler:
                 if not l_gid or str(l_gid) != str(r_gid):
                     all_depots_same_as_local = False
 
+        from managers import account_manager
+        ryuu_conn_st = account_manager.get_account_manager().get_platform_connection_status("ryuu")
+        ryuu_conn_err = bool(ryuu_info.get("connection_error") or ryuu_conn_st.get("connection_error"))
+        ryuu_err_msg = str(ryuu_info.get("error_msg") or ryuu_conn_st.get("error_msg") or "").strip()
+
         ryuu_status = {
             "name": "Ryuu 平台",
             "available": ryuu_available,
+            "connection_error": ryuu_conn_err,
+            "error_msg": ryuu_err_msg,
             "manifest_id": ryuu_manifest_repr if (ryuu_available and ryuu_manifest_repr) else "無檔案 (未收錄)",
             "depots": ryuu_depots,
             "is_outdated": is_main_outdated,  # 嚴格以主程式為準
@@ -920,12 +958,20 @@ class SearchHandler:
             lua_f = Path(sp) / "config" / "lua" / f"{appid_str}.lua"
             is_installed = bool(lua_f.exists() and lua_f.stat().st_size > 20)
 
-        # 2. 檢查雲端網盤補丁庫 (Google Drive - 預載入與定時輪詢極速比對)
+        # 2. 檢查雲端網盤補丁庫 (Google Drive - 預載入與定時輪詢極速比對，支援英文名稱解析與模糊比對)
         has_patch = False
         drive_name = ""
+        search_en_name = str(name or "").strip()
+        try:
+            from api import web_patch_checker
+            resolved_en = web_patch_checker.resolve_english_game_name(search_en_name, appid_str)
+            if resolved_en:
+                search_en_name = resolved_en
+        except Exception:
+            pass
         try:
             from managers import onlinefix_manager
-            ps = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=name, allow_network=False)
+            ps = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=search_en_name or name, allow_network=False)
             app_src = ps.get(appid_str, {})
             if app_src.get("cloud_rar") or app_src.get("cloud_lua") or app_src.get("local_lua"):
                 has_patch = True
@@ -942,6 +988,8 @@ class SearchHandler:
         try:
             from managers import version_resolver
             sdb_info = version_resolver.fetch_steamdb_manifests(appid_str, timeout=5)
+            if sdb_info.get("english_name") and (not search_en_name or re.search(r'[\u4e00-\u9fff]', search_en_name)):
+                search_en_name = sdb_info.get("english_name").strip()
             sdb_manifests = sdb_info.get("manifests", {})
             raw_date = sdb_info.get("date_str", "")
             if raw_date:
@@ -984,7 +1032,7 @@ class SearchHandler:
         except Exception:
             pass
 
-        # 5. 檢查 Online-Fix 與 ZeiGames 網頁補丁收錄狀態 (優先自快取與種子庫讀取，快取未命中則快速檢索)
+        # 5. 檢查 Online-Fix 與 ZeiGames 網頁補丁收錄狀態 (自動解析英文名稱、Emoji 模糊比對與快取驗證)
         has_of_web = False
         has_zg_web = False
         try:
@@ -995,23 +1043,13 @@ class SearchHandler:
             if appid_str in zg_known:
                 has_zg_web = True
 
-            clean_search_name = str(name).strip()
-            if not has_of_web or not has_zg_web:
-                cached_res = web_patch_checker._patch_memory_cache.get(appid_str)
-                if not cached_res and clean_search_name:
-                    cached_res = web_patch_checker._patch_memory_cache.get(clean_search_name.lower())
-                if cached_res:
-                    if cached_res.get("onlinefix", {}).get("available"):
-                        has_of_web = True
-                    if cached_res.get("zeigames", {}).get("available"):
-                        has_zg_web = True
-                elif clean_search_name and not clean_search_name.startswith("App_"):
-                    # 快取無記錄時，執行單次快速驗證
-                    res_patches = web_patch_checker.check_all_web_patches(clean_search_name, appid=appid_str)
-                    if res_patches.get("onlinefix", {}).get("available"):
-                        has_of_web = True
-                    if res_patches.get("zeigames", {}).get("available"):
-                        has_zg_web = True
+            clean_search_name = str(search_en_name or name or "").strip()
+            if (not has_of_web or not has_zg_web) and (clean_search_name or appid_str):
+                res_patches = web_patch_checker.check_all_web_patches(clean_search_name, appid=appid_str)
+                if res_patches.get("onlinefix", {}).get("available"):
+                    has_of_web = True
+                if res_patches.get("zeigames", {}).get("available"):
+                    has_zg_web = True
         except Exception as e:
             print(f"[get_search_item_status] AppID {appid_str} 查詢 web 補丁庫異常: {e}")
 
@@ -1019,7 +1057,7 @@ class SearchHandler:
             "appid": appid_str,
             "has_manifest": has_manifest,
             "version_date": version_date_str,
-            "has_onlinefix": has_patch,
+            "has_onlinefix": has_patch or has_of_web or has_zg_web,
             "has_gdrive": has_patch,
             "has_onlinefix_web": has_of_web,
             "has_zeigames_web": has_zg_web,

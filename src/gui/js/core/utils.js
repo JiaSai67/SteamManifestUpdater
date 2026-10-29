@@ -448,20 +448,23 @@ async function init(){
     }
 
     // ══════════════════════════════════════════════════
-    // Step 6 (75%): 🌟 真實預載入憑證與多平台配額矩陣 (徹底杜絕切換等待)
+    // Step 6 (75%): 🌟 主動檢驗憑證與多平台真實配額狀態 (Ryuu / HubcapDB / Lua.tools)
     // ══════════════════════════════════════════════════
-    console.log('[INIT] Starting Step 6 - Real Credentials Preload');
-    setSplashProgress(75, '同步多平台帳號憑證與配額矩陣...', '預載入 Ryuu / Hubcap / LuaTools 授權與即時額度', 6);
+    console.log('[INIT] Starting Step 6 - Real Credentials & Active Quota Check');
+    setSplashProgress(75, '主動檢查多平台配額與連線狀態...', '即時核驗 Ryuu / HubcapDB / LuaTools 配額與連線狀態', 6);
     await yieldToUI(80);
 
     try {
       var credRes = await pCreds;
+      if((!credRes || !credRes.ok) && window.pywebview && pywebview.api && pywebview.api.get_credentials_status){
+        credRes = await pywebview.api.get_credentials_status();
+      }
       if(credRes && credRes.ok){
         if(typeof loadCredentialsStatus === 'function'){
-          await loadCredentialsStatus(false);
+          await loadCredentialsStatus(false, credRes);
         }
         if(typeof updateManageQuota === 'function'){
-          updateManageQuota();
+          await updateManageQuota(credRes);
         }
       }
     } catch(e){
@@ -488,6 +491,21 @@ async function init(){
         games = await pGames;
       }
       _pre._games = games || [];
+      if(_pre._games.length){
+        if(!window._gdriveAppids) window._gdriveAppids = new Set();
+        if(!window._onlinefixWebAppids) window._onlinefixWebAppids = new Set();
+        if(!window._zeigamesWebAppids) window._zeigamesWebAppids = new Set();
+        _pre._games.forEach(function(g){
+          var a = String(g.appid);
+          if(g.deployed && typeof _deployedAppids !== 'undefined' && _deployedAppids) _deployedAppids.add(a);
+          if(g.has_gdrive) window._gdriveAppids.add(a);
+          if(g.has_onlinefix_web) window._onlinefixWebAppids.add(a);
+          if(g.has_zeigames_web) window._zeigamesWebAppids.add(a);
+          if((g.has_onlinefix || g.has_gdrive || g.has_onlinefix_web || g.has_zeigames_web) && typeof _onlinefixAppids !== 'undefined' && _onlinefixAppids) {
+            _onlinefixAppids.add(a);
+          }
+        });
+      }
       if(typeof renderGames === 'function'){
         var filter = (document.getElementById('mf') ? document.getElementById('mf').value : '').trim().toLowerCase();
         renderGames(_pre._games, filter);
@@ -506,15 +524,20 @@ async function init(){
     }
 
     // ══════════════════════════════════════════════════
-    // Step 8 (96%): 預載入已安裝 AppID 與網盤本機配置
+    // Step 8 (96%): 預載入已安裝 AppID 與輕量發布背景更新／三大源頭補丁檢查任務
     // ══════════════════════════════════════════════════
-    setSplashProgress(96, '初始化已安裝遊戲與網盤配置...', '檢測本機 AppID 映射與多源資料庫緩存', 8);
+    setSplashProgress(96, '發布背景更新與三大源頭補丁檢查任務...', '啟動後台版本核驗與 Online-Fix · ZeiGames · Google Drive 檢索序列', 8);
     await yieldToUI(80);
 
     try{
       var localIds = await pAppids;
       if(localIds && localIds.length){
         localIds.forEach(function(x){ _installedAppids.add(String(x)); });
+      }
+
+      // 🌟 初始化輕量發布檢查任務：立即將「更新需求檢查」與「三大源頭線上補丁檢查」派發至後台非同步運行
+      if(typeof startProactiveUpdateCheck === 'function'){
+        startProactiveUpdateCheck(false);
       }
 
       // 🌟 預先就地渲染健康報告，使用者切換「系統」分頁 0ms 秒開
@@ -546,11 +569,9 @@ async function init(){
     loadBrowse(0, false).catch(function(){});
 
     // ══════════════════════════════════════════════════
-    // 🚀 Stage 4 (延遲 7500ms): 繁重 Manifest 比對與軟體更新檢測
-    // 此時介面已完全穩定，背景靜默爬蟲完全無感
+    // 🚀 Stage 4: 背景軟體版本自我更新檢測
     // ══════════════════════════════════════════════════
     setTimeout(function(){
-      startProactiveUpdateCheck(false);
       pywebview.api.check_update().then(function(u){
         if(u && u.has_update && u.version){
           _updateUrl = u.url;

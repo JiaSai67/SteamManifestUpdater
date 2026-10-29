@@ -84,34 +84,49 @@ KNOWN_CLOUD_PATCH_APPIDS = {
     "dimraeth": "2402680",
     "corekeeper": "1621690",
     "core keeper": "1621690",
-    "escapethebackrooms": "1813330",
-    "escape the backrooms": "1813330",
-    "fastfoodsimulator": "2880780",
-    "fast food simulator": "2880780",
-    "grainrot": "3108640",
-    "grain rot": "3108640",
+    "escapethebackrooms": "1943950",
+    "escape the backrooms": "1943950",
+    "fastfoodsimulator": "2916430",
+    "fast food simulator": "2916430",
+    "grainrot": "4450620",
+    "grain rot": "4450620",
     "minecraftdungeons": "1672970",
     "minecraftdungeonsii": "1672970",
-    "pizzahousesimulator": "2862410",
-    "pizza house simulator": "2862410",
-    "scamline": "3107050",
+    "pizzahousesimulator": "4132330",
+    "pizza house simulator": "4132330",
+    "scamline": "3859360",
     "subnautica": "264710",
     "ultimatechickenhorse": "386940",
     "ultimate chicken horse": "386940",
-    "deepbluesushi": "3209800",
-    "deep blue sushi": "3209800",
-    "wraphousesimulator": "3257850",
-    "wrap house simulator": "3257850",
+    "deepbluesushi": "4005220",
+    "deep blue sushi": "4005220",
+    "wraphousesimulator": "3536240",
+    "wrap house simulator": "3536240",
 }
+
+def _normalize_patch_game_name(text: str, keep_cjk: bool = False) -> str:
+    """
+    將遊戲名稱或檔名嚴格剔除所有特殊字元、Emoji (🍕) 與商標符號 (™/®/©)，
+    僅保留英文、中文與數字以供模糊比對（使用 NFD 避免將 ™ 拆解成英文字母 tm）。
+    """
+    import re, unicodedata
+    if not text:
+        return ""
+    s = unicodedata.normalize('NFD', str(text)).lower()
+    s = re.sub(r'[\u0300-\u036f]+', '', s)
+    if keep_cjk and not re.search(r'[a-z]', s):
+        return re.sub(r'[^a-z0-9\u4e00-\u9fff]', '', s)
+    return re.sub(r'[^a-z0-9]', '', s)
 
 def resolve_appid_for_patch_file(file_name: str, folder_part: str = "") -> str:
     """
     從補丁檔名或目錄路徑智慧反解 Steam AppID：
     1. 優先尋找 4~9 位純數字 AppID
-    2. 智能剝離修復標籤後綴 (_Fix_Repair_Steam_Generic, OnlineFix, ZeiGames 等)
-    3. 交叉比對 data/game_names.json、已知網盤補丁庫字典與本地 Steam 遊戲
+    2. 智能剝離修復標籤後綴 (_Fix_Repair_Steam_Generic, OnlineFix, ZeiGames 等) 與 Emoji
+    3. 交叉比對 data/game_names.json、data/game_cache.json 與已知網盤補丁庫字典 (含模糊比對)
     """
     import re
+    from difflib import SequenceMatcher
     if not file_name:
         return ""
     
@@ -141,46 +156,59 @@ def resolve_appid_for_patch_file(file_name: str, folder_part: str = "") -> str:
         clean_name = re.sub(re.escape(tag), '', clean_name, flags=re.IGNORECASE)
 
     clean_name = clean_name.replace('_', ' ').replace('.', ' ').strip()
-    norm_clean = re.sub(r'[^a-z0-9]', '', clean_name.lower())
+    norm_clean = _normalize_patch_game_name(clean_name)
     if not norm_clean:
         return ""
 
-    # 3. 比對已知網盤補丁庫高頻字典
+    # 3. 優先精準比對已知網盤補丁庫高頻字典
     if norm_clean in KNOWN_CLOUD_PATCH_APPIDS:
         return KNOWN_CLOUD_PATCH_APPIDS[norm_clean]
 
-    for k, v in KNOWN_CLOUD_PATCH_APPIDS.items():
-        k_norm = re.sub(r'[^a-z0-9]', '', k.lower())
-        if k_norm and (k_norm in norm_clean or norm_clean in k_norm):
-            return v
-
-    # 4. 比對 data/game_names.json (使用者與系統已記錄之遊戲庫)
+    # 4. 比對 data/game_names.json 與 data/game_cache.json (精準與模糊比對)
+    local_candidates = []
     try:
         gn_file = config_manager._root_dir / "data" / "game_names.json"
         if gn_file.exists():
             gn_data = json.loads(gn_file.read_text(encoding="utf-8"))
             for aid, gname in gn_data.items():
-                g_norm = re.sub(r'[^a-z0-9]', '', str(gname).lower())
-                if g_norm and len(g_norm) >= 3 and (g_norm in norm_clean or norm_clean in g_norm):
-                    return str(aid)
+                g_norm = _normalize_patch_game_name(gname)
+                if g_norm and len(g_norm) >= 3:
+                    if g_norm == norm_clean:
+                        return str(aid)
+                    local_candidates.append((str(aid), g_norm))
     except Exception:
         pass
 
-    # 5. 比對 data/game_cache.json (若存在)
     try:
         gc_file = config_manager._root_dir / "data" / "game_cache.json"
         if gc_file.exists():
             gc_data = json.loads(gc_file.read_text(encoding="utf-8"))
             for aid, ginfo in gc_data.items():
                 if isinstance(ginfo, dict):
-                    for nk in ['name', 'english_name', 'name_en']:
+                    for nk in ['english_name', 'name_en', 'name']:
                         g_val = ginfo.get(nk)
                         if g_val:
-                            g_norm = re.sub(r'[^a-z0-9]', '', str(g_val).lower())
-                            if g_norm and len(g_norm) >= 3 and (g_norm in norm_clean or norm_clean in g_norm):
-                                return str(aid)
+                            g_norm = _normalize_patch_game_name(g_val)
+                            if g_norm and len(g_norm) >= 3:
+                                if g_norm == norm_clean:
+                                    return str(aid)
+                                local_candidates.append((str(aid), g_norm))
     except Exception:
         pass
+
+    for k, v in KNOWN_CLOUD_PATCH_APPIDS.items():
+        k_norm = _normalize_patch_game_name(k)
+        if k_norm and (k_norm in norm_clean or norm_clean in k_norm):
+            return v
+
+    # 子字串或模糊比對 (容許 1~2 個字元或符號差異)
+    for aid, g_norm in local_candidates:
+        if g_norm in norm_clean or norm_clean in g_norm:
+            if min(len(g_norm), len(norm_clean)) / max(len(g_norm), len(norm_clean)) >= 0.72:
+                return aid
+        if min(len(g_norm), len(norm_clean)) >= 4 and abs(len(g_norm) - len(norm_clean)) <= 2:
+            if SequenceMatcher(None, g_norm, norm_clean).ratio() >= 0.84:
+                return aid
 
     return ""
 
@@ -412,20 +440,22 @@ if _cloud_cache_file.exists():
     try:
         with open(_cloud_cache_file, "r", encoding="utf-8") as f:
             _cloud_cache = json.load(f)
-            # 🌟 快取自我修復：若歷史快取中未填入 AppID，立即智慧補齊並持久化
+            # 🌟 快取自我修復：若歷史快取中未填入 AppID 或映射已更新，立即智慧補齊並持久化
             if isinstance(_cloud_cache, list):
                 _patched_any = False
                 for item in _cloud_cache:
-                    if not item.get("app_id"):
-                        fname = item.get("name") or Path(item.get("path") or "").name
-                        aid = resolve_appid_for_patch_file(fname, item.get("path") or "")
-                        if aid:
-                            item["app_id"] = str(aid)
-                            _patched_any = True
+                    fname = item.get("name") or Path(item.get("path") or "").name
+                    aid = resolve_appid_for_patch_file(fname, item.get("path") or "")
+                    if aid and str(item.get("app_id") or "") != str(aid):
+                        item["app_id"] = str(aid)
+                        _patched_any = True
                 if _patched_any:
                     try:
                         with open(_cloud_cache_file, "w", encoding="utf-8") as wf:
                             json.dump(_cloud_cache, wf, ensure_ascii=False, indent=2)
+                        appids_json = config_manager._root_dir / "data" / "onlinefix_appids.json"
+                        if appids_json.exists():
+                            appids_json.unlink()
                     except Exception:
                         pass
     except Exception:
@@ -719,19 +749,27 @@ def get_patch_sources(target_apps=None, target_app_id=None, target_app_name=None
                 
         # Fuzzy match logic for target_apps
         if target_apps:
+            from difflib import SequenceMatcher
             for app_id, app_name in target_apps.items():
                 app_id = str(app_id)
                 if app_id not in sources:
                     sources[app_id] = {}
                     
                 if 'cloud_rar' not in sources[app_id]:
-                    import re
-                    target_norm = re.sub(r'[^a-z0-9]', '', app_name.lower())
+                    target_norm = _normalize_patch_game_name(app_name)
                     if target_norm:
                         for f in sorted_cache:
                             if f['path'].lower().endswith(('.rar', '.zip')):
-                                f_norm = re.sub(r'[^a-z0-9]', '', f['path'].lower())
-                                if target_norm in f_norm:
+                                f_norm = _normalize_patch_game_name(f['path'])
+                                is_match = (target_norm in f_norm)
+                                if not is_match and len(target_norm) >= 4:
+                                    # 清理檔名後再做一次編輯距離模糊比對
+                                    f_aid = f.get('app_id')
+                                    if f_aid and str(f_aid) == app_id:
+                                        is_match = True
+                                    elif SequenceMatcher(None, target_norm, f_norm).ratio() >= 0.78:
+                                        is_match = True
+                                if is_match:
                                     prio = f.get('drive_priority', 999)
                                     if 'drive_priority' not in sources[app_id] or prio < sources[app_id]['drive_priority']:
                                         sources[app_id]['cloud_rar'] = f

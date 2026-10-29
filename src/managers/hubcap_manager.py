@@ -19,8 +19,8 @@ DEFAULT_HUBCAP_DOMAIN = "https://hubcapmanifest.com"
 
 # 快取結構: {api_key: {"time": float, "stats": dict, "last_valid_stats": dict}}
 _user_stats_cache: Dict[str, Dict[str, Any]] = {}
-CACHE_TTL_SECONDS = 30  # 30 秒快取，防止前端輪詢與多帳號瞬發打滿 429
-FALLBACK_GRACE_PERIOD = 300  # 5 分鐘容錯寬限期
+CACHE_TTL_SECONDS = 5  # 5 秒短快取，兼顧即時檢測與防止同瞬間重複請求
+FALLBACK_GRACE_PERIOD = 0  # 連線異常時直接回報 Error，不以歷史數字掩蓋異常
 
 def clear_stats_cache(api_key: Optional[str] = None):
     """清除配額查詢快取"""
@@ -96,6 +96,7 @@ def fetch_user_stats(api_key: Optional[str] = None, force_refresh: bool = False)
 
             res = {
                 "ok": True,
+                "connection_error": False,
                 "is_configured": True,
                 "username": username,
                 "daily_limit": daily_limit,
@@ -106,6 +107,11 @@ def fetch_user_stats(api_key: Optional[str] = None, force_refresh: bool = False)
                 "can_make_requests": bool(data.get("can_make_requests", True)) and (remaining > 0),
                 "quota_exhausted": (remaining <= 0)
             }
+            try:
+                from managers import account_manager
+                account_manager.get_account_manager().set_platform_connection_status("hubcap", False, "")
+            except Exception:
+                pass
             # 更新快取
             _user_stats_cache[key] = {
                 "time": now,
@@ -122,10 +128,16 @@ def fetch_user_stats(api_key: Optional[str] = None, force_refresh: bool = False)
         msg = f"HTTP {he.code}"
         if he.code == 401:
             msg = "API Key 無效或已過期 (401 Unauthorized)"
+            try:
+                from managers import account_manager
+                account_manager.get_account_manager().set_platform_connection_status("hubcap", False, "")
+            except Exception:
+                pass
             # 金鑰確已無效，清除快取
             _user_stats_cache.pop(key, None)
             return {
                 "ok": False,
+                "connection_error": False,
                 "error": msg,
                 "raw_error": err_body,
                 "is_configured": True,
@@ -137,11 +149,17 @@ def fetch_user_stats(api_key: Optional[str] = None, force_refresh: bool = False)
             }
         elif he.code == 429:
             msg = "已超過請求頻率限制或今日配額耗盡 (429 Too Many Requests)"
+            try:
+                from managers import account_manager
+                account_manager.get_account_manager().set_platform_connection_status("hubcap", False, "")
+            except Exception:
+                pass
             prev_limit = 25
             if cached and cached.get("last_valid_stats"):
                 prev_limit = cached["last_valid_stats"].get("daily_limit") or 25
             res_429 = {
                 "ok": True,
+                "connection_error": False,
                 "is_configured": True,
                 "is_valid": True,
                 "quota_exhausted": True,
@@ -159,32 +177,40 @@ def fetch_user_stats(api_key: Optional[str] = None, force_refresh: bool = False)
             }
             return res_429
 
-        # 429 或其他暫時性 HTTP 異常：若先前有有效快取，進行寬容回退避免前端瞬間閃紅
-        if cached and cached.get("last_valid_stats") and (now - cached.get("time", 0) < FALLBACK_GRACE_PERIOD):
-            logger.warning("Hubcap API 請求遭遇暫時性異常 (%s)，自動回退使用有效快取資料維持顯示", msg)
-            return cached["last_valid_stats"]
-
+        # 其他 HTTP 異常 (如 521 / 5xx)：標記連線異常並直接回傳 Error 狀態
+        _user_stats_cache.pop(key, None)
+        try:
+            from managers import account_manager
+            account_manager.get_account_manager().set_platform_connection_status("hubcap", True, msg)
+        except Exception:
+            pass
         return {
             "ok": False,
+            "connection_error": True,
             "error": msg,
             "raw_error": err_body,
             "is_configured": True,
-            "is_valid": True,
-            "daily_limit": 25,
-            "daily_usage": 25,
+            "is_valid": False,
+            "daily_limit": 0,
+            "daily_usage": 0,
             "remaining": 0,
             "can_make_requests": False
         }
     except Exception as e:
-        # 連線逾時、DNS 抖動或網路連線暫時中斷：若先前有有效快取，回退至有效快取
-        if cached and cached.get("last_valid_stats") and (now - cached.get("time", 0) < FALLBACK_GRACE_PERIOD):
-            logger.warning("連線至 Hubcap 發生短暫波動 (%s)，自動回退使用有效快取資料維持顯示", e)
-            return cached["last_valid_stats"]
-
+        # 連線逾時、DNS 抖動或網路連線中斷：標記連線異常並直接回傳 Error 狀態
+        _user_stats_cache.pop(key, None)
+        err_str = f"連線至 Hubcap 失敗: {e}"
+        try:
+            from managers import account_manager
+            account_manager.get_account_manager().set_platform_connection_status("hubcap", True, str(e))
+        except Exception:
+            pass
         return {
             "ok": False,
-            "error": f"連線至 Hubcap 失敗: {e}",
+            "connection_error": True,
+            "error": err_str,
             "is_configured": True,
+            "is_valid": False,
             "daily_limit": 0,
             "daily_usage": 0,
             "remaining": 0,
@@ -358,20 +384,43 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
             last_err = f"HTTP {he.code}"
             if he.code == 429:
                 quota_exhausted = True
+                try:
+                    from managers import account_manager
+                    account_manager.get_account_manager().set_platform_connection_status("hubcap", False, "")
+                except Exception:
+                    pass
                 logger.warning(f"[Hubcap] 請求 {appid_str} 觸發 429 配額用罄限制")
                 break
             elif he.code == 404:
+                try:
+                    from managers import account_manager
+                    account_manager.get_account_manager().set_platform_connection_status("hubcap", False, "")
+                except Exception:
+                    pass
                 break
         except Exception as e:
             last_err = str(e)
             logger.debug("嘗試 Hubcap 端點 %s 失敗: %s", url, e)
             continue
 
+    is_conn_err = bool(last_err and not quota_exhausted and last_err != "HTTP 404")
+    if is_conn_err:
+        clear_stats_cache()
+        try:
+            from managers import account_manager
+            account_manager.get_account_manager().set_platform_connection_status("hubcap", True, last_err)
+        except Exception:
+            pass
+
     # 🌟 若連線失敗或配額耗盡，嘗試自磁碟快取兜底
     cached = _load_hubcap_cached_info(appid_str)
     if cached and cached.get("available") and cached.get("depots"):
+        cached = dict(cached)
         cached["from_cache"] = True
         cached["quota_exhausted"] = quota_exhausted
+        if is_conn_err:
+            cached["connection_error"] = True
+            cached["error_msg"] = last_err
         return cached
 
     return {
@@ -379,6 +428,7 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
         "depots": {}, 
         "source": "HubcapDB", 
         "quota_exhausted": quota_exhausted,
+        "connection_error": is_conn_err,
         "error": "今日配額已達上限 (25/25)" if quota_exhausted else (last_err or "未收錄")
     }
 

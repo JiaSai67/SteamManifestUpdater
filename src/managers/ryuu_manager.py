@@ -105,6 +105,11 @@ def fetch_ryuu_manifest_info(appid, timeout=10):
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             if resp.status == 200:
+                try:
+                    from managers import account_manager
+                    account_manager.get_account_manager().set_platform_connection_status("ryuu", False, "")
+                except Exception:
+                    pass
                 data = json.loads(resp.read().decode("utf-8", errors="ignore"))
                 files = []
                 bm = data.get("branch_manifests", {})
@@ -121,9 +126,25 @@ def fetch_ryuu_manifest_info(appid, timeout=10):
                 }
     except urllib.error.HTTPError as e:
         if e.code == 404:
+            try:
+                from managers import account_manager
+                account_manager.get_account_manager().set_platform_connection_status("ryuu", False, "")
+            except Exception:
+                pass
             return {"found": False, "error": "Game not found (404)"}
+        if e.code >= 500:
+            try:
+                from managers import account_manager
+                account_manager.get_account_manager().set_platform_connection_status("ryuu", True, f"HTTP {e.code}")
+            except Exception:
+                pass
         return {"found": False, "error": f"HTTP {e.code}"}
     except Exception as e:
+        try:
+            from managers import account_manager
+            account_manager.get_account_manager().set_platform_connection_status("ryuu", True, str(e))
+        except Exception:
+            pass
         print(f"[ryuu_manager] fetch_manifest_info error for {appid}: {e}")
         return {"found": False, "error": str(e)}
     return {"found": False, "error": "Empty response"}

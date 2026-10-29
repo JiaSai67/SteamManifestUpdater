@@ -276,6 +276,12 @@ class UnifiedManifestManager:
                             data["time"] = str(ts)
 
                     # 成功獲取，寫入本地快取並記錄日誌
+                    try:
+                        from managers import account_manager
+                        account_manager.get_account_manager().set_platform_connection_status("ryuu", False, "")
+                    except Exception:
+                        pass
+                    data["connection_error"] = False
                     self._save_ryuu_cached_info(appid, data)
                     elapsed = time.time() - start_t
                     self._log_manifest_check(f"[RyuuOK] AppID: {appid}, Attempt: {attempt}, Time: {elapsed:.2f}s, Depots: {len(data['depots'])}, Available: {data['available']}")
@@ -284,7 +290,12 @@ class UnifiedManifestManager:
             except urllib.error.HTTPError as e:
                 last_error = f"HTTP {e.code}"
                 if e.code == 404:
-                    # 伺服器明確回傳 404：確定無此遊戲，不再重試
+                    # 伺服器明確回傳 404：確定無此遊戲，但連線本身正常，不再重試
+                    try:
+                        from managers import account_manager
+                        account_manager.get_account_manager().set_platform_connection_status("ryuu", False, "")
+                    except Exception:
+                        pass
                     break
                 time.sleep(0.5)
             except Exception as e:
@@ -292,10 +303,25 @@ class UnifiedManifestManager:
                 time.sleep(0.5)
 
         elapsed = time.time() - start_t
+        # 若非 404 / 429，且發生 5xx (如 521) 或網路連線異常，標記 Ryuu 平台連線異常
+        is_conn_err = bool(last_error and last_error not in ("HTTP 404", "HTTP 429"))
+        if is_conn_err:
+            try:
+                from managers import account_manager
+                account_manager.get_account_manager().set_platform_connection_status("ryuu", True, last_error)
+            except Exception:
+                pass
+            data["connection_error"] = True
+            data["error_msg"] = last_error
+
         # 若所有嘗試均因網路異常失敗，啟動快取兜底保護！
         cached = self._load_ryuu_cached_info(appid)
         if cached and cached.get("available") and cached.get("depots"):
+            cached = dict(cached)
             cached["from_cache"] = True
+            if is_conn_err:
+                cached["connection_error"] = True
+                cached["error_msg"] = last_error
             self._log_manifest_check(f"[RyuuFALLBACK] AppID: {appid}, Error: {last_error}, Time: {elapsed:.2f}s, 成功使用歷史快取兜底! (Depots: {len(cached.get('depots', {}))})")
             return cached
 
@@ -344,6 +370,7 @@ class UnifiedManifestManager:
 
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as resp:
+                mgr.set_platform_connection_status("lua_tools", False, "")
                 res = json.loads(resp.read().decode("utf-8"))
                 if isinstance(res, dict) and "error" not in res:
                     # 🌟 嚴格只判定 Ryuu 來源 (Luie 僅提供 Lua 無 Manifest，不列入可用)
@@ -352,8 +379,27 @@ class UnifiedManifestManager:
                         data["available"] = True
                         data["sources"] = ["Ryuu"]
                         data["time"] = "即時在庫 (Ryuu 來源)"
-        except Exception:
-            pass
+        except urllib.error.HTTPError as he:
+            if he.code >= 500:
+                try:
+                    from managers import account_manager
+                    account_manager.get_account_manager().set_platform_connection_status("lua_tools", True, f"HTTP {he.code}")
+                except Exception:
+                    pass
+                data["connection_error"] = True
+            else:
+                try:
+                    from managers import account_manager
+                    account_manager.get_account_manager().set_platform_connection_status("lua_tools", False, "")
+                except Exception:
+                    pass
+        except Exception as e:
+            try:
+                from managers import account_manager
+                account_manager.get_account_manager().set_platform_connection_status("lua_tools", True, str(e))
+            except Exception:
+                pass
+            data["connection_error"] = True
         return data
 
     def _arbitrate_best_source(self, result: Dict[str, Any], steamdb_manifests: Optional[Dict[str, str]] = None):
@@ -1011,6 +1057,7 @@ class UnifiedManifestManager:
                             print(f"[UnifiedManifestManager] 更新 manifest_updates.json 快取失敗: {ce}")
 
                         # 🌟 成功記帳 1 次額度，並設為活躍帳號
+                        mgr.set_platform_connection_status("ryuu", False, "")
                         mgr.mark_account_valid("ryuu", acc_id)
                         mgr.record_quota_usage("ryuu", acc_id, 1)
                         mgr.set_active_account("ryuu", acc_id)
@@ -1028,9 +1075,11 @@ class UnifiedManifestManager:
                         logger.log_network_response("Ryuu", he.code, headers=dict(he.headers) if hasattr(he, "headers") else {}, body_sample=err_body.encode("utf-8", errors="replace"), byte_length=len(err_body), content_type=getattr(he.headers, "get", lambda k, d="": "")("Content-Type", "") if hasattr(he, "headers") else "")
 
                     if he.code == 404:
+                        mgr.set_platform_connection_status("ryuu", False, "")
                         if logger: logger.log_error("Ryuu請求", "Ryuu 官方伺服器目前未收錄此遊戲 Manifest (HTTP 404)")
                         return False, "Ryuu 官方伺服器目前未收錄此遊戲 Manifest (HTTP 404)。"
                     elif he.code == 400:
+                        mgr.set_platform_connection_status("ryuu", False, "")
                         last_error = f"Ryuu 請求錯誤 (HTTP 400)"
                         if err_body:
                             try:
@@ -1044,6 +1093,7 @@ class UnifiedManifestManager:
                             continue
                         return False, last_error
                     elif he.code in (401, 403):
+                        mgr.set_platform_connection_status("ryuu", False, "")
                         if "too many requests" in err_body.lower() or "rate" in err_body.lower():
                             last_error = "Ryuu 伺服器頻率限制，正在冷卻重試..."
                             if logger: logger.log_step("頻率限制", last_error, status="WARN")
@@ -1071,6 +1121,7 @@ class UnifiedManifestManager:
                                 continue
                             break
                     elif he.code >= 500:
+                        mgr.set_platform_connection_status("ryuu", True, f"HTTP {he.code}")
                         last_error = f"Ryuu 伺服器臨時異常 (HTTP {he.code})"
                         if logger: logger.log_step("伺服器500異常", last_error, status="WARN")
                         if retry < 1:
@@ -1085,6 +1136,7 @@ class UnifiedManifestManager:
                             continue
                         break
                 except Exception as e:
+                    mgr.set_platform_connection_status("ryuu", True, str(e))
                     last_error = f"Ryuu HTTP 下載失敗: {e}"
                     if logger: logger.log_error("Ryuu下載異常", str(e), exc=e)
                     if retry < 1:
@@ -1289,6 +1341,7 @@ class UnifiedManifestManager:
                         )
                         steam_manager.sanitize_lua_manifests(appid_str, steam_p, lua_dir)
                         steam_manager.lock_game_version(appid_str, steam_p)
+                        mgr.set_platform_connection_status("lua_tools", False, "")
                         mgr.mark_account_valid("lua_tools", acc_id)
                         mgr.record_quota_usage("lua_tools", acc_id)
 
@@ -1304,8 +1357,10 @@ class UnifiedManifestManager:
                 if logger:
                     logger.log_network_response("Lua.tools", he.code, headers=dict(he.headers) if hasattr(he, "headers") else {}, body_sample=err_body.encode("utf-8", errors="replace"), byte_length=len(err_body))
                 if he.code == 404:
+                    mgr.set_platform_connection_status("lua_tools", False, "")
                     last_error = f"Lua.tools 來源 ({src}) 未收錄"
                 elif he.code in (401, 403):
+                    mgr.set_platform_connection_status("lua_tools", False, "")
                     mgr.mark_account_expired("lua_tools", acc_id)
                     last_error = f"Lua.tools 帳號 [{acc_name}] 憑證過期 (HTTP {he.code})"
                     if progress_cb:
@@ -1313,6 +1368,7 @@ class UnifiedManifestManager:
                     if logger: logger.log_step("憑證過期", last_error, status="WARN")
                     break
                 elif he.code == 429:
+                    mgr.set_platform_connection_status("lua_tools", False, "")
                     mgr.mark_account_exhausted("lua_tools", acc_id)
                     last_error = f"Lua.tools 帳號 [{acc_name}] 配額用罄 (HTTP 429)"
                     if progress_cb:
@@ -1320,8 +1376,14 @@ class UnifiedManifestManager:
                     if logger: logger.log_step("配額用罄", last_error, status="WARN")
                     break
                 else:
+                    if he.code >= 500:
+                        mgr.set_platform_connection_status("lua_tools", True, f"HTTP {he.code}")
                     last_error = f"Lua.tools 來源 ({src}) 請求錯誤: HTTP {he.code}"
                     if logger: logger.log_step("HTTP異常", last_error, status="WARN")
+            except Exception as e:
+                mgr.set_platform_connection_status("lua_tools", True, str(e))
+                last_error = f"Lua.tools 來源 ({src}) 連線異常: {e}"
+                if logger: logger.log_error("Lua.tools下載異常", str(e), exc=e)
 
         if not last_error:
             last_error = "Lua.tools 備援庫中目前無此遊戲之有效 Manifest 封包。"

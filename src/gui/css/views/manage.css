@@ -689,4 +689,128 @@ body.font-normal .free-badge {
   padding: 7px 16px !important;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   🌟 管理入庫：雙軌更新與線上補丁檢查進度條 (同一行・中間分隔・完成降亮與出場動畫)
+   ═══════════════════════════════════════════════════════════════════════ */
+.manage-dual-progress {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 152, 0, 0.35);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  transform-origin: top center;
+  transition: opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+              max-height 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+              margin-bottom 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.35s ease;
+  max-height: 110px;
+}
+
+.manage-progress-track {
+  flex: 1 1 0%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: opacity 0.4s ease, filter 0.4s ease, transform 0.3s ease;
+}
+
+/* 中間垂直分隔線 */
+.manage-progress-divider {
+  width: 1px;
+  flex-shrink: 0;
+  align-self: stretch;
+  margin: 2px 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 183, 197, 0.38) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+}
+
+.track-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* 單軌任務完成後：Checked 勾選動畫 */
+.track-check-svg {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  animation: trackCheckPop 0.42s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.track-check-circle {
+  stroke-dasharray: 50;
+  stroke-dashoffset: 50;
+  animation: trackCheckCircleDraw 0.35s ease-out forwards;
+}
+
+.track-check-mark {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: trackCheckMarkDraw 0.28s 0.16s ease-out forwards;
+}
+
+@keyframes trackCheckPop {
+  0% { transform: scale(0.4); opacity: 0; }
+  65% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes trackCheckCircleDraw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes trackCheckMarkDraw {
+  to { stroke-dashoffset: 0; }
+}
+
+.track-done-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  background: rgba(74, 222, 128, 0.16);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.38);
+  margin-left: 6px;
+  animation: trackCheckPop 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* 單軌完成後降亮度呈現 */
+.manage-progress-track.track-completed {
+  opacity: 0.48;
+  filter: brightness(0.72) saturate(0.8);
+}
+
+/* 兩項任務皆完成後：整體讀條出場動畫 */
+.manage-dual-progress.progress-box-exit {
+  opacity: 0 !important;
+  transform: translateY(-8px) scaleY(0.92) !important;
+  max-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+  border-width: 0 !important;
+  pointer-events: none;
+}
+
+
 

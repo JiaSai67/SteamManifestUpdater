@@ -35,9 +35,15 @@ function _browseCard(g){
       }
     }
   }
-  var hasGdrive = (window._gdriveAppids && window._gdriveAppids.has(aid)) || (_onlinefixAppids && _onlinefixAppids.has(aid));
-  var hasOfWeb = window._onlinefixWebAppids && window._onlinefixWebAppids.has(aid);
-  var hasZgWeb = window._zeigamesWebAppids && window._zeigamesWebAppids.has(aid);
+  var hasGdrive = !!g.has_gdrive || !!(window._gdriveAppids && window._gdriveAppids.has(aid));
+  var hasOfWeb = !!g.has_onlinefix_web || !!(window._onlinefixWebAppids && window._onlinefixWebAppids.has(aid));
+  var hasZgWeb = !!g.has_zeigames_web || !!(window._zeigamesWebAppids && window._zeigamesWebAppids.has(aid));
+  if(!window._gdriveAppids) window._gdriveAppids = new Set();
+  if(!window._onlinefixWebAppids) window._onlinefixWebAppids = new Set();
+  if(!window._zeigamesWebAppids) window._zeigamesWebAppids = new Set();
+  if(hasGdrive) window._gdriveAppids.add(aid);
+  if(hasOfWeb) window._onlinefixWebAppids.add(aid);
+  if(hasZgWeb) window._zeigamesWebAppids.add(aid);
   var isDeployed = _deployedAppids && _deployedAppids.has(aid);
   var isProtected = _protectedAppids && _protectedAppids.has(aid);
   

@@ -127,8 +127,8 @@ body.dark #results .card:not(.needs-update) .name {
 .search-tag{display:inline-flex;align-items:center;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;line-height:1.3;letter-spacing:0.2px}
 .search-tag.tag-ver{background:rgba(0,188,212,0.12);color:#00BCD4;border:1px solid rgba(0,188,212,0.32)}
 .search-tag.tag-gdrive{background:rgba(52,168,83,0.14);color:#34A853;border:1px solid rgba(52,168,83,0.35)}
-.search-tag.tag-of{background:rgba(0,176,255,0.14);color:#00B0FF;border:1px solid rgba(0,176,255,0.35)}
-.search-tag.tag-zg{background:rgba(233,30,99,0.14);color:#E91E63;border:1px solid rgba(233,30,99,0.35)}
+.search-tag.tag-of,.search-tag.tag-onlinefix{background:rgba(0,176,255,0.14);color:#00B0FF;border:1px solid rgba(0,176,255,0.35)}
+.search-tag.tag-zg,.search-tag.tag-zeigames{background:rgba(233,30,99,0.14);color:#E91E63;border:1px solid rgba(233,30,99,0.35)}
 .search-tag.tag-dep{background:rgba(16,185,129,0.14);color:#10B981;border:1px solid rgba(16,185,129,0.35)}
 .search-tag.tag-none{background:rgba(255,255,255,0.08);color:var(--gray);border:1px solid rgba(255,255,255,0.12)}
 .search-tag img{width:11px!important;height:11px!important;object-fit:contain!important;margin-right:3.5px!important;vertical-align:-1px!important;flex-shrink:0!important;border:none!important;background:transparent!important;box-shadow:none!important;border-radius:0!important}
@@ -222,52 +222,6 @@ body.dark .card.needs-update {
   color: #FFE066 !important;
 }
 
-/* 🌟 新增模式 2：淺紅框（可嘗試更新模式：官方有新版，Ryuu 與最新版對不上，且已綁定 Hubcap API） */
-.card.needs-try-update {
-  border: 2px solid #F87171 !important;
-  background: rgba(239, 68, 68, 0.10) !important;
-  box-shadow: 0 0 16px rgba(239, 68, 68, 0.32) !important;
-}
-.card.needs-try-update .name,
-.card.needs-try-update .aid,
-.card.needs-try-update .ver-info,
-.card.needs-try-update span,
-.card.needs-try-update div {
-  color: #EF4444 !important;
-  font-weight: 700 !important;
-}
-.app.dark .card.needs-try-update,
-#app.dark .card.needs-try-update,
-body.dark .card.needs-try-update {
-  border: 2px solid #F87171 !important;
-  background: rgba(239, 68, 68, 0.15) !important;
-  box-shadow: 0 0 18px rgba(248, 113, 113, 0.4) !important;
-}
-.app.dark .card.needs-try-update .name,
-.app.dark .card.needs-try-update .aid,
-.app.dark .card.needs-try-update .ver-info,
-.app.dark .card.needs-try-update span,
-.app.dark .card.needs-try-update div,
-#app.dark .card.needs-try-update .name,
-#app.dark .card.needs-try-update .aid,
-#app.dark .card.needs-try-update .ver-info,
-#app.dark .card.needs-try-update span,
-#app.dark .card.needs-try-update div {
-  color: #FCA5A5 !important;
-  font-weight: 700 !important;
-  text-shadow: 0 0 6px rgba(239, 68, 68, 0.3);
-}
-#glist .card.needs-try-update .aid .aid-num {
-  color: #F87171 !important;
-  font-weight: 700;
-}
-#glist.list .card.needs-try-update {
-  border-left: 5px solid #F87171 !important;
-  background: rgba(239, 68, 68, 0.12) !important;
-}
-#glist.list .card.needs-try-update * {
-  color: #FCA5A5 !important;
-}
 /* 🌟 依使用者需求：有 Online-Fix / 聯機補丁的遊戲小卡全面套用醒目藍色邊框 */
 .card.has-onlinefix,
 #glist .card.has-onlinefix,
@@ -291,6 +245,101 @@ body.dark .card.has-onlinefix,
 #results.browse-grid .card.has-onlinefix.needs-update {
   border: 2px solid #00BCD4 !important;
   box-shadow: 0 0 16px rgba(255, 215, 0, 0.45), 0 0 14px rgba(0, 188, 212, 0.5) !important;
+}
+
+/* 🌟 核心高優先級覆蓋：模式 2 淺紅框（可嘗試更新：優先級嚴格大於 has-onlinefix 等所有狀態框） */
+.card.needs-try-update,
+.card.needs-try-update.has-onlinefix,
+.card.has-onlinefix.needs-try-update,
+#glist .card.needs-try-update,
+#glist .card.needs-try-update.has-onlinefix,
+#glist .card.has-onlinefix.needs-try-update,
+#results .card.needs-try-update,
+#results .card.needs-try-update.has-onlinefix,
+#results .card.has-onlinefix.needs-try-update,
+#results.browse-grid .card.needs-try-update,
+#results.browse-grid .card.needs-try-update.has-onlinefix,
+#results.browse-grid .card.has-onlinefix.needs-try-update {
+  border: 2px solid #F87171 !important;
+  background: rgba(239, 68, 68, 0.10) !important;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.45), inset 0 0 0 1px rgba(239, 68, 68, 0.25) !important;
+}
+.card.needs-try-update .name,
+.card.needs-try-update .aid,
+.card.needs-try-update .ver-info,
+.card.needs-try-update span,
+.card.needs-try-update div,
+.card.needs-try-update.has-onlinefix .name,
+.card.needs-try-update.has-onlinefix .aid,
+.card.needs-try-update.has-onlinefix .ver-info,
+.card.needs-try-update.has-onlinefix span,
+.card.needs-try-update.has-onlinefix div {
+  color: #EF4444 !important;
+  font-weight: 700 !important;
+}
+
+.app.dark .card.needs-try-update,
+.app.dark .card.needs-try-update.has-onlinefix,
+.app.dark .card.has-onlinefix.needs-try-update,
+#app.dark .card.needs-try-update,
+#app.dark .card.needs-try-update.has-onlinefix,
+#app.dark .card.has-onlinefix.needs-try-update,
+body.dark .card.needs-try-update,
+body.dark .card.needs-try-update.has-onlinefix,
+body.dark .card.has-onlinefix.needs-try-update,
+.app.dark #glist .card.needs-try-update,
+.app.dark #glist .card.needs-try-update.has-onlinefix,
+.app.dark #glist .card.has-onlinefix.needs-try-update,
+.app.dark #results .card.needs-try-update,
+.app.dark #results .card.needs-try-update.has-onlinefix,
+.app.dark #results .card.has-onlinefix.needs-try-update,
+.app.dark #results.browse-grid .card.needs-try-update,
+.app.dark #results.browse-grid .card.needs-try-update.has-onlinefix,
+.app.dark #results.browse-grid .card.has-onlinefix.needs-try-update {
+  border: 2px solid #F87171 !important;
+  background: rgba(239, 68, 68, 0.16) !important;
+  box-shadow: 0 0 20px rgba(248, 113, 113, 0.55), inset 0 0 0 1px rgba(248, 113, 113, 0.35) !important;
+}
+.app.dark .card.needs-try-update .name,
+.app.dark .card.needs-try-update .aid,
+.app.dark .card.needs-try-update .ver-info,
+.app.dark .card.needs-try-update span,
+.app.dark .card.needs-try-update div,
+.app.dark .card.needs-try-update.has-onlinefix .name,
+.app.dark .card.needs-try-update.has-onlinefix .aid,
+.app.dark .card.needs-try-update.has-onlinefix .ver-info,
+.app.dark .card.needs-try-update.has-onlinefix span,
+.app.dark .card.needs-try-update.has-onlinefix div,
+#app.dark .card.needs-try-update .name,
+#app.dark .card.needs-try-update .aid,
+#app.dark .card.needs-try-update .ver-info,
+#app.dark .card.needs-try-update span,
+#app.dark .card.needs-try-update div,
+#app.dark .card.needs-try-update.has-onlinefix .name,
+#app.dark .card.needs-try-update.has-onlinefix .aid,
+#app.dark .card.needs-try-update.has-onlinefix .ver-info,
+#app.dark .card.needs-try-update.has-onlinefix span,
+#app.dark .card.needs-try-update.has-onlinefix div {
+  color: #FCA5A5 !important;
+  font-weight: 700 !important;
+  text-shadow: 0 0 6px rgba(239, 68, 68, 0.3);
+}
+
+#glist .card.needs-try-update .aid .aid-num,
+#glist .card.needs-try-update.has-onlinefix .aid .aid-num {
+  color: #F87171 !important;
+  font-weight: 700;
+}
+
+#glist.list .card.needs-try-update,
+#glist.list .card.needs-try-update.has-onlinefix,
+#glist.list .card.has-onlinefix.needs-try-update {
+  border-left: 6px solid #F87171 !important;
+  background: rgba(239, 68, 68, 0.14) !important;
+}
+#glist.list .card.needs-try-update *,
+#glist.list .card.needs-try-update.has-onlinefix * {
+  color: #FCA5A5 !important;
 }
 
 /* 🌟 遊戲小卡右上角垂直堆疊標籤容器 (由右上開始由上往下直排) */
@@ -351,8 +400,7 @@ img.corner-tag-img {
 }
 
 /* 🌟 Google Drive 網盤補丁標籤 (微深色半透明帶綠邊科技感) */
-.corner-tag.tag-gdrive,
-.corner-tag.tag-of {
+.corner-tag.tag-gdrive {
   background: rgba(18, 28, 20, 0.88) !important;
   border: 1px solid rgba(52, 168, 83, 0.55) !important;
   color: #E8F5E9 !important;
@@ -360,7 +408,8 @@ img.corner-tag-img {
 }
 
 /* 🌟 Online-Fix 官方補丁標籤 (深藍微透帶天藍邊，乾淨去背對比鮮明) */
-.corner-tag.tag-onlinefix {
+.corner-tag.tag-onlinefix,
+.corner-tag.tag-of {
   background: rgba(10, 25, 48, 0.88) !important;
   border: 1px solid rgba(0, 176, 255, 0.55) !important;
   color: #E1F5FE !important;
@@ -368,7 +417,8 @@ img.corner-tag-img {
 }
 
 /* 🌟 ZeiGames 官方補丁標籤 (圖2 桃紅/紫紅漸層風格) */
-.corner-tag.tag-zeigames {
+.corner-tag.tag-zeigames,
+.corner-tag.tag-zg {
   background: linear-gradient(135deg, rgba(194, 24, 91, 0.92), rgba(123, 31, 162, 0.95)) !important;
   border: 1px solid rgba(240, 98, 146, 0.5) !important;
   color: #ffffff !important;

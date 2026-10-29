@@ -28,12 +28,48 @@ class AccountManager:
     def __init__(self, parent=None):
         _PROFILES_DIR.mkdir(parents=True, exist_ok=True)
         self._last_mtime = 0
+        self._platform_conn_status = {
+            "ryuu": {"connection_error": False, "error_msg": "", "last_checked": 0.0},
+            "lua_tools": {"connection_error": False, "error_msg": "", "last_checked": 0.0},
+            "hubcap": {"connection_error": False, "error_msg": "", "last_checked": 0.0},
+        }
         self.data = self._load_data()
         self._auto_migrate_legacy()
         self._check_daily_reset()
         self._sanitize_account_names()
         if self._deduplicate_accounts():
             self.save_data()
+
+    def set_platform_connection_status(self, platform: str, is_error: bool, error_msg: str = ""):
+        """記錄平台最近一次主動檢測或 API 呼叫的真實連線狀態"""
+        import time
+        plat = str(platform or "").strip().lower()
+        if plat == "luatools":
+            plat = "lua_tools"
+        elif plat == "hubcapdb":
+            plat = "hubcap"
+        if not hasattr(self, "_platform_conn_status"):
+            self._platform_conn_status = {}
+        self._platform_conn_status[plat] = {
+            "connection_error": bool(is_error),
+            "error_msg": str(error_msg or "") if is_error else "",
+            "last_checked": time.time(),
+        }
+        if plat in ("ryuu", "lua_tools"):
+            for acc in self.data.get(plat, []):
+                acc["connection_error"] = bool(is_error)
+                acc["connection_error_msg"] = str(error_msg or "") if is_error else ""
+
+    def get_platform_connection_status(self, platform: str) -> dict:
+        """取得平台最近一次主動檢測或 API 呼叫的真實連線狀態"""
+        plat = str(platform or "").strip().lower()
+        if plat == "luatools":
+            plat = "lua_tools"
+        elif plat == "hubcapdb":
+            plat = "hubcap"
+        if not hasattr(self, "_platform_conn_status"):
+            self._platform_conn_status = {}
+        return dict(self._platform_conn_status.get(plat, {"connection_error": False, "error_msg": "", "last_checked": 0.0}))
 
     def get_all_credentials_status(self) -> dict:
         """獲取所有平台帳號憑證健康與授權狀態彙整字典 (供健康體檢與狀態監控使用)"""
@@ -552,17 +588,21 @@ class AccountManager:
         主動向 Ryuu 官方 API (https://generator.ryuu.lol/api/download_count/{discord_id})
         發送輕量查詢，零配額消耗同步真實剩餘額度與重設倒數時間！
         100% 透過官方網域伺服器完成，完全不需要 Discord Token！
+        若發生 521 / 5xx / 連線異常，主動標記 connection_error 以便前端呈現 Error。
         """
-        import urllib.request, json
+        import urllib.request, urllib.error, json
         accounts = self.get_accounts("ryuu")
         targets = [a for a in accounts if a.get("id") == account_id] if account_id else accounts
         changed = False
+        any_checked = False
+        any_ok = False
+        last_err_msg = ""
 
         for acc in targets:
             did = str(acc.get("discord_id", "")).strip()
-            if not did:
-                continue
-            url = f"https://generator.ryuu.lol/api/download_count/{did}"
+            probe_did = did if did else "1"
+            url = f"https://generator.ryuu.lol/api/download_count/{probe_did}"
+            any_checked = True
             try:
                 req = urllib.request.Request(url, headers={
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -570,8 +610,11 @@ class AccountManager:
                 })
                 with urllib.request.urlopen(req, timeout=4.0) as resp:
                     if resp.status == 200:
+                        any_ok = True
+                        acc["connection_error"] = False
+                        acc["connection_error_msg"] = ""
                         res = json.loads(resp.read().decode("utf-8"))
-                        if isinstance(res, dict) and "count" in res:
+                        if did and isinstance(res, dict) and "count" in res:
                             cnt = int(res["count"])
                             limit = acc.get("daily_limit", 50)
                             left = max(0, limit - cnt)
@@ -595,17 +638,119 @@ class AccountManager:
                             else:
                                 acc["status_badge"] = "正常"
                             changed = True
+                    else:
+                        last_err_msg = f"HTTP {resp.status}"
+                        acc["connection_error"] = True
+                        acc["connection_error_msg"] = last_err_msg
+            except urllib.error.HTTPError as he:
+                last_err_msg = f"HTTP {he.code}"
+                acc["connection_error"] = True
+                acc["connection_error_msg"] = last_err_msg
+                print(f"[account_manager] 網域伺服器同步 Ryuu [{acc.get('name')}] 配額失敗: {last_err_msg}")
             except Exception as e:
+                last_err_msg = f"連線異常 ({e})"
+                acc["connection_error"] = True
+                acc["connection_error_msg"] = last_err_msg
                 print(f"[account_manager] 網域伺服器同步 Ryuu [{acc.get('name')}] 配額失敗: {e}")
+
+        if not any_checked:
+            try:
+                req = urllib.request.Request("https://generator.ryuu.lol/api/download_count/1", headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Referer": "https://generator.ryuu.lol/"
+                })
+                with urllib.request.urlopen(req, timeout=4.0) as resp:
+                    any_ok = (resp.status == 200)
+                    if not any_ok:
+                        last_err_msg = f"HTTP {resp.status}"
+            except urllib.error.HTTPError as he:
+                last_err_msg = f"HTTP {he.code}"
+            except Exception as e:
+                last_err_msg = f"連線異常 ({e})"
+
+        if any_ok:
+            self.set_platform_connection_status("ryuu", False, "")
+        else:
+            self.set_platform_connection_status("ryuu", True, last_err_msg or "連線異常")
 
         if changed:
             self.save_data()
             self.registry_updated.emit()
         return changed
 
+    def sync_luatools_quota_from_server(self) -> bool:
+        """主動向 Lua.tools 官方 API 發送輕量連線與憑證有效性檢測"""
+        import urllib.request, urllib.error
+        accounts = self.get_accounts("lua_tools")
+        active = self.get_active_account("lua_tools") or (accounts[0] if accounts else None)
+        cookie_hdr = ""
+        if active and active.get("profile_dir"):
+            p_dir = Path(active.get("profile_dir"))
+            cookie_file = p_dir / "Cookies"
+            if cookie_file.exists():
+                tmp_p = None
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp:
+                        tmp_p = tmp.name
+                    shutil.copy2(cookie_file, tmp_p)
+                    conn = sqlite3.connect(tmp_p)
+                    cur = conn.cursor()
+                    cur.execute("SELECT name, value FROM cookies WHERE host_key LIKE '%lua.tools%'")
+                    cookies = dict(cur.fetchall())
+                    conn.close()
+                    if cookies:
+                        cookie_hdr = "; ".join([f"{k}={v}" for k, v in cookies.items() if v])
+                except Exception:
+                    pass
+                finally:
+                    if tmp_p and os.path.exists(tmp_p):
+                        try:
+                            os.remove(tmp_p)
+                        except Exception:
+                            pass
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://lua.tools/"
+        }
+        if cookie_hdr:
+            headers["Cookie"] = cookie_hdr
+
+        try:
+            req = urllib.request.Request("https://lua.tools/api/manifest/check?appid=480", headers=headers)
+            with urllib.request.urlopen(req, timeout=4.0) as resp:
+                if resp.status == 200:
+                    self.set_platform_connection_status("lua_tools", False, "")
+                    return True
+                else:
+                    self.set_platform_connection_status("lua_tools", True, f"HTTP {resp.status}")
+                    return False
+        except urllib.error.HTTPError as he:
+            if he.code in (401, 403, 404, 429):
+                self.set_platform_connection_status("lua_tools", False, "")
+                return True
+            self.set_platform_connection_status("lua_tools", True, f"HTTP {he.code}")
+            return False
+        except Exception as e:
+            self.set_platform_connection_status("lua_tools", True, f"連線異常 ({e})")
+            return False
+
     def sync_all_quotas_from_server(self) -> bool:
-        """同步所有平台在網域伺服器的最新真實配額"""
-        return self.sync_ryuu_quota_from_server()
+        """並行主動同步所有平台在網域伺服器的最新真實配額與連線狀態"""
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
+            f_ryuu = ex.submit(self.sync_ryuu_quota_from_server)
+            f_lt = ex.submit(self.sync_luatools_quota_from_server)
+            r_ok = False
+            try:
+                r_ok = bool(f_ryuu.result())
+            except Exception:
+                pass
+            try:
+                f_lt.result()
+            except Exception:
+                pass
+        return r_ok
 
     def _extract_identity_tokens(self, data: dict) -> dict:
         """

@@ -27,11 +27,14 @@ function _renderCredAccountItem(platform, acc, index, totalCount, isValid) {
 
   var isTopPriority = isValid && (index === 0);
   var isExhausted = (left <= 0);
+  var isConnErr = !!acc.connection_error;
 
   if (isValid) {
     // 🌟 具備效力的有效帳號：第一行顯示 #1 ~ #n 順位，第二行顯示剩餘配額，右側提供上移/下移/刪除
     var priorityTag = '';
-    if (isTopPriority) {
+    if (isConnErr) {
+      priorityTag = '<span class="cred-priority-badge exhausted" title="' + h(acc.error_msg || '連線異常') + '">Error</span>';
+    } else if (isTopPriority) {
       priorityTag = isExhausted ? '<span class="cred-priority-badge exhausted">#1 (用罄)</span>' : '<span class="cred-priority-badge p1">#1</span>';
     } else {
       priorityTag = isExhausted ? '<span class="cred-priority-badge exhausted">#' + (index + 1) + ' (用罄)</span>' : '<span class="cred-priority-badge p-sub">#' + (index + 1) + '</span>';
@@ -39,7 +42,7 @@ function _renderCredAccountItem(platform, acc, index, totalCount, isValid) {
     var headerRightHtml = '<div class="cred-acc-status-box">' + priorityTag + '</div>';
 
     var resetTipHtml = '';
-    if (isExhausted && acc.reset_in_seconds && acc.reset_in_seconds > 0) {
+    if (!isConnErr && isExhausted && acc.reset_in_seconds && acc.reset_in_seconds > 0) {
       var rH = Math.floor(acc.reset_in_seconds / 3600);
       var rM = Math.floor((acc.reset_in_seconds % 3600) / 60);
       resetTipHtml = '<span class="cred-acc-reset-tip" style="font-size:0.75rem;color:#f59e0b;margin-left:8px">⏳ 約 ' + rH + ' 小時 ' + rM + ' 分後重設</span>';
@@ -53,12 +56,14 @@ function _renderCredAccountItem(platform, acc, index, totalCount, isValid) {
       : '';
 
     var metaRowHtml = '<div class="cred-acc-meta-left">' +
-        '<span class="cred-acc-quota">剩餘配額: <b class="cred-acc-quota-text">' + left + '</b> / ' + limit + ' 次</span>' +
+        (isConnErr
+          ? '<span class="cred-acc-quota">配額狀態: <b class="cred-acc-quota-text" style="color:#E53935">Error</b></span>'
+          : '<span class="cred-acc-quota">剩餘配額: <b class="cred-acc-quota-text">' + left + '</b> / ' + limit + ' 次</span>') +
         resetTipHtml +
       '</div>';
 
     var progressBarHtml = '<div class="cred-progress-bar" style="height:4px;margin-top:3px">' +
-        '<div class="cred-progress-fill" style="width:' + pct + '%"></div>' +
+        '<div class="cred-progress-fill" style="width:' + (isConnErr ? 0 : pct) + '%"></div>' +
       '</div>';
 
     var rankBadge = '<div class="cred-rank-badge">' + (index + 1) + '</div>';
@@ -736,11 +741,20 @@ function renderQuotaMatrix(res, forceRender) {
   // 階段 3：總計一致性校驗防禦（關鍵防線！）
   // 只要 totals.hubcap.limit > 0 或 totals.hubcap.left > 0，代表系統中已經確認存在有效配額（例如 25 / 25）
   // 此時絕對不允許降級進入「⚠️ 重新配置」，強制將狀態視為有效！
-  var hasConfirmedQuota = (totals.hubcap.limit > 0 || totals.hubcap.left > 0 || (globalHc && globalHc.is_valid));
-  var isHubcapValid = hasConfirmedQuota || (configuredHc && (configuredHc.is_valid || configuredHc.quota_exhausted));
+  var isHubcapConnErr = !!((globalHc && globalHc.connection_error) || (configuredHc && configuredHc.connection_error));
+  var hasConfirmedQuota = !isHubcapConnErr && (totals.hubcap.limit > 0 || totals.hubcap.left > 0 || (globalHc && globalHc.is_valid));
+  var isHubcapValid = !isHubcapConnErr && (hasConfirmedQuota || (configuredHc && (configuredHc.is_valid || configuredHc.quota_exhausted)));
 
   var singleHubcapCellHtml = '';
-  if (isHubcapValid) {
+  if (isHubcapConnErr && ((configuredHc && configuredHc.is_configured) || (globalHc && globalHc.is_configured))) {
+    var hcErrTitle = (globalHc && (globalHc.error_msg || globalHc.error)) || (configuredHc && configuredHc.error) || '連線異常';
+    singleHubcapCellHtml = '<td rowspan="' + accountOrder.length + '" class="hubcap-device-cell-td" data-col-key="r0_hubcap">' +
+      '<div class="hubcap-device-cell-wrap">' +
+        '<span class="hubcap-device-tag">1機1號</span>' +
+        '<span class="quota-capsule exhausted" onclick="openHubcapKeyInputModal(\'' + escHtml(hcTargetId) + '\', \'' + escHtml(hcTargetName) + '\')" style="cursor:pointer" title="HubcapDB 連線異常 (' + escHtml(hcErrTitle) + ')">Error</span>' +
+      '</div>' +
+    '</td>';
+  } else if (isHubcapValid) {
     var hLeft = (configuredHc && configuredHc.remaining != null) ? configuredHc.remaining : (totals.hubcap.left || 0);
     var hLimit = (configuredHc && configuredHc.daily_limit) ? configuredHc.daily_limit : (totals.hubcap.limit || 25);
     if (totals.hubcap.limit > 0) {
@@ -810,14 +824,17 @@ function renderQuotaMatrix(res, forceRender) {
       
       if (colPlatform === 'ryuu') {
         var rAcc = acc.ryuu;
+        var rIsErr = !!(r.connection_error || (rAcc && rAcc.connection_error));
         if (rAcc && _isAccValid('ryuu', rAcc)) {
           var rLimit = rAcc.daily_limit || 50;
           var rUsed = rAcc.quota_used_today || 0;
           var rLeft = Math.max(0, rLimit - rUsed);
-          if (rLeft > 0) {
+          if (rIsErr) {
+            cellHtml = '<span class="quota-capsule exhausted" title="' + escHtml(r.error_msg || rAcc.error_msg || 'Ryuu 伺服器連線異常') + '">Error</span>';
+          } else if (rLeft > 0) {
             cellHtml = '<span class="quota-capsule">' + rLeft + ' / ' + rLimit + '</span>';
           } else {
-            cellHtml = '<button class="matrix-btn-login" onclick="startDualPlatformSandboxLogin()">🔑 立即登入</button>';
+            cellHtml = '<span class="quota-capsule exhausted">0 / ' + rLimit + '</span>';
           }
         } else {
           cellHtml = '<button class="matrix-btn-login" onclick="startDualPlatformSandboxLogin()">🔑 立即登入</button>';
@@ -830,14 +847,17 @@ function renderQuotaMatrix(res, forceRender) {
         continue;
       } else if (colPlatform === 'luatools') {
         var ltAcc = acc.lua;
+        var ltIsErr = !!(lt.connection_error || (ltAcc && ltAcc.connection_error));
         if (ltAcc && _isAccValid('lua_tools', ltAcc)) {
           var lLimit = ltAcc.daily_limit || 25;
           var lUsed = ltAcc.quota_used_today || 0;
           var lLeft = Math.max(0, lLimit - lUsed);
-          if (lLeft > 0) {
+          if (ltIsErr) {
+            cellHtml = '<span class="quota-capsule exhausted" title="' + escHtml(lt.error_msg || ltAcc.error_msg || 'Lua.tools 伺服器連線異常') + '">Error</span>';
+          } else if (lLeft > 0) {
             cellHtml = '<span class="quota-capsule">' + lLeft + ' / ' + lLimit + '</span>';
           } else {
-            cellHtml = '<button class="matrix-btn-login" onclick="startDualPlatformSandboxLogin()">🔑 立即登入</button>';
+            cellHtml = '<span class="quota-capsule exhausted">0 / ' + lLimit + '</span>';
           }
         } else {
           cellHtml = '<button class="matrix-btn-login" onclick="startDualPlatformSandboxLogin()">🔑 立即登入</button>';
@@ -858,11 +878,17 @@ function renderQuotaMatrix(res, forceRender) {
     var totHtml = '';
     
     if (tPlatform === 'hubcap') {
-      if (totals.hubcap.limit > 0) {
+      if (isHubcapConnErr && ((configuredHc && configuredHc.is_configured) || (globalHc && globalHc.is_configured))) {
+        totHtml = '<span class="quota-capsule quota-total-capsule exhausted">Error</span>';
+      } else if (totals.hubcap.limit > 0) {
         totHtml = '<span class="quota-capsule quota-total-capsule">' + totals.hubcap.left + ' / ' + totals.hubcap.limit + '</span>';
       } else {
         totHtml = '<span class="quota-capsule quota-total-capsule" style="opacity:0.65">0 / 0</span>';
       }
+    } else if (tPlatform === 'ryuu' && r.connection_error) {
+      totHtml = '<span class="quota-capsule quota-total-capsule exhausted" title="' + escHtml(r.error_msg || 'Ryuu 連線異常') + '">Error</span>';
+    } else if (tPlatform === 'luatools' && lt.connection_error) {
+      totHtml = '<span class="quota-capsule quota-total-capsule exhausted" title="' + escHtml(lt.error_msg || 'Lua.tools 連線異常') + '">Error</span>';
     } else {
       if (tot.limit > 0 && tot.left > 0) {
         totHtml = '<span class="quota-capsule quota-total-capsule">' + tot.left + ' / ' + tot.limit + '</span>';
@@ -884,10 +910,10 @@ function renderQuotaMatrix(res, forceRender) {
   wrap.innerHTML = html;
 }
 
-async function loadCredentialsStatus(showToast){
+async function loadCredentialsStatus(showToast, prefetchedRes){
 
   try {
-    var res = await pywebview.api.get_credentials_status();
+    var res = (prefetchedRes && prefetchedRes.ok) ? prefetchedRes : await pywebview.api.get_credentials_status();
     if(!res || !res.ok) return;
 
     // 0. 渲染左側：使用者個人資料 (User Profile) 與總額度面板
@@ -937,7 +963,10 @@ async function loadCredentialsStatus(showToast){
     var rPct = rTotalLimit > 0 ? Math.min(100, Math.round((rTotalLeft / rTotalLimit) * 100)) : 0;
 
     if(ryuuBadge){
-      if(rValidCount > 0){
+      if(r.connection_error){
+        ryuuBadge.className = 'cred-status-badge err';
+        ryuuBadge.textContent = '🔴 Error' + (r.error_msg ? (' (' + r.error_msg + ')') : '');
+      } else if(rValidCount > 0){
         if(rValidCount < rAccounts.length){
           ryuuBadge.className = 'cred-status-badge ok';
           ryuuBadge.textContent = '🟢 正常 · ' + rValidCount + ' / ' + rAccounts.length + ' 個帳號可用';
@@ -951,9 +980,9 @@ async function loadCredentialsStatus(showToast){
       }
     }
     if(ryuuAccCount) ryuuAccCount.textContent = rAccounts.length;
-    if(ryuuPoolLimit) ryuuPoolLimit.textContent = rTotalLimit;
-    if(ryuuPoolLeft) ryuuPoolLeft.textContent = rTotalLeft;
-    if(ryuuPoolBar) ryuuPoolBar.style.width = rPct + '%';
+    if(ryuuPoolLimit) ryuuPoolLimit.textContent = r.connection_error ? 'Error' : rTotalLimit;
+    if(ryuuPoolLeft) ryuuPoolLeft.textContent = r.connection_error ? 'Error' : rTotalLeft;
+    if(ryuuPoolBar) ryuuPoolBar.style.width = (r.connection_error ? 0 : rPct) + '%';
 
     _renderCachedPlatformList('ryuu');
 
@@ -971,7 +1000,10 @@ async function loadCredentialsStatus(showToast){
     var hcPct = hcLimit > 0 ? Math.min(100, Math.round((hcLeft / hcLimit) * 100)) : 0;
 
     if(hcBadge){
-      if(hc.is_valid){
+      if(hc.connection_error && hc.is_configured){
+        hcBadge.className = 'cred-status-badge err';
+        hcBadge.textContent = '🔴 Error' + (hc.error_msg ? (' (' + hc.error_msg + ')') : '');
+      } else if(hc.is_valid){
         hcBadge.className = 'cred-status-badge ok';
         hcBadge.textContent = '🟢 正常 · 官方 API 授權';
       } else if(hc.is_configured){
@@ -982,12 +1014,14 @@ async function loadCredentialsStatus(showToast){
         hcBadge.textContent = '⚪ 尚未配置 API Key';
       }
     }
-    if(hcPoolLimit) hcPoolLimit.textContent = hcLimit;
-    if(hcPoolLeft) hcPoolLeft.textContent = hcLeft;
-    if(hcPoolBar) hcPoolBar.style.width = hcPct + '%';
+    if(hcPoolLimit) hcPoolLimit.textContent = (hc.connection_error && hc.is_configured) ? 'Error' : hcLimit;
+    if(hcPoolLeft) hcPoolLeft.textContent = (hc.connection_error && hc.is_configured) ? 'Error' : hcLeft;
+    if(hcPoolBar) hcPoolBar.style.width = (hc.connection_error ? 0 : hcPct) + '%';
     if(hcKeyPreview) hcKeyPreview.textContent = hc.api_key_masked || '未配置';
     if(hcKeyMeta){
-      if(hc.is_valid){
+      if(hc.connection_error && hc.is_configured){
+        hcKeyMeta.innerHTML = '<span style="color:#E53935">⚠️ Error: ' + (hc.error || 'HubcapDB 伺服器連線異常') + '</span>';
+      } else if(hc.is_valid){
         var resetTip = hc.resets_at ? ' · 重設時間: ' + hc.resets_at.substring(11, 19) + ' UTC' : '';
         hcKeyMeta.textContent = '今日已使用 ' + (hc.daily_usage || 0) + ' 次' + resetTip + ' · 支援高速雙格式解析';
       } else if(hc.is_configured){
@@ -1022,7 +1056,10 @@ async function loadCredentialsStatus(showToast){
     var ltPct = ltTotalLimit > 0 ? Math.min(100, Math.round((ltTotalLeft / ltTotalLimit) * 100)) : 0;
 
     if(ltBadge){
-      if(ltValidCount > 0){
+      if(lt.connection_error){
+        ltBadge.className = 'cred-status-badge err';
+        ltBadge.textContent = '🔴 Error' + (lt.error_msg ? (' (' + lt.error_msg + ')') : '');
+      } else if(ltValidCount > 0){
         if(ltValidCount < ltAccounts.length){
           ltBadge.className = 'cred-status-badge ok';
           ltBadge.textContent = '🟢 正常 · ' + ltValidCount + ' / ' + ltAccounts.length + ' 個帳號可用';
@@ -1036,23 +1073,23 @@ async function loadCredentialsStatus(showToast){
       }
     }
     if(ltAccCount) ltAccCount.textContent = ltAccounts.length;
-    if(ltPoolLimit) ltPoolLimit.textContent = ltTotalLimit;
-    if(ltPoolLeft) ltPoolLeft.textContent = ltTotalLeft;
-    if(ltPoolBar) ltPoolBar.style.width = ltPct + '%';
+    if(ltPoolLimit) ltPoolLimit.textContent = lt.connection_error ? 'Error' : ltTotalLimit;
+    if(ltPoolLeft) ltPoolLeft.textContent = lt.connection_error ? 'Error' : ltTotalLeft;
+    if(ltPoolBar) ltPoolBar.style.width = (lt.connection_error ? 0 : ltPct) + '%';
 
     _renderCachedPlatformList('lua_tools');
 
     // 4. 計算並更新左側總配額統計與迷你分佈
-    var allTotalLeft = rTotalLeft + (hc.is_valid ? hcLeft : 0) + ltTotalLeft;
-    var allTotalCap = rTotalLimit + (hc.is_valid ? hcLimit : 0) + ltTotalLimit;
+    var allTotalLeft = (r.connection_error ? 0 : rTotalLeft) + ((hc.is_valid && !hc.connection_error) ? hcLeft : 0) + (lt.connection_error ? 0 : ltTotalLeft);
+    var allTotalCap = (r.connection_error ? 0 : rTotalLimit) + ((hc.is_valid && !hc.connection_error) ? hcLimit : 0) + (lt.connection_error ? 0 : ltTotalLimit);
     var allPct = allTotalCap > 0 ? Math.min(100, Math.round((allTotalLeft / allTotalCap) * 100)) : 0;
 
     if(totalAvailEl) totalAvailEl.textContent = allTotalLeft;
     if(totalCapEl) totalCapEl.textContent = allTotalCap;
     if(totalBarEl) totalBarEl.style.width = allPct + '%';
-    if(tqRyuuEl) tqRyuuEl.textContent = rTotalLeft;
-    if(tqHubcapEl) tqHubcapEl.textContent = hc.is_valid ? hcLeft : 0;
-    if(tqLuaEl) tqLuaEl.textContent = ltTotalLeft;
+    if(tqRyuuEl) tqRyuuEl.textContent = r.connection_error ? 'Error' : rTotalLeft;
+    if(tqHubcapEl) tqHubcapEl.textContent = (hc.connection_error && hc.is_configured) ? 'Error' : (hc.is_valid ? hcLeft : 0);
+    if(tqLuaEl) tqLuaEl.textContent = lt.connection_error ? 'Error' : ltTotalLeft;
 
     // 5. 渲染偏好設定
     var s = res.settings || {};

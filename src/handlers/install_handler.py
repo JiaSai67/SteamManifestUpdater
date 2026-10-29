@@ -369,21 +369,37 @@ class InstallHandler:
         try:
             appid_str = str(appid).strip()
             sp = self._steam_path or steam_manager.find_steam_path()
-            # 🌟 關鍵修復：喚起 Steam 下載前必須先解除唯讀鎖定，確保 Steam 有權限讀寫 depotcache 與 ACF
+            # 🌟 關鍵修復 1：喚起 Steam 下載前必須先解除唯讀鎖定，確保 Steam 有權限讀寫 depotcache 與 ACF
             if sp:
                 steam_manager.unlock_game_version(appid_str, sp)
-                # 若 ACF 有殘留的 UpdateResult 錯誤碼，自動重設為 0
+                # 🌟 關鍵修復 2：若遊戲尚未完全安裝完成 (StateFlags != 4)，清理殘留的假/損壞 ACF，避免 Steam 檢驗 Owner 失敗報無授權
                 acf = steam_manager.find_appmanifest(appid_str, sp)
                 if acf and acf.exists():
                     try:
                         c = acf.read_text(encoding="utf-8", errors="ignore")
-                        if re.search(r'"UpdateResult"\s+"[^0"]+"', c):
+                        if '"StateFlags"\t\t"4"' not in c and '"StateFlags" "4"' not in c:
+                            try:
+                                acf.unlink(missing_ok=True)
+                            except Exception:
+                                pass
+                        elif re.search(r'"UpdateResult"\s+"[^0"]+"', c):
                             c = re.sub(r'"UpdateResult"\s+"[^"]*"', '"UpdateResult"\t\t"0"', c)
                             acf.write_text(c, encoding="utf-8")
                     except Exception:
                         pass
 
-            os.startfile(f"steam://install/{appid_str}")
+            # 🌟 關鍵修復 3：給予 2.0 秒緩衝期，確保 OpenSteamTools 檔案監視器完成 Lua 授權熱加載至 Steam 記憶體中
+            time.sleep(2.0)
+
+            # 🌟 關鍵修復 4：喚起 Steam 下載安裝 (優先使用 os.startfile 原生協議，異常時備援 webbrowser)
+            try:
+                os.startfile(f"steam://install/{appid_str}")
+            except Exception:
+                try:
+                    import webbrowser
+                    webbrowser.open(f"steam://install/{appid_str}")
+                except Exception:
+                    pass
 
             # 自動啟動背景監控：若正常下載完成則自動部署補丁；若報錯或取消則中斷部署
             self.start_steam_install_watcher(appid_str, game_name)

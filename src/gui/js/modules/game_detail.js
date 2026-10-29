@@ -508,8 +508,19 @@ async function openGameDetail(appid, name, image){
     var zg_info = sc.zeigames || {};
 
     // a. Ryuu 平台
+    if(typeof window.updateManageQuota === 'function'){
+      try { window.updateManageQuota(); } catch(e){}
+    }
     if(rStatus && rGid){
-      if(ryuu.available && ryuu.manifest_id && ryuu.manifest_id !== '無檔案 (未收錄)'){
+      if(ryuu.connection_error){
+        rStatus.className = 'chip err';
+        rStatus.textContent = 'Error';
+        if(ryuu.available && ryuu.manifest_id && ryuu.manifest_id !== '無檔案 (未收錄)'){
+          rGid.innerHTML = '<span style="color:#E53935;font-weight:bold" title="連線異常 (' + escHtml(String(ryuu.error_msg || 'HTTP 521')) + ')，顯示本地快取 GID: ' + escHtml(String(ryuu.manifest_id)) + '">Error (快取: ' + escHtml(String(ryuu.manifest_id)) + ')</span>';
+        } else {
+          rGid.innerHTML = '<span style="color:#E53935;font-weight:bold">連線異常 (' + escHtml(String(ryuu.error_msg || 'Error')) + ')</span>';
+        }
+      } else if(ryuu.available && ryuu.manifest_id && ryuu.manifest_id !== '無檔案 (未收錄)'){
         if(ryuu.is_outdated && ryuu.is_same_as_local){
           rStatus.className = 'chip warn';
           rStatus.textContent = '已收錄 (同本地舊版)';

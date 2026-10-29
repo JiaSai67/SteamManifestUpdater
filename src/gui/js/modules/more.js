@@ -375,7 +375,7 @@ async function manualDeployPatch(appid, name){
       updateCardProgress(aidStr, 90, '✅ Steam 遊戲主程式已就緒 (免下載)', false);
     } else {
       // 喚起 Steam 開始下載
-      updateCardProgress(aidStr, 28, '🎮 正在喚起 Steam 開始下載遊戲主程式...', false);
+      updateCardProgress(aidStr, 28, '🔑 正在同步 Steam 遊戲授權並準備喚起下載...', false);
       await pywebview.api.launch_steam_install(aidStr, gameTitle);
       tt('🎮 已喚起 Steam 下載遊戲，系統正在自動監控進度…', 'ok', 4000);
 
