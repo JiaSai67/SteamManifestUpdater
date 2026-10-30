@@ -2365,6 +2365,43 @@ function updateCreateRoomBtnState() {
   btn.title = '🎮 鎖定遊戲、三檔檢查、Discord Webhook 全數就緒，可立即開房！';
 }
 
+function onPartyMaxPlayersChange() {
+  var maxSelect = document.getElementById('select-party-max-players');
+  var customInput = document.getElementById('input-party-custom-max-players');
+  if (!maxSelect || !customInput) return;
+  if (maxSelect.value === 'custom') {
+    customInput.style.display = 'inline-block';
+    if (!customInput.value) customInput.value = '10';
+    customInput.focus();
+    customInput.select();
+  } else {
+    customInput.style.display = 'none';
+  }
+}
+
+function onPartyCustomMaxPlayersInput(el) {
+  if (!el) return;
+  var raw = String(el.value || '').replace(/[^\d]/g, '');
+  if (!raw) return;
+  var num = parseInt(raw, 10);
+  if (!isNaN(num) && num > 20) {
+    el.value = '20';
+    tt('⚠️ 房間人數上限至多為 20 人！', 'warn');
+  }
+}
+
+function onPartyCustomMaxPlayersBlur(el) {
+  if (!el) return;
+  var num = parseInt(el.value, 10);
+  if (isNaN(num) || num < 2) {
+    el.value = '2';
+  } else if (num > 20) {
+    el.value = '20';
+  } else {
+    el.value = String(num);
+  }
+}
+
 function openCreateRoomModal() {
   if (!_partyProfile || !_partyProfile.is_discord_verified) {
     tt('🛡️ 為維護大廳安全秩序，請先完成頂部 Discord 官方身分認證！', 'warn');
@@ -2386,6 +2423,13 @@ function openCreateRoomModal() {
   if (note) note.value = '';
   if (select) select.selectedIndex = 0;
   if (gameCard) gameCard.style.display = 'none';
+  var maxSelectReset = document.getElementById('select-party-max-players');
+  var customMaxReset = document.getElementById('input-party-custom-max-players');
+  if (maxSelectReset) maxSelectReset.value = '4';
+  if (customMaxReset) {
+    customMaxReset.value = '10';
+    customMaxReset.style.display = 'none';
+  }
 
   // 初始按鈕狀態
   updateCreateRoomBtnState();
@@ -2845,7 +2889,24 @@ function submitCreatePartyRoom() {
 
   var appid = (aidInput ? aidInput.value : '').trim();
 
-  var maxPlayers = parseInt(maxSelect ? maxSelect.value : 4, 10);
+  var customMaxInput = document.getElementById('input-party-custom-max-players');
+  var maxPlayers = 4;
+  if (maxSelect && maxSelect.value === 'custom') {
+    var rawCustom = customMaxInput ? parseInt(customMaxInput.value, 10) : NaN;
+    if (isNaN(rawCustom) || rawCustom < 2 || rawCustom > 20) {
+      tt('⛔ 自訂房間人數上限請填寫 2 ~ 20 之間的整數！', 'warn');
+      if (customMaxInput) {
+        customMaxInput.focus();
+        customMaxInput.style.borderColor = '#FF4757';
+        setTimeout(function() { customMaxInput.style.borderColor = ''; }, 3000);
+      }
+      return;
+    }
+    maxPlayers = rawCustom;
+  } else {
+    maxPlayers = parseInt(maxSelect ? maxSelect.value : 4, 10) || 4;
+  }
+  maxPlayers = Math.max(2, Math.min(20, maxPlayers));
 
   var isPublic = (pubSelect ? pubSelect.value : '1') === '1';
 

@@ -186,18 +186,116 @@ class SteamHandler:
                     pass
         return {"ok": True, "cleaned": cleaned, "count": len(cleaned)}
 
+    def check_defender_status(self) -> Dict[str, Any]:
+        """
+        檢查 Windows Defender「即時保護 (Real-Time Protection)」是否處於開啟狀態。
+        回傳: {"ok": True, "realtime_enabled": bool, "disabled": bool, "source": str}
+        """
+        if sys.platform != "win32":
+            return {"ok": True, "realtime_enabled": False, "disabled": True, "source": "non_win32"}
+
+        # 1. 極速註冊表檢查 (0ms)
+        try:
+            import winreg
+            reg_checks = [
+                (r"SOFTWARE\Microsoft\Windows Defender\Real-Time Protection", "DisableRealtimeMonitoring"),
+                (r"SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection", "DisableRealtimeMonitoring"),
+                (r"SOFTWARE\Policies\Microsoft\Windows Defender", "DisableAntiSpyware"),
+            ]
+            for subkey, val_name in reg_checks:
+                try:
+                    k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, subkey)
+                    val, _ = winreg.QueryValueEx(k, val_name)
+                    winreg.CloseKey(k)
+                    if int(val) == 1:
+                        return {"ok": True, "realtime_enabled": False, "disabled": True, "source": "registry"}
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # 2. PowerShell WMI 實時狀態查詢 (準確反映 Windows 安全性介面「即時保護」切換開關)
+        try:
+            out = subprocess.check_output(
+                ["powershell", "-NoProfile", "-Command", "(Get-MpComputerStatus).RealTimeProtectionEnabled"],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
+                timeout=2.8
+            ).strip().lower()
+            if out == "false":
+                return {"ok": True, "realtime_enabled": False, "disabled": True, "source": "wmi"}
+            elif out == "true":
+                return {"ok": True, "realtime_enabled": True, "disabled": False, "source": "wmi"}
+        except Exception:
+            pass
+
+        return {"ok": True, "realtime_enabled": False, "disabled": True, "source": "fallback"}
+
+    def open_defender_settings(self) -> Dict[str, Any]:
+        """開啟 Windows 安全性 > 病毒與威脅防護設定 (即時保護頁面)"""
+        uris = [
+            "windowsdefender://threatsettings/",
+            "windowsdefender://threat/",
+            "windowsdefender:"
+        ]
+        for uri in uris:
+            try:
+                os.startfile(uri)
+                return {"ok": True, "uri": uri}
+            except Exception:
+                continue
+        return {"ok": False, "msg": "無法喚起 Windows 安全性設定視窗"}
+
     def check_dlls(self) -> Dict[str, Any]:
         """檢查 OpenSteamTools 核心 DLL 狀態"""
         sp = self._steam_path or steam_manager.find_steam_path()
         if not sp:
-            return {"ok": False, "missing": 3}
+            return {"ok": False, "missing": 3, "has_steam_path": False}
         dlls = ["OpenSteamTool.dll", "dwmapi.dll", "xinput1_4.dll"]
-        missing = [d for d in dlls if not (Path(sp) / d).exists()]
+        missing = []
+        for d in dlls:
+            p = Path(sp) / d
+            try:
+                if not p.exists() or p.stat().st_size <= 0:
+                    missing.append(d)
+            except Exception:
+                missing.append(d)
         return {
             "ok": len(missing) == 0,
             "missing": len(missing),
-            "missing_list": missing
+            "missing_list": missing,
+            "has_steam_path": True
         }
+
+    def ensure_opensteamtools_installed(self) -> Dict[str, Any]:
+        """
+        初始化階段專用：檢查 OpenSteamTools 狀態，若發現未安裝或缺少核心 DLL，
+        無須詢問使用者，直接主動安裝並重啟 Steam；若已安裝則同步最新 manifest.lua 與簽章快取。
+        """
+        sp = self._steam_path or steam_manager.find_steam_path()
+        if not sp:
+            return {"ok": False, "installed_now": False, "msg": "未找到 Steam 安裝目錄"}
+        status = self.check_dlls()
+        if not status.get("ok") or status.get("missing", 0) > 0:
+            ok, msg = steam_manager.install_opensteamtools(Path(sp))
+            return {
+                "ok": ok,
+                "installed_now": True,
+                "missing_before": status.get("missing_list", []),
+                "msg": msg
+            }
+        else:
+            try:
+                steam_manager.ensure_manifest_lua(Path(sp))
+            except Exception:
+                pass
+            return {
+                "ok": True,
+                "installed_now": False,
+                "msg": "OpenSteamTools 核心已就緒"
+            }
 
     def inject_kernel(self) -> Dict[str, Any]:
         """一鍵注入/部署 OpenSteamTools 內核"""

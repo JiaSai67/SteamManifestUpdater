@@ -1288,7 +1288,7 @@ class PartyManager:
             "host_hwid": self.hwid,
             "host_steam_id": self.steam_id,
             "host_discord": self.get_current_discord_name(),
-            "max_players": int(max_players),
+            "max_players": max(2, min(20, int(max_players or 4))),
             "is_public": bool(is_public),
             "status": "recruiting",
             "note": note,

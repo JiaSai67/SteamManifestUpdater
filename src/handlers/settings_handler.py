@@ -274,27 +274,64 @@ class SettingsHandler:
             }
 
     def check_defender_status(self) -> Dict[str, Any]:
-        """檢查 Windows Defender 即時保護狀態 (透過註冊表 0 開銷監測)"""
+        """檢查 Windows Defender 即時保護狀態 (註冊表 0ms 優先 + WMI 實時狀態雙重核驗)"""
         is_disabled = False
         try:
             import winreg
-            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows Defender\Real-Time Protection", 0, winreg.KEY_READ)
-            value, _ = winreg.QueryValueEx(key, "DisableRealtimeMonitoring")
-            is_disabled = (value == 1)
-            winreg.CloseKey(key)
+            reg_checks = [
+                (r"SOFTWARE\Microsoft\Windows Defender\Real-Time Protection", "DisableRealtimeMonitoring"),
+                (r"SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection", "DisableRealtimeMonitoring"),
+                (r"SOFTWARE\Policies\Microsoft\Windows Defender", "DisableAntiSpyware"),
+            ]
+            for subkey, val_name in reg_checks:
+                try:
+                    key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, subkey, 0, winreg.KEY_READ)
+                    value, _ = winreg.QueryValueEx(key, val_name)
+                    winreg.CloseKey(key)
+                    if int(value) == 1:
+                        is_disabled = True
+                        break
+                except Exception:
+                    pass
         except Exception:
-            is_disabled = False
+            pass
+
+        if not is_disabled and sys.platform == "win32":
+            try:
+                out = subprocess.check_output(
+                    ["powershell", "-NoProfile", "-Command", "(Get-MpComputerStatus).RealTimeProtectionEnabled"],
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    text=True,
+                    encoding="utf-8",
+                    errors="ignore",
+                    timeout=2.8
+                ).strip().lower()
+                if out == "false":
+                    is_disabled = True
+                elif out == "true":
+                    is_disabled = False
+            except Exception:
+                pass
+
         return {
             "ok": True,
             "is_disabled": is_disabled,
+            "disabled": is_disabled,
             "is_realtime_on": not is_disabled,
+            "realtime_enabled": not is_disabled,
             "status_text": "已關閉 (安全，不干擾破解補丁)" if is_disabled else "開啟中 (建議關閉即時保護以防補丁被誤殺)"
         }
 
     def open_defender_settings(self) -> Dict[str, Any]:
-        """開啟 Windows Defender 安全性中心威脅防護設定頁面"""
+        """開啟 Windows Defender 安全性中心威脅防護設定頁面 (即時保護頁面)"""
+        for uri in ("windowsdefender://threatsettings/", "windowsdefender://threatsettings", "windowsdefender://threat/", "windowsdefender:"):
+            try:
+                os.startfile(uri)
+                return {"ok": True, "uri": uri, "msg": "已開啟 Defender 安全設定視窗"}
+            except Exception:
+                continue
         try:
-            os.startfile("windowsdefender://threatsettings")
+            subprocess.Popen(["start", "windowsdefender://threatsettings"], shell=True)
             return {"ok": True, "msg": "已開啟 Defender 安全設定視窗"}
         except Exception as e:
             return {"ok": False, "msg": f"無法開啟 Defender 設定: {e}"}

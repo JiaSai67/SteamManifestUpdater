@@ -313,21 +313,15 @@
       }
 
       try {
-        // 階段 1: 0% ~ 4% 【Steam 環境與 DLL 核心自檢】
+        // 階段 1: 0% ~ 4% 【Steam 環境與 DLL 核心自檢（若缺失直接自動補齊，無須詢問）】
         if(window.updateCardProgress) updateCardProgress(aidStr, 1, '🔍 正在檢查 Steam 核心檔案與 DLL 運行環境...', false);
         var dlls = await pywebview.api.check_dlls();
         if(dlls.missing > 0){
-          if(!confirm('檢測到 Steam 目錄下缺少 ' + dlls.missing + ' 個核心檔案\n\n入庫前需要先注入核心\n\n是否自動注入？')){
-            if(window.updateCardProgress) updateCardProgress(aidStr, 0, '⚠️ 已取消（缺少核心檔案）', true);
-            setTimeout(function(){ var w=document.getElementById('cpw-'+aidStr); if(w) w.classList.remove('active'); }, 2000);
-            if(window.tt) tt('已取消（缺少核心檔案）', 'in');
-            return;
-          }
-          if(window.updateCardProgress) updateCardProgress(aidStr, 2, '⚡ 正在注入 Steam 核心檔案...', false);
+          if(window.updateCardProgress) updateCardProgress(aidStr, 2, '⚡ 正在自動補齊 OpenSteamTools 核心檔案...', false);
           var ikr = await pywebview.api.inject_kernel();
           if(!ikr.ok){
             if(window.updateCardProgress) updateCardProgress(aidStr, 2, '❌ 核心檔案注入失敗', true);
-            if(window.tt) tt('❌ 核心檔案注入失敗（可能需要管理員權限或關閉 Steam）', 'er');
+            if(window.tt) tt('❌ 核心檔案自動安裝失敗（請確認已關閉防毒即時保護）', 'er');
             return;
           }
         }

@@ -278,6 +278,111 @@ window.on_game_resolved_progress = function(data){
   setSplashProgress(pct, '正在確認入庫遊戲資訊與官方封面 (' + cur + '/' + tot + ')...', nm, 7);
 };
 
+// ── Windows Defender 即時保護關閉引導彈窗 (初始化階段專用) ──
+function showDefenderPromptModal(){
+  return new Promise(function(resolve){
+    var modalId = 'modal-defender-prompt';
+    var existing = document.getElementById(modalId);
+    if(existing) existing.remove();
+
+    var isDark = document.documentElement.classList.contains('dark') || !!document.querySelector('.app.dark');
+    var boxBg = isDark ? 'linear-gradient(145deg, #22191D, #181114)' : '#FFFFFF';
+    var boxBorder = isDark ? '1.5px solid rgba(255, 117, 140, 0.45)' : '1.5px solid rgba(229, 57, 53, 0.35)';
+    var textColor = isDark ? '#F5EAED' : '#2D2124';
+    var descColor = isDark ? '#C9B8BD' : '#5C4F53';
+
+    var modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.78);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:1000200;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeInModal 0.2s cubic-bezier(0.16,1,0.3,1)';
+
+    modal.innerHTML =
+      '<div class="modal-box" style="max-width:480px;width:100%;background:' + boxBg + ';border:' + boxBorder + ';border-radius:18px;padding:22px 24px;box-shadow:0 24px 64px rgba(0,0,0,0.65);box-sizing:border-box;color:' + textColor + ';position:relative">' +
+        '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">' +
+          '<div style="width:42px;height:42px;border-radius:12px;background:rgba(244,67,54,0.18);border:1px solid rgba(244,67,54,0.45);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🛡️</div>' +
+          '<div style="flex:1">' +
+            '<h3 style="margin:0 0 3px 0;font-size:15.5px;font-weight:800;color:#FF758C">請關閉 Windows Defender「即時保護」</h3>' +
+            '<div style="font-size:11.5px;color:' + descColor + '">避免防毒誤攔截 OpenSteamTools 核心組件導致工具無法運作</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="font-size:12.5px;color:' + textColor + ';line-height:1.55;margin-bottom:10px">' +
+          '請點擊下方「<b>關閉防毒</b>」按鈕開啟 <b>Windows 安全性 &gt; 病毒與威脅防護設定</b>，並將下圖所示之「<b>即時保護</b>」切換為關閉：' +
+        '</div>' +
+        '<div style="background:#000;border-radius:12px;padding:8px;border:1.5px solid rgba(255,183,197,0.28);margin-bottom:12px;text-align:center">' +
+          '<img src="assets/defender_realtime_off.png" alt="關閉即時保護示意圖" style="width:100%;max-width:430px;height:auto;border-radius:8px;display:block;margin:0 auto" />' +
+        '</div>' +
+        '<div id="defender-live-status" style="font-size:11.5px;color:#FFB74D;background:rgba(255,152,0,0.1);border:1px solid rgba(255,152,0,0.28);border-radius:8px;padding:7px 11px;margin-bottom:16px;display:flex;align-items:center;gap:7px">' +
+          '<span>🔄</span><span>正在即時監測狀態：關閉「即時保護」後將自動繼續初始化…</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:flex-end;gap:10px">' +
+          '<button type="button" id="btn-defender-continue" class="btn btn-o" style="padding:8px 15px;font-size:12.5px;border-radius:9px">我已關閉，繼續</button>' +
+          '<button type="button" id="btn-defender-open-settings" class="btn btn-p" style="padding:8px 20px;font-size:13px;font-weight:800;border-radius:9px;background:linear-gradient(135deg,#FF5252,#D32F2F);border:none;color:#fff;box-shadow:0 4px 14px rgba(211,47,47,0.4)">關閉防毒</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(modal);
+
+    var finished = false;
+    var pollTimer = null;
+    var pollingBusy = false;
+
+    function cleanupAndResolve(){
+      if(finished) return;
+      finished = true;
+      if(pollTimer){
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      modal.style.opacity = '0';
+      modal.style.transition = 'opacity 0.18s ease';
+      setTimeout(function(){
+        if(modal.parentNode) modal.parentNode.removeChild(modal);
+        resolve();
+      }, 180);
+    }
+
+    var btnOpen = modal.querySelector('#btn-defender-open-settings');
+    if(btnOpen){
+      btnOpen.onclick = function(){
+        if(window.pywebview && pywebview.api && pywebview.api.open_defender_settings){
+          pywebview.api.open_defender_settings().catch(function(){});
+        }
+        var stEl = modal.querySelector('#defender-live-status');
+        if(stEl){
+          stEl.innerHTML = '<span>⏳</span><span>已開啟 Windows 安全性設定，請將「即時保護」切換為「關閉」…</span>';
+        }
+      };
+    }
+
+    var btnCont = modal.querySelector('#btn-defender-continue');
+    if(btnCont){
+      btnCont.onclick = function(){
+        cleanupAndResolve();
+      };
+    }
+
+    pollTimer = setInterval(async function(){
+      if(finished || pollingBusy) return;
+      if(!window.pywebview || !pywebview.api || !pywebview.api.check_defender_status) return;
+      pollingBusy = true;
+      try {
+        var r = await pywebview.api.check_defender_status();
+        if(r && (r.realtime_enabled === false || r.is_disabled === true || r.is_realtime_on === false)){
+          var stEl = modal.querySelector('#defender-live-status');
+          if(stEl){
+            stEl.style.color = '#69F0AE';
+            stEl.style.background = 'rgba(46,213,115,0.12)';
+            stEl.style.borderColor = 'rgba(46,213,115,0.35)';
+            stEl.innerHTML = '<span>✅</span><span>已偵測到「即時保護」關閉！正在自動繼續初始化…</span>';
+          }
+          setTimeout(cleanupAndResolve, 450);
+        }
+      } catch(e){}
+      pollingBusy = false;
+    }, 1500);
+  });
+}
+
 async function init(){
   var splashDismissed = false;
   // 安全超時保護（延長至 35 秒極端保底，確保名稱與封面確認完成前絕不搶著進系統）
@@ -304,6 +409,10 @@ async function init(){
 
     var pDlls = (window.pywebview && pywebview.api && pywebview.api.check_dlls)
       ? pywebview.api.check_dlls().catch(function(){ return null; })
+      : Promise.resolve(null);
+
+    var pDefender = (window.pywebview && pywebview.api && pywebview.api.check_defender_status)
+      ? pywebview.api.check_defender_status().catch(function(){ return null; })
       : Promise.resolve(null);
 
     var pAppids = (window.pywebview && pywebview.api && pywebview.api.get_installed_appids)
@@ -417,16 +526,62 @@ async function init(){
     bindWindowResize();
 
     // ══════════════════════════════════════════════════
-    // Step 4 (48%): 自檢核心環境與 OpenSteamTools 內核
+    // Step 4 (48%): 自檢 Windows Defender 與自動安裝 OpenSteamTools 內核
     // ══════════════════════════════════════════════════
-    console.log('[INIT] Starting Step 4');
-    setSplashProgress(48, '自檢核心環境與 OpenSteamTools 內核...', '校驗 SteamTools DLL 模組與前置運行環境', 4);
+    console.log('[INIT] Starting Step 4 - Defender Check & OpenSteamTools Auto-Install');
+    setSplashProgress(48, '自檢防毒環境與 OpenSteamTools 內核狀態...', '檢測 Windows Defender 即時保護與 OpenSteamTools 核心組件', 4);
     await yieldToUI(80);
 
+    // 4-1. 若偵測到 Windows Defender「即時保護」未關閉，彈出圖示指引與「關閉防毒」按鈕
     try {
-      var dllRes = await pDlls;
-      if(dllRes && dllRes.ok) _hasPassedPrereq = true;
-    } catch(e){}
+      var defRes = await pDefender;
+      if(defRes && (defRes.realtime_enabled === true || defRes.is_realtime_on === true)){
+        clearTimeout(safetyTimer);
+        await showDefenderPromptModal();
+        safetyTimer = setTimeout(function(){
+          if(!splashDismissed){
+            splashDismissed = true;
+            dismissSplashScreen();
+          }
+        }, 35000);
+      }
+    } catch(e){
+      console.warn('[INIT] Step 4 defender check error:', e);
+    }
+
+    // 4-2. 每次初始化強制檢查 OpenSteamTools 狀態，未安裝則直接主動安裝（無須詢問使用者）
+    try {
+      var dllRes = (window.pywebview && pywebview.api && pywebview.api.check_dlls)
+        ? await pywebview.api.check_dlls()
+        : (await pDlls);
+
+      if(dllRes && dllRes.has_steam_path !== false){
+        if(!dllRes.ok || (dllRes.missing && dllRes.missing > 0)){
+          setSplashProgress(52, '正在自動安裝 OpenSteamTools 核心組件...', '偵測到尚未安裝 OpenSteamTools，正在自動注入內核並重啟 Steam...', 4);
+          await yieldToUI(60);
+          var ostInstallRes = null;
+          if(window.pywebview && pywebview.api && pywebview.api.ensure_opensteamtools_installed){
+            ostInstallRes = await pywebview.api.ensure_opensteamtools_installed();
+          } else if(window.pywebview && pywebview.api && pywebview.api.inject_kernel){
+            ostInstallRes = await pywebview.api.inject_kernel();
+          }
+          if(ostInstallRes && ostInstallRes.ok){
+            _hasPassedPrereq = true;
+            setSplashProgress(56, '✅ OpenSteamTools 自動安裝完成！', ostInstallRes.msg || '核心組件與簽章快取已部署就緒', 4);
+            tt('✅ 已自動偵測並完成 OpenSteamTools 核心安裝！', 'ok', 3500);
+          } else {
+            tt('⚠️ OpenSteamTools 自動安裝未完成：' + ((ostInstallRes && ostInstallRes.msg) || '請確認防毒已關閉'), 'wn', 5000);
+          }
+        } else {
+          _hasPassedPrereq = true;
+          if(window.pywebview && pywebview.api && pywebview.api.auto_inject_and_restart){
+            pywebview.api.auto_inject_and_restart().catch(function(){});
+          }
+        }
+      }
+    } catch(e){
+      console.warn('[INIT] Step 4 OpenSteamTools auto-install error:', e);
+    }
 
     // ══════════════════════════════════════════════════
     // Step 5 (62%): 🌟 隊伍大廳身分認證與安全憑證預載入 (秒開組隊大廳)

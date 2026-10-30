@@ -140,7 +140,7 @@ class PartyHandler:
             return self._get_party_manager().create_room(
                 game_name=game_name,
                 app_id=str(app_id),
-                max_players=int(max_players),
+                max_players=max(2, min(20, int(max_players or 4))),
                 is_public=bool(is_public),
                 note=note,
                 auto_package_upload=bool(auto_package_upload),
