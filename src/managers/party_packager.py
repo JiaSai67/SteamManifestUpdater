@@ -231,7 +231,7 @@ class PartyPackager:
                     "manifest_files": [Path(f).name for f in res_info["manifest"]["files"]],
                     "lua_included": res_info["lua"]["ready"],
                     "patch_source": res_info["patch"]["source"],
-                    "version": "2.0.7"
+                    "version": "2.0.8"
                 }
 
                 # 1. 寫入實體 Manifest (.manifest 二進位清單)

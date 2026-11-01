@@ -13,69 +13,132 @@ from managers import config_manager
 _config = config_manager.get_config()
 
 import winreg
+import string
+import re
 
-def get_extractor():
-    # 0. 優先嘗試專案內建的解壓縮工具 (讓用戶能將工具直接打包進專案)
+def get_all_available_extractors() -> list:
+    """
+    全方位探測並回傳系統所有可用的解壓縮工具清單 (按格式通用度與優先順序排序且去重)。
+    優先順序：7-Zip (全格式命令列最佳) ➔ WinRAR.exe (全格式 GUI/背景) ➔ UnRAR.exe (專解 RAR)。
+    支援專案內建、系統 PATH、Windows 官方 App Paths、註冊表關聯與各磁碟 (C~Z) 安裝路徑。
+    """
+    raw_found = []
+    seen_paths = set()
+
+    def _add(ext_type: str, exe_path: str):
+        if not exe_path:
+            return
+        p_clean = os.path.normpath(str(exe_path).strip().strip('"'))
+        if p_clean.lower() in seen_paths:
+            return
+        if os.path.isfile(p_clean):
+            seen_paths.add(p_clean.lower())
+            is_unrar = os.path.basename(p_clean).lower().startswith("unrar")
+            raw_found.append({
+                "type": ext_type,
+                "path": p_clean,
+                "is_unrar_only": is_unrar
+            })
+
+    # 0. 優先嘗試專案內建的解壓縮工具 (讓用戶能將工具直接打包進專案或 opensteamtools)
     local_tools = [
+        ("7z", config_manager._root_dir / "7z.exe"),
+        ("7z", config_manager._root_dir / "opensteamtools" / "7z.exe"),
+        ("winrar", config_manager._root_dir / "WinRAR.exe"),
         ("winrar", config_manager._root_dir / "UnRAR.exe"),
         ("winrar", config_manager._root_dir / "opensteamtools" / "UnRAR.exe"),
         ("winrar", config_manager._root_dir / "assets" / "UnRAR.exe"),
-        ("winrar", config_manager._root_dir / "WinRAR.exe"),
-        ("7z", config_manager._root_dir / "7z.exe"),
-        ("7z", config_manager._root_dir / "opensteamtools" / "7z.exe"),
     ]
     for ext_type, p in local_tools:
         if p.exists():
-            return {"type": ext_type, "path": str(p)}
+            _add(ext_type, str(p))
 
-    # 1. 嘗試從註冊表找 7-Zip
-    try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\7-Zip") as key:
-            path, _ = winreg.QueryValueEx(key, "Path")
-            exe_path = os.path.join(path, "7z.exe")
-            if os.path.exists(exe_path):
-                return {"type": "7z", "path": exe_path}
-    except Exception:
-        pass
-        
-    try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\7-Zip") as key:
-            path, _ = winreg.QueryValueEx(key, "Path64")
-            exe_path = os.path.join(path, "7z.exe")
-            if os.path.exists(exe_path):
-                return {"type": "7z", "path": exe_path}
-    except Exception:
-        pass
+    # 1. 嘗試系統 PATH 環境變數 (優先 7z，其次 winrar，最後 unrar)
+    for name, ext_type in [("7z", "7z"), ("winrar", "winrar"), ("unrar", "winrar")]:
+        which_path = shutil.which(name)
+        if which_path:
+            _add(ext_type, which_path)
 
-    # 2. 嘗試常見 7-Zip 路徑
-    for p in [r"C:\Program Files\7-Zip\7z.exe", r"C:\Program Files (x86)\7-Zip\7z.exe"]:
-        if os.path.exists(p):
-            return {"type": "7z", "path": p}
+    # 2. 嘗試 7-Zip 註冊表專用鍵 (Path, Path64)
+    for h in [winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER]:
+        for sub in [r"SOFTWARE\7-Zip", r"SOFTWARE\WOW6432Node\7-Zip"]:
+            try:
+                with winreg.OpenKey(h, sub) as key:
+                    for vn in ["Path", "Path64"]:
+                        try:
+                            p, _ = winreg.QueryValueEx(key, vn)
+                            if p:
+                                _add("7z", os.path.join(p, "7z.exe"))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
-    # 3. 嘗試從註冊表找 WinRAR (優先使用同目錄下的 UnRAR.exe，次選 WinRAR.exe)
-    for reg_val in ("exe64", "exe32"):
+    # 3. 嘗試 Windows 官方應用程式路徑 (App Paths: 支援自訂安裝磁碟、免安裝關聯)
+    app_keys = [
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\7z.exe", "7z"),
+        (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\App Paths\7z.exe", "7z"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\WinRAR.exe", "winrar"),
+        (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\App Paths\WinRAR.exe", "winrar"),
+    ]
+    for h, sub, ext_type in app_keys:
         try:
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WinRAR") as key:
-                path, _ = winreg.QueryValueEx(key, reg_val)
-                if path and os.path.exists(path):
-                    unrar_candidate = os.path.join(os.path.dirname(path), "UnRAR.exe")
-                    if os.path.exists(unrar_candidate):
-                        return {"type": "winrar", "path": unrar_candidate}
-                    return {"type": "winrar", "path": path}
+            with winreg.OpenKey(h, sub) as k:
+                val, _ = winreg.QueryValueEx(k, "")
+                if val:
+                    _add(ext_type, val)
+                    if ext_type == "winrar":
+                        unrar_c = os.path.join(os.path.dirname(val), "UnRAR.exe")
+                        _add("winrar", unrar_c)
         except Exception:
             pass
 
-    # 4. 嘗試常見 WinRAR / UnRAR 路徑
-    for p in [
-        r"C:\Program Files\WinRAR\UnRAR.exe",
-        r"C:\Program Files (x86)\WinRAR\UnRAR.exe",
-        r"C:\Program Files\WinRAR\WinRAR.exe",
-        r"C:\Program Files (x86)\WinRAR\WinRAR.exe",
-    ]:
-        if os.path.exists(p):
-            return {"type": "winrar", "path": p}
+    # 4. 嘗試註冊表檔案關聯 (WinRAR Shell Open Command)
+    try:
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, r"WinRAR\shell\open\command") as key:
+            val, _ = winreg.QueryValueEx(key, "")
+            m = re.match(r'^"([^"]+)"', val)
+            target = m.group(1) if m else val.split()[0]
+            if target:
+                _add("winrar", target)
+                unrar_c = os.path.join(os.path.dirname(target), "UnRAR.exe")
+                _add("winrar", unrar_c)
+    except Exception:
+        pass
 
-    return None
+    # 5. 全磁碟掃描常見安裝目錄 (支援 C:, D:, E:, F:, G:... 任何磁碟槽)
+    available_drives = [f"{d}:" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+    for d in available_drives:
+        candidates = [
+            ("7z", os.path.join(d + "\\", "Program Files", "7-Zip", "7z.exe")),
+            ("7z", os.path.join(d + "\\", "Program Files (x86)", "7-Zip", "7z.exe")),
+            ("winrar", os.path.join(d + "\\", "Program Files", "WinRAR", "WinRAR.exe")),
+            ("winrar", os.path.join(d + "\\", "Program Files (x86)", "WinRAR", "WinRAR.exe")),
+            ("winrar", os.path.join(d + "\\", "Program Files", "WinRAR", "UnRAR.exe")),
+            ("winrar", os.path.join(d + "\\", "Program Files (x86)", "WinRAR", "UnRAR.exe")),
+        ]
+        for ext_type, c_path in candidates:
+            _add(ext_type, c_path)
+
+    # 智能加權排序：將 7z.exe 與完整版 WinRAR.exe 排在最前（全格式相容），UnRAR.exe 緊隨其後
+    def _sort_weight(item):
+        t = item["type"]
+        is_u = item.get("is_unrar_only", False)
+        if t == "7z":
+            return 1
+        elif t == "winrar" and not is_u:
+            return 2
+        else:
+            return 3
+
+    raw_found.sort(key=_sort_weight)
+    return raw_found
+
+
+def get_extractor():
+    """取得優先級最高之可用解壓縮工具"""
+    tools = get_all_available_extractors()
+    return tools[0] if tools else None
 
 EXTRACTOR = get_extractor()
 ARCHIVE_PASSWORDS = ["online-fix.me", "zeigames.com", ""]
@@ -997,56 +1060,77 @@ def _extract_archive_to_dir(rar_path: Path, dest_dir: Path):
         except Exception as e:
             last_err = str(e)
 
-    # 2. 使用外部解壓工具 (7-Zip / WinRAR / UnRAR)，僅使用 100% 通用支援的 'x' 解壓指令
-    if not EXTRACTOR:
-        EXTRACTOR = get_extractor()
-    if not EXTRACTOR:
+    # 2. 使用外部解壓工具 (多工具備援輪替：7-Zip ➔ UnRAR ➔ WinRAR)
+    available_tools = get_all_available_extractors()
+    if not available_tools:
+        if EXTRACTOR:
+            available_tools = [EXTRACTOR]
+        else:
+            cand = get_extractor()
+            if cand:
+                available_tools = [cand]
+
+    if not available_tools:
         return None, [], last_err or "找不到解壓縮工具！請先安裝 7-Zip 或 WinRAR。"
 
     startupinfo = subprocess.STARTUPINFO()
     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-    for pwd in ARCHIVE_PASSWORDS:
-        try:
-            if dest_dir.exists():
-                shutil.rmtree(dest_dir, ignore_errors=True)
-            dest_dir.mkdir(parents=True, exist_ok=True)
+    is_rar_file = rar_path_str.lower().endswith('.rar') or bool(re.search(r'\.part\d+\.rar$', rar_path_str.lower()))
 
-            # 🌟 當測試空密碼時使用 -p-，防止 7z 或 WinRAR 彈出密碼詢問視窗或無窮等待
-            pwd_arg = f"-p{pwd}" if pwd else "-p-"
-
-            if EXTRACTOR["type"] == "7z":
-                cmd = [EXTRACTOR["path"], "x", pwd_arg, "-y", f"-o{dest_dir}", str(rar_path)]
-            else:
-                dest_str = str(dest_dir)
-                if not dest_str.endswith('\\'):
-                    dest_str += '\\'
-                cmd = [EXTRACTOR["path"], "x", pwd_arg, "-y", "-inul", "-ibck", str(rar_path), dest_str]
-
-            proc = subprocess.run(
-                cmd,
-                startupinfo=startupinfo,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=180,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-            rel_files = [str(p.relative_to(dest_dir)) for p in dest_dir.rglob("*") if p.is_file()]
-            if proc.returncode == 0 and rel_files:
-                return pwd, rel_files, ""
-            if rel_files and proc.returncode in (0, 1):
-                # WinRAR exit code 1 (Warning: non-fatal) 但已有完整解出檔案時亦視為成功
-                non_empty = any((dest_dir / rf).stat().st_size > 0 for rf in rel_files)
-                if non_empty:
-                    return pwd, rel_files, ""
-            out_err = ((proc.stderr or "") + " " + (proc.stdout or "")).strip()
-            if out_err:
-                last_err = out_err
-        except Exception as e:
-            last_err = str(e)
+    for tool in available_tools:
+        # UnRAR.exe 僅支援 .rar 格式，若非 RAR 檔案則自動跳過，由 7z 或 WinRAR.exe 處理
+        if not is_rar_file and tool.get("is_unrar_only", False):
             continue
+
+        for pwd in ARCHIVE_PASSWORDS:
+            try:
+                if dest_dir.exists():
+                    shutil.rmtree(dest_dir, ignore_errors=True)
+                dest_dir.mkdir(parents=True, exist_ok=True)
+
+                # 🌟 當測試空密碼時使用 -p-，防止 7z 或 WinRAR 彈出密碼詢問視窗或無窮等待
+                pwd_arg = f"-p{pwd}" if pwd else "-p-"
+
+                if tool["type"] == "7z":
+                    cmd = [tool["path"], "x", pwd_arg, "-y", f"-o{dest_dir}", str(rar_path)]
+                elif tool.get("is_unrar_only", False):
+                    # UnRAR.exe 專屬參數 (無 -ibck)
+                    dest_str = str(dest_dir)
+                    if not dest_str.endswith('\\'):
+                        dest_str += '\\'
+                    cmd = [tool["path"], "x", pwd_arg, "-y", "-inul", str(rar_path), dest_str]
+                else:
+                    # WinRAR.exe (GUI版專屬背景無彈窗參數)
+                    dest_str = str(dest_dir)
+                    if not dest_str.endswith('\\'):
+                        dest_str += '\\'
+                    cmd = [tool["path"], "x", pwd_arg, "-y", "-inul", "-ibck", str(rar_path), dest_str]
+
+                proc = subprocess.run(
+                    cmd,
+                    startupinfo=startupinfo,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=180,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                rel_files = [str(p.relative_to(dest_dir)) for p in dest_dir.rglob("*") if p.is_file()]
+                if proc.returncode == 0 and rel_files:
+                    return pwd, rel_files, ""
+                if rel_files and proc.returncode in (0, 1):
+                    # WinRAR exit code 1 (Warning: non-fatal) 但已有完整解出檔案時亦視為成功
+                    non_empty = any((dest_dir / rf).stat().st_size > 0 for rf in rel_files)
+                    if non_empty:
+                        return pwd, rel_files, ""
+                out_err = ((proc.stderr or "") + " " + (proc.stdout or "")).strip()
+                if out_err:
+                    last_err = out_err
+            except Exception as e:
+                last_err = str(e)
+                continue
 
     if dest_dir.exists():
         shutil.rmtree(dest_dir, ignore_errors=True)

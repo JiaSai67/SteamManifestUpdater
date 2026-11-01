@@ -17,6 +17,7 @@ from handlers.install_handler import InstallHandler
 from handlers.search_handler import SearchHandler
 from handlers.manage_handler import ManageHandler
 from handlers.party_handler import PartyHandler
+from handlers.friend_code_handler import FriendCodeHandler
 from handlers.credentials_handler import CredentialsHandler
 from handlers.settings_handler import SettingsHandler
 from handlers.steam_handler import SteamHandler
@@ -29,6 +30,7 @@ class WebApi(
     SearchHandler,
     ManageHandler,
     PartyHandler,
+    FriendCodeHandler,
     CredentialsHandler,
     SettingsHandler,
     SteamHandler,

@@ -1,0 +1,184 @@
+<!-- 📄 View: friend_code.html -->
+<div class="page" id="p-friend-code">
+  <!-- 頁首 -->
+  <div class="fc-topbar">
+    <div>
+      <h2><span>🎫</span><span>友邀代碼</span></h2>
+      <div class="fc-topbar-sub">朋友之間免大廳、免登入，只要一組 Discord Webhook 就能分享整套聯機環境</div>
+    </div>
+    <div class="fc-topbar-tags">
+      <span class="fc-tag">🔒 AEAD-SIV 加密</span>
+      <span class="fc-tag blue">🎮 Discord CDN 託管</span>
+      <span class="fc-tag">🔤 97 碼純英數</span>
+    </div>
+  </div>
+
+  <!-- 三步驟流程導覽 -->
+  <div class="fc-flow">
+    <div class="fc-flow-step">
+      <div class="fc-flow-icon">📦</div>
+      <div style="min-width:0"><div class="fc-flow-title">1. 打包上傳</div><div class="fc-flow-desc">三檔整合包上傳至 Webhook</div></div>
+    </div>
+    <div class="fc-flow-arrow">❯</div>
+    <div class="fc-flow-step">
+      <div class="fc-flow-icon">🔑</div>
+      <div style="min-width:0"><div class="fc-flow-title">2. 發布代碼</div><div class="fc-flow-desc">複製代碼傳給好友</div></div>
+    </div>
+    <div class="fc-flow-arrow">❯</div>
+    <div class="fc-flow-step">
+      <div class="fc-flow-icon">⚡</div>
+      <div style="min-width:0"><div class="fc-flow-title">3. 貼上安裝</div><div class="fc-flow-desc">本地解密並全自動安裝</div></div>
+    </div>
+  </div>
+
+  <div class="fc-layout">
+    <!-- ═══ 左欄：分享方 ═══ -->
+    <div class="fc-panel">
+      <div class="fc-panel-head">
+        <div class="fc-panel-title-wrap">
+          <div class="fc-panel-icon">📦</div>
+          <div style="min-width:0">
+            <div class="fc-panel-name">打包並發布代碼</div>
+            <div class="fc-panel-sub">選擇本機已就緒的遊戲，產生專屬友邀代碼</div>
+          </div>
+        </div>
+        <span class="fc-badge" id="fc-host-badge">分享方</span>
+      </div>
+
+      <!-- 步驟 1：選擇遊戲 -->
+      <div class="fc-step">
+        <div class="fc-step-head">
+          <span class="fc-step-label"><span class="fc-step-num">1</span>選擇遊戲</span>
+          <button type="button" class="btn btn-o btn-xs" onclick="refreshFcReadyGames()" title="重新掃描本機已部署聯機補丁的遊戲">🔄 重新整理</button>
+        </div>
+        <select id="fc-select-game" class="fc-select" onchange="onFcGameSelectChange()">
+          <option value="">-- 請挑選本機已入庫且已安裝線上補丁的遊戲 --</option>
+        </select>
+        <div class="fc-inspect-strip">
+          <span id="fc-chip-manifest" class="fc-res-chip">📄 Manifest</span>
+          <span id="fc-chip-lua" class="fc-res-chip">📜 Lua 腳本</span>
+          <span id="fc-chip-patch" class="fc-res-chip">🎮 線上補丁</span>
+        </div>
+      </div>
+
+      <!-- 步驟 2：Webhook -->
+      <div class="fc-step">
+        <div class="fc-step-head">
+          <span class="fc-step-label"><span class="fc-step-num">2</span>Discord Webhook 網址</span>
+          <button type="button" class="btn btn-o btn-xs" onclick="openFcWebhookTutorialModal()" title="觀看建立 Discord Webhook 影片教學">🎬 建立教學</button>
+        </div>
+        <div class="fc-input-row">
+          <input type="text" id="fc-input-webhook" class="fc-input" oninput="onFcWebhookInput()" placeholder="https://discord.com/api/webhooks/...">
+          <button type="button" class="btn btn-p btn-s" id="btn-fc-test-webhook" onclick="testFcWebhookConnection()" style="background:#5865F2;border-color:#5865F2">🔗 測試</button>
+        </div>
+        <div id="fc-webhook-test-result" class="fc-verify-banner" style="display:none;margin-top:8px"></div>
+        <div class="fc-hint">🔐 Webhook 網址會加密藏在代碼中，好友端不會看到原始連結；與組隊大廳共用記憶。</div>
+      </div>
+
+      <!-- 步驟 3：生成 -->
+      <div class="fc-step">
+        <span class="fc-step-label"><span class="fc-step-num">3</span>生成友邀代碼</span>
+        <button type="button" class="btn btn-p fc-main-btn" id="btn-fc-generate" onclick="submitGenerateFriendCode()" disabled>🚀 打包並生成友邀代碼</button>
+      </div>
+
+      <!-- 打包進度 -->
+      <div id="fc-host-progress-wrap" class="fc-progress-box" style="display:none">
+        <div class="fc-progress-line">
+          <span id="fc-host-status-text">正在準備封裝…</span>
+          <span id="fc-host-pct" class="fc-pct">0%</span>
+        </div>
+        <div class="fc-bar-track"><div id="fc-host-bar" class="fc-bar-fill"></div></div>
+      </div>
+      <div id="fc-host-error-box" class="fc-verify-banner invalid" style="display:none"></div>
+
+      <!-- 生成結果 -->
+      <div id="fc-result-card" class="fc-result-card" style="display:none">
+        <div class="fc-result-top">
+          <span class="fc-result-title">✨ 友邀代碼已就緒</span>
+          <span class="fc-badge ok">已加密</span>
+        </div>
+        <div id="fc-result-meta" class="fc-result-meta"></div>
+        <div id="fc-result-code-text" class="fc-code-display" onclick="copyCurrentFriendCodeRaw()" title="點擊直接複製"></div>
+        <div class="fc-btn-row">
+          <button type="button" class="btn btn-p btn-s" onclick="copyCurrentFriendCodeRaw()">📋 複製代碼</button>
+          <button type="button" class="btn btn-o btn-s" onclick="copyCurrentFriendCodeInvite()">💬 複製邀請文案</button>
+        </div>
+      </div>
+
+      <!-- 歷史紀錄 -->
+      <div id="fc-history-section" class="fc-history-wrap" style="display:none">
+        <div class="fc-step-head">
+          <span class="fc-step-label">🕒 近期發布</span>
+          <span id="fc-history-count" class="fc-badge"></span>
+        </div>
+        <div id="fc-history-list" class="fc-history-list"></div>
+      </div>
+    </div>
+
+    <!-- ═══ 右欄：接收方 ═══ -->
+    <div class="fc-panel">
+      <div class="fc-panel-head">
+        <div class="fc-panel-title-wrap">
+          <div class="fc-panel-icon recv">🔓</div>
+          <div style="min-width:0">
+            <div class="fc-panel-name">貼上代碼並安裝</div>
+            <div class="fc-panel-sub">本地離線解密，自動完成下載、入庫與補丁部署</div>
+          </div>
+        </div>
+        <span class="fc-badge" id="fc-recv-badge">接收方</span>
+      </div>
+
+      <!-- 步驟 1：貼上代碼 -->
+      <div class="fc-step">
+        <div class="fc-step-head">
+          <span class="fc-step-label"><span class="fc-step-num recv">1</span>貼上友邀代碼</span>
+          <div style="display:flex;gap:5px">
+            <button type="button" class="btn btn-o btn-xs" onclick="pasteFriendCodeFromClipboard()" title="從剪貼簿貼上">📋 貼上</button>
+            <button type="button" class="btn btn-o btn-xs" onclick="clearFriendCodeInput()" title="清空">✕ 清空</button>
+          </div>
+        </div>
+        <textarea id="fc-input-code" class="fc-textarea" rows="3" oninput="onFriendCodeInputChange()" placeholder="在此貼上 97 碼純英數友邀代碼，連同整段聊天室邀請文字一起貼上也能自動精準提取…"></textarea>
+        <div id="fc-verify-banner" class="fc-verify-banner" style="display:none"></div>
+      </div>
+
+      <!-- 步驟 2：安裝 -->
+      <div class="fc-step">
+        <span class="fc-step-label"><span class="fc-step-num recv">2</span>一鍵自動安裝</span>
+        <div class="fc-btn-row">
+          <button type="button" class="btn btn-p fc-main-btn recv" id="btn-fc-redeem" onclick="submitRedeemFriendCode()" disabled>⚡ 解密並全自動下載安裝</button>
+          <button type="button" class="btn btn-o" id="btn-fc-cancel-install" onclick="cancelFcRedeemInstall()" style="display:none;flex:0 0 auto;height:40px;color:#ef4444;border-color:rgba(239,68,68,.4)">⏹️ 中止</button>
+        </div>
+      </div>
+
+      <!-- 安裝進度 -->
+      <div id="fc-recv-progress-wrap" class="fc-progress-box" style="display:none">
+        <div class="fc-stages-row">
+          <div id="fc-stage-1" class="fc-stage-pill">① 解密</div>
+          <div id="fc-stage-2" class="fc-stage-pill">② 下載</div>
+          <div id="fc-stage-3" class="fc-stage-pill">③ 清單</div>
+          <div id="fc-stage-4" class="fc-stage-pill">④ Steam</div>
+          <div id="fc-stage-5" class="fc-stage-pill">⑤ 補丁</div>
+        </div>
+        <div class="fc-recv-meta">
+          <span id="fc-recv-game-title" class="fc-recv-game">🎮 準備開始…</span>
+          <span id="fc-recv-speed" class="fc-recv-speed"></span>
+        </div>
+        <div class="fc-bar-track"><div id="fc-recv-bar" class="fc-bar-fill recv"></div></div>
+        <div class="fc-progress-line">
+          <span id="fc-recv-status-text" style="font-weight:600">等待啟動…</span>
+          <span id="fc-recv-pct" class="fc-pct" style="color:#10B981">0%</span>
+        </div>
+      </div>
+      <div id="fc-recv-error-box" class="fc-verify-banner invalid" style="display:none"></div>
+
+      <!-- 說明 -->
+      <div class="fc-note">
+        💡 <b>安裝流程</b><br>
+        ① <b>解密換鏈</b>：本地核驗代碼，向 Discord 換發最新有效下載連結<br>
+        ② <b>下載部署</b>：自動下載（分卷自動合併），部署 Manifest 與 Lua<br>
+        ③ <b>Steam 與補丁</b>：未安裝時自動喚起 Steam 下載，完成後套用聯機補丁
+      </div>
+    </div>
+  </div>
+</div>
+

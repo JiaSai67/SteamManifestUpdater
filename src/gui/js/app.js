@@ -70,6 +70,8 @@ function switchPage(p){
   if(p==='more' && !_ofLoaded) ofLoad();
   // 憑證管理：切換時載入狀態與配額
   if(p==='credentials') loadCredentialsStatus(false);
+  // 友邀代碼：切換時載入已記憶 Webhook、可打包遊戲清單與歷史紀錄
+  if(p==='friend-code' && typeof initFriendCodePage === 'function') initFriendCodePage();
   // 組隊大廳：切換進入時初始化並啟動輪詢，滿版消除切割邊框與關閉外層捲動；離開時休眠與恢復
   var mainContainer = document.querySelector('.main');
   var pagesContainer = document.querySelector('.pages');
