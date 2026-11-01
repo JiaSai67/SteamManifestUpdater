@@ -449,13 +449,23 @@ class InstallHandler:
             appid_str = str(appid).strip()
             sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=game_name, allow_network=True)
             src_info = sources.get(appid_str, {})
+            if not src_info or not src_info.get('cloud_rar'):
+                # 若初次快取尚未命中，嘗試刷新一次雲端快取再查詢
+                onlinefix_manager.fetch_cloud_cache(force=False, min_interval=0)
+                sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=game_name, allow_network=True)
+                src_info = sources.get(appid_str, {})
             # 🌟 嚴格定義：線上補丁必須是實體壓縮補丁包 (cloud_rar)，不能將純 Lua 清單配置誤當成線上補丁！
             has_patch = bool(src_info.get('cloud_rar'))
+            if not has_patch:
+                # 備援檢查本地快取資料夾是否已有下載好的實體補丁包
+                d = onlinefix_manager.get_app_cache_dir(appid_str, game_name)
+                if d and d.exists():
+                    has_patch = any(f.is_file() and f.suffix.lower() in ('.rar', '.zip', '.7z') for f in d.iterdir())
             return {
                 "ok": True,
                 "has_patch": has_patch,
                 "drive_name": src_info.get('drive_name', 'Google Drive'),
-                "has_rar": bool(src_info.get('cloud_rar')),
+                "has_rar": has_patch,
                 "has_lua": bool(src_info.get('cloud_lua'))
             }
         except Exception as e:
@@ -470,8 +480,15 @@ class InstallHandler:
             src_info = sources.get(appid_str, {})
             cloud_rar = src_info.get('cloud_rar')
             if not cloud_rar:
+                onlinefix_manager.fetch_cloud_cache(force=True)
+                sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=game_name, allow_network=True, force_refresh=True)
+                src_info = sources.get(appid_str, {})
+                cloud_rar = src_info.get('cloud_rar')
+            if not cloud_rar:
                 return {"ok": True, "has_patch": False, "msg": "無線上補丁"}
-            dl_path = onlinefix_manager.download_cloud_patch(appid_str, game_name, cloud_rar)
+            dl_path = onlinefix_manager.download_cloud_patch(
+                appid_str, game_name, cloud_rar, all_cloud_objs=src_info.get('cloud_rars')
+            )
             if dl_path and Path(dl_path).exists():
                 return {"ok": True, "has_patch": True, "path": str(dl_path), "msg": "下載成功"}
             return {"ok": False, "has_patch": True, "msg": "下載失敗"}
@@ -479,46 +496,88 @@ class InstallHandler:
             return {"ok": False, "msg": str(e)}
 
     def auto_install_cloud_patch_if_available(self, appid: str, game_name: str = "") -> Dict[str, Any]:
-        """一鍵入庫時自動檢測並連同安裝 Google Drive / ZeiGames 各格式聯機補丁 (發出連網讀取請求)"""
+        """一鍵入庫時自動檢測並連同安裝 Google Drive / ZeiGames 各格式聯機補丁 (支援多執行緒防重入與快取複用)"""
         from managers import onlinefix_manager
-        try:
-            appid_str = str(appid).strip()
-            # 1. 檢索目標網盤中是否有此遊戲專用補丁 (發出讀取請求，allow_network=True)
-            sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=game_name, allow_network=True)
-            src_info = sources.get(appid_str, {})
+        appid_str = str(appid).strip()
+        if not hasattr(self, "_patch_locks"):
+            self._patch_locks = {}
+            self._patch_locks_guard = threading.Lock()
+        with self._patch_locks_guard:
+            if appid_str not in self._patch_locks:
+                self._patch_locks[appid_str] = threading.Lock()
+            app_lock = self._patch_locks[appid_str]
 
-            if not src_info or not src_info.get('cloud_rar'):
-                # 🌟 自動容錯：若記憶體快取無資料，強制刷新 Google Drive 雲端索引並重試
-                onlinefix_manager.fetch_cloud_cache(force=True)
-                sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=game_name, allow_network=True, force_refresh=True)
+        with app_lock:
+            try:
+                # 0. 若背景監控器或前次調用剛完成部署，直接回傳成功，避免重複解壓與刪除檔案競態
+                if onlinefix_manager.is_patch_deployed_locally(appid_str):
+                    return {
+                        "ok": True,
+                        "has_patch": True,
+                        "installed": True,
+                        "drive_name": "Google Drive",
+                        "msg": "已成功連同安裝 Google Drive 的 Online-Fix / ZeiGames 聯機補丁！"
+                    }
+
+                # 1. 檢索目標網盤中是否有此遊戲專用補丁 (發出讀取請求，allow_network=True)
+                sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=game_name, allow_network=True)
                 src_info = sources.get(appid_str, {})
 
-            if not src_info or not src_info.get('cloud_rar'):
-                return {"ok": True, "has_patch": False, "installed": False, "msg": "網盤無專用聯機補丁"}
+                if not src_info or not src_info.get('cloud_rar'):
+                    # 🌟 自動容錯：若記憶體快取無資料，強制刷新 Google Drive 雲端索引並重試
+                    onlinefix_manager.fetch_cloud_cache(force=True)
+                    sources = onlinefix_manager.get_patch_sources(target_app_id=appid_str, target_app_name=game_name, allow_network=True, force_refresh=True)
+                    src_info = sources.get(appid_str, {})
 
-            drive_name = src_info.get('drive_name', '網盤')
+                drive_name = src_info.get('drive_name', 'Google Drive') if src_info else 'Google Drive'
 
-            # 2. 若有雲端 Lua 清單補丁，優先安裝
-            if src_info.get('cloud_lua'):
-                lua_dir = self._config.get("lua_dir") or (Path(self._steam_path or "") / "config" / "lua")
-                if lua_dir:
-                    onlinefix_manager.install_lua(appid_str, src_info, lua_dir)
+                # 2. 若有雲端 Lua 清單補丁，優先安裝
+                if src_info and src_info.get('cloud_lua'):
+                    lua_dir = self._config.get("lua_dir") or (Path(self._steam_path or "") / "config" / "lua")
+                    if lua_dir:
+                        onlinefix_manager.install_lua(appid_str, src_info, lua_dir)
 
-            # 3. 處理各類壓縮補丁包 (.rar / .zip / .7z 等，自動適配 online-fix.me 與 zeigames.com 解壓密碼)
-            cloud_rar = src_info.get('cloud_rar')
-            if cloud_rar:
-                # 下載或讀取快取
-                dl_path = onlinefix_manager.download_cloud_patch(appid_str, game_name, cloud_rar)
+                # 3. 尋找本地快取已預先下載之壓縮包，或自雲端下載
+                dl_path = None
+                cache_dir = onlinefix_manager.get_app_cache_dir(appid_str, game_name)
+                if cache_dir and cache_dir.exists():
+                    local_archives = [
+                        f for f in cache_dir.iterdir()
+                        if f.is_file() and f.suffix.lower() in ('.rar', '.zip', '.7z') and f.stat().st_size > 1024
+                    ]
+                    if local_archives:
+                        primary_candidates = [f for f in local_archives if onlinefix_manager._is_primary_archive_part(f.name)]
+                        dl_path = str(primary_candidates[0] if primary_candidates else local_archives[0])
+
+                cloud_rar = src_info.get('cloud_rar') if src_info else None
+                if not dl_path and cloud_rar:
+                    dl_path = onlinefix_manager.download_cloud_patch(
+                        appid_str, game_name, cloud_rar, all_cloud_objs=src_info.get('cloud_rars')
+                    )
+
+                if not dl_path and not cloud_rar:
+                    return {"ok": True, "has_patch": False, "installed": False, "msg": "網盤無專用聯機補丁"}
                 if not dl_path:
-                    return {"ok": False, "has_patch": True, "msg": f"下載 {drive_name} 聯機補丁失敗"}
+                    return {"ok": False, "has_patch": True, "installed": False, "msg": f"下載 {drive_name} 聯機補丁失敗"}
 
-                # 檢查 Steam 遊戲目錄
-                game_dir = onlinefix_manager._find_steam_game_dir(appid_str)
+                # 4. 檢查 Steam 遊戲目錄 (給予最高 6 秒緩衝期，等待 Steam 從 downloading 搬移至 common)
+                game_dir = None
+                for _ in range(6):
+                    game_dir = onlinefix_manager._find_steam_game_dir(appid_str)
+                    if game_dir and Path(game_dir).exists():
+                        break
+                    time.sleep(1.0)
+
                 if game_dir and Path(game_dir).exists():
-                    # 遊戲已安裝，直接解壓安裝補丁並備份原檔
+                    # 遊戲已安裝，直接解壓安裝補丁並備份原檔 (若遇瞬間檔案佔用自動重試一次)
                     success, msg = onlinefix_manager.install_fix(
                         appid_str, dl_path, game_dir, delete_archive=True, source_drive=drive_name
                     )
+                    if not success and Path(dl_path).exists():
+                        time.sleep(1.5)
+                        success, msg = onlinefix_manager.install_fix(
+                            appid_str, dl_path, game_dir, delete_archive=True, source_drive=drive_name
+                        )
                     if success:
                         return {
                             "ok": True,
@@ -539,10 +598,8 @@ class InstallHandler:
                         "drive_name": drive_name,
                         "msg": f"已自 {drive_name} 備妥聯機補丁，待 Steam 下載遊戲後即可生效！"
                     }
-
-            return {"ok": True, "has_patch": False, "installed": False, "drive_name": drive_name, "msg": "網盤無實體聯機補丁檔案"}
-        except Exception as e:
-            return {"ok": False, "msg": f"連同安裝補丁過程出錯: {e}"}
+            except Exception as e:
+                return {"ok": False, "has_patch": True, "installed": False, "msg": f"連同安裝補丁過程出錯: {e}"}
 
     def uninstall_online_patch(self, appid: str) -> Dict[str, Any]:
         """移除指定遊戲的線上補丁並自動還原原始備份檔案 (.bak)"""

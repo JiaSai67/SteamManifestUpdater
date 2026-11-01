@@ -152,39 +152,39 @@ class PartyPackager:
             status["manifest"]["count"] = len(manifest_files_found)
             status["manifest"]["size"] = total_mf_size
 
-        # 3. 偵測線上補丁 (OnlineFix / 聯機檔案)
-        app_cache_dir = onlinefix_manager.get_app_cache_dir(app_id)
-        if app_cache_dir and app_cache_dir.exists():
-            for f in app_cache_dir.iterdir():
-                if f.is_file() and f.suffix.lower() in ('.rar', '.zip', '.7z'):
+        # 3. 偵測線上補丁 (OnlineFix / 聯機檔案：優先取已解壓部署至遊戲目錄之實體檔案，免除隊員二次密碼解壓)
+        rec = onlinefix_manager.get_fix_record(app_id)
+        if rec and rec.get("game_dir"):
+            g_dir = Path(rec["game_dir"])
+            if g_dir.exists():
+                installed = rec.get("installed_files", [])
+                found_files = []
+                total_sz = 0
+                for rel in installed:
+                    fp = g_dir / rel
+                    if fp.exists() and fp.is_file():
+                        found_files.append(fp)
+                        total_sz += fp.stat().st_size
+
+                if found_files:
                     status["patch"]["ready"] = True
                     status["patch"]["found"] = True
-                    status["patch"]["source"] = "archive"
-                    status["patch"]["archive_path"] = str(f)
-                    status["patch"]["size"] = f.stat().st_size
-                    status["patch"]["files_count"] = 1
-                    break
+                    status["patch"]["source"] = "installed_files"
+                    status["patch"]["files_count"] = len(found_files)
+                    status["patch"]["size"] = total_sz
 
         if not status["patch"]["ready"]:
-            rec = onlinefix_manager.get_fix_record(app_id)
-            if rec and rec.get("game_dir"):
-                g_dir = Path(rec["game_dir"])
-                if g_dir.exists():
-                    installed = rec.get("installed_files", [])
-                    found_files = []
-                    total_sz = 0
-                    for rel in installed:
-                        fp = g_dir / rel
-                        if fp.exists() and fp.is_file():
-                            found_files.append(fp)
-                            total_sz += fp.stat().st_size
-
-                    if found_files:
+            app_cache_dir = onlinefix_manager.get_app_cache_dir(app_id)
+            if app_cache_dir and app_cache_dir.exists():
+                for f in app_cache_dir.iterdir():
+                    if f.is_file() and f.suffix.lower() in ('.rar', '.zip', '.7z'):
                         status["patch"]["ready"] = True
                         status["patch"]["found"] = True
-                        status["patch"]["source"] = "installed_files"
-                        status["patch"]["files_count"] = len(found_files)
-                        status["patch"]["size"] = total_sz
+                        status["patch"]["source"] = "archive"
+                        status["patch"]["archive_path"] = str(f)
+                        status["patch"]["size"] = f.stat().st_size
+                        status["patch"]["files_count"] = 1
+                        break
 
         if not status["patch"]["ready"]:
             game_dir = onlinefix_manager._find_steam_game_dir(app_id)
@@ -231,7 +231,7 @@ class PartyPackager:
                     "manifest_files": [Path(f).name for f in res_info["manifest"]["files"]],
                     "lua_included": res_info["lua"]["ready"],
                     "patch_source": res_info["patch"]["source"],
-                    "version": "2.0.6"
+                    "version": "2.0.7"
                 }
 
                 # 1. 寫入實體 Manifest (.manifest 二進位清單)
@@ -456,73 +456,101 @@ class PartyPackager:
                     except Exception as be:
                         logger.warning(f"[Packager] 檢查清理 ACF 狀態異常: {be}")
 
-                # 6. 部署線上補丁 (若遊戲主程式目錄已存在)
+                # 6. 部署線上補丁 (若遊戲主程式目錄已存在，同時相容 patch/files/* 與 patch/*.rar|.zip|.7z 兩種封裝格式)
                 patch_files = [n for n in namelist if n.startswith("patch/files/") and not n.endswith("/")]
-                if patch_files:
+                patch_archives = [n for n in namelist if n.startswith("patch/") and not n.startswith("patch/files/") and not n.endswith("/")]
+                if patch_files or patch_archives:
                     game_dir = onlinefix_manager._find_steam_game_dir(app_id)
                     if game_dir and Path(game_dir).exists():
                         g_path = Path(game_dir)
-                        installed_rel_paths = []
-                        backed_up_rel_paths = []
-                        for pf in patch_files:
-                            rel_sub = pf.replace("patch/files/", "", 1)
-                            target_pf = g_path / rel_sub
-                            target_pf.parent.mkdir(parents=True, exist_ok=True)
-                            
-                            # 若目標檔案已存在且尚未建立備份，先將原檔備份為 .bak
-                            if target_pf.exists() and target_pf.is_file():
-                                bak_f = target_pf.with_suffix(target_pf.suffix + ".bak")
-                                if not bak_f.exists():
-                                    try:
-                                        shutil.copy2(target_pf, bak_f)
-                                        backed_up_rel_paths.append(rel_sub)
-                                        logger.info(f"[Packager] 已自動備份原始檔案: {bak_f.name}")
-                                    except Exception as be:
-                                        logger.warning(f"[Packager] 備份原檔異常: {be}")
-                                try: os.chmod(target_pf, stat.S_IWRITE | stat.S_IREAD)
-                                except Exception: pass
+                        if patch_files:
+                            installed_rel_paths = []
+                            backed_up_rel_paths = []
+                            for pf in patch_files:
+                                rel_sub = pf.replace("patch/files/", "", 1)
+                                target_pf = g_path / rel_sub
+                                target_pf.parent.mkdir(parents=True, exist_ok=True)
+                                
+                                # 若目標檔案已存在且尚未建立備份，先將原檔備份為 .bak (避免備份已知補丁檔)
+                                if target_pf.exists() and target_pf.is_file():
+                                    bak_f = target_pf.with_suffix(target_pf.suffix + ".bak")
+                                    if not onlinefix_manager.is_known_crack_file(target_pf) and not bak_f.exists():
+                                        try:
+                                            shutil.copy2(target_pf, bak_f)
+                                            backed_up_rel_paths.append(rel_sub)
+                                            logger.info(f"[Packager] 已自動備份原始檔案: {bak_f.name}")
+                                        except Exception as be:
+                                            logger.warning(f"[Packager] 備份原檔異常: {be}")
+                                    try: os.chmod(target_pf, stat.S_IWRITE | stat.S_IREAD)
+                                    except Exception: pass
 
-                            with zf.open(pf) as src, open(target_pf, "wb") as dst:
-                                shutil.copyfileobj(src, dst)
-                            installed_rel_paths.append(rel_sub)
-                            applied["files_count"] += 1
+                                with zf.open(pf) as src, open(target_pf, "wb") as dst:
+                                    shutil.copyfileobj(src, dst)
+                                installed_rel_paths.append(rel_sub)
+                                applied["files_count"] += 1
 
-                        applied["patch"] = True
-                        logger.info(f"[Packager] 已向遊戲目錄解壓套用 {applied['files_count']} 個補丁檔案: {g_path}")
+                            applied["patch"] = True
+                            logger.info(f"[Packager] 已向遊戲目錄解壓套用 {applied['files_count']} 個補丁檔案: {g_path}")
 
-                        # 🌟 寫入官方 .onlinefix_record.json 與本地快取紀錄表，支援完整追蹤與乾淨移除
-                        try:
-                            record = {
-                                "appid": str(app_id),
-                                "installed_files": installed_rel_paths,
-                                "backed_up_files": backed_up_rel_paths,
-                                "manual_install": False,
-                                "source_drive": "Party Package Sync",
-                                "game_dir": str(g_path),
-                                "timestamp": int(time.time())
-                            }
-                            onlinefix_manager._save_record(app_id, record)
-                            logger.info(f"[Packager] 已成功為 AppID {app_id} 建立部署記錄檔 (.onlinefix_record.json)")
-                        except Exception as re:
-                            logger.warning(f"[Packager] 寫入部署記錄檔失敗: {re}")
+                            # 🌟 寫入官方 .onlinefix_record.json 與本地快取紀錄表，支援完整追蹤與乾淨移除
+                            try:
+                                record = {
+                                    "appid": str(app_id),
+                                    "installed_files": installed_rel_paths,
+                                    "backed_up_files": backed_up_rel_paths,
+                                    "manual_install": False,
+                                    "source_drive": "Party Package Sync",
+                                    "game_dir": str(g_path),
+                                    "timestamp": int(time.time())
+                                }
+                                onlinefix_manager._save_record(app_id, record)
+                                logger.info(f"[Packager] 已成功為 AppID {app_id} 建立部署記錄檔 (.onlinefix_record.json)")
+                            except Exception as re:
+                                logger.warning(f"[Packager] 寫入部署記錄檔失敗: {re}")
 
-                        # 🌟 防毒軟體 (Windows Defender) 即時隔離/攔截抽查
-                        quarantined_files = []
-                        for rel_p in installed_rel_paths:
-                            f_path = g_path / rel_p
-                            if not f_path.exists() and any(f_path.name.lower().endswith(ext) for ext in [".dll", ".exe", ".ini"]):
-                                quarantined_files.append(f_path.name)
-                        if quarantined_files:
-                            err_msg = f"檔案遭防毒軟體 (Windows Defender) 即時隔離: {', '.join(quarantined_files[:3])}"
-                            logger.warning(f"[Packager] {err_msg}")
-                            report_party_error("補丁遭防毒隔離", err_msg, context=f"AppID {app_id}")
-                            return {
-                                "ok": False,
-                                "is_antivirus_blocked": True,
-                                "game_dir": str(g_path),
-                                "blocked_files": quarantined_files,
-                                "msg": f"防毒軟體攔截：檔案解壓後遭隔離 ({', '.join(quarantined_files[:2])})，請新增防毒排除項"
-                            }
+                            # 🌟 防毒軟體 (Windows Defender) 即時隔離/攔截抽查
+                            quarantined_files = []
+                            for rel_p in installed_rel_paths:
+                                f_path = g_path / rel_p
+                                if not f_path.exists() and any(f_path.name.lower().endswith(ext) for ext in [".dll", ".exe", ".ini"]):
+                                    quarantined_files.append(f_path.name)
+                            if quarantined_files:
+                                err_msg = f"檔案遭防毒軟體 (Windows Defender) 即時隔離: {', '.join(quarantined_files[:3])}"
+                                logger.warning(f"[Packager] {err_msg}")
+                                report_party_error("補丁遭防毒隔離", err_msg, context=f"AppID {app_id}")
+                                return {
+                                    "ok": False,
+                                    "is_antivirus_blocked": True,
+                                    "game_dir": str(g_path),
+                                    "blocked_files": quarantined_files,
+                                    "msg": f"防毒軟體攔截：檔案解壓後遭隔離 ({', '.join(quarantined_files[:2])})，請新增防毒排除項"
+                                }
+                        elif patch_archives:
+                            temp_arc_dir = self.temp_pack_dir / f"_arc_extract_{app_id}_{int(time.time() * 1000)}"
+                            temp_arc_dir.mkdir(parents=True, exist_ok=True)
+                            try:
+                                primary_arc = None
+                                for pa in patch_archives:
+                                    arc_name = Path(pa).name
+                                    out_arc = temp_arc_dir / arc_name
+                                    with zf.open(pa) as src, open(out_arc, "wb") as dst:
+                                        shutil.copyfileobj(src, dst)
+                                    if primary_arc is None or onlinefix_manager._is_primary_archive_part(arc_name):
+                                        primary_arc = out_arc
+                                if primary_arc and primary_arc.exists():
+                                    ok_fix, msg_fix = onlinefix_manager.install_fix(
+                                        app_id, primary_arc, g_path, delete_archive=True, source_drive="Party Package Sync"
+                                    )
+                                    if ok_fix:
+                                        applied["patch"] = True
+                                        rec_now = onlinefix_manager.get_fix_record(app_id) or {}
+                                        applied["files_count"] = len(rec_now.get("installed_files", [])) or 1
+                                        logger.info(f"[Packager] 已透過封裝壓縮檔部署補丁至遊戲目錄: {g_path}")
+                                    else:
+                                        logger.warning(f"[Packager] 封裝壓縮檔補丁套用未成功: {msg_fix}")
+                            finally:
+                                if temp_arc_dir.exists():
+                                    shutil.rmtree(temp_arc_dir, ignore_errors=True)
 
             return {"ok": True, "applied": applied, "msg": "聯機整合包解壓部署成功！"}
         except Exception as e:
@@ -551,13 +579,19 @@ class PartyPackager:
     def apply_patch_files(self, package_zip_path: str, app_id: str) -> Dict[str, Any]:
         """
         專屬獨立套用線上補丁：
-        當 Steam 遊戲主程式剛下載完成或已安裝時，將整合包內的 patch/files/* 解壓套用至遊戲目錄。
+        當 Steam 遊戲主程式剛下載完成或已安裝時，將整合包內的 patch/files/* 或 patch/*.rar|.zip|.7z 解壓套用至遊戲目錄。
         """
+        import stat
         p = Path(package_zip_path)
         if not p.exists():
             return {"ok": False, "msg": f"找不到整合包檔案: {package_zip_path}"}
 
-        game_dir = onlinefix_manager._find_steam_game_dir(app_id)
+        game_dir = None
+        for _ in range(5):
+            game_dir = onlinefix_manager._find_steam_game_dir(app_id)
+            if game_dir and Path(game_dir).exists():
+                break
+            time.sleep(1.0)
         if not game_dir or not Path(game_dir).exists():
             return {"ok": False, "msg": f"尚未找到 AppID {app_id} 的遊戲目錄，請確認 Steam 是否已下載安裝完成"}
 
@@ -570,6 +604,40 @@ class PartyPackager:
             with zipfile.ZipFile(p, "r") as zf:
                 namelist = zf.namelist()
                 patch_files = [n for n in namelist if n.startswith("patch/files/") and not n.endswith("/")]
+                patch_archives = [n for n in namelist if n.startswith("patch/") and not n.startswith("patch/files/") and not n.endswith("/")]
+
+                if not patch_files and patch_archives:
+                    temp_arc_dir = self.temp_pack_dir / f"_arc_apply_{app_id}_{int(time.time() * 1000)}"
+                    temp_arc_dir.mkdir(parents=True, exist_ok=True)
+                    try:
+                        primary_arc = None
+                        for pa in patch_archives:
+                            arc_name = Path(pa).name
+                            out_arc = temp_arc_dir / arc_name
+                            with zf.open(pa) as src, open(out_arc, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                            if primary_arc is None or onlinefix_manager._is_primary_archive_part(arc_name):
+                                primary_arc = out_arc
+                        if primary_arc and primary_arc.exists():
+                            ok_fix, msg_fix = onlinefix_manager.install_fix(
+                                app_id, primary_arc, g_path, delete_archive=True, source_drive="Party Package Sync"
+                            )
+                            if ok_fix:
+                                rec_now = onlinefix_manager.get_fix_record(app_id) or {}
+                                cnt = len(rec_now.get("installed_files", [])) or 1
+                                return {"ok": True, "files_count": cnt, "msg": f"已成功套用 {cnt} 個線上補丁檔案"}
+                            else:
+                                is_av = ("防毒" in msg_fix or "Defender" in msg_fix or "存取被拒" in msg_fix)
+                                return {
+                                    "ok": False,
+                                    "is_antivirus_blocked": is_av,
+                                    "game_dir": str(g_path),
+                                    "msg": msg_fix
+                                }
+                    finally:
+                        if temp_arc_dir.exists():
+                            shutil.rmtree(temp_arc_dir, ignore_errors=True)
+
                 if not patch_files:
                     return {"ok": True, "msg": "整合包內無專屬線上補丁 (純 Manifest/Lua 入庫)", "files_count": 0}
 
@@ -580,7 +648,7 @@ class PartyPackager:
 
                     if target_pf.exists() and target_pf.is_file():
                         bak_f = target_pf.with_suffix(target_pf.suffix + ".bak")
-                        if not bak_f.exists():
+                        if not onlinefix_manager.is_known_crack_file(target_pf) and not bak_f.exists():
                             try:
                                 shutil.copy2(target_pf, bak_f)
                                 backed_up_rel_paths.append(rel_sub)

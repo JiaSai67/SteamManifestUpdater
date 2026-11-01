@@ -52,25 +52,26 @@ def get_extractor():
         if os.path.exists(p):
             return {"type": "7z", "path": p}
 
-    # 3. 嘗試從註冊表找 WinRAR
-    try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WinRAR") as key:
-            path, _ = winreg.QueryValueEx(key, "exe64")
-            if os.path.exists(path):
-                return {"type": "winrar", "path": path}
-    except Exception:
-        pass
-        
-    try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WinRAR") as key:
-            path, _ = winreg.QueryValueEx(key, "exe32")
-            if os.path.exists(path):
-                return {"type": "winrar", "path": path}
-    except Exception:
-        pass
+    # 3. 嘗試從註冊表找 WinRAR (優先使用同目錄下的 UnRAR.exe，次選 WinRAR.exe)
+    for reg_val in ("exe64", "exe32"):
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WinRAR") as key:
+                path, _ = winreg.QueryValueEx(key, reg_val)
+                if path and os.path.exists(path):
+                    unrar_candidate = os.path.join(os.path.dirname(path), "UnRAR.exe")
+                    if os.path.exists(unrar_candidate):
+                        return {"type": "winrar", "path": unrar_candidate}
+                    return {"type": "winrar", "path": path}
+        except Exception:
+            pass
 
-    # 4. 嘗試常見 WinRAR 路徑
-    for p in [r"C:\Program Files\WinRAR\WinRAR.exe", r"C:\Program Files (x86)\WinRAR\WinRAR.exe"]:
+    # 4. 嘗試常見 WinRAR / UnRAR 路徑
+    for p in [
+        r"C:\Program Files\WinRAR\UnRAR.exe",
+        r"C:\Program Files (x86)\WinRAR\UnRAR.exe",
+        r"C:\Program Files\WinRAR\WinRAR.exe",
+        r"C:\Program Files (x86)\WinRAR\WinRAR.exe",
+    ]:
         if os.path.exists(p):
             return {"type": "winrar", "path": p}
 
@@ -249,6 +250,13 @@ def _find_steam_game_dir(app_id):
     import winreg, re
     libs = set()
     try:
+        from managers import steam_manager
+        sp = steam_manager.find_steam_path()
+        if sp:
+            libs.add(os.path.normpath(sp))
+    except Exception:
+        pass
+    try:
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Valve\Steam')
         path, _ = winreg.QueryValueEx(key, 'SteamPath')
         winreg.CloseKey(key)
@@ -261,7 +269,7 @@ def _find_steam_game_dir(app_id):
         if os.path.exists(vdf_path):
             try:
                 content = open(vdf_path, encoding='utf-8', errors='ignore').read()
-                matches = re.findall(r'"path"\s+"([^"]+)"', content, re.IGNORECASE)
+                matches = re.findall(r'"path"\s*"([^"]+)"', content, re.IGNORECASE)
                 for m in matches:
                     m = m.replace('\\\\', '\\')
                     libs.add(os.path.normpath(m))
@@ -273,7 +281,7 @@ def _find_steam_game_dir(app_id):
         if os.path.exists(acf):
             try:
                 content = open(acf, encoding='utf-8', errors='ignore').read()
-                m = re.search(r'"installdir"\s+"([^"]+)"', content, re.IGNORECASE)
+                m = re.search(r'"installdir"\s*"([^"]+)"', content, re.IGNORECASE)
                 if m:
                     return Path(lib) / 'steamapps' / 'common' / m.group(1)
             except Exception:
@@ -693,22 +701,35 @@ def get_gdrive_index_summary():
             pass
     return res
 
+def _is_primary_archive_part(file_name: str) -> bool:
+    """判斷是否為主壓縮檔或第一分卷 (例如 .part1.rar / .part01.rar，而非 .part2.rar)"""
+    import re
+    m = re.search(r'\.part0*(\d+)\.(?:rar|zip|7z)$', file_name.lower())
+    if m:
+        return int(m.group(1)) == 1
+    return True
+
 def get_patch_sources(target_apps=None, target_app_id=None, target_app_name=None, allow_network=False, force_refresh=False):
     global _cloud_cache
-    if target_apps is None:
+    if isinstance(target_apps, (str, int)):
+        # 支援位置參數呼叫 get_patch_sources(app_id, app_name)
+        pos_id = str(target_apps)
+        pos_name = target_app_id if isinstance(target_app_id, str) else (target_app_name or "")
+        target_apps = {pos_id: pos_name}
+        target_app_id = None
+    elif target_apps is None:
         target_apps = {}
-    if target_app_id and target_app_name:
-        target_apps[str(target_app_id)] = target_app_name
+    else:
+        target_apps = dict(target_apps)
+    if target_app_id:
+        target_apps[str(target_app_id)] = target_app_name or ""
         
     sources = {}
     
     # 1. Primary: Scan Cloud (Cloud is the authoritative source for all users)
-    if (_cloud_cache is None and allow_network) or force_refresh:
-        fetch_cloud_cache(force=True)
+    if (not _cloud_cache and allow_network) or force_refresh:
+        fetch_cloud_cache(force=True, min_interval=0 if force_refresh else 15)
             
-    cloud_folders = {}
-    root_rar_files = [] # Files in the root without a folder
-    
     if _cloud_cache:
         # Sort by drive_priority ascending (so higher priority drives are indexed first)
         sorted_cache = sorted(_cloud_cache, key=lambda x: x.get('drive_priority', 999))
@@ -726,10 +747,12 @@ def get_patch_sources(target_apps=None, target_app_id=None, target_app_name=None
                 app_id = resolve_appid_for_patch_file(file_name, folder_part=folder_part)
                     
             if app_id:
+                app_id = str(app_id)
                 if app_id not in sources:
                     sources[app_id] = {
                         'drive_priority': drive_prio,
-                        'drive_name': drive_name
+                        'drive_name': drive_name,
+                        'cloud_rars': []
                     }
                 
                 # If this file comes from a higher priority drive (lower prio number)
@@ -738,44 +761,74 @@ def get_patch_sources(target_apps=None, target_app_id=None, target_app_name=None
                         sources[app_id]['drive_priority'] = drive_prio
                         sources[app_id]['drive_name'] = drive_name
                         sources[app_id].pop('cloud_rar', None)
+                        sources[app_id]['cloud_rars'] = []
                         sources[app_id].pop('cloud_lua', None)
                         sources[app_id].pop('cloud_lua_obj', None)
                         
-                    if file_name.endswith('.lua'):
+                    if file_name.lower().endswith('.lua'):
                         sources[app_id]['cloud_lua'] = True
                         sources[app_id]['cloud_lua_obj'] = f
-                    elif file_name.endswith('.rar') or file_name.endswith('.zip'):
-                        sources[app_id]['cloud_rar'] = f
+                    elif file_name.lower().endswith(('.rar', '.zip', '.7z')):
+                        if 'cloud_rars' not in sources[app_id]:
+                            sources[app_id]['cloud_rars'] = []
+                        sources[app_id]['cloud_rars'].append(f)
+                        # 🌟 多分卷保護：優先鎖定 part1 或單檔作為主入口，絕不讓 part2 覆蓋 part1！
+                        if 'cloud_rar' not in sources[app_id] or _is_primary_archive_part(file_name):
+                            sources[app_id]['cloud_rar'] = f
                 
-        # Fuzzy match logic for target_apps
+        # Fuzzy match logic for target_apps (結合中英文名稱快取，防止傳入中文名無法匹配英文補丁檔名)
         if target_apps:
             from difflib import SequenceMatcher
+            gc_data = {}
+            try:
+                gc_file = config_manager._root_dir / "data" / "game_cache.json"
+                if gc_file.exists():
+                    gc_data = json.loads(gc_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
             for app_id, app_name in target_apps.items():
                 app_id = str(app_id)
                 if app_id not in sources:
                     sources[app_id] = {}
                     
                 if 'cloud_rar' not in sources[app_id]:
-                    target_norm = _normalize_patch_game_name(app_name)
-                    if target_norm:
-                        for f in sorted_cache:
-                            if f['path'].lower().endswith(('.rar', '.zip')):
+                    candidate_names = []
+                    if app_name:
+                        candidate_names.append(app_name)
+                    ginfo = gc_data.get(app_id)
+                    if isinstance(ginfo, dict):
+                        for nk in ('english_name', 'name_en', 'name'):
+                            gv = ginfo.get(nk)
+                            if gv and gv not in candidate_names:
+                                candidate_names.append(gv)
+
+                    norm_candidates = [_normalize_patch_game_name(cn) for cn in candidate_names if _normalize_patch_game_name(cn)]
+                    for f in sorted_cache:
+                        if f['path'].lower().endswith(('.rar', '.zip', '.7z')):
+                            f_aid = f.get('app_id')
+                            is_match = bool(f_aid and str(f_aid) == app_id)
+                            if not is_match and norm_candidates:
                                 f_norm = _normalize_patch_game_name(f['path'])
-                                is_match = (target_norm in f_norm)
-                                if not is_match and len(target_norm) >= 4:
-                                    # 清理檔名後再做一次編輯距離模糊比對
-                                    f_aid = f.get('app_id')
-                                    if f_aid and str(f_aid) == app_id:
+                                for t_norm in norm_candidates:
+                                    if t_norm in f_norm:
                                         is_match = True
-                                    elif SequenceMatcher(None, target_norm, f_norm).ratio() >= 0.78:
+                                        break
+                                    if len(t_norm) >= 4 and SequenceMatcher(None, t_norm, f_norm).ratio() >= 0.78:
                                         is_match = True
-                                if is_match:
-                                    prio = f.get('drive_priority', 999)
+                                        break
+                            if is_match:
+                                prio = f.get('drive_priority', 999)
+                                if 'drive_priority' not in sources[app_id] or prio <= sources[app_id]['drive_priority']:
                                     if 'drive_priority' not in sources[app_id] or prio < sources[app_id]['drive_priority']:
-                                        sources[app_id]['cloud_rar'] = f
-                                        sources[app_id]['drive_name'] = f.get('drive_name', '網盤 1')
                                         sources[app_id]['drive_priority'] = prio
-                                    break
+                                        sources[app_id]['drive_name'] = f.get('drive_name', '網盤 1')
+                                        sources[app_id]['cloud_rars'] = []
+                                        sources[app_id].pop('cloud_rar', None)
+                                    sources[app_id].setdefault('cloud_rars', []).append(f)
+                                    fname_only = f['path'].replace('/', '\\').split('\\')[-1]
+                                    if 'cloud_rar' not in sources[app_id] or _is_primary_archive_part(fname_only):
+                                        sources[app_id]['cloud_rar'] = f
                             
     # 2. Check local customized/offline lua files if any
     LOCAL_PATCH_DIR = _cache_dir / "OnlineFix Lua files"
@@ -790,27 +843,71 @@ def get_patch_sources(target_apps=None, target_app_id=None, target_app_name=None
                 
     return sources
 
-def download_cloud_patch(app_id, app_name, cloud_obj):
+def download_cloud_patch(app_id, app_name, cloud_obj, all_cloud_objs=None):
+    """
+    自 Google Drive 下載線上補丁壓縮包（支援本地快取直接複用與多分卷 .part1/.part2 自動完整下載）
+    """
     try:
         import gdown
+        import re
         from pathlib import Path
         d = get_app_cache_dir(app_id, app_name, create=True)
         d.mkdir(parents=True, exist_ok=True)
-        file_name = Path(cloud_obj['path']).name
-        out_path = d / file_name
-        
-        file_id = cloud_obj.get('id')
-        if file_id:
-            res = gdown.download(id=file_id, output=str(out_path), quiet=True)
-            if res and Path(res).exists() and Path(res).stat().st_size > 0:
-                return res
-                
-        drive_url = cloud_obj.get('drive_url') or cloud_obj.get('url')
-        if drive_url:
-            res = gdown.download(url=drive_url, output=str(out_path), quiet=True)
-            if res and Path(res).exists() and Path(res).stat().st_size > 0:
-                return res
-                
+
+        # 🌟 自動整合多分卷清單 (例如 .part1.rar 與 .part2.rar 必須同時在同目錄下才能解壓)
+        objs_to_download = []
+        if all_cloud_objs and isinstance(all_cloud_objs, list):
+            objs_to_download = list(all_cloud_objs)
+        elif cloud_obj:
+            objs_to_download = [cloud_obj]
+            primary_name = Path(cloud_obj['path']).name
+            m_part = re.match(r'^(.+)\.part\d+\.(rar|zip|7z)$', primary_name, re.IGNORECASE)
+            if m_part and _cloud_cache:
+                base_prefix = m_part.group(1).lower()
+                for item in _cloud_cache:
+                    iname = Path(item.get('path', '')).name
+                    if iname.lower().startswith(base_prefix + '.part') and item not in objs_to_download:
+                        objs_to_download.append(item)
+
+        if not objs_to_download and cloud_obj:
+            objs_to_download = [cloud_obj]
+
+        primary_out_path = None
+        for obj in objs_to_download:
+            file_name = Path(obj['path']).name
+            out_path = d / file_name
+            if _is_primary_archive_part(file_name) or primary_out_path is None:
+                primary_out_path = out_path
+
+            # 🌟 若本地快取已存在有效檔案 (例如階段 4 已預先下載)，直接複用免重複下載！
+            if out_path.exists() and out_path.stat().st_size > 1024:
+                continue
+
+            downloaded_ok = False
+            file_id = obj.get('id')
+            if file_id:
+                try:
+                    res = gdown.download(id=file_id, output=str(out_path), quiet=True)
+                    if res and Path(res).exists() and Path(res).stat().st_size > 0:
+                        downloaded_ok = True
+                except Exception as ge:
+                    logger.warning(f"[OnlineFix] gdown id 下載異常 ({file_name}): {ge}")
+
+            if not downloaded_ok:
+                drive_url = obj.get('drive_url') or obj.get('url')
+                if drive_url:
+                    try:
+                        res = gdown.download(url=drive_url, output=str(out_path), quiet=True)
+                        if res and Path(res).exists() and Path(res).stat().st_size > 0:
+                            downloaded_ok = True
+                    except Exception as ge2:
+                        logger.warning(f"[OnlineFix] gdown url 下載異常 ({file_name}): {ge2}")
+
+            if not downloaded_ok and not (out_path.exists() and out_path.stat().st_size > 0):
+                return None
+
+        if primary_out_path and primary_out_path.exists() and primary_out_path.stat().st_size > 0:
+            return str(primary_out_path)
         return None
     except Exception as e:
         print(f"Error downloading patch for app {app_id}: {e}")
@@ -862,101 +959,134 @@ def uninstall_lua(app_id, target_dir):
 
 
 
-def get_rar_file_list(rar_path):
+def _extract_archive_to_dir(rar_path: Path, dest_dir: Path):
+    """
+    將壓縮檔 (.rar / .zip / .7z) 解壓縮至指定暫存資料夾，並藉由實地掃描暫存資料夾取得檔案清單。
+    🌟 徹底廢除 WinRAR 不支援的 'lb' 命令，100% 相容 WinRAR.exe (GUI)、UnRAR.exe 與 7z.exe！
+    回傳: (working_pwd, rel_files, last_err)
+    """
+    global EXTRACTOR
+    rar_path = Path(rar_path)
+    dest_dir = Path(dest_dir)
     rar_path_str = str(rar_path)
+    last_err = ""
+
+    # 1. 若為 .zip 優先嘗試 Python 內建 zipfile 解壓
+    if rar_path_str.lower().endswith('.zip'):
+        import zipfile
+        try:
+            with zipfile.ZipFile(rar_path_str) as zf:
+                is_encrypted = any(f.flag_bits & 0x1 for f in zf.infolist())
+                passwords_to_try = [""] if not is_encrypted else ARCHIVE_PASSWORDS
+                for pwd in passwords_to_try:
+                    try:
+                        if dest_dir.exists():
+                            shutil.rmtree(dest_dir, ignore_errors=True)
+                        dest_dir.mkdir(parents=True, exist_ok=True)
+                        pwd_bytes = pwd.encode('utf-8') if pwd else None
+                        zf.extractall(path=str(dest_dir), pwd=pwd_bytes)
+                        rel_files = [str(p.relative_to(dest_dir)) for p in dest_dir.rglob("*") if p.is_file()]
+                        if rel_files:
+                            return pwd, rel_files, ""
+                    except NotImplementedError as nie:
+                        last_err = f"ZIP 壓縮算法需外部工具支援 ({nie})"
+                        break
+                    except Exception as ze:
+                        last_err = str(ze)
+                        continue
+        except Exception as e:
+            last_err = str(e)
+
+    # 2. 使用外部解壓工具 (7-Zip / WinRAR / UnRAR)，僅使用 100% 通用支援的 'x' 解壓指令
+    if not EXTRACTOR:
+        EXTRACTOR = get_extractor()
+    if not EXTRACTOR:
+        return None, [], last_err or "找不到解壓縮工具！請先安裝 7-Zip 或 WinRAR。"
+
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+    for pwd in ARCHIVE_PASSWORDS:
+        try:
+            if dest_dir.exists():
+                shutil.rmtree(dest_dir, ignore_errors=True)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+
+            # 🌟 當測試空密碼時使用 -p-，防止 7z 或 WinRAR 彈出密碼詢問視窗或無窮等待
+            pwd_arg = f"-p{pwd}" if pwd else "-p-"
+
+            if EXTRACTOR["type"] == "7z":
+                cmd = [EXTRACTOR["path"], "x", pwd_arg, "-y", f"-o{dest_dir}", str(rar_path)]
+            else:
+                dest_str = str(dest_dir)
+                if not dest_str.endswith('\\'):
+                    dest_str += '\\'
+                cmd = [EXTRACTOR["path"], "x", pwd_arg, "-y", "-inul", "-ibck", str(rar_path), dest_str]
+
+            proc = subprocess.run(
+                cmd,
+                startupinfo=startupinfo,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=180,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            rel_files = [str(p.relative_to(dest_dir)) for p in dest_dir.rglob("*") if p.is_file()]
+            if proc.returncode == 0 and rel_files:
+                return pwd, rel_files, ""
+            if rel_files and proc.returncode in (0, 1):
+                # WinRAR exit code 1 (Warning: non-fatal) 但已有完整解出檔案時亦視為成功
+                non_empty = any((dest_dir / rf).stat().st_size > 0 for rf in rel_files)
+                if non_empty:
+                    return pwd, rel_files, ""
+            out_err = ((proc.stderr or "") + " " + (proc.stdout or "")).strip()
+            if out_err:
+                last_err = out_err
+        except Exception as e:
+            last_err = str(e)
+            continue
+
+    if dest_dir.exists():
+        shutil.rmtree(dest_dir, ignore_errors=True)
+    return None, [], last_err
+
+
+def get_rar_file_list(rar_path):
+    """
+    取得壓縮包內所有檔案相對路徑清單（自動測試密碼並支援 WinRAR.exe / UnRAR.exe / 7z.exe，完全不使用 'lb' 命令）
+    """
+    rar_path = Path(rar_path)
+    rar_path_str = str(rar_path)
+    if not rar_path.exists():
+        return None, []
+
     if rar_path_str.lower().endswith('.zip'):
         import zipfile
         try:
             with zipfile.ZipFile(rar_path_str) as zf:
                 is_encrypted = any(f.flag_bits & 0x1 for f in zf.infolist())
                 if not is_encrypted:
-                    files = [f.filename for f in zf.infolist() if not f.is_dir()]
-                    return "", files
-                    
-                for pwd in ARCHIVE_PASSWORDS:
-                    try:
-                        pwd_bytes = pwd.encode('utf-8') if pwd else None
-                        for f in zf.infolist():
-                            if not f.is_dir():
-                                with zf.open(f, pwd=pwd_bytes) as test_f:
-                                    test_f.read(1)
-                                break
-                        files = [f.filename for f in zf.infolist() if not f.is_dir()]
-                        return pwd, files
-                    except Exception:
-                        continue
-        except Exception as e:
-            print(f"Error reading ZIP: {e}")
+                    files = [f.filename.replace('/', '\\') for f in zf.infolist() if not f.is_dir()]
+                    if files:
+                        return "", files
+        except Exception:
+            pass
+
+    temp_list_dir = rar_path.parent / f"_list_tmp_{int(time.time() * 1000)}_{os.getpid()}"
+    try:
+        pwd, rel_files, _ = _extract_archive_to_dir(rar_path, temp_list_dir)
+        if rel_files:
+            return pwd, rel_files
         return None, []
-        
-    if not EXTRACTOR:
-        return None, []
-        
-    for pwd in ARCHIVE_PASSWORDS:
-        try:
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            
-            if EXTRACTOR["type"] == "7z":
-                subprocess.check_call(
-                    [EXTRACTOR["path"], "t", f"-p{pwd}", str(rar_path)],
-                    startupinfo=startupinfo,
-                    stderr=subprocess.STDOUT,
-                    stdout=subprocess.DEVNULL,
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-                
-                output = subprocess.check_output(
-                    [EXTRACTOR["path"], "l", f"-p{pwd}", str(rar_path)],
-                    startupinfo=startupinfo,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-                files = []
-                parsing = False
-                for line in output.split('\n'):
-                    if line.startswith('----'):
-                        parsing = not parsing
-                        continue
-                    if parsing:
-                        parts = line.split(maxsplit=5)
-                        if len(parts) >= 6 and 'D' not in parts[2]:
-                            files.append(parts[5].strip())
-                return pwd, files
-                
-            elif EXTRACTOR["type"] == "winrar":
-                subprocess.check_call(
-                    [EXTRACTOR["path"], "t", "-inul", f"-p{pwd}", str(rar_path)],
-                    startupinfo=startupinfo,
-                    stderr=subprocess.STDOUT,
-                    stdout=subprocess.DEVNULL,
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-                
-                output = subprocess.check_output(
-                    [EXTRACTOR["path"], "lb", "-inul", f"-p{pwd}", str(rar_path)],
-                    startupinfo=startupinfo,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-                files = [line.strip() for line in output.split('\n') if line.strip() and not line.strip().endswith('\\')]
-                return pwd, files
-                
-        except subprocess.CalledProcessError:
-            continue
-        except Exception as e:
-            print(f"Error reading RAR: {e}")
-            break
-            
-    return None, []
+    finally:
+        if temp_list_dir.exists():
+            shutil.rmtree(temp_list_dir, ignore_errors=True)
+
 
 def install_fix(app_id, rar_path, game_dir, delete_archive=True, source_drive=None):
+    global EXTRACTOR
     rar_path = Path(rar_path)
     game_dir = Path(game_dir)
     app_id = str(app_id)
@@ -964,98 +1094,96 @@ def install_fix(app_id, rar_path, game_dir, delete_archive=True, source_drive=No
     if not rar_path.exists() or not game_dir.exists():
         return False, "檔案或資料夾不存在"
         
-    if str(rar_path).lower().endswith('.zip'):
-        pass # Python native zip handles this without EXTRACTOR
-    elif not EXTRACTOR:
-        return False, "找不到解壓縮工具！請先安裝 7-Zip 或 WinRAR。"
-        
-    working_pwd, files_to_extract = get_rar_file_list(rar_path)
-    if not files_to_extract:
-        return False, "無法讀取壓縮檔內容，可能密碼錯誤或檔案毀損"
-        
-    backed_up = []
-    for rel_path in files_to_extract:
-        target_path = game_dir / rel_path
-        is_known_crack = is_known_crack_file(target_path)
-        
-        if target_path.exists():
-            bak_path = target_path.with_suffix(target_path.suffix + '.bak')
-            # 避免套娃：如果目標檔案本身就是已知的 Online-Fix / ZeiGames 補丁檔案，絕不備份為 .bak！
-            if not is_known_crack and not bak_path.exists():
-                try:
-                    import shutil
-                    shutil.move(str(target_path), str(bak_path))
-                    backed_up.append(str(rel_path))
-                except Exception as e:
-                    pass
-            else:
-                try:
-                    target_path.unlink()
-                except:
-                    pass
-        else:
-            try:
-                target_path.unlink()
-            except:
-                pass
-                    
+    if not str(rar_path).lower().endswith('.zip'):
+        if not EXTRACTOR:
+            EXTRACTOR = get_extractor()
+        if not EXTRACTOR:
+            return False, "找不到解壓縮工具！請先安裝 7-Zip 或 WinRAR。"
+
+    temp_extract_dir = rar_path.parent / f"_extract_tmp_{app_id}_{int(time.time() * 1000)}"
     try:
-        if str(rar_path).lower().endswith('.zip'):
-            import zipfile
-            pwd_bytes = working_pwd.encode('utf-8') if working_pwd else None
-            with zipfile.ZipFile(str(rar_path)) as zf:
-                zf.extractall(path=str(game_dir), pwd=pwd_bytes)
-        else:
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            
-            if EXTRACTOR["type"] == "7z":
-                subprocess.check_call(
-                    [EXTRACTOR["path"], "x", f"-p{working_pwd}", "-y", f"-o{game_dir}", str(rar_path)],
-                    startupinfo=startupinfo,
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-            elif EXTRACTOR["type"] == "winrar":
-                # WinRAR x command requires trailing backslash for destination directory
-                dest_dir = str(game_dir)
-                if not dest_dir.endswith('\\'):
-                    dest_dir += '\\'
-                
-                # Use -inul -ibck to prevent GUI popup errors and background execution
-                subprocess.check_call(
-                    [EXTRACTOR["path"], "x", f"-p{working_pwd}", "-y", "-inul", "-ibck", str(rar_path), dest_dir],
-                    startupinfo=startupinfo,
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-            
+        working_pwd, files_to_extract, extract_err = _extract_archive_to_dir(rar_path, temp_extract_dir)
+        if not files_to_extract:
+            detail = f" ({extract_err[:80]})" if extract_err else ""
+            return False, f"無法讀取或解壓縮補丁檔內容，可能密碼錯誤、分卷不完整或檔案毀損{detail}"
+
+        backed_up = []
+        for rel_path in files_to_extract:
+            src_extracted = temp_extract_dir / rel_path
+            if not src_extracted.exists() or not src_extracted.is_file():
+                continue
+
+            target_path = game_dir / rel_path
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            is_known_crack = is_known_crack_file(target_path)
+
+            if target_path.exists():
+                bak_path = target_path.with_suffix(target_path.suffix + '.bak')
+                # 避免套娃：如果目標檔案本身就是已知的 Online-Fix / ZeiGames 補丁檔案，絕不備份為 .bak！
+                if not is_known_crack and not bak_path.exists():
+                    try:
+                        shutil.move(str(target_path), str(bak_path))
+                        backed_up.append(str(rel_path))
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        import stat
+                        os.chmod(str(target_path), stat.S_IWRITE | stat.S_IREAD)
+                        target_path.unlink()
+                    except Exception:
+                        pass
+
+            # 將暫存目錄已解壓之檔案搬移/覆寫至遊戲目錄
+            try:
+                if target_path.exists():
+                    import stat
+                    os.chmod(str(target_path), stat.S_IWRITE | stat.S_IREAD)
+                shutil.copy2(str(src_extracted), str(target_path))
+            except Exception as copy_err:
+                raise copy_err
+
         record = _load_record(app_id) or {}
         record.update({
             "game_dir": str(game_dir),
             "installed_files": files_to_extract,
             "backed_up_files": backed_up,
             "source_drive": source_drive or "Google Drive",
-            "timestamp": os.path.getmtime(rar_path) if rar_path.exists() else 0
+            "timestamp": os.path.getmtime(rar_path) if rar_path.exists() else int(time.time())
         })
         _save_record(app_id, record)
-        
-        # 關鍵需求：安裝完成後立即刪除臨時下載的壓縮檔，不永久留存，永遠跟隨雲端最新項目
+
+        # 關鍵需求：安裝完成後立即刪除臨時下載的壓縮檔（含多分卷 .part*.rar），不永久留存
         if delete_archive and rar_path.exists():
             try:
-                rar_path.unlink()
+                import re
                 parent_dir = rar_path.parent
+                m_part = re.match(r'^(.+)\.part\d+\.(rar|zip|7z)$', rar_path.name, re.IGNORECASE)
+                rar_path.unlink(missing_ok=True)
+                if m_part and parent_dir.exists():
+                    base_prefix = m_part.group(1).lower()
+                    for sib in list(parent_dir.iterdir()):
+                        if sib.is_file() and sib.name.lower().startswith(base_prefix + '.part'):
+                            try:
+                                sib.unlink(missing_ok=True)
+                            except Exception:
+                                pass
                 if parent_dir != LOCAL_PATCH_DIR and parent_dir.exists() and not any(parent_dir.iterdir()):
                     parent_dir.rmdir()
             except Exception as e:
                 print(f"Error cleaning up archive: {e}")
-                
+
         return True, "安裝成功"
     except PermissionError as e:
         return False, f"⚠️ 檔案被 Windows Defender 或防毒軟體鎖定無法替換 ({e})。請將 Steam 遊戲目錄加入防毒排除名單後再試！"
     except Exception as e:
         err_str = str(e)
-        if "WinError 32" in err_str or "WinError 5" in err_str or "Access is denied" in err_str:
+        if "WinError 32" in err_str or "WinError 5" in err_str or "Access is denied" in err_str or "225" in err_str:
             return False, f"⚠️ 檔案存取被拒 (可能被防毒軟體即時掃描或遊戲程序鎖定: {e})。請將 Steam 目錄加入防毒排除名單後再試！"
         return False, f"解壓縮失敗: {e}"
+    finally:
+        if temp_extract_dir.exists():
+            shutil.rmtree(temp_extract_dir, ignore_errors=True)
 
 def uninstall_fix(app_id, forced_rar_path=None):
     app_id = str(app_id)

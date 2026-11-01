@@ -354,13 +354,15 @@
             if(dlRes && dlRes.ok && dlRes.has_patch){
               patchDownloaded = true;
               if(window.updateCardProgress) updateCardProgress(aidStr, 25, '✅ ' + driveName + ' 線上補丁下載就緒！', false);
-            } else {
+            } else if(dlRes && dlRes.has_patch === false){
               hasCloudPatch = false;
               if(window.updateCardProgress) updateCardProgress(aidStr, 25, 'ℹ️ 補丁庫無專屬線上補丁 (以純官方清單入庫)', false);
+            } else {
+              // 預先下載暫時失敗時保留 hasCloudPatch=true，待階段 6 遊戲下載完畢後自動重試下載與安裝
+              if(window.updateCardProgress) updateCardProgress(aidStr, 25, '⏳ 聯機補丁將於 Steam 主程式就緒後自動重試部署...', false);
             }
           } catch(e){
-            hasCloudPatch = false;
-            if(window.updateCardProgress) updateCardProgress(aidStr, 25, 'ℹ️ 線上補丁取得略過 (無補丁，以純官方清單入庫)', false);
+            if(window.updateCardProgress) updateCardProgress(aidStr, 25, '⏳ 聯機補丁將於 Steam 主程式就緒後自動重試部署...', false);
           }
         } else {
           if(window.updateCardProgress) updateCardProgress(aidStr, 25, 'ℹ️ 官方清單就緒 (此遊戲無專屬線上補丁)', false);
@@ -380,7 +382,7 @@
           var downloadDone = false;
           var pollCount = 0;
           var promptWaitCount = 0;
-          var promptTimeoutSec = 20;
+          var promptTimeoutSec = 120;
 
           while(!downloadDone && pollCount < 7200){
             await new Promise(function(r){ setTimeout(r, 1000); });
@@ -423,7 +425,7 @@
                 if(remainSec <= 0){
                   if(window.updateCardProgress) updateCardProgress(aidStr, 0, '⚠️ 已結束安裝等候 (已入庫，可隨時在 Steam 下載)', true);
                   if(window.finishCardProgress) finishCardProgress(aidStr, false, '⚠️ 已結束安裝等候 (已入庫，可隨時在 Steam 下載)');
-                  if(window.tt) tt('ℹ️ 「' + gameTitle + '」已結束安裝等候。遊戲已完成入庫，隨時可在 Steam 內點擊安裝！', 'in', 5000);
+                  if(window.tt) tt('ℹ️ 「' + gameTitle + '」已結束安裝等候。遊戲已完成入庫，於 Steam 點擊安裝完成後將自動部署補丁！', 'in', 5000);
                   return;
                 }
                 var dlText = '🎮 請在 Steam 視窗中確認安裝 (' + remainSec + 's 倒數，逾時不影響入庫狀態)';
@@ -455,28 +457,41 @@
         }
 
         // 階段 6: 90% ~ 100% 【補丁安裝與原檔保護】
+        // 🌟 無論階段 3/4 快取是否命中，主程式就緒後一律執行最終補丁確認與部署（已下載快取將直接秒級複用解壓）
         var patchInstalled = false;
-        if(hasCloudPatch && patchDownloaded){
-          if(window.updateCardProgress) updateCardProgress(aidStr, 93, '🛡️ 正在自動備份遊戲原始檔案 (.bak)...', false);
-          await new Promise(function(r){ setTimeout(r, 200); });
-          if(window.updateCardProgress) updateCardProgress(aidStr, 96, '🚀 正在解壓部署 Online-Fix 聯機補丁...', false);
+        var patchErrorMsg = '';
+        if(window.updateCardProgress) updateCardProgress(aidStr, 93, '🛡️ 正在檢驗並部署 Google Drive 線上補丁與備份原檔 (.bak)...', false);
+        await new Promise(function(r){ setTimeout(r, 200); });
+        try {
+          if(window.updateCardProgress) updateCardProgress(aidStr, 96, '🚀 正在解壓部署 Online-Fix / ZeiGames 聯機補丁...', false);
           var patchRes = await pywebview.api.install_online_patch(aidStr, name);
           if(patchRes && patchRes.ok && patchRes.installed){
             patchInstalled = true;
+            hasCloudPatch = true;
             if(window._deployedAppids) _deployedAppids.add(aidStr);
             if(window._protectedAppids) _protectedAppids.add(aidStr);
             if(window._onlinefixAppids) _onlinefixAppids.add(aidStr);
             var bCard = document.querySelector('#results .card[data-appid="'+aidStr+'"]');
             if(bCard) bCard.classList.add('has-onlinefix');
+          } else if(patchRes && patchRes.has_patch && !patchRes.installed){
+            hasCloudPatch = true;
+            patchErrorMsg = patchRes.msg || '線上補丁解壓安裝未完成';
           }
-        } else {
-          if(window.updateCardProgress) updateCardProgress(aidStr, 96, 'ℹ️ 無線上補丁，完成清單配置...', false);
-          await new Promise(function(r){ setTimeout(r, 120); });
+        } catch(pe) {
+          patchErrorMsg = String(pe.message || pe || '');
         }
 
-        var completionText = patchInstalled ? '🎉 一鍵入庫與線上補丁部署全部完成！' : '🎉 一鍵入庫完成 (無專屬線上補丁，純清單部署)';
+        var completionText = patchInstalled
+          ? '🎉 一鍵入庫與線上補丁部署全部完成！'
+          : (hasCloudPatch && patchErrorMsg
+              ? ('⚠️ 一鍵入庫完成，但補丁套用異常: ' + patchErrorMsg)
+              : '🎉 一鍵入庫完成 (無專屬線上補丁，純清單部署)');
         if(window.updateCardProgress) updateCardProgress(aidStr, 100, completionText, false, true);
-        if(window.tt) tt('✅ ' + gameTitle + ' 入庫成功' + (patchInstalled ? ' (已部署聯機補丁)' : ' (無專屬線上補丁)'), 'ok');
+        if(hasCloudPatch && !patchInstalled && patchErrorMsg){
+          if(window.tt) tt('⚠️ ' + gameTitle + ' 主程式已入庫，但線上補丁安裝異常：' + patchErrorMsg, 'wn', 6000);
+        } else {
+          if(window.tt) tt('✅ ' + gameTitle + ' 入庫成功' + (patchInstalled ? ' (已部署聯機補丁)' : ' (無專屬線上補丁)'), 'ok');
+        }
         if(window.finishCardProgress) finishCardProgress(aidStr, true, completionText);
 
         // 重新同步並保鮮管理清單

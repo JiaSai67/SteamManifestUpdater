@@ -11,6 +11,7 @@ import os
 import json
 import logging
 import re
+import time
 import requests
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -85,9 +86,9 @@ class DiscordStorage:
         except Exception as e:
             return {"ok": False, "msg": f"連線異常: {e}"}
 
-    # 嚴格定義單檔上傳安全閾值 (20MB) 與分卷切片大小 (19MB)
-    MAX_SINGLE_FILE_SIZE = 20 * 1024 * 1024  # 20 MB 觸發切割閾值
-    CHUNK_SIZE = 19 * 1024 * 1024            # 19 MB 安全切片大小 (確保不觸發 Discord 25MB 上限)
+    # 嚴格定義單檔上傳安全閾值 (9MB) 與分卷切片大小 (8MB)，兼容 Discord 10MB 免加成伺服器上限並降低單卷下載超時風險
+    MAX_SINGLE_FILE_SIZE = 9 * 1024 * 1024   # 9 MB 觸發切割閾值
+    CHUNK_SIZE = 8 * 1024 * 1024             # 8 MB 安全切片大小 (確保不觸發 Discord 10MB/25MB 上限)
 
     def upload_package(self, file_path: str, room_code: str, webhook_url: str = "",
                        game_name: str = "", host_name: str = "") -> Dict[str, Any]:
@@ -183,9 +184,9 @@ class DiscordStorage:
                     part_idx += 1
 
             total_parts = len(part_paths)
-            logger.info(f"[Discord] 已將整合包安全切成 {total_parts} 個分卷 (每卷 <= 19MB)")
+            logger.info(f"[Discord] 已將整合包安全切成 {total_parts} 個分卷 (每卷 <= 8MB)")
 
-            # 2. 逐卷上傳至 Discord Webhook
+            # 2. 逐卷上傳至 Discord Webhook (含自動重試與 429 限流退避)
             download_urls = []
             message_ids = []
 
@@ -197,29 +198,52 @@ class DiscordStorage:
                     f"🔑 房號: `#{room_code}` ｜ 👑 房主: `{host_name or '玩家'}`\n"
                     f"⚡ 本卷大小: `{part_size/1024/1024:.2f} MB` ｜ 總大小: `{file_size/1024/1024:.2f} MB`"
                 )
-                with open(p_file, "rb") as f:
-                    files = {
-                        "file": (part_filename, f, "application/octet-stream")
-                    }
-                    data = {
-                        "username": "SMU Party Hub",
-                        "content": part_content
-                    }
-                    logger.info(f"[Discord] 正在上傳分卷 {idx}/{total_parts}: {part_filename}...")
-                    resp = requests.post(post_url, data=data, files=files, timeout=50)
+                part_uploaded = False
+                last_err_msg = ""
+                for attempt in range(1, 4):
+                    try:
+                        with open(p_file, "rb") as f:
+                            files = {
+                                "file": (part_filename, f, "application/octet-stream")
+                            }
+                            data = {
+                                "username": "SMU Party Hub",
+                                "content": part_content
+                            }
+                            logger.info(f"[Discord] 正在上傳分卷 {idx}/{total_parts} (嘗試 {attempt}/3): {part_filename}...")
+                            resp = requests.post(post_url, data=data, files=files, timeout=60)
 
-                if resp.status_code in (200, 201):
-                    res_data = resp.json()
-                    msg_id = res_data.get("id")
-                    atts = res_data.get("attachments", [])
-                    if atts and atts[0].get("url"):
-                        message_ids.append(msg_id)
-                        download_urls.append(atts[0]["url"])
-                        logger.info(f"[Discord] 分卷 {idx}/{total_parts} 上傳成功！MsgID: {msg_id}")
-                    else:
-                        return {"ok": False, "msg": f"分卷 {idx} 上傳成功但未收到附件直鏈"}
-                else:
-                    return {"ok": False, "msg": f"分卷 {idx}/{total_parts} 上傳失敗: HTTP {resp.status_code}"}
+                        if resp.status_code in (200, 201):
+                            res_data = resp.json()
+                            msg_id = res_data.get("id")
+                            atts = res_data.get("attachments", [])
+                            if atts and atts[0].get("url"):
+                                message_ids.append(msg_id)
+                                download_urls.append(atts[0]["url"])
+                                logger.info(f"[Discord] 分卷 {idx}/{total_parts} 上傳成功！MsgID: {msg_id}")
+                                part_uploaded = True
+                                break
+                            else:
+                                last_err_msg = f"分卷 {idx} 上傳成功但未收到附件直鏈"
+                        elif resp.status_code == 429:
+                            retry_after = 2.0
+                            try:
+                                retry_after = float(resp.json().get("retry_after", 2.0)) + 0.5
+                            except Exception:
+                                pass
+                            logger.warning(f"[Discord] 分卷 {idx} 觸發頻率限制 (HTTP 429)，等待 {retry_after:.1f}s 後重試...")
+                            time.sleep(retry_after)
+                            last_err_msg = "HTTP 429 Too Many Requests"
+                        else:
+                            last_err_msg = f"分卷 {idx}/{total_parts} 上傳失敗: HTTP {resp.status_code}"
+                            time.sleep(1.0 * attempt)
+                    except Exception as up_err:
+                        last_err_msg = f"分卷 {idx}/{total_parts} 上傳網路異常: {up_err}"
+                        logger.warning(f"[Discord] {last_err_msg}")
+                        time.sleep(1.2 * attempt)
+
+                if not part_uploaded:
+                    return {"ok": False, "msg": last_err_msg or f"分卷 {idx}/{total_parts} 上傳失敗"}
 
             # 3. 封裝多卷複合式資訊
             composite_url = f"multipart:{'|||'.join(download_urls)}"

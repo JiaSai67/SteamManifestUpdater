@@ -1056,11 +1056,13 @@ class PartyManager:
 
         room_data = self._format_room(r)
 
-        # 若為全量或包含重要欄位時更新快取
-        if scope in ("all", "info"):
-            self.current_room_data = room_data
+        # 🌟 保留本地已快取的下載鏈結，防止局部欄位查詢覆蓋為空字串
+        if self.current_room_data and self.current_room_id == rid:
+            cached_dl = self.current_room_data.get("gdrive_url") or self.current_room_data.get("download_url") or ""
+            if cached_dl and not room_data.get("gdrive_url"):
+                room_data["gdrive_url"] = cached_dl
 
-        # 隊員端檢查自己是否仍在房間成員清單內 (在有抓取 members 時檢查)
+        # 隊員端檢查自己是否仍在房間成員清單內，並覆蓋本機最新即時進度 (防止雲端舊快照將下載進度打回 5%)
         if "members" in r and self.current_room_id == rid and not self.is_host:
             members = room_data.get("members", [])
             is_me_in = any(m.get("id") == self.client_id for m in members)
@@ -1068,6 +1070,18 @@ class PartyManager:
                 logger.info("檢測到自己已不在房間成員名單中，自動退出")
                 self._cleanup_local_room()
                 return {"ok": False, "error": "ROOM_CLOSED", "msg": "您已被請離或房間已重整"}
+            for m in members:
+                if m.get("id") == self.client_id:
+                    m["status"] = self.my_status
+                    m["progress"] = self.my_progress
+                    m["steam_installed"] = self.my_steam_installed
+                    m["deploy_status"] = self.my_deploy_status
+                    m["deploy_error"] = self.my_deploy_error
+                    m["version_status"] = self.my_version_status
+
+        # 若為全量或包含重要欄位時更新快取
+        if scope in ("all", "info"):
+            self.current_room_data = room_data
 
         return {
             "ok": True,
@@ -1721,7 +1735,8 @@ class PartyManager:
         steam_installed: Optional[bool] = None,
         deploy_status: Optional[str] = None,
         deploy_error: Optional[str] = None,
-        version_status: Optional[str] = None
+        version_status: Optional[str] = None,
+        force_sync: bool = True
     ) -> Dict[str, Any]:
         """
         隊員更新下載與部署狀態：
@@ -1730,6 +1745,7 @@ class PartyManager:
         - deploy_status: 'pending' | 'downloading' | 'deploying' | 'success' | 'failed'
         - deploy_error: 若部署失敗，記錄具體異常原因
         - version_status: 遊戲版本狀態 (最新 / 舊 x 版 / 未安裝)
+        - force_sync: 是否立即同步至雲端；於下載 chunk 迴圈內設為 False，改採 2.5 秒非同步節流回報，杜絕阻塞下載流！
         """
         if steam_installed is not None:
             self.my_steam_installed = steam_installed
@@ -1762,6 +1778,34 @@ class PartyManager:
             if deploy_status is None and self.my_deploy_status != "failed":
                 self.my_deploy_status = "pending"
 
+        # 🌟 即時同步更新本機快取中的成員進度，讓前端 UI 輪詢 0 延遲反映最新百分比
+        if self.current_room_data and isinstance(self.current_room_data.get("members"), list):
+            for m in self.current_room_data["members"]:
+                if m.get("id") == self.client_id:
+                    m["status"] = self.my_status
+                    m["progress"] = self.my_progress
+                    m["steam_installed"] = self.my_steam_installed
+                    m["deploy_status"] = self.my_deploy_status
+                    m["deploy_error"] = self.my_deploy_error
+                    m["version_status"] = self.my_version_status
+                    break
+
+        if not force_sync:
+            now_t = time.time()
+            last_t = getattr(self, "_last_async_progress_sync_ts", 0.0)
+            in_flight = getattr(self, "_async_progress_sync_in_flight", False)
+            if (now_t - last_t >= 2.5) and not in_flight:
+                self._last_async_progress_sync_ts = now_t
+                self._async_progress_sync_in_flight = True
+                def _bg_sync():
+                    try:
+                        self._send_member_sync(action="update")
+                    finally:
+                        self._async_progress_sync_in_flight = False
+                threading.Thread(target=_bg_sync, daemon=True, name="PartyProgressAsyncSync").start()
+            return {"ok": True, "throttled": True}
+
+        self._last_async_progress_sync_ts = time.time()
         return self._send_member_sync(action="update")
 
     def _send_member_sync(self, action: str = "update") -> Dict[str, Any]:
@@ -1769,121 +1813,134 @@ class PartyManager:
         if not self.current_room_id:
             return {"ok": False, "msg": "不在房間中"}
 
-        rid = self.current_room_id
-        now_str = self._now_iso()
+        if not hasattr(self, "_member_sync_lock") or self._member_sync_lock is None:
+            self._member_sync_lock = threading.Lock()
 
-        self._inc_quota()
-        try:
-            # 1. 優先向 Turso Edge 查詢最新房間紀錄，若無則嘗試可用之 Supabase
-            room_row = self._turso_get_room(rid, timeout=5)
-            if room_row is None and self._is_supabase_available():
-                try:
-                    query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select=room_id,status,members,updated_at"
-                    resp = self.session.get(query_url, timeout=4)
-                    if resp.status_code == 200 and resp.json():
-                        room_row = resp.json()[0]
-                except Exception as se:
-                    self._mark_supabase_down(300)
-                    logger.debug(f"隊員同步查詢 Supabase 失敗: {se}")
+        with self._member_sync_lock:
+            if not self.current_room_id:
+                return {"ok": False, "msg": "不在房間中"}
 
-            if not room_row:
-                self._cleanup_local_room()
-                return {"ok": False, "error": "ROOM_NOT_FOUND", "msg": "房間已被解散或關閉"}
+            rid = self.current_room_id
+            now_str = self._now_iso()
+            cached_dl_url = ""
+            if self.current_room_data:
+                cached_dl_url = self.current_room_data.get("gdrive_url") or self.current_room_data.get("download_url") or ""
 
-            # 🌟 幽靈房間處置：隊員檢測房主心跳是否逾期 (超過 45 秒無心跳代表房主已斷線)
-            host_updated_at = room_row.get("updated_at")
-            if not self.is_host and self._is_expired(host_updated_at, max_seconds=45):
-                logger.warning(f"[PARTY] 檢測到房主心跳超時 (離線)，幽靈房間 #{rid} 自動解散")
-                self._turso_delete_room(rid, timeout=3)
+            self._inc_quota()
+            try:
+                # 1. 優先向 Turso Edge 查詢最新房間紀錄，若無則嘗試可用之 Supabase
+                room_row = self._turso_get_room(rid, timeout=5)
+                if room_row is None and self._is_supabase_available():
+                    try:
+                        query_url = f"{self.rest_endpoint}?room_id=eq.{rid}&select=room_id,status,members,updated_at"
+                        resp = self.session.get(query_url, timeout=4)
+                        if resp.status_code == 200 and resp.json():
+                            room_row = resp.json()[0]
+                    except Exception as se:
+                        self._mark_supabase_down(300)
+                        logger.debug(f"隊員同步查詢 Supabase 失敗: {se}")
+
+                if not room_row:
+                    self._cleanup_local_room()
+                    return {"ok": False, "error": "ROOM_NOT_FOUND", "msg": "房間已被解散或關閉"}
+
+                # 🌟 幽靈房間處置：隊員檢測房主心跳是否逾期 (超過 45 秒無心跳代表房主已斷線)
+                host_updated_at = room_row.get("updated_at")
+                if not self.is_host and self._is_expired(host_updated_at, max_seconds=45):
+                    logger.warning(f"[PARTY] 檢測到房主心跳超時 (離線)，幽靈房間 #{rid} 自動解散")
+                    self._turso_delete_room(rid, timeout=3)
+                    if self._is_supabase_available():
+                        try:
+                            self.session.delete(f"{self.rest_endpoint}?room_id=eq.{rid}", timeout=3)
+                        except Exception:
+                            self._mark_supabase_down(300)
+                    self._cleanup_local_room()
+                    return {
+                        "ok": False,
+                        "error": "HOST_OFFLINE",
+                        "msg": "👑 房主已離線，隊伍房間已自動解散",
+                        "keep_installing": True
+                    }
+
+                members = self._unpack_members(room_row.get("members"))
+
+                if action == "leave":
+                    # 從成員名單移除自己
+                    members = [m for m in members if m.get("id") != self.client_id]
+                else:
+                    # 更新或新增自己
+                    found = False
+                    for m in members:
+                        if m.get("id") == self.client_id:
+                            m["name"] = self.nickname
+                            m["discord"] = self.get_current_discord_name()
+                            m["discord_id"] = getattr(self, "discord_id", "")
+                            m["discord_username"] = getattr(self, "discord_username", "")
+                            m["status"] = self.my_status
+                            m["progress"] = self.my_progress
+                            m["steam_installed"] = self.my_steam_installed
+                            m["deploy_status"] = self.my_deploy_status
+                            m["deploy_error"] = self.my_deploy_error
+                            m["version_status"] = self.my_version_status
+                            m["updated_at"] = now_str
+                            found = True
+                            break
+                    if not found:
+                        members.append({
+                            "id": self.client_id,
+                            "name": self.nickname,
+                            "discord": self.get_current_discord_name(),
+                            "discord_id": getattr(self, "discord_id", ""),
+                            "discord_username": getattr(self, "discord_username", ""),
+                            "status": self.my_status,
+                            "progress": self.my_progress,
+                            "steam_installed": self.my_steam_installed,
+                            "deploy_status": self.my_deploy_status,
+                            "deploy_error": self.my_deploy_error,
+                            "version_status": self.my_version_status,
+                            "is_host": self.is_host,
+                            "updated_at": now_str
+                        })
+
+                packed_members = self._pack_members(members)
+                room_row["members"] = packed_members
+                room_row["current_players"] = len(members)
+                if self.is_host:
+                    room_row["updated_at"] = now_str
+
+                # 2. 回寫至 Turso Edge (若為隊員更新則 touch_ts=False，保留房主心跳時間戳)
+                turso_ok = self._turso_save_room(room_row, touch_ts=self.is_host, timeout=5)
+
+                sb_ok = False
                 if self._is_supabase_available():
                     try:
-                        self.session.delete(f"{self.rest_endpoint}?room_id=eq.{rid}", timeout=3)
-                    except Exception:
+                        patch_url = f"{self.rest_endpoint}?room_id=eq.{rid}"
+                        patch_resp = self.session.patch(patch_url, json={"members": packed_members}, timeout=4)
+                        if patch_resp.status_code == 200:
+                            updated_rows = patch_resp.json()
+                            if updated_rows:
+                                room_row = updated_rows[0]
+                            sb_ok = True
+                    except Exception as se:
                         self._mark_supabase_down(300)
-                self._cleanup_local_room()
-                return {
-                    "ok": False,
-                    "error": "HOST_OFFLINE",
-                    "msg": "👑 房主已離線，隊伍房間已自動解散",
-                    "keep_installing": True
-                }
+                        logger.debug(f"隊員同步回寫 Supabase 失敗: {se}")
 
-            members = self._unpack_members(room_row.get("members"))
-
-            if action == "leave":
-                # 從成員名單移除自己
-                members = [m for m in members if m.get("id") != self.client_id]
-            else:
-                # 更新或新增自己
-                found = False
-                for m in members:
-                    if m.get("id") == self.client_id:
-                        m["name"] = self.nickname
-                        m["discord"] = self.get_current_discord_name()
-                        m["discord_id"] = getattr(self, "discord_id", "")
-                        m["discord_username"] = getattr(self, "discord_username", "")
-                        m["status"] = self.my_status
-                        m["progress"] = self.my_progress
-                        m["steam_installed"] = self.my_steam_installed
-                        m["deploy_status"] = self.my_deploy_status
-                        m["deploy_error"] = self.my_deploy_error
-                        m["version_status"] = self.my_version_status
-                        m["updated_at"] = now_str
-                        found = True
-                        break
-                if not found:
-                    members.append({
-                        "id": self.client_id,
-                        "name": self.nickname,
-                        "discord": self.get_current_discord_name(),
-                        "discord_id": getattr(self, "discord_id", ""),
-                        "discord_username": getattr(self, "discord_username", ""),
-                        "status": self.my_status,
-                        "progress": self.my_progress,
-                        "steam_installed": self.my_steam_installed,
-                        "deploy_status": self.my_deploy_status,
-                        "deploy_error": self.my_deploy_error,
-                        "version_status": self.my_version_status,
-                        "is_host": self.is_host,
-                        "updated_at": now_str
-                    })
-
-            packed_members = self._pack_members(members)
-            room_row["members"] = packed_members
-            room_row["current_players"] = len(members)
-            if self.is_host:
-                room_row["updated_at"] = now_str
-
-            # 2. 回寫至 Turso Edge (若為隊員更新則 touch_ts=False，保留房主心跳時間戳)
-            turso_ok = self._turso_save_room(room_row, touch_ts=self.is_host, timeout=5)
-
-            sb_ok = False
-            if self._is_supabase_available():
-                try:
-                    patch_url = f"{self.rest_endpoint}?room_id=eq.{rid}"
-                    patch_resp = self.session.patch(patch_url, json={"members": packed_members}, timeout=4)
-                    if patch_resp.status_code == 200:
-                        updated_rows = patch_resp.json()
-                        if updated_rows:
-                            room_row = updated_rows[0]
-                        sb_ok = True
-                except Exception as se:
-                    self._mark_supabase_down(300)
-                    logger.debug(f"隊員同步回寫 Supabase 失敗: {se}")
-
-            if turso_ok or sb_ok:
-                self._raw_room_payload = dict(room_row)
-                self.current_room_data = self._format_room(room_row)
-                return {
-                    "ok": True,
-                    "members": members,
-                    "room": self.current_room_data,
-                    "quota": self.latest_quota
-                }
-            else:
-                return {"ok": False, "msg": "同步狀態失敗 (雲端節點未回應)"}
-        except Exception as e:
-            return {"ok": False, "msg": f"同步狀態異常: {e}"}
+                if turso_ok or sb_ok:
+                    self._raw_room_payload = dict(room_row)
+                    formatted = self._format_room(room_row)
+                    if cached_dl_url and not formatted.get("gdrive_url"):
+                        formatted["gdrive_url"] = cached_dl_url
+                    self.current_room_data = formatted
+                    return {
+                        "ok": True,
+                        "members": members,
+                        "room": self.current_room_data,
+                        "quota": self.latest_quota
+                    }
+                else:
+                    return {"ok": False, "msg": "同步狀態失敗 (雲端節點未回應)"}
+            except Exception as e:
+                return {"ok": False, "msg": f"同步狀態異常: {e}"}
 
     def leave_room(self) -> Dict[str, Any]:
         """隊員主動離開房間"""
@@ -2188,11 +2245,18 @@ class PartyManager:
                 return
 
             import shutil
+            import zipfile
             from managers.party_packager import get_party_packager
             packager = get_party_packager()
             dl_dir = packager.temp_pack_dir / "downloads"
             dl_dir.mkdir(parents=True, exist_ok=True)
             target_zip = dl_dir / f"download_{room_id}_{app_id}.zip"
+
+            dl_headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "*/*",
+                "Connection": "keep-alive"
+            }
 
             # -------------------------------------------------------------
             # 模式 1: 大檔安全切片多卷下載 (multipart:url1|||url2...)
@@ -2204,6 +2268,7 @@ class PartyManager:
 
                 temp_parts = []
                 all_downloaded = True
+                last_pct = 5
 
                 for idx, p_url in enumerate(part_urls, 1):
                     if self.current_room_id != room_id:
@@ -2211,41 +2276,82 @@ class PartyManager:
                     p_file = dl_dir / f"temp_{room_id}_part{idx}.bin"
                     temp_parts.append(p_file)
 
-                    # 每卷分配的進度區間
-                    base_pct = 5 + int(((idx - 1) / total_parts) * 75)
-                    span_pct = int(75 / total_parts)
+                    # 每卷分配的進度區間：5% ~ 24%（無縫銜接後續 25% 合併與 28% 部署，絕不倒退）
+                    base_pct = 5 + int(((idx - 1) / total_parts) * 19)
+                    span_pct = max(1, int(19 / total_parts))
+                    if base_pct > last_pct:
+                        last_pct = base_pct
+                    self.update_member_progress(
+                        f"下載分卷 ({idx}/{total_parts}): {last_pct}%",
+                        last_pct,
+                        deploy_status="downloading",
+                        force_sync=(idx == 1)
+                    )
 
-                    logger.info(f"[PARTY] 正在下載分卷 ({idx}/{total_parts}): {p_url[:60]}...")
-                    resp = requests.get(p_url, stream=True, timeout=60)
-                    if resp.status_code == 200:
-                        p_len = int(resp.headers.get("content-length", 0))
-                        p_dl = 0
-                        with open(p_file, "wb") as f:
-                            for chunk in resp.iter_content(chunk_size=65536):
-                                if self.current_room_id != room_id:
-                                    return
-                                if chunk:
-                                    f.write(chunk)
-                                    p_dl += len(chunk)
-                                    if p_len > 0:
-                                        cur_pct = base_pct + int((p_dl / p_len) * span_pct)
-                                        self.update_member_progress(f"下載中: {cur_pct}%", cur_pct, deploy_status="downloading")
-                    else:
-                        logger.error(f"[PARTY] 下載分卷 {idx} 失敗: HTTP {resp.status_code}")
+                    part_ok = False
+                    last_part_err = ""
+                    for attempt in range(1, 4):
+                        if self.current_room_id != room_id:
+                            return
+                        try:
+                            logger.info(f"[PARTY] 正在下載分卷 ({idx}/{total_parts}) [嘗試 {attempt}/3]: {p_url[:60]}...")
+                            with requests.get(p_url, headers=dl_headers, stream=True, timeout=(10, 45)) as resp:
+                                if resp.status_code == 200:
+                                    p_len = int(resp.headers.get("content-length") or 0)
+                                    est_len = p_len if p_len > 0 else (8 * 1024 * 1024)
+                                    p_dl = 0
+                                    with open(p_file, "wb") as f:
+                                        for chunk in resp.iter_content(chunk_size=262144):
+                                            if self.current_room_id != room_id:
+                                                return
+                                            if chunk:
+                                                f.write(chunk)
+                                                p_dl += len(chunk)
+                                                ratio = min(1.0, p_dl / max(1, est_len))
+                                                cur_pct = min(24, max(last_pct, base_pct + int(ratio * span_pct)))
+                                                if cur_pct != last_pct:
+                                                    last_pct = cur_pct
+                                                    self.update_member_progress(
+                                                        f"下載分卷 ({idx}/{total_parts}): {cur_pct}%",
+                                                        cur_pct,
+                                                        deploy_status="downloading",
+                                                        force_sync=False
+                                                    )
+                                    if p_file.exists() and p_file.stat().st_size > 0 and (p_len == 0 or p_file.stat().st_size >= p_len):
+                                        part_ok = True
+                                        break
+                                    else:
+                                        last_part_err = f"分卷 {idx} 下載不完整 ({p_file.stat().st_size if p_file.exists() else 0}/{p_len} bytes)"
+                                else:
+                                    last_part_err = f"HTTP {resp.status_code}"
+                                    logger.error(f"[PARTY] 下載分卷 {idx} 失敗: {last_part_err}")
+                        except Exception as pe:
+                            last_part_err = str(pe)
+                            logger.warning(f"[PARTY] 下載分卷 {idx} 第 {attempt} 次嘗試異常: {pe}")
+                        time.sleep(0.8 * attempt)
+
+                    if not part_ok:
                         all_downloaded = False
+                        logger.error(f"[PARTY] 分卷 {idx}/{total_parts} 最終下載失敗: {last_part_err}")
                         break
 
                 if not all_downloaded or len(temp_parts) != total_parts:
-                    self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載分卷失敗 (HTTP 異常或連線中斷)")
+                    for p_file in temp_parts:
+                        try:
+                            if p_file.exists():
+                                p_file.unlink()
+                        except Exception:
+                            pass
+                    self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=f"下載分卷失敗 ({last_part_err or 'HTTP 異常或連線中斷'})", force_sync=True)
                     return
 
                 # 執行二進位流無損快速合併
-                self.update_member_progress("合併中: 25%", 25, deploy_status="deploying")
+                self.update_member_progress("合併中: 25%", 25, deploy_status="deploying", force_sync=True)
                 logger.info(f"[PARTY] 所有分卷下載完畢，正在二進位串接還原為完整 ZIP: {target_zip}")
                 with open(target_zip, "wb") as outfile:
                     for p_file in temp_parts:
                         with open(p_file, "rb") as infile:
-                            shutil.copyfileobj(infile, outfile)
+                            shutil.copyfileobj(infile, outfile, length=1024 * 1024)
 
                 # 清理臨時分卷檔案
                 for p_file in temp_parts:
@@ -2254,6 +2360,12 @@ class PartyManager:
                             p_file.unlink()
                     except Exception:
                         pass
+
+                if not zipfile.is_zipfile(target_zip):
+                    err_msg = "合併後的整合包檔案損毀 (非有效 ZIP 格式)，請請房主重新建房上傳"
+                    logger.error(f"[PARTY] {err_msg}")
+                    self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=err_msg, force_sync=True)
+                    return
 
                 # 🚀 進入全自動一鍵安裝流程
                 self._execute_party_one_click_install(room_id, app_id, str(target_zip))
@@ -2264,28 +2376,55 @@ class PartyManager:
             # -------------------------------------------------------------
             elif download_url.startswith("http://") or download_url.startswith("https://"):
                 logger.info(f"[PARTY] 正在為房間 #{room_id} 下載單檔整合包: {download_url}")
-                resp = requests.get(download_url, stream=True, timeout=60)
-                if resp.status_code == 200:
-                    total_len = int(resp.headers.get("content-length", 0))
-                    downloaded = 0
-                    with open(target_zip, "wb") as f:
-                        for chunk in resp.iter_content(chunk_size=65536):
-                            if self.current_room_id != room_id:
-                                return
-                            if chunk:
-                                f.write(chunk)
-                                downloaded += len(chunk)
-                                if total_len > 0:
-                                    pct = min(25, int((downloaded / total_len) * 20) + 5)
-                                    self.update_member_progress(f"下載整合包: {pct}%", pct, deploy_status="downloading")
+                dl_ok = False
+                last_dl_err = ""
+                last_pct = 5
+                for attempt in range(1, 4):
+                    if self.current_room_id != room_id:
+                        return
+                    try:
+                        with requests.get(download_url, headers=dl_headers, stream=True, timeout=(10, 45)) as resp:
+                            if resp.status_code == 200:
+                                total_len = int(resp.headers.get("content-length") or 0)
+                                est_len = total_len if total_len > 0 else (5 * 1024 * 1024)
+                                downloaded = 0
+                                with open(target_zip, "wb") as f:
+                                    for chunk in resp.iter_content(chunk_size=262144):
+                                        if self.current_room_id != room_id:
+                                            return
+                                        if chunk:
+                                            f.write(chunk)
+                                            downloaded += len(chunk)
+                                            ratio = min(1.0, downloaded / max(1, est_len))
+                                            pct = min(25, max(last_pct, int(ratio * 20) + 5))
+                                            if pct != last_pct:
+                                                last_pct = pct
+                                                self.update_member_progress(
+                                                    f"下載整合包: {pct}%",
+                                                    pct,
+                                                    deploy_status="downloading",
+                                                    force_sync=False
+                                                )
+                                if target_zip.exists() and target_zip.stat().st_size > 0 and (total_len == 0 or target_zip.stat().st_size >= total_len):
+                                    dl_ok = True
+                                    break
+                                else:
+                                    last_dl_err = "下載檔案不完整"
+                            else:
+                                last_dl_err = f"HTTP {resp.status_code}"
+                    except Exception as de:
+                        last_dl_err = str(de)
+                        logger.warning(f"[PARTY] 單檔整合包第 {attempt} 次下載異常: {de}")
+                    time.sleep(0.8 * attempt)
 
+                if dl_ok:
                     # 🚀 下載完畢，進入全自動一鍵安裝流程
                     self._execute_party_one_click_install(room_id, app_id, str(target_zip))
                     return
                 else:
-                    err_msg = f"下載整合包失敗 (HTTP {resp.status_code})"
+                    err_msg = f"下載整合包失敗 ({last_dl_err})"
                     report_party_error("下載整合包失敗", err_msg, context=f"房間 #{room_id} AppID {app_id}")
-                    self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=err_msg)
+                    self.update_member_progress("未下載", 0, deploy_status="failed", deploy_error=err_msg, force_sync=True)
                     return
             else:
                 err_msg = f"房間配給的下載鏈結無效或協議不受支援: {download_url[:30]}..."
