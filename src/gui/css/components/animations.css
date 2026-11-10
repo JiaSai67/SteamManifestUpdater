@@ -1,10 +1,19 @@
-/* ── 頂級絲滑硬體加速動畫系統（GPU 合成，零 Blur，零 CPU 重繪） ── */
-/* 卡片通用硬件加速與渲染隔離 */
+/* ── 頂級絲滑硬體加速動畫系統（單一合成層 + 視口智慧裁剪，零常駐 GPU/CPU 重繪） ── */
+/* 卡片基礎樣式隔離（移除永久 will-change 與 translateZ，避免數百張卡片各自升格獨立紋理層拖垮 GIF 背景合成） */
 .card {
-  will-change: transform, opacity;
-  transform: translateZ(0);
-  backface-visibility: hidden;
   contain: layout style;
+}
+
+/* 視口外卡片自動跳過排版、繪製與合成（展開下拉選單時自動解除裁剪，確保選單不截斷） */
+#glist:not(.list) .card:not(.menu-open):not(:has(.card-dd.show)),
+#results.browse-grid .card:not(.menu-open):not(:has(.card-dd.show)) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 148px;
+}
+#glist.list .card:not(.menu-open):not(:has(.card-dd.show)),
+#results:not(.browse-grid) .card:not(.menu-open):not(:has(.card-dd.show)) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 78px;
 }
 
 /* 卡片逐個入場（管理/搜尋/DLC 通用：自然微位移彈入，前 16 張輕盈錯開，最大延遲 0.28s） */
@@ -15,11 +24,11 @@
 @keyframes cardIn {
   from {
     opacity: 0;
-    transform: translateY(12px) translateZ(0);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) translateZ(0);
+    transform: translateY(0);
   }
 }
 
@@ -31,27 +40,25 @@
 @keyframes browseSmoothIn {
   0% {
     opacity: 0;
-    transform: translateY(14px) scale(0.97) translateZ(0);
+    transform: translateY(14px) scale(0.97);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1) translateZ(0);
+    transform: translateY(0) scale(1);
   }
 }
 
-/* 圖片平滑淡入加載（移除一切 filter: blur 濾鏡，僅走 GPU 透明度通道） */
-.card img {
+/* 遊戲封面平滑淡入加載（嚴格限定直屬封面圖，杜絕污染數百個 .corner-tag-img 小角標觸發無限呼吸動畫） */
+.card > img:not(.corner-tag-img) {
   opacity: 0;
   transition: opacity .25s cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: opacity;
-  transform: translateZ(0);
 }
-.card img.i-ok {
+.card > img.i-ok:not(.corner-tag-img) {
   opacity: 1;
 }
 
-/* 圖片載入佔位：GPU 呼吸脈衝（杜絕 linear-gradient 的 background-position 重繪，CPU 負載降為 0） */
-.card img:not(.i-ok) {
+/* 封面載入佔位：GPU 呼吸脈衝（載入完成或失敗加掛 .i-ok 後立即停止動畫，0 常駐負載） */
+.card > img:not(.i-ok):not(.corner-tag-img) {
   background: rgba(255, 255, 255, 0.08);
   animation: gpuPulse 1.4s ease-in-out infinite alternate;
 }

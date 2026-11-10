@@ -124,17 +124,75 @@ class SettingsHandler:
         """開啟指定遊戲或全域存檔資料夾 (功能已停用)"""
         return False
 
-    def get_bg_thumbnails(self) -> List[Dict[str, Any]]:
-        """取得可用自訂背景清單 (支援 JPG/PNG/WEBP/GIF 動圖)"""
-        bgs_dir = Path("data/backgrounds")
+    def _get_backgrounds_dir(self) -> Path:
+        """取得標準化背景圖片儲存目錄"""
+        bgs_dir = config_manager.get_storage_dir() / "backgrounds"
         bgs_dir.mkdir(parents=True, exist_ok=True)
+        return bgs_dir
+
+    @staticmethod
+    def _path_to_safe_uri(p: Path) -> str:
+        """將本機路徑轉為安全跳脫括號/單引號之 file:// URI (附帶 mtime 版本號供快取失效識別)"""
+        resolved = p.resolve()
+        mtime_tag = int(resolved.stat().st_mtime)
+        safe_uri = (
+            resolved.as_uri()
+            .replace("(", "%28")
+            .replace(")", "%29")
+            .replace("'", "%27")
+        )
+        return f"{safe_uri}?v={mtime_tag}"
+
+    def _resolve_bg_file(self, name: str) -> Optional[Path]:
+        """解析自訂背景實體檔案路徑"""
+        if not name:
+            return None
+        p = self._get_backgrounds_dir() / name
+        if p.exists() and p.is_file():
+            return p
+        p_rel = Path("data/backgrounds") / name
+        if p_rel.exists() and p_rel.is_file():
+            return p_rel
+        return None
+
+    def get_bg_thumb_uri(self, name: str) -> str:
+        """取得設定頁專用的高畫質靜態首幀縮圖 URI (杜絕設定頁重複解碼與播放數 MB 的動態 GIF，同時維持高解析銳利預覽)"""
+        p = self._resolve_bg_file(name)
+        if p is None:
+            return ""
+        try:
+            import hashlib
+            from PIL import Image
+
+            thumbs_dir = self._get_backgrounds_dir() / ".thumbs"
+            thumbs_dir.mkdir(parents=True, exist_ok=True)
+            st = p.stat()
+            name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+            ver_hash = hashlib.sha1(f"{name}:{st.st_mtime_ns}:{st.st_size}".encode("utf-8")).hexdigest()[:10]
+            thumb_path = thumbs_dir / f"{name_hash}_{ver_hash}_hq.webp"
+
+            if not thumb_path.exists():
+                with Image.open(p) as im:
+                    im.seek(0)
+                    frame = im.convert("RGBA")
+                    frame.thumbnail((320, 320), Image.Resampling.LANCZOS)
+                    tmp_path = thumbs_dir / f"{name_hash}_{ver_hash}_hq.tmp.webp"
+                    frame.save(tmp_path, format="WEBP", quality=95, method=4)
+                    tmp_path.replace(thumb_path)
+
+            return self._path_to_safe_uri(thumb_path)
+        except Exception:
+            return self.get_bg_data(name)
+
+    def get_bg_thumbnails(self) -> List[Dict[str, Any]]:
+        """取得可用自訂背景清單 (支援 JPG/PNG/WEBP/GIF 動圖，縮圖採用靜態首幀 WebP)"""
+        bgs_dir = self._get_backgrounds_dir()
         res = []
         for f in bgs_dir.glob("*.*"):
-            if f.suffix.lower() in [".jpg", ".png", ".jpeg", ".webp", ".gif"]:
-                data_url = self.get_bg_data(f.name)
+            if f.is_file() and f.suffix.lower() in [".jpg", ".png", ".jpeg", ".webp", ".gif"]:
                 res.append({
                     "id": f.name,
-                    "thumb": data_url
+                    "thumb": self.get_bg_thumb_uri(f.name)
                 })
         return res
 
@@ -145,25 +203,38 @@ class SettingsHandler:
             if "," in b64_data:
                 b64_data = b64_data.split(",", 1)[1]
             raw = base64.b64decode(b64_data)
-            bgs_dir = Path("data/backgrounds")
-            bgs_dir.mkdir(parents=True, exist_ok=True)
+            bgs_dir = self._get_backgrounds_dir()
             p = bgs_dir / name
             with open(p, "wb") as f:
                 f.write(raw)
             return {
                 "id": name,
-                "thumb": self.get_bg_data(name)
+                "thumb": self.get_bg_thumb_uri(name)
             }
         except Exception:
             return None
 
     def remove_bg(self, name: str) -> bool:
-        """移除自訂背景"""
-        p = Path("data/backgrounds") / name
+        """移除自訂背景並同步清理預烘焙模糊與縮圖快取"""
+        p = self._get_backgrounds_dir() / name
+        removed = False
         if p.exists():
             p.unlink()
-            return True
-        return False
+            removed = True
+        try:
+            import hashlib
+            name_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+            for sub in (".thumbs", ".cache"):
+                d = self._get_backgrounds_dir() / sub
+                if d.exists():
+                    for cf in d.glob(f"{name_hash}_*"):
+                        try:
+                            cf.unlink()
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+        return removed
 
     def restore_default_bgs(self) -> bool:
         """恢復預設背景"""
@@ -341,18 +412,31 @@ class SettingsHandler:
         return {"ok": True}
 
     def get_bg_data(self, name: str) -> str:
-        """讀取自訂背景檔案資料 (支援 GIF 動圖完整 Data URL)"""
-        p = Path("data/backgrounds") / name
-        if not p.exists(): return ""
-        try:
-            import base64
-            ext = p.suffix.lower().lstrip(".")
-            mime = "image/gif" if ext == "gif" else (f"image/{ext}" if ext in ["png", "webp"] else "image/jpeg")
-            raw = p.read_bytes()
-            b64 = base64.b64encode(raw).decode("ascii")
-            return f"data:{mime};base64,{b64}"
-        except Exception:
+        """讀取自訂背景檔案 URI (優先使用零拷貝 file:// 直連 URI，消除數 MB 巨型 Base64 IPC 與雙重解碼開銷)"""
+        p = self._resolve_bg_file(name)
+        if p is None:
             return ""
+        try:
+            return self._path_to_safe_uri(p)
+        except Exception:
+            try:
+                import base64
+                ext = p.suffix.lower().lstrip(".")
+                mime = "image/gif" if ext == "gif" else (f"image/{ext}" if ext in ["png", "webp"] else "image/jpeg")
+                raw = p.read_bytes()
+                b64 = base64.b64encode(raw).decode("ascii")
+                return f"data:{mime};base64,{b64}"
+            except Exception:
+                return ""
+
+    def get_rendered_bg(self, name: str, blur: int = 0) -> Dict[str, Any]:
+        """
+        取得 100% 原始無損高畫質背景 file:// 直連 URI：
+        不做任何降解析度或有損二次壓縮，完整保留原圖銳利度與色彩漸層，
+        並將模糊效果交由開啟 GPU Zero-Copy 之原生 32-bit 著色器處理。
+        """
+        raw_uri = self.get_bg_data(name)
+        return {"uri": raw_uri, "preblurred": False, "raw_uri": raw_uri}
 
     def install_default_bgs(self, force: bool = False) -> bool:
         """安裝預設背景"""

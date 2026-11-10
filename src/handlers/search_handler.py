@@ -115,6 +115,20 @@ class SearchHandler:
                 except Exception:
                     name = f"App_{q}"
 
+            # 若 Steam API 未回傳名稱或圖片，可透過 HubcapDB 0 配額免費搜尋端點兜底補全
+            if not name or name == "未知遊戲" or name.startswith("App_"):
+                try:
+                    from managers import hubcap_manager
+                    hc_search = hubcap_manager.search_hubcap_games(q, by_appid=True, limit=5, timeout=4)
+                    if hc_search.get("ok") and hc_search.get("results"):
+                        first_hit = hc_search["results"][0]
+                        if first_hit.get("game_name"):
+                            name = str(first_hit["game_name"]).strip()
+                        if not img_from_api and first_hit.get("header_image"):
+                            img_from_api = str(first_hit["header_image"]).strip()
+                except Exception:
+                    pass
+
             return [{
                 "appid": q,
                 "name": sanitize_game_name(name, q),
@@ -427,8 +441,8 @@ class SearchHandler:
             if d_str and d_str.isdigit() and d_str not in real_depots:
                 real_depots.append(d_str)
 
-        # a. 若 appid_str 本身在 SteamDB / Ryuu / 本地中存在實體 Manifest，則置頂首位
-        if (appid_str in steamdb_manifests or appid_str in ryuu_depots or str(declared_dict.get(appid_str, "0")) != "0"):
+        # a. 若 appid_str 本身在 SteamDB / Ryuu / HubcapDB / 本地中存在實體 Manifest，則置頂首位
+        if (appid_str in steamdb_manifests or appid_str in ryuu_depots or appid_str in hubcap_depots or str(declared_dict.get(appid_str, "0")) != "0"):
             add_real(appid_str)
 
         # b. SteamDB 官方包含之 Depots
@@ -445,12 +459,18 @@ class SearchHandler:
             valid_active_depots.add(str(dlc_id).strip())
         for dep_id in ryuu_info.get("depot_dlc_map", {}).keys():
             valid_active_depots.add(str(dep_id).strip())
+        for d in hubcap_depots:
+            valid_active_depots.add(str(d).strip())
 
-        # c. Ryuu / 雲端實體在庫 Depots (排除本地未宣告且官方已除名的孤立過期檔案)
+        # c. Ryuu / HubcapDB 雲端實體在庫 Depots (排除本地未宣告且官方已除名的孤立過期檔案)
         for d in ryuu_depots:
             d_s = str(d).strip()
             if d_s in valid_active_depots or d_s in declared_dict:
                 add_real(d_s)
+
+        for d in hubcap_depots:
+            d_s = str(d).strip()
+            add_real(d_s)
 
         for b_name, b_val in ryuu_branches.items():
             if isinstance(b_val, dict):
@@ -599,17 +619,21 @@ class SearchHandler:
         zg_info = web_patches.get("zeigames", {})
         _push_step(96, "聚合多域數據與版本鏈對齊完成...", "各平台數據校準完畢，即將揭曉詳細資訊", 7)
 
-        # 🌟 e. HubcapDB 狀態（嚴格只讀本地快取與配額，絕不自動扣除額度）
+        # 🌟 e. HubcapDB 狀態（使用官方 free: true 之 /contents 純查詢端點，0 配額消耗即時檢測）
         from managers import hubcap_manager
         hc_key = hubcap_manager.get_api_key()
-        hc_cached = hubcap_manager._load_hubcap_cached_info(appid_str)
         hc_stats = hubcap_manager.fetch_user_stats() if hc_key else {}
+        hc_avail = bool(hubcap_info.get("available") and hubcap_depots)
         hubcap_status = {
             "is_configured": bool(hc_key),
+            "checked": bool(hc_key),
+            "available": hc_avail,
             "quota_exhausted": bool(hc_stats and not hc_stats.get("can_make_requests", True)),
             "remaining": hc_stats.get("remaining", 0) if hc_stats else 0,
-            "has_cache": bool(hc_cached and hc_cached.get("depots")),
-            "depots": hc_cached.get("depots", {}) if hc_cached else {},
+            "has_cache": hc_avail,
+            "depots": hubcap_depots if hc_avail else {},
+            "is_aligned_steamdb": bool(hubcap_info.get("is_aligned_steamdb", False)),
+            "time": hubcap_info.get("time", ""),
             "source": "HubcapDB"
         }
 
@@ -632,6 +656,7 @@ class SearchHandler:
             if not sdb_gid:
                 sdb_gid = ryuu_info.get("steamdb_target", {}).get(did_str) or ryuu_branches.get("public", {}).get("depots", {}).get(did_str)
             cur_ryuu_gid = ryuu_depots.get(did_str)
+            cur_hubcap_gid = hubcap_depots.get(did_str)
 
             dep_info = topo.get("deprecated_depots", {}).get(did_str, {})
             is_deprecated = bool(dep_info)
@@ -659,7 +684,7 @@ class SearchHandler:
             depot_history = []
             seen_gids = set()
 
-            real_latest_gid = str(sdb_gid or cur_ryuu_gid or "").strip()
+            real_latest_gid = str(sdb_gid or cur_ryuu_gid or cur_hubcap_gid or "").strip()
 
             # 判斷本地是否已與 SteamDB / 線上官方最新對齊
             is_local_aligned = bool(real_latest_gid and mid_str and str(mid_str) == real_latest_gid)
@@ -809,9 +834,11 @@ class SearchHandler:
                             })
                             seen_gids.add(b_gid)
 
-            # C. 補充 SteamDB 官方即時最新版本 (若不在清單中)
+            # C. 補充 SteamDB 官方即時最新版本或 HubcapDB 最新版本 (若不在清單中)
             if sdb_gid and str(sdb_gid) not in seen_gids:
                 is_sdb_in_ryuu = bool(ryuu_has_this_depot and str(cur_ryuu_gid) == str(sdb_gid))
+                is_sdb_in_hubcap = bool(cur_hubcap_gid and str(cur_hubcap_gid) == str(sdb_gid))
+                is_sdb_online = is_sdb_in_ryuu or is_sdb_in_hubcap
                 if is_local_aligned:
                     depot_history.insert(0, {
                         "manifest_id": str(sdb_gid),
@@ -822,13 +849,14 @@ class SearchHandler:
                         "tag": "💾 本地當前版本 (官方最新)",
                         "is_official": True
                     })
-                elif is_sdb_in_ryuu:
+                elif is_sdb_online:
                     depot_has_update = True
                     any_depot_has_real_update = True
+                    online_note = " (HubcapDB)" if (is_sdb_in_hubcap and not is_sdb_in_ryuu) else ""
                     depot_history.insert(0, {
                         "manifest_id": str(sdb_gid),
                         "date": steamdb_date_fmt,
-                        "meta": f"{steamdb_date_fmt}．SteamDB 官方最新",
+                        "meta": f"{steamdb_date_fmt}．SteamDB 官方最新{online_note}",
                         "is_current": False,
                         "is_pending": True,
                         "tag": "⚡ 可更新至官方最新",
@@ -845,6 +873,23 @@ class SearchHandler:
                         "is_official": True
                     })
                 seen_gids.add(str(sdb_gid))
+
+            if cur_hubcap_gid and str(cur_hubcap_gid) not in seen_gids:
+                is_hc_cur = bool(mid_str and str(mid_str) == str(cur_hubcap_gid))
+                can_hc_up = bool(not is_hc_cur and not is_deprecated)
+                if can_hc_up:
+                    depot_has_update = True
+                    any_depot_has_real_update = True
+                depot_history.append({
+                    "manifest_id": str(cur_hubcap_gid),
+                    "date": steamdb_date_fmt,
+                    "meta": f"HubcapDB 平台．在庫版本",
+                    "is_current": is_hc_cur,
+                    "is_pending": can_hc_up,
+                    "tag": "💾 本地當前版本 (HubcapDB)" if is_hc_cur else "⚡ 可更新 (HubcapDB 在庫)",
+                    "is_official": True
+                })
+                seen_gids.add(str(cur_hubcap_gid))
 
             # D. 補充本地當前版本 (若本地為舊版且尚未加入清單)
             if mid_str and str(mid_str) not in seen_gids:
@@ -999,19 +1044,30 @@ class SearchHandler:
                 except Exception:
                     version_date_str = raw_date
 
-            # 查詢 Ryuu / LuaTools 聚合來源 (給予充裕的 6 秒連線超時)
-            search_res = self._unified_mgr.search_all_sources(appid_str, timeout=6, steamdb_manifests=sdb_manifests)
+            # 查詢 Ryuu / HubcapDB / LuaTools 聚合來源 (皆為 0 配額消耗之純查詢端點)
+            search_res = self._unified_mgr.search_all_sources(
+                appid_str, timeout=6, steamdb_manifests=sdb_manifests, allow_hubcap_network=True
+            )
             best_source = search_res.get("best_source", "none")
             ryuu_data = search_res.get("ryuu", {})
             ryuu_depots = ryuu_data.get("depots", {})
+            hubcap_data = search_res.get("hubcap", {})
+            hubcap_depots = hubcap_data.get("depots", {})
             luatools_data = search_res.get("luatools", {})
 
-            # 🌟 正確性核心：只要 Ryuu / LuaTools / GDrive 補丁庫 / 本地 任一有資料，即判定為支援
-            if (best_source != "none" and ryuu_depots) or ryuu_data.get("available") or luatools_data.get("available") or has_patch or is_installed:
+            # 🌟 正確性核心：只要 Ryuu / HubcapDB / LuaTools / GDrive 補丁庫 / 本地 任一有資料，即判定為支援
+            if (
+                (best_source != "none" and (ryuu_depots or hubcap_depots))
+                or ryuu_data.get("available")
+                or hubcap_data.get("available")
+                or luatools_data.get("available")
+                or has_patch
+                or is_installed
+            ):
                 has_manifest = True
 
             if not version_date_str:
-                r_time = ryuu_data.get("time", "")
+                r_time = ryuu_data.get("time", "") or hubcap_data.get("last_modified", "")
                 if r_time and "T" in r_time:
                     try:
                         dt = datetime.fromisoformat(r_time)
@@ -1191,8 +1247,9 @@ class SearchHandler:
 
     def query_hubcap_manually(self, appid: str) -> Dict[str, Any]:
         """
-        供使用者在遊戲詳情頁面明確點擊「手動查詢」時觸發。
-        ⚠️ 僅在手動點擊時發送聯網請求，允許消耗 1 次 Hubcap 每日配額。
+        供使用者在遊戲詳情頁面點擊查詢時觸發。
+        🌟 採用 HubcapDB 官方免費純查詢端點 (/api/v1/manifest/{appid}/contents)，
+        100% 零配額消耗，不扣每日 25 次下載額度！
         """
         try:
             from managers import hubcap_manager
@@ -1200,36 +1257,25 @@ class SearchHandler:
             if not hubcap_manager.get_api_key():
                 return {"ok": False, "error": "尚未設定 Hubcap API Key，請至憑證頁面綁定"}
 
-            stats = hubcap_manager.fetch_user_stats(force_refresh=True)
-            if not stats.get("can_make_requests", True):
-                return {
-                    "ok": False,
-                    "error": "HubcapDB 今日配額已達上限 (25/25 次)，請明日重置後再試",
-                    "quota_exhausted": True
-                }
+            stats = hubcap_manager.fetch_user_stats(force_refresh=False)
 
-            # 聯網查詢 (允許扣額度)
-            info = hubcap_manager.query_manifest_info(appid_str, timeout=12)
+            # 聯網純查詢 (0 配額消耗，強制跳過短期快取以取得最新收錄狀態)
+            info = hubcap_manager.query_manifest_info(appid_str, timeout=12, use_cache=False)
             if info.get("available") and info.get("depots"):
                 return {
                     "ok": True,
                     "available": True,
                     "depots": info.get("depots", {}),
                     "source": "HubcapDB",
-                    "remaining": stats.get("remaining", 0)
-                }
-            elif info.get("quota_exhausted"):
-                return {
-                    "ok": False,
-                    "error": "HubcapDB 今日配額已達上限 (25/25 次)",
-                    "quota_exhausted": True
+                    "remaining": stats.get("remaining", 0) if stats else 0
                 }
             else:
                 return {
                     "ok": True,
                     "available": False,
                     "depots": {},
-                    "msg": "HubcapDB 尚未收錄此遊戲之 Manifest"
+                    "msg": "HubcapDB 尚未收錄此遊戲之 Manifest",
+                    "remaining": stats.get("remaining", 0) if stats else 0
                 }
         except Exception as e:
             return {"ok": False, "error": str(e)}

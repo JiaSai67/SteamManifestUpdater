@@ -14,8 +14,8 @@ _src_dir = Path(__file__).resolve().parent
 if str(_src_dir) not in sys.path:
     sys.path.insert(0, str(_src_dir))
 
-VERSION = "2.0.8"
-__version__ = "2.0.8"
+VERSION = "2.0.9"
+__version__ = "2.0.9"
 
 # 註冊專屬 Windows AppUserModelID (杜絕任務欄 Python 預設圖標)
 if sys.platform == "win32":
@@ -28,6 +28,24 @@ if sys.platform == "win32":
 
 def launch_modern_gui():
     """啟動現代化櫻花流光 Webview 介面"""
+    # 🌟 WebView2 硬體合成與低 CPU 資源優化旗標：
+    # 1. 強制啟用 GPU 光柵化與 Zero-Copy 紋理合成，避免動態 GIF 與模糊退回 CPU 軟解
+    # 2. 關閉 Edge WebView2 不必要的背景服務 (SmartScreen / 翻譯 / 預備渲染器 / 媒體路由)
+    # 3. 限制閒置子進程數量，大幅降低 WebView2 Manager 常駐 CPU 與記憶體佔用
+    _wv2_perf_flags = (
+        "--enable-gpu-rasterization "
+        "--enable-zero-copy "
+        "--force-gpu-mem-available-mb=1024 "
+        "--disable-background-networking "
+        "--renderer-process-limit=2 "
+        "--disable-features=ElasticOverscroll,msSmartScreenProtection,TranslateUI,SpareRendererForSitePerProcess,BackForwardCache,MediaRouter,OptimizationHints"
+    )
+    existing_wv2_args = os.environ.get("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "").strip()
+    if "msSmartScreenProtection" not in existing_wv2_args:
+        os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
+            f"{existing_wv2_args} {_wv2_perf_flags}".strip() if existing_wv2_args else _wv2_perf_flags
+        )
+
     import webview
     from web_api import WebApi
 

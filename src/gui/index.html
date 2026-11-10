@@ -29,13 +29,13 @@
   <!-- 🌟 SMU 全新模組化樣式體系：主題/基礎/元件/視圖徹底分離架構 -->
   <link rel="stylesheet" href="css/themes/theme_variables.css">
   <link rel="stylesheet" href="css/base/reset.css">
-  <link rel="stylesheet" href="css/base/layout.css">
+  <link rel="stylesheet" href="css/base/layout.css?v=20261108_wv2_hq">
   <link rel="stylesheet" href="css/themes/theme_light.css">
   <link rel="stylesheet" href="css/themes/theme_dark.css">
-  <link rel="stylesheet" href="css/components/animations.css">
+  <link rel="stylesheet" href="css/components/animations.css?v=20261108_wv2_perf">
   <link rel="stylesheet" href="css/components/buttons.css">
   <link rel="stylesheet" href="css/components/inputs.css">
-  <link rel="stylesheet" href="css/components/cards.css">
+  <link rel="stylesheet" href="css/components/cards.css?v=20261108_wv2_perf">
   <link rel="stylesheet" href="css/components/modals.css">
   <link rel="stylesheet" href="css/components/splash.css">
   <link rel="stylesheet" href="css/views/search.css">
@@ -124,7 +124,7 @@
 </div>
 <div class="app-bg-layer" id="app-bg-layer"><div class="app-bg-img" id="app-bg-img"></div><div class="app-bg-overlay" id="app-bg-overlay"></div></div>
 <div class="rsz" id="rsz"><i class="rn" data-side="n"></i><i class="rs" data-side="s"></i><i class="re" data-side="e"></i><i class="rw" data-side="w"></i><i class="rne" data-side="ne"></i><i class="rnw" data-side="nw"></i><i class="rse" data-side="se"></i><i class="rsw" data-side="sw"></i></div>
-<div class="titlebar" id="titlebar"><span class="tt" id="ttl">Steam 入庫與清單更新工具 (多源極速版) v2.0.8 極速版</span><div class="btns no-drag"><button class="no-drag" onclick="pywebview.api.minimize()">─</button><button class="no-drag" onclick="pywebview.api.maximize()">□</button><button class="bc no-drag" onclick="pywebview.api.close()">✕</button></div></div>
+<div class="titlebar" id="titlebar"><span class="tt" id="ttl">Steam 入庫與清單更新工具 (多源極速版) v2.0.9 極速版</span><div class="btns no-drag"><button class="no-drag" onclick="pywebview.api.minimize()">─</button><button class="no-drag" onclick="pywebview.api.maximize()">□</button><button class="bc no-drag" onclick="pywebview.api.close()">✕</button></div></div>
 <div class="body-row">
 
 <div class="sidebar">
@@ -848,7 +848,7 @@
 <!-- 📄 View: about.html -->
 <div class="page" id="p-about">
 <h2>🌸 Steam 入庫與清單更新工具 (多源極速版)</h2>
-<div style="font-size:12px;font-weight:600;color:var(--pink-deep);margin-bottom:2px" id="ver">v2.0.8 極速版</div>
+<div style="font-size:12px;font-weight:600;color:var(--pink-deep);margin-bottom:2px" id="ver">v2.0.9 極速版</div>
 <div class="about-card"><h4 style="color:var(--err)">⚠️ 注意事項</h4><p>D加密遊戲需要 D 加密授權<br>一般不支援聯網驗證的線上遊戲<br>一般不支援第三方平台驗證的遊戲（如 EA / Origin、Ubisoft Connect 等）</p></div>
 <div class="about-card"><h4>🔐 D加密 解決方法</h4><p>大部分 D 加密遊戲：正版帳號打開一次遊戲（購買後退款亦可）<br>虛擬機或使用專屬相容補丁（遊戲版本號需一致）</p></div>
 <div class="about-card"><h4>🖥️ 支援平台</h4><p>Windows 10 / Windows 11 (64-bit)</p></div>
@@ -1519,7 +1519,7 @@
       <div class="webhook-tutorial-badge">循環播放</div>
     </div>
     <div class="webhook-tutorial-video-wrap">
-      <video id="webhook-tutorial-video" src="assets/videos/webhook_setting.mp4" autoplay loop muted playsinline></video>
+      <video id="webhook-tutorial-video" src="assets/videos/webhook_setting.mp4" preload="none" loop muted playsinline></video>
     </div>
   </div>
 </div>
@@ -1667,7 +1667,7 @@
       </div>
     </div>
     <div class="webhook-tutorial-video-wrap">
-      <video id="fc-webhook-guide-video" src="assets/videos/webhook_setting.mp4" autoplay loop muted playsinline></video>
+      <video id="fc-webhook-guide-video" src="assets/videos/webhook_setting.mp4" preload="none" loop muted playsinline></video>
     </div>
     <div style="padding:12px 16px;font-size:12px;color:var(--gray);line-height:1.6;background:rgba(0,0,0,0.03);border-top:1px solid rgba(255,102,153,0.25)">
       💡 <strong>小提示</strong> 在 Discord 頻道右鍵 ➔ <strong>編輯頻道</strong> ➔ <strong>整合</strong> ➔ <strong>建立 Webhook</strong> 複製貼上即可（通過測試或產生代碼後會自動記憶保存）。
@@ -1675,20 +1675,20 @@
   </div>
 </div>
 
-<script src="js/core/utils.js"></script>
+<script src="js/core/utils.js?v=20261108_wv2_hq"></script>
 <script src="js/core/state.js"></script>
-<script src="js/core/downloader.js"></script>
-<script src="js/modules/search.js"></script>
-<script src="js/modules/game_detail.js"></script>
-<script src="js/modules/manage.js?v=20261013_update_fix_v21"></script>
-<script src="js/modules/credentials.js"></script>
+<script src="js/core/downloader.js?v=20261108_wv2_perf"></script>
+<script src="js/modules/search.js?v=20261108_wv2_perf"></script>
+<script src="js/modules/game_detail.js?v=20261108_wv2_perf"></script>
+<script src="js/modules/manage.js?v=20261108_wv2_perf"></script>
+<script src="js/modules/credentials.js?v=20261108_wv2_perf"></script>
 <script src="js/modules/friend_code.js?v=20261102_fc_v2"></script>
 <script src="js/modules/party_p2p.js"></script>
 <script src="js/modules/party.js?v=20261013_dual_theme_v19"></script>
 <script src="js/modules/startup_wizard.js"></script>
 <script src="js/modules/download_diag.js"></script>
 <script src="js/modules/more.js"></script>
-<script src="js/modules/settings.js"></script>
+<script src="js/modules/settings.js?v=20261108_wv2_hq"></script>
 <script src="js/modules/health_check.js"></script>
 <script src="js/modules/gdrive_status.js"></script>
 <!-- 模組化教學系統 (Tutorial Subsystem) -->
@@ -1703,7 +1703,7 @@
 <script src="js/modules/tutorial/leader_pipeline.js?v=20261013_modal_fix_v20"></script>
 <script src="js/modules/tutorial/steps_party_join.js?v=20261013_modal_fix_v20"></script>
 <script src="js/modules/tutorial/party_join_pipeline.js?v=20261013_modal_fix_v20"></script>
-<script src="js/modules/tutorial/steps_party_host.js?v=20261013_modal_fix_v20"></script>
+<script src="js/modules/tutorial/steps_party_host.js?v=20261108_wv2_perf"></script>
 <script src="js/modules/tutorial/party_host_pipeline.js?v=20261013_modal_fix_v20"></script>
 <script src="js/modules/tutorial/party_orb_overlay.js?v=20261013_modal_fix_v20"></script>
 <script src="js/modules/tutorial.js?v=20261013_modal_fix_v20"></script>

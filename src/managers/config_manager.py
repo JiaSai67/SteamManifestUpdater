@@ -52,15 +52,32 @@ DEFAULT_LUA_DIR = _get_default_lua_dir()
 DEFAULT_CLOUD_SAVE_DIR = _get_default_cloud_save_dir()
 
 _config = None
+_config_mtime = 0.0
 
 def get_config():
-    global _config
-    if _config is None:
-        if os.path.exists(CONFIG_FILE):
+    global _config, _config_mtime
+    disk_mtime = 0.0
+    file_exists = os.path.exists(CONFIG_FILE)
+    if file_exists:
+        try:
+            disk_mtime = os.path.getmtime(CONFIG_FILE)
+        except Exception:
+            disk_mtime = 0.0
+
+    # 🌟 支援跨進程即時熱重載 (例如無痕沙盒登入子進程寫入 hubcap_api_key 後主進程立即感知)
+    if _config is None or (file_exists and disk_mtime > _config_mtime):
+        if file_exists:
             try:
                 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    _config = json.load(f)
-            except:
+                    loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    if _config is None:
+                        _config = loaded
+                    else:
+                        _config.clear()
+                        _config.update(loaded)
+                    _config_mtime = disk_mtime
+            except Exception:
                 pass
         if _config is None:
             _config = {}
@@ -129,11 +146,13 @@ def get_config():
     return _config
 
 def save_config(config=None):
-    global _config
+    global _config, _config_mtime
     if config is not None:
         _config = config
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(_config, f, indent=4, ensure_ascii=False)
-    except:
+        if os.path.exists(CONFIG_FILE):
+            _config_mtime = os.path.getmtime(CONFIG_FILE)
+    except Exception:
         pass

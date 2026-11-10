@@ -115,15 +115,27 @@ function tt(msg, type, duration){
   e._t=setTimeout(function(){e.classList.remove('show')}, ms);
 }
 
-// 🌟 多源下載與備援即時進度監聽 (若 Ryuu 失敗，即刻顯示備援切換)
-window.onManifestProgress = function(appid, text){
+// 🌟 多源檢查、下載與備援即時進度監聽 (同步驅動「一鍵入庫」進度條與「管理入庫」更新狀態)
+window.onManifestProgress = function(appid, text, pct){
   try {
-    var card = document.querySelector('#glist .card[data-appid="'+appid+'"]') || document.querySelector('#results .card[data-appid="'+appid+'"]');
+    var aidStr = String(appid || '').trim();
+    if(!aidStr) return;
+
+    // 1. 若該遊戲正在執行「一鍵入庫」，將後端檢查項目與部署步驟即時同步顯示於卡片進度條上
+    if(window.Downloader && Downloader._installingGames && Downloader._installingGames[aidStr]){
+      var barPct = (typeof pct === 'number' && !isNaN(pct)) ? pct : 12;
+      if(window.updateCardProgress){
+        updateCardProgress(aidStr, barPct, text, false);
+      }
+    }
+
+    // 2. 更新「管理入庫」單卡更新覆蓋層文字
+    var card = document.querySelector('#glist .card[data-appid="'+aidStr+'"]') || document.querySelector('#results .card[data-appid="'+aidStr+'"]');
     if(card){
       var st = card.querySelector('.card-update-status');
       if(st) st.textContent = text;
     }
-    if(text.indexOf('⚠️') > -1 || text.indexOf('Ryuu 下載未果') > -1 || text.indexOf('Ryuu 失敗') > -1){
+    if(text && (text.indexOf('切換至') > -1 || text.indexOf('Ryuu 下載未果') > -1 || text.indexOf('Ryuu 失敗') > -1)){
       tt(text, 'wn', 3800);
     }
   } catch(e){}
@@ -156,8 +168,9 @@ function updateNames(updates){
     }
   } catch(e){}
 }
-// 圖片加載完成 → 淡入
-document.addEventListener('load', function(e){ if(e.target.tagName==='IMG'){ e.target.classList.add('i-ok'); } }, true);
+// 圖片加載完成或失敗 → 標記 .i-ok 以結束佔位呼吸動畫，避免失效圖片永久觸發 60fps 合成
+document.addEventListener('load', function(e){ if(e.target && e.target.tagName==='IMG'){ e.target.classList.add('i-ok'); } }, true);
+document.addEventListener('error', function(e){ if(e.target && e.target.tagName==='IMG'){ e.target.classList.add('i-ok'); } }, true);
 // 卡片入场動畫：给容器內的 .card 設 --i
 function staggerCards(container){
   var cards = container.querySelectorAll('.card'); if(!cards.length) return;
@@ -513,11 +526,10 @@ async function init(){
     setSplashProgress(36, '加載背景主題與視覺快取...', '載入自定義桌布、縮圖與網格排版快取', 3);
     await yieldToUI(80);
 
-    loadBgThumbs();
-    try { pywebview.api.install_default_bgs().then(loadBgThumbs).catch(function(){}); } catch(e){}
-    if(config && config.bg_active) swBg(config.bg_active);
-    else swBg('');
     initVisualSettings(config);
+    loadBgThumbs();
+    if(config && config.bg_active) swBg(config.bg_active, true);
+    else swBg('', true);
     var savedView = (config && config.view_mode) || 'grid';
     if(!savedView || savedView === 'undefined'){
       try { savedView = localStorage.getItem('view-mode') || 'grid'; } catch(e){}
@@ -748,13 +760,26 @@ async function init(){
       }).catch(function(){});
     }, 7500);
 
-    // 啟動定時配額保鮮 (每 15 秒僅在視窗可見且處於相關分頁時查詢)
+    // 視窗最小化或隱藏於背景時，自動凍結動態桌布與全體 CSS 動畫、暫停教學影片，使背景 CPU 降至 0%
+    function syncAppVisibilityFreeze(){
+      var hidden = (document.visibilityState === 'hidden');
+      document.documentElement.classList.toggle('app-hidden', hidden);
+      if(hidden){
+        document.querySelectorAll('video').forEach(function(v){
+          try { if(!v.paused) v.pause(); } catch(e){}
+        });
+      }
+    }
+    document.addEventListener('visibilitychange', syncAppVisibilityFreeze);
+    syncAppVisibilityFreeze();
+
+    // 啟動定時配額保鮮 (每 45 秒僅在視窗可見、聚焦且處於相關分頁時查詢)
     setInterval(function(){
-      if(document.visibilityState !== 'hidden'){
+      if(document.visibilityState === 'visible' && (!document.hasFocus || document.hasFocus())){
         if(_cur === 'credentials') loadCredentialsStatus(false);
         else if(_cur === 'manage') updateManageQuota();
       }
-    }, 15000);
+    }, 45000);
 
     window.addEventListener('focus', function(){
       if(_cur === 'credentials') loadCredentialsStatus(false);
@@ -980,13 +1005,30 @@ function setFontSize(size, isInitial){
   }
 }
 
-// ── 視覺調節（背景磨砂、圖片濃度、視窗透明度）──
+// ── 視覺調節（100% 原圖高畫質直連 + GPU 硬體模糊、圖片濃度、視窗透明度）──
+window._currentBgBlur = 0;
+window._currentBgId = '';
+var _bgBlurSaveTimer = null;
+var _bgOpSaveTimer = null;
+var _winOpSaveTimer = null;
+var _txtOpSaveTimer = null;
+
 function onBgBlurChange(v){
   var n = parseInt(v, 10) || 0;
+  window._currentBgBlur = n;
   var valEl = document.getElementById('val-bg-blur');
   if(valEl) valEl.textContent = n + ' px';
   document.documentElement.style.setProperty('--bg-blur', n + 'px');
-  try{ pywebview.api.set_config('bg_blur', n); }catch(e){}
+
+  var bgImg = document.getElementById('app-bg-img');
+  if(bgImg){
+    bgImg.classList.toggle('is-blurred', n > 0);
+  }
+
+  if(_bgBlurSaveTimer) clearTimeout(_bgBlurSaveTimer);
+  _bgBlurSaveTimer = setTimeout(function(){
+    try{ pywebview.api.set_config('bg_blur', n); }catch(e){}
+  }, 220);
 }
 
 function onBgOpacityChange(v){
@@ -995,7 +1037,10 @@ function onBgOpacityChange(v){
   var valEl = document.getElementById('val-bg-opacity');
   if(valEl) valEl.textContent = n + '%';
   document.documentElement.style.setProperty('--bg-opacity', (n / 100).toFixed(2));
-  try{ pywebview.api.set_config('bg_opacity', n); }catch(e){}
+  if(_bgOpSaveTimer) clearTimeout(_bgOpSaveTimer);
+  _bgOpSaveTimer = setTimeout(function(){
+    try{ pywebview.api.set_config('bg_opacity', n); }catch(e){}
+  }, 220);
 }
 
 function onWinOpacityChange(v){
@@ -1005,7 +1050,10 @@ function onWinOpacityChange(v){
   if(valEl) valEl.textContent = n + '%';
   document.documentElement.style.setProperty('--win-opacity', (n / 100).toFixed(2));
   try{ pywebview.api.set_window_opacity(n); }catch(e){}
-  try{ pywebview.api.set_config('win_opacity', n); }catch(e){}
+  if(_winOpSaveTimer) clearTimeout(_winOpSaveTimer);
+  _winOpSaveTimer = setTimeout(function(){
+    try{ pywebview.api.set_config('win_opacity', n); }catch(e){}
+  }, 220);
 }
 
 function updateCardTextBg(n){
@@ -1028,7 +1076,10 @@ function onTextBgOpacityChange(v){
   var valEl = document.getElementById('val-text-bg-opacity');
   if(valEl) valEl.textContent = n + '%';
   updateCardTextBg(n);
-  try{ pywebview.api.set_config('card_text_bg_opacity', n); }catch(e){}
+  if(_txtOpSaveTimer) clearTimeout(_txtOpSaveTimer);
+  _txtOpSaveTimer = setTimeout(function(){
+    try{ pywebview.api.set_config('card_text_bg_opacity', n); }catch(e){}
+  }, 220);
 }
 
 function initVisualSettings(cfg){
@@ -1038,10 +1089,11 @@ function initVisualSettings(cfg){
     try { fontSize = localStorage.getItem('ui_font_size') || 'normal'; } catch(e){ fontSize = 'normal'; }
   }
   setFontSize(fontSize, true);
-  var blur = (cfg.bg_blur !== undefined) ? parseInt(cfg.bg_blur, 10) : 0;
+  var blur = (cfg.bg_blur !== undefined) ? (parseInt(cfg.bg_blur, 10) || 0) : 0;
   var bop = (cfg.bg_opacity !== undefined) ? parseInt(cfg.bg_opacity, 10) : 80;
   var wop = (cfg.win_opacity !== undefined) ? parseInt(cfg.win_opacity, 10) : 100;
   var top = (cfg.card_text_bg_opacity !== undefined) ? parseInt(cfg.card_text_bg_opacity, 10) : 65;
+  window._currentBgBlur = blur;
   
   var slBlur = document.getElementById('slider-bg-blur');
   var slBop = document.getElementById('slider-bg-opacity');

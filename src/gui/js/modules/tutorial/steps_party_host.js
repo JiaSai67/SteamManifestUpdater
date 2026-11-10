@@ -169,12 +169,16 @@
     try {
       window._partyCurRoom = JSON.parse(JSON.stringify(_mockHostRoomData));
 
-      // 關閉創建彈窗
+      // 關閉創建彈窗並暫停背景教學影片解碼
       var modal = document.getElementById('modal-create-party-room');
       if (modal) {
         modal.style.display = 'none';
         modal.classList.add('hidden');
         modal.classList.remove('active');
+      }
+      var tutVideo = document.getElementById('webhook-tutorial-video');
+      if (tutVideo && !tutVideo.paused) {
+        try { tutVideo.pause(); } catch(e){}
       }
 
       // 強制切換真實視圖容器：隱藏大廳，顯示房間檢視

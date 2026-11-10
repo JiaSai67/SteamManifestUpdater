@@ -60,49 +60,48 @@ class UnifiedManifestManager:
             print(f"[UnifiedManifestManager] 獲取公共 DepotKeys 失敗: {e}")
             return {}
 
-    def _query_hubcap(self, appid: str, timeout: int = 6, allow_network: bool = False) -> Dict[str, Any]:
+    def _query_hubcap(self, appid: str, timeout: int = 6, allow_network: bool = True) -> Dict[str, Any]:
         """
-        查詢 HubcapDB 平台收錄狀態。
-        ⚠️ 核心安全規範：HubcapDB 沒有免費純查詢端點，每次聯網請求均計入每日 25 次配額！
-        因此在全庫自動檢查更新時，嚴格只讀取本地歷史快取 (allow_network=False)，
-        杜絕在背景批量輪詢時瞬間燒光使用者每日配額！
+        查詢 HubcapDB 平台收錄狀態（0 配額消耗）。
+        🌟 採用 HubcapDB 官方免費純查詢端點 GET /api/v1/manifest/{appid}/contents (free: true)，
+        直接獲取壓縮包內所有 Depot ID 與 Manifest GID，完全不下載 ZIP、絕不消耗每日 25 次配額！
         """
         try:
             from managers import hubcap_manager
             appid_str = str(appid).strip()
-            # 優先從本地磁碟快取讀取（0 消耗配額）
-            cached = hubcap_manager._load_hubcap_cached_info(appid_str)
-            if cached and cached.get("available") and cached.get("depots"):
-                return {
-                    "available": True,
-                    "depots": cached.get("depots", {}),
-                    "time": "本地快取",
-                    "is_aligned_steamdb": False,
-                    "has_zip": cached.get("has_zip", True),
-                    "quota_exhausted": False,
-                    "from_cache": True,
-                    "status_msg": "已讀取本地快取"
-                }
 
             if not allow_network:
-                # 自動全庫比對模式下，不聯網消耗 Hubcap 配額
+                cached = hubcap_manager._load_hubcap_cached_info(appid_str)
+                if cached and cached.get("available") and cached.get("depots"):
+                    return {
+                        "available": True,
+                        "depots": cached.get("depots", {}),
+                        "time": cached.get("time", "本地快取"),
+                        "last_modified": cached.get("last_modified", ""),
+                        "is_aligned_steamdb": False,
+                        "has_zip": cached.get("has_zip", True),
+                        "quota_exhausted": False,
+                        "from_cache": True,
+                        "status_msg": "已讀取本地快取"
+                    }
                 return {
                     "available": False,
                     "depots": {},
-                    "time": "未查詢 (節省配額)",
+                    "time": "未查詢",
                     "is_aligned_steamdb": False,
                     "has_zip": False,
                     "quota_exhausted": False,
                     "from_cache": False,
-                    "status_msg": "為保護每日配額，背景比對不主動消耗 Hubcap 額度"
+                    "status_msg": "僅讀取快取"
                 }
 
-            # 僅在使用者明確手動指定或允許聯網時發起網路請求
+            # 透過 0 配額免費端點 /api/v1/manifest/{appid}/contents 查詢 (內建 120s 短期快取)
             info = hubcap_manager.query_manifest_info(appid_str, timeout=timeout)
             return {
                 "available": bool(info.get("available") and info.get("depots")),
                 "depots": info.get("depots", {}) if info.get("available") else {},
                 "time": info.get("time", "即時在庫"),
+                "last_modified": info.get("last_modified", ""),
                 "is_aligned_steamdb": False,
                 "has_zip": info.get("has_zip", False),
                 "quota_exhausted": bool(info.get("quota_exhausted")),
@@ -122,10 +121,10 @@ class UnifiedManifestManager:
                 "status_msg": str(e)
             }
 
-    def search_all_sources(self, appid: str, timeout: int = 6, steamdb_manifests: Optional[Dict[str, str]] = None, allow_hubcap_network: bool = False) -> Dict[str, Any]:
+    def search_all_sources(self, appid: str, timeout: int = 6, steamdb_manifests: Optional[Dict[str, str]] = None, allow_hubcap_network: bool = True) -> Dict[str, Any]:
         """
         異步並行搜尋 Manifest 多源平台 (Ryuu, HubcapDB, Lua.tools)，並以 SteamDB 官方清單為基準仲裁。
-        並行執行大幅降低網路等待時間。
+        並行執行大幅降低網路等待時間，三平台查詢皆為 0 配額消耗之純查詢端點。
         """
         appid_str = str(appid).strip()
         result = {
@@ -169,9 +168,58 @@ class UnifiedManifestManager:
             except Exception as e:
                 print(f"[UnifiedManifestManager] Lua.tools 查詢異常: {e}")
 
-        # 3. 版本比對與優先級仲裁 (基於 SteamDB 官方數據)
-        self._arbitrate_best_source(result, steamdb_manifests=steamdb_manifests)
+        # 3. 讀取跨平台即時配額快照並執行版本+額度優先級仲裁
+        quota_snapshot = self.get_platforms_quota_snapshot()
+        self._arbitrate_best_source(result, steamdb_manifests=steamdb_manifests, quota_snapshot=quota_snapshot)
         return result
+
+    def get_platforms_quota_snapshot(self) -> Dict[str, Dict[str, Any]]:
+        """取得 Ryuu、Lua.tools 與 HubcapDB 三平台的即時可用配額與配置狀態快照 (0 配額消耗)"""
+        snapshot = {
+            "ryuu": {"left": 0, "limit": 0, "has_quota": False, "is_configured": False},
+            "luatools": {"left": 0, "limit": 0, "has_quota": False, "is_configured": False},
+            "hubcap": {"left": 0, "limit": 0, "has_quota": False, "is_configured": False}
+        }
+        try:
+            from managers import account_manager
+            mgr = account_manager.get_account_manager()
+            r_left, r_lim = mgr.get_total_remaining_quota("ryuu")
+            lt_left, lt_lim = mgr.get_total_remaining_quota("lua_tools")
+            snapshot["ryuu"] = {
+                "left": int(r_left),
+                "limit": int(r_lim),
+                "has_quota": int(r_left) > 0,
+                "is_configured": int(r_lim) > 0 or len(mgr.get_accounts("ryuu")) > 0
+            }
+            snapshot["luatools"] = {
+                "left": int(lt_left),
+                "limit": int(lt_lim),
+                "has_quota": int(lt_left) > 0,
+                "is_configured": int(lt_lim) > 0 or len(mgr.get_accounts("lua_tools")) > 0
+            }
+        except Exception as e:
+            print(f"[UnifiedManifestManager] 讀取 Ryuu/Lua.tools 配額快照異常: {e}")
+
+        try:
+            from managers import hubcap_manager, account_manager
+            hc_key = hubcap_manager.get_api_key() or account_manager.get_account_manager().get_any_hubcap_key()
+            if hc_key:
+                hc_stats = hubcap_manager.fetch_user_stats()
+                hc_ok = bool(hc_stats.get("ok") and not hc_stats.get("connection_error"))
+                hc_rem = int(hc_stats.get("remaining", 0)) if hc_ok else 0
+                hc_lim = int(hc_stats.get("daily_limit", 25) or 25) if hc_ok else 0
+                hc_can = bool(hc_stats.get("can_make_requests", True)) and hc_rem > 0 and hc_ok
+                snapshot["hubcap"] = {
+                    "left": hc_rem,
+                    "limit": hc_lim,
+                    "has_quota": hc_can,
+                    "is_configured": True,
+                    "is_valid": hc_ok
+                }
+        except Exception as e:
+            print(f"[UnifiedManifestManager] 讀取 HubcapDB 配額快照異常: {e}")
+
+        return snapshot
 
     def _log_manifest_check(self, message: str):
         """記錄 Manifest 查詢與網路比對診斷日誌到 logs/manifest_checks.log"""
@@ -402,121 +450,189 @@ class UnifiedManifestManager:
             data["connection_error"] = True
         return data
 
-    def _arbitrate_best_source(self, result: Dict[str, Any], steamdb_manifests: Optional[Dict[str, str]] = None):
+    def _arbitrate_best_source(self, result: Dict[str, Any], steamdb_manifests: Optional[Dict[str, str]] = None, quota_snapshot: Optional[Dict[str, Any]] = None):
         """
-        多源版本精準仲裁引擎 (以 SteamDB 官方數據為最高基準)：
-        1. 鎖定 Ryuu 庫內版本 與 HubcapDB 庫內版本
-        2. 比對各平台相對於 SteamDB 官方最新版 (Public 分支) 之吻合度與進度
-        3. 仲裁規則：
-           - 若 HubcapDB 吻合官方最新且 Ryuu 落後 -> 選擇 HubcapDB
-           - 若 Ryuu 吻合官方最新且 HubcapDB 落後 -> 選擇 Ryuu
-           - 若兩者版本進度持平 (均為官方最新，或均為同一歷史進度) -> 優先選擇 Ryuu (零額度消耗)
-           - 若兩者均未達最新，選擇吻合官方 Depots 數量更多或進度更接近最新者
+        多源版本與配額聯合仲裁引擎 (以 SteamDB 官方數據為版本基準，結合三平台即時配額)：
+        核心決策流程：
+        1. 檢查 Ryuu、Lua.tools、HubcapDB 的額度與版本。
+        2. Ryuu = Lua.tools（同源 Manifest 池）：
+           若版本為官方最新且額度充足 -> 優先使用 Ryuu，其次使用 Lua.tools。
+        3. 若 Ryuu = Lua.tools 版本並非最新，或兩者額度均不足：
+           經檢查發現 HubcapDB 版本更新（或在庫可用）且額度充足 -> 使用 HubcapDB。
+        4. 若使用者未配置 HubcapDB、或 HubcapDB 額度不足 / 未收錄 / 版本未更新，
+           而 Ryuu 或 Lua.tools 有可用版本與額度 -> 優先使用 Ryuu，其次 Lua.tools，並標記非最新版以給予友善提示（絕不拒絕入庫）。
         """
+        if quota_snapshot is None:
+            quota_snapshot = self.get_platforms_quota_snapshot()
+        result["quota_snapshot"] = quota_snapshot
+
+        r_q = quota_snapshot.get("ryuu", {})
+        lt_q = quota_snapshot.get("luatools", {})
+        hc_q = quota_snapshot.get("hubcap", {})
+
+        ryuu_has_quota = bool(r_q.get("has_quota"))
+        lt_has_quota = bool(lt_q.get("has_quota"))
+        hc_has_quota = bool(hc_q.get("has_quota"))
+
         official_depots = {}
         if steamdb_manifests and isinstance(steamdb_manifests, dict):
             official_depots = {str(k).strip(): str(v).strip() for k, v in steamdb_manifests.items() if str(k).strip()}
 
         ryuu = result.get("ryuu", {})
-        ryuu_ok = ryuu.get("available", False) and bool(ryuu.get("depots"))
+        ryuu_ok = bool(ryuu.get("available", False) and ryuu.get("depots"))
         ryuu_depots = {str(k).strip(): str(v).strip() for k, v in ryuu.get("depots", {}).items()}
 
+        luatools = result.get("luatools", {})
+        lt_ok = bool(luatools.get("available", False))
+        if lt_ok and ryuu_depots and not luatools.get("depots"):
+            luatools["depots"] = dict(ryuu_depots)
+
+        # Ryuu 與 Lua.tools 共享同一 Ryuu 來源池
+        ryuu_pool_ok = ryuu_ok or lt_ok
+
         hubcap = result.get("hubcap", {})
-        hubcap_ok = hubcap.get("available", False) and bool(hubcap.get("depots"))
+        hubcap_ok = bool(hubcap.get("available", False) and hubcap.get("depots"))
         hubcap_depots = {str(k).strip(): str(v).strip() for k, v in hubcap.get("depots", {}).items()}
 
-        # 1. 評估 Ryuu 與官方最新版對齊度
+        # 1. 評估 Ryuu (= Lua.tools) 與官方最新版對齊度
         ryuu_matches_steamdb = False
         ryuu_match_count = 0
-        if official_depots and ryuu_depots:
-            common_ryuu = [k for k in official_depots if k in ryuu_depots]
-            if common_ryuu:
-                ryuu_match_count = sum(1 for k in common_ryuu if ryuu_depots[k] == official_depots[k])
-                ryuu_matches_steamdb = (ryuu_match_count == len(official_depots))
+        if official_depots:
+            if ryuu_depots:
+                common_ryuu = [k for k in official_depots if k in ryuu_depots]
+                if common_ryuu:
+                    ryuu_match_count = sum(1 for k in common_ryuu if ryuu_depots[k] == official_depots[k])
+                    ryuu_matches_steamdb = (ryuu_match_count == len(official_depots))
+        else:
+            # 若無 SteamDB 官方基準可比對 (如未公開 Depot)，在庫即視為當前最新可用
+            ryuu_matches_steamdb = ryuu_pool_ok
 
         ryuu["is_aligned_steamdb"] = ryuu_matches_steamdb
         ryuu["matched_official_count"] = ryuu_match_count
+        luatools["is_aligned_steamdb"] = ryuu_matches_steamdb
+        luatools["matched_official_count"] = ryuu_match_count
 
-        # 2. 評估 HubcapDB 與官方最新版對齊度
+        # 2. 評估 HubcapDB 與官方最新版對齊度，以及是否比 Ryuu=Lua.tools 更新
         hubcap_matches_steamdb = False
         hubcap_match_count = 0
-        if official_depots and hubcap_depots:
-            common_hc = [k for k in official_depots if k in hubcap_depots]
-            if common_hc:
-                hubcap_match_count = sum(1 for k in common_hc if hubcap_depots[k] == official_depots[k])
-                hubcap_matches_steamdb = (hubcap_match_count == len(official_depots))
+        if official_depots:
+            if hubcap_depots:
+                common_hc = [k for k in official_depots if k in hubcap_depots]
+                if common_hc:
+                    hubcap_match_count = sum(1 for k in common_hc if hubcap_depots[k] == official_depots[k])
+                    hubcap_matches_steamdb = (hubcap_match_count == len(official_depots))
+        else:
+            hubcap_matches_steamdb = hubcap_ok
 
         hubcap["is_aligned_steamdb"] = hubcap_matches_steamdb
         hubcap["matched_official_count"] = hubcap_match_count
 
-        # 3. 多源仲裁裁決流程
-        # 規則 A：兩者均精確吻合官方最新（版本進度持平，均為最新版）
-        if ryuu_matches_steamdb and hubcap_matches_steamdb:
-            result["best_source"] = "ryuu"
-            result["best_reason"] = "Ryuu 與 HubcapDB 均同步官方最新版本（進度持平依規範優先採用 Ryuu 零配額通道）"
-        # 規則 B：只有 HubcapDB 精確吻合官方最新版（Ryuu 庫內版本落後）
-        elif hubcap_matches_steamdb and not ryuu_matches_steamdb:
-            result["best_source"] = "hubcap"
-            result["best_reason"] = "HubcapDB 已同步 SteamDB 官方最新版本（Ryuu 庫內版本落後）"
-        # 規則 C：只有 Ryuu 精確吻合官方最新版
-        elif ryuu_matches_steamdb and not hubcap_matches_steamdb:
-            result["best_source"] = "ryuu"
-            result["best_reason"] = "Ryuu 平台已同步 SteamDB 官方最新版本"
-        # 規則 D：兩者均未完全達到官方最新版（歷史版本比對）
-        elif ryuu_ok and hubcap_ok:
-            if hubcap_match_count > ryuu_match_count:
-                result["best_source"] = "hubcap"
-                result["best_reason"] = f"HubcapDB 版本進度領先（吻合官方 {hubcap_match_count}/{len(official_depots)} 個 Depot，優於 Ryuu {ryuu_match_count} 個）"
-            elif ryuu_match_count > hubcap_match_count:
-                result["best_source"] = "ryuu"
-                result["best_reason"] = f"Ryuu 版本進度領先（吻合官方 {ryuu_match_count}/{len(official_depots)} 個 Depot，優於 HubcapDB {hubcap_match_count} 個）"
-            else:
-                # 吻合度持平時，優先採用 Ryuu 節省配額
-                result["best_source"] = "ryuu"
-                result["best_reason"] = "Ryuu 與 HubcapDB 版本進度持平（優先採用 Ryuu 零配額通道）"
-        # 規則 E：僅單一來源收錄
-        elif hubcap_ok and not ryuu_ok:
-            result["best_source"] = "hubcap"
-            result["best_reason"] = "HubcapDB 收錄可用版本（Ryuu 未收錄）"
-        elif ryuu_ok and not hubcap_ok:
-            result["best_source"] = "ryuu"
-            if hubcap.get("quota_exhausted"):
-                result["best_reason"] = "Ryuu 庫內可用（HubcapDB 今日配額已滿 25/25，未能檢測最新包）"
-            else:
-                result["best_reason"] = "Ryuu 平台收錄可用版本"
-        # 規則 F：備援通道
-        elif result.get("luatools", {}).get("available"):
-            result["best_source"] = "luatools"
-            result["best_reason"] = "Lua.tools 收錄可用腳本"
-        else:
-            result["best_source"] = "none"
-            result["best_reason"] = "所有來源均無此遊戲 Manifest"
+        hubcap_is_newer = False
+        if hubcap_ok:
+            if not ryuu_pool_ok:
+                hubcap_is_newer = True
+            elif official_depots:
+                if hubcap_matches_steamdb and not ryuu_matches_steamdb:
+                    hubcap_is_newer = True
+                elif hubcap_match_count > ryuu_match_count:
+                    hubcap_is_newer = True
 
-        if hubcap.get("quota_exhausted"):
-            result["hubcap_status"] = "今日配額已達上限 (25/25)"
+        result["ryuu_is_latest"] = ryuu_matches_steamdb
+        result["hubcap_is_newer"] = hubcap_is_newer
+        result["expected_outdated"] = False
+
+        # 3. 依照多平台額度與版本優先級裁決
+        candidate_order = []
+        if ryuu_pool_ok and ryuu_matches_steamdb and (ryuu_has_quota or lt_has_quota):
+            # 🌟 分支 1：Ryuu = Lua.tools 版本為最新且額度充足 -> 優先 Ryuu，其次 Lua.tools
+            if ryuu_has_quota and ryuu_ok:
+                result["best_source"] = "ryuu"
+                result["best_reason"] = "Ryuu 版本為官方最新且額度充足（優先採用 Ryuu）"
+                candidate_order = ["ryuu", "luatools", "hubcap"]
+            else:
+                result["best_source"] = "luatools"
+                result["best_reason"] = "Ryuu=Lua.tools 版本為官方最新，Ryuu 額度不足，自動採用次選 Lua.tools"
+                candidate_order = ["luatools", "ryuu", "hubcap"]
+        else:
+            # 🌟 分支 2：Ryuu = Lua.tools 版本並非最新，或兩者額度均不足
+            if hubcap_ok and hc_has_quota and (hubcap_is_newer or (not ryuu_has_quota and not lt_has_quota)):
+                result["best_source"] = "hubcap"
+                if not ryuu_pool_ok:
+                    result["best_reason"] = "Ryuu 與 Lua.tools 尚未收錄，HubcapDB 在庫且額度充足，採用 HubcapDB"
+                elif hubcap_is_newer:
+                    result["best_reason"] = "Ryuu/Lua.tools 版本並非最新，經檢查 HubcapDB 版本更新且額度充足，採用 HubcapDB"
+                else:
+                    result["best_reason"] = "Ryuu 與 Lua.tools 額度不足，經檢查 HubcapDB 在庫且額度充足，採用 HubcapDB"
+                result["expected_outdated"] = bool(official_depots and not hubcap_matches_steamdb)
+                candidate_order = ["hubcap", "ryuu", "luatools"]
+            elif ryuu_pool_ok and (ryuu_has_quota or lt_has_quota):
+                # 使用者未設定 HubcapDB、HubcapDB 無額度或版本未更新 -> 不拒絕入庫，退回優先 Ryuu、其次 Lua.tools 並標記提示
+                result["expected_outdated"] = bool(official_depots and not ryuu_matches_steamdb)
+                if ryuu_has_quota and ryuu_ok:
+                    result["best_source"] = "ryuu"
+                    result["best_reason"] = "官方已有新版但目前無更新來源可用，優先採用 Ryuu 現有可用版本入庫"
+                    candidate_order = ["ryuu", "luatools", "hubcap"]
+                else:
+                    result["best_source"] = "luatools"
+                    result["best_reason"] = "官方已有新版且 Ryuu 額度不足，採用次選 Lua.tools 現有可用版本入庫"
+                    candidate_order = ["luatools", "ryuu", "hubcap"]
+            elif hubcap_ok and hc_has_quota:
+                result["best_source"] = "hubcap"
+                result["best_reason"] = "採用 HubcapDB 現有可用版本"
+                result["expected_outdated"] = bool(official_depots and not hubcap_matches_steamdb)
+                candidate_order = ["hubcap", "ryuu", "luatools"]
+            elif ryuu_ok:
+                result["best_source"] = "ryuu"
+                result["best_reason"] = "嘗試透過 Ryuu 通道獲取可用版本"
+                result["expected_outdated"] = bool(official_depots and not ryuu_matches_steamdb)
+                candidate_order = ["ryuu", "luatools", "hubcap"]
+            elif lt_ok:
+                result["best_source"] = "luatools"
+                result["best_reason"] = "嘗試透過 Lua.tools 通道獲取可用版本"
+                result["expected_outdated"] = bool(official_depots and not ryuu_matches_steamdb)
+                candidate_order = ["luatools", "ryuu", "hubcap"]
+            elif hubcap_ok:
+                result["best_source"] = "hubcap"
+                result["best_reason"] = "嘗試透過 HubcapDB 通道獲取可用版本"
+                result["expected_outdated"] = bool(official_depots and not hubcap_matches_steamdb)
+                candidate_order = ["hubcap", "ryuu", "luatools"]
+            else:
+                result["best_source"] = "none"
+                result["best_reason"] = "所有來源均無此遊戲 Manifest"
+                candidate_order = []
+
+        # 去重保持順序
+        dedup_order = []
+        for c in candidate_order:
+            if c not in dedup_order:
+                dedup_order.append(c)
+        result["candidate_order"] = dedup_order
+
+        if hubcap.get("quota_exhausted") or (hc_q.get("is_configured") and not hc_has_quota and hc_q.get("is_valid")):
+            result["hubcap_status"] = "今日配額已達上限 (0/25)"
         elif hubcap_ok:
             result["hubcap_status"] = "在庫可用"
         else:
-            result["hubcap_status"] = "未收錄或無回應"
+            result["hubcap_status"] = "未收錄或未配置"
 
-    def deploy_best_manifest(self, appid: str, search_result: Any = None, progress_cb: Optional[Callable[[str], None]] = None, logger: Optional[Any] = None, steam_path: Optional[str] = None) -> Tuple[bool, str]:
+    def deploy_best_manifest(self, appid: str, search_result: Any = None, progress_cb: Optional[Callable[[str], None]] = None, logger: Optional[Any] = None, steam_path: Optional[str] = None, is_install: bool = False) -> Tuple[bool, str]:
         """
-        【先校驗後下載之智慧更新引擎】
-        1. 前置校驗：先自檢本機 Lua 與 depotcache 實體檔案一致性 (Auto-heal)。
-        2. 差異判定：若本機實體檔案已是線上平台最高收錄版本，直接完成校準，立即阻斷下載流程 (0 額度消耗)。
-        3. 必要時下載：若本機確實落後於線上實體版本，才依優先級發起 Ryuu / Lua.tools 下載。
-        4. 下載後閉環驗證：確保 Lua 檔案 100% 同步。
+        【多平台配額與版本智慧仲裁部署引擎】
+        1. 前置校驗：自檢本機 Lua 與 depotcache 實體檔案一致性 (Auto-heal)。
+        2. 差異判定：若本機實體檔案已是當前可用最高版本，直接完成校準 (0 額度消耗)；若非官方最新版則給予提示、絕不拒絕入庫。
+        3. 優先級下載：嚴格依循仲裁順序 (Ryuu=Lua.tools 最新且有額度 -> Ryuu 優先、Lua.tools 次之；非最新或無額度且 Hubcap 更新且有額度 -> HubcapDB；否則退回可用版本並提示)。
+        4. 下載後閉環驗證：確保 Lua 檔案與實體 Manifest 100% 同步。
         """
         appid_str = str(appid).strip()
         if not appid_str or not appid_str.isdigit():
             if logger: logger.log_error("參數校驗", f"無效或未提供 AppID: '{appid}'")
             return False, f"無效或未提供 AppID: '{appid}'"
-        from managers import steam_manager
-        
+        from managers import steam_manager, version_resolver, hubcap_manager
+
         steam_p = steam_path or steam_manager.find_steam_path()
         if logger:
             logger.log_step("前置檢查", f"開始部署 AppID {appid_str}，Steam 路徑: {steam_p}")
-        
+
         # 參數彈性容錯：支援 search_result 為 callable 或 None
         if callable(search_result):
             progress_cb = search_result
@@ -525,36 +641,41 @@ class UnifiedManifestManager:
             if logger:
                 logger.log_step("多源搜尋", "未傳入搜尋結果，執行即時多源搜尋比對...")
             search_result = self.search_all_sources(appid_str)
-            
+
+        best_src = search_result.get("best_source", "ryuu")
         if logger:
-            best_src = search_result.get("best_source", "none")
-            logger.log_step("多源仲裁", f"多源仲裁最佳來源: {best_src}")
-        
+            logger.log_step("多源仲裁", f"最佳來源: {best_src}，候選順序: {search_result.get('candidate_order')}，依據: {search_result.get('best_reason')}")
+
         # 🌟 步驟 1：前置校驗 —— 本機 Lua 宣告與 depotcache 實體檔案自檢修復
         if progress_cb: progress_cb("正在校驗本機 Lua 宣告與實體 Manifest 檔案...")
         local_check = steam_manager.verify_and_sync_local_manifests(appid_str, steam_path=steam_p)
         local_manifests = local_check.get("lua_manifests", {})
         if logger:
             logger.log_step("本地自檢", f"本地宣告: {local_manifests}, 缺失清單: {local_check.get('missing_files', [])}")
-        
-        # 🌟 步驟 2：前置判定 —— 檢查本機是否已經等於線上最高版本且實體 .manifest 檔案完整存在
-        best_src = search_result.get("best_source", "ryuu")
+
+        # 🌟 步驟 2：前置判定 —— 檢查本機是否已經等於目標平台版本且實體 .manifest 檔案完整存在
         if best_src == "hubcap":
             target_depots = search_result.get("hubcap", {}).get("depots", {})
             target_source_info = search_result.get("hubcap", {})
         else:
-            target_depots = search_result.get("ryuu", {}).get("depots", {}) or search_result.get("hubcap", {}).get("depots", {})
-            target_source_info = search_result.get("ryuu", {}) or search_result.get("hubcap", {})
+            target_depots = search_result.get("ryuu", {}).get("depots", {}) or search_result.get("luatools", {}).get("depots", {}) or search_result.get("hubcap", {}).get("depots", {})
+            target_source_info = search_result.get("ryuu", {}) if search_result.get("ryuu", {}).get("available") else (search_result.get("luatools", {}) or search_result.get("hubcap", {}))
 
         missing_files = local_check.get("missing_files", [])
         is_synced = local_check.get("is_synced", False)
 
+        official_manifests = {}
+        try:
+            sdb_info = version_resolver.fetch_steamdb_manifests(appid_str, timeout=4)
+            official_manifests = sdb_info.get("manifests", {}) or {}
+        except Exception:
+            official_manifests = {}
+
         # 🌟 拓撲檢測：檢查是否存在已棄置 Depot 待遷移
-        from managers import version_resolver
         topo = version_resolver.identify_depot_topology(
             appid_str,
             local_manifests=local_manifests,
-            official_manifests=search_result.get("ryuu", {}).get("steamdb_target", {}) or target_depots,
+            official_manifests=official_manifests or search_result.get("ryuu", {}).get("steamdb_target", {}) or target_depots,
             ryuu_info=search_result.get("ryuu", {})
         )
 
@@ -580,7 +701,6 @@ class UnifiedManifestManager:
                         lua_txt = lua_f.read_text(encoding="utf-8", errors="ignore")
                         for d_id in target_depots.keys():
                             if str(d_id) != appid_str:
-                                # 若宣告了 addappid(d_id) 但沒有帶 64 位元金鑰，視為不完整
                                 has_naked_add = bool(re.search(rf'addappid\s*\(\s*{d_id}\s*\)', lua_txt))
                                 has_keyed_add = bool(re.search(rf'addappid\s*\(\s*{d_id}\s*,\s*\d+\s*,\s*"[a-fA-F0-9]{{64}}"', lua_txt))
                                 if has_naked_add and not has_keyed_add:
@@ -589,123 +709,35 @@ class UnifiedManifestManager:
                                     break
                     except Exception:
                         pass
-            
+
             if is_already_matched:
-                # 確保防 401 與鎖定
                 steam_manager.sanitize_lua_manifests(appid_str, steam_p)
                 steam_manager.lock_game_version(appid_str, steam_p)
                 is_aligned_sdb = target_source_info.get("is_aligned_steamdb", True)
+                if official_manifests:
+                    is_aligned_sdb = all(str(local_manifests.get(str(did))) == str(off_gid) for did, off_gid in official_manifests.items())
+
                 if not is_aligned_sdb:
-                    msg = "更新未完成：官方已有最新版本，但 Ryuu 尚未收錄且 Hubcap 配額已耗盡無法下載最新清單"
-                    print(f"[UnifiedManifestManager] AppID {appid_str} {msg}")
-                    if logger: logger.log_step("更新終止", msg, status="WARN")
-                    return False, msg
+                    # 🌟 核心修正：版本並非官方最新時，給予友善提示，絕不拒絕入庫！
+                    warn_msg = "目前可用平台尚未收錄 Steam 官方最新版本，已先以現有可用版本為您完成清單校準與入庫"
+                    search_result["deployed_outdated"] = True
+                    search_result["outdated_warning"] = warn_msg
+                    search_result["deployed_source"] = best_src if best_src != "none" else "local"
+                    print(f"[UnifiedManifestManager] AppID {appid_str} {warn_msg}")
+                    if logger: logger.log_step("非最新版提示", warn_msg, status="WARN")
+                    return True, f"本機清單已就緒（提示：{warn_msg}）"
                 else:
-                    msg = "本機 Lua 與實體 Manifest 已與線上最高收錄版本完全吻合，已完成自檢校準！"
+                    search_result["deployed_outdated"] = False
+                    search_result["deployed_source"] = best_src if best_src != "none" else "local"
+                    msg = "本機 Lua 與實體 Manifest 已與官方最新版本完全吻合，已完成自檢校準！"
                     print(f"[UnifiedManifestManager] AppID {appid_str} {msg}")
                     return True, msg
 
-        # 🌟 步驟 3：依據多源仲裁的最佳來源 (best_source) 執行部署管線
-        ok = False
-        ryuu_msg = ""
-        if best_src == "hubcap":
-            if progress_cb: progress_cb("正在透過 HubcapDB 專屬通道下載最新 Manifest 與 Lua 打包檔...")
-            if logger: logger.log_step("Hubcap下載", f"仲裁最佳來源為 HubcapDB ({search_result.get('best_reason')})，開始部署...")
-            from managers import hubcap_manager
-            ok_hc, msg_hc = hubcap_manager.deploy_from_hubcap(appid_str, steam_path=steam_p, logger=logger)
-            if ok_hc:
-                return True, msg_hc
-            else:
-                if logger: logger.log_step("Hubcap下載失敗", f"{msg_hc}，自動切換至 Ryuu 備援通道...", status="WARN")
-                if progress_cb: progress_cb("HubcapDB 下載未果，切換至 Ryuu 備援通道...")
-                ok, ryuu_msg = self._deploy_from_ryuu_http(appid_str, progress_cb, logger=logger)
-        else:
-            # 優先調用高速直連且原生支援多帳號輪替的 Ryuu HTTP 授權通道
-            if progress_cb: progress_cb("正在透過 Ryuu 官方授權通道下載 Manifest 與 Lua 打包檔...")
-            ok, ryuu_msg = self._deploy_from_ryuu_http(appid_str, progress_cb, logger=logger)
-        
-        # ─────────────────────────────────────────────────────────────────
-        # 🌟 下載後雙重檢驗檢驗關卡 (關卡 1: 自洽性與完整性 / 關卡 2: 官方真最新性)
-        # ─────────────────────────────────────────────────────────────────
-        need_hubcap_replace = False
-        replace_reason = ""
-        
-        from managers import version_resolver, hubcap_manager
-        official_manifests = {}
-        try:
-            sdb_info = version_resolver.fetch_steamdb_manifests(appid_str, timeout=4)
-            official_manifests = sdb_info.get("manifests", {})
-        except Exception:
-            pass
+        # 🌟 步驟 3：嚴格依據仲裁產生之平台候選順序 (candidate_order) 執行下載部署與即時備援
+        candidate_order = search_result.get("candidate_order") or ([] if best_src == "none" else [best_src])
+        if not candidate_order:
+            candidate_order = ["ryuu", "luatools", "hubcap"]
 
-        if ok and steam_p:
-            # 關卡 1：檢查本地 Lua 宣告與實體 .manifest 是否吻合，且含完整 Depot ID 與金鑰
-            local_verify = steam_manager.verify_and_sync_local_manifests(appid_str, steam_path=steam_p)
-            l_manifests = local_verify.get("lua_manifests", {})
-            d_manifests = local_verify.get("disk_manifests", {})
-            missing_f = local_verify.get("missing_files", [])
-
-            if missing_f or not local_verify.get("is_synced", False):
-                need_hubcap_replace = True
-                replace_reason = f"Ryuu 檔案自洽性未過關 (缺少實體 Manifest 或 Lua 宣告不相符: {missing_f})"
-            elif official_manifests:
-                # 關卡 2：比對 Manifest 是否真的是 SteamCMD 官方所示之最新版
-                is_official_latest = True
-                for did, off_gid in official_manifests.items():
-                    cur_gid = l_manifests.get(str(did))
-                    if not cur_gid or str(cur_gid) != str(off_gid):
-                        is_official_latest = False
-                        if not cur_gid:
-                            replace_reason = f"Ryuu 缺少官方最新 Depot (Depot {did})"
-                        else:
-                            replace_reason = f"Ryuu 版本落後於官方 (Depot {did} 本地 {cur_gid} != 官方最新 {off_gid})"
-                        break
-                if not is_official_latest:
-                    need_hubcap_replace = True
-        else:
-            # Ryuu 下載失敗
-            need_hubcap_replace = True
-            replace_reason = f"Ryuu 伺服器下載未果: {ryuu_msg}"
-
-        # ─────────────────────────────────────────────────────────────────
-        # 🌟 觸發 Hubcap 比對與熱替換管線
-        # ─────────────────────────────────────────────────────────────────
-        if need_hubcap_replace:
-            if logger:
-                logger.log_step("Hubcap比對", f"觸發原因: {replace_reason}，向 Hubcap API 詢問最新版本...")
-            if progress_cb:
-                progress_cb(f"正在向 HubcapDB 詢問版本 (原因: {replace_reason})...")
-
-            hc_info = hubcap_manager.query_manifest_info(appid_str)
-            if hc_info.get("available") and hc_info.get("depots"):
-                hc_depots = hc_info.get("depots", {})
-                # 判定 Hubcap 是否確實為最新版或優於 Ryuu
-                hc_is_better = False
-                if official_manifests:
-                    # 若 Hubcap 等於官方最新版
-                    if any(str(hc_depots.get(k)) == str(v) for k, v in official_manifests.items() if k in hc_depots):
-                        hc_is_better = True
-                elif not ok:
-                    hc_is_better = True
-
-                if hc_is_better:
-                    if progress_cb: progress_cb("檢測到 HubcapDB 擁有最新完整版本，正在執行熱替換下載...")
-                    if logger: logger.log_step("Hubcap替換", "HubcapDB 版本優於現有檔案，執行熱替換部署...")
-                    ok_hc, msg_hc = hubcap_manager.deploy_from_hubcap(appid_str, steam_path=steam_p, logger=logger)
-                    if ok_hc:
-                        return True, f"✨ {msg_hc}（已自動修復：{replace_reason}）"
-                    else:
-                        if logger: logger.log_step("Hubcap替換失敗", msg_hc, status="WARN")
-
-        # 若 Ryuu 本身成功且 Hubcap 未能替換，檢查是否仍落後於官方最新版
-        if ok:
-            if need_hubcap_replace and not is_official_latest:
-                msg = f"更新失敗：Ryuu 版本落後於官方最新版 ({replace_reason})，且 Hubcap 今日額度已用罄無法下載最新清單"
-                if logger: logger.log_step("更新未達最新", msg, status="WARN")
-                return False, msg
-            return True, ryuu_msg
-
-        # 若 HTTP 通道未成功且當前為 Qt 模式，嘗試 WebEngine 通道作為備援
         has_qt_app = False
         try:
             from PySide6.QtCore import QCoreApplication
@@ -713,25 +745,128 @@ class UnifiedManifestManager:
         except Exception:
             has_qt_app = False
 
-        if has_qt_app:
-            print(f"[UnifiedManifestManager] Ryuu HTTP 下載未果: {ryuu_msg}，嘗試 Qt WebEngine 通道...")
-            ok_qt, qt_msg = self._deploy_from_ryuu(appid_str, progress_cb)
-            if ok_qt:
-                return True, qt_msg
-            ryuu_msg = qt_msg
+        quota_snap = search_result.get("quota_snapshot") or self.get_platforms_quota_snapshot()
+        errors_by_source = {}
+        deployed_ok = False
+        deployed_msg = ""
+        deployed_src = ""
 
-        # 🌟 核心備援機制：若 Ryuu 與 Hubcap 均未果，嘗試 Lua.tools 備援通道！
-        print(f"[UnifiedManifestManager] Ryuu 與 Hubcap 下載未果，嘗試切換至 Lua.tools 備援通道...")
-        if progress_cb:
-            progress_cb(f"⚠️ 正在嘗試切換至 Lua.tools 備援通道...")
-        if logger:
-            logger.log_step("切換備援", f"Ryuu 與 Hubcap 未果，啟動 Lua.tools 備援通道", status="WARN")
+        for idx_c, cand in enumerate(candidate_order):
+            if cand == "ryuu":
+                if progress_cb:
+                    progress_cb("正在透過 Ryuu 官方授權通道下載 Manifest 與 Lua 打包檔...")
+                c_ok, c_msg = self._deploy_from_ryuu_http(appid_str, progress_cb, logger=logger)
+                if not c_ok and has_qt_app:
+                    c_ok_qt, c_msg_qt = self._deploy_from_ryuu(appid_str, progress_cb)
+                    if c_ok_qt:
+                        c_ok, c_msg = c_ok_qt, c_msg_qt
+            elif cand == "luatools":
+                prev_ryuu_err = errors_by_source.get("ryuu", "")
+                if progress_cb:
+                    progress_cb("正在透過 Lua.tools 授權通道下載 Manifest 與 Lua 打包檔...")
+                c_ok, c_msg = self._deploy_from_luatools_http(appid_str, progress_cb, ryuu_error=prev_ryuu_err, logger=logger)
+            elif cand == "hubcap":
+                hc_key = hubcap_manager.get_api_key()
+                if not hc_key:
+                    errors_by_source["hubcap"] = "未設定 HubcapDB API Key"
+                    continue
+                if progress_cb:
+                    progress_cb("正在透過 HubcapDB 官方 API 通道下載最新 Manifest 與 Lua 打包檔...")
+                if logger:
+                    logger.log_step("Hubcap下載", f"調用 HubcapDB 部署通道 ({search_result.get('best_reason', '')})...")
+                c_ok, c_msg = hubcap_manager.deploy_from_hubcap(appid_str, steam_path=steam_p, api_key=hc_key, logger=logger)
+            else:
+                continue
 
-        ok_lt, lt_msg = self._deploy_from_luatools_http(appid_str, progress_cb, ryuu_error=ryuu_msg, logger=logger)
-        if ok_lt:
-            return True, lt_msg
-        else:
-            return False, f"Ryuu 失敗: {ryuu_msg}；Hubcap 與 Lua.tools 備援亦未果: {lt_msg}"
+            if not c_ok:
+                errors_by_source[cand] = c_msg
+                if idx_c + 1 < len(candidate_order):
+                    next_cand = candidate_order[idx_c + 1]
+                    next_label = {"ryuu": "Ryuu", "luatools": "Lua.tools", "hubcap": "HubcapDB"}.get(next_cand, next_cand)
+                    if logger:
+                        logger.log_step("切換備援", f"{cand} 下載未果 ({c_msg})，自動切換至下一優先級平台 {next_label}...", status="WARN")
+                    if progress_cb:
+                        progress_cb(f"⚠️ {cand} 未完成，正在自動切換至 {next_label} 備援通道...")
+                continue
+
+            # 下載成功後關卡 1：檢查本機 Lua 宣告與實體 .manifest 完整性
+            if steam_p:
+                local_verify = steam_manager.verify_and_sync_local_manifests(appid_str, steam_path=steam_p)
+                missing_f = local_verify.get("missing_files", [])
+                if missing_f or not local_verify.get("is_synced", False):
+                    errors_by_source[cand] = f"{cand} 檔案自洽性未過關 (缺少實體 Manifest: {missing_f})"
+                    if logger:
+                        logger.log_step("自洽性未過", errors_by_source[cand], status="WARN")
+                    continue
+
+                # 關卡 2：比對是否已達 SteamDB 官方最新版
+                l_manifests = local_verify.get("lua_manifests", {})
+                is_official_latest = True
+                lag_reason = ""
+                if official_manifests:
+                    for did, off_gid in official_manifests.items():
+                        cur_gid = l_manifests.get(str(did))
+                        if not cur_gid or str(cur_gid) != str(off_gid):
+                            is_official_latest = False
+                            lag_reason = f"Depot {did} 當前版本 {cur_gid or '無'} 尚未對齊官方最新 {off_gid}"
+                            break
+
+                # 若當前使用 Ryuu / Lua.tools 部署成功，但發現實際解壓版本並非官方最新，檢查 HubcapDB 是否有更新版本且配額充足可熱替換
+                if not is_official_latest and cand in ("ryuu", "luatools"):
+                    hc_key_now = hubcap_manager.get_api_key()
+                    hc_snap = quota_snap.get("hubcap", {})
+                    if hc_key_now and hc_snap.get("has_quota", True) and "hubcap" not in errors_by_source:
+                        hc_info = hubcap_manager.query_manifest_info(appid_str, api_key=hc_key_now)
+                        if hc_info.get("available") and hc_info.get("depots"):
+                            hc_depots = hc_info.get("depots", {})
+                            hc_better = any(
+                                str(hc_depots.get(str(k))) == str(v) and str(l_manifests.get(str(k))) != str(v)
+                                for k, v in official_manifests.items() if str(k) in hc_depots
+                            )
+                            if hc_better:
+                                if progress_cb:
+                                    progress_cb("檢測到 HubcapDB 擁有更新版本且額度充足，正在升級為最新清單...")
+                                if logger:
+                                    logger.log_step("Hubcap升級", f"{cand} 版本非最新 ({lag_reason})，HubcapDB 版本更新且額度充足，執行升級部署...")
+                                ok_hc, msg_hc = hubcap_manager.deploy_from_hubcap(appid_str, steam_path=steam_p, api_key=hc_key_now, logger=logger)
+                                if ok_hc:
+                                    search_result["deployed_source"] = "hubcap"
+                                    search_result["deployed_outdated"] = False
+                                    return True, f"✨ {msg_hc}"
+                                else:
+                                    errors_by_source["hubcap"] = msg_hc
+                                    if logger:
+                                        logger.log_step("Hubcap升級未果", f"{msg_hc}，保留已就緒之 {cand} 可用版本繼續入庫", status="WARN")
+
+                deployed_ok = True
+                deployed_msg = c_msg
+                deployed_src = cand
+                search_result["deployed_source"] = cand
+                if not is_official_latest:
+                    # 🌟 核心修正：即使版本並非最新（例如用戶無 HubcapDB 金鑰、配額不足或各平台均未收錄最新版），也絕不拒絕入庫！給予友善提示即可！
+                    warn_text = "目前平台收錄版本並非 Steam 官方最新版，已先以現有可用版本完成入庫"
+                    search_result["deployed_outdated"] = True
+                    search_result["outdated_warning"] = warn_text
+                    if logger:
+                        logger.log_step("非最新版放行", f"{warn_text} ({lag_reason})", status="WARN")
+                    return True, f"{c_msg}（提示：{warn_text}）"
+                else:
+                    search_result["deployed_outdated"] = False
+                    return True, c_msg
+            else:
+                deployed_ok = True
+                deployed_msg = c_msg
+                deployed_src = cand
+                search_result["deployed_source"] = cand
+                search_result["deployed_outdated"] = False
+                return True, c_msg
+
+        if deployed_ok:
+            search_result["deployed_source"] = deployed_src
+            return True, deployed_msg
+
+        err_summary = "；".join([f"{k}: {v}" for k, v in errors_by_source.items() if v]) or "所有可用平台均未收錄此遊戲或配額不足"
+        return False, err_summary
 
     def _deploy_from_ryuu(self, appid: str, progress_cb: Optional[Callable[[str], None]] = None) -> Tuple[bool, str]:
         """調用現有 ryuu_manager 進行下載與部署 (嚴格保護非 Qt 環境)"""
@@ -1039,15 +1174,13 @@ class UnifiedManifestManager:
                         steam_manager.sanitize_lua_manifests(appid_str, steam_p, lua_dir)
                         steam_manager.lock_game_version(appid_str, steam_p)
 
-                        # 🌟 更新本地 manifest_updates.json 快取狀態為最新版
+                        # 🌟 同步本地 manifest_updates.json 內紀錄的 local_manifestid (最終是否為最新版由外層依據 SteamDB 比對決定)
                         try:
                             import json
                             manifest_cache_file = Path(__file__).parent.parent.parent / "data" / "manifest_updates.json"
                             if manifest_cache_file.exists():
                                 cache_data = json.loads(manifest_cache_file.read_text(encoding="utf-8"))
                                 if appid_str in cache_data:
-                                    cache_data[appid_str]["has_update"] = False
-                                    cache_data[appid_str]["version_status"] = "最新版"
                                     if "depots" in cache_data[appid_str]:
                                         for d_id, m_id in extracted_manifests.items():
                                             if d_id in cache_data[appid_str]["depots"]:
@@ -1332,10 +1465,24 @@ class UnifiedManifestManager:
                                                 except Exception: pass
                                             st_l_path.write_bytes(l_bytes)
                                         except Exception: pass
+                                    # 同步至自訂 lua 目錄
+                                    cfg_lua = config_manager.get_config().get("lua_dir")
+                                    if cfg_lua and Path(cfg_lua).resolve() != lua_dir.resolve():
+                                        try:
+                                            Path(cfg_lua).mkdir(parents=True, exist_ok=True)
+                                            cfg_l_path = Path(cfg_lua) / Path(zname).name
+                                            if cfg_l_path.exists():
+                                                try: os.chmod(cfg_l_path, stat.S_IWRITE | stat.S_IREAD)
+                                                except Exception: pass
+                                            cfg_l_path.write_bytes(l_bytes)
+                                        except Exception: pass
                                     if logger:
                                         logger.log_file_op("解壓寫入 Lua", str(l_path), size=len(l_bytes), success=True, details="主設定檔")
 
                         # 🌟 自動閉環校驗並鎖定
+                        steam_manager.sync_lua_with_deployed_manifests(
+                            appid_str, manifests_dict=extracted_manifests, lua_dir=lua_dir
+                        )
                         steam_manager.verify_and_sync_local_manifests(
                             appid_str, steam_path=steam_p, lua_dir=lua_dir, target_manifests=extracted_manifests
                         )

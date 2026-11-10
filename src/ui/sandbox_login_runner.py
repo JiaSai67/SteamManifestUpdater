@@ -1726,11 +1726,11 @@ def run_sandbox(target_platform: str = "all", target_account_id: str = None):
                             hc_email = str(hc_user.get("email") or state.get("captured_email") or "").strip()
 
                             target_id = state["target_account_id"] or hc_uid or hc_name or hc_email or "hubcap_default"
-                            if target_id and api_key:
-                                mgr.set_hubcap_key(target_id, api_key, discord_id=hc_uid)
-                                if not hubcap_manager.get_api_key():
-                                    hubcap_manager.set_api_key(api_key)
-                                mgr.update_realtime_quota("hubcap", 25, daily_limit=25, account_id=target_id)
+                            if api_key:
+                                clean_hk = hubcap_manager.clean_api_key(api_key)
+                                hubcap_manager.set_api_key(clean_hk)
+                                mgr.clear_all_hubcap_keys()
+                                mgr.set_hubcap_key(target_id, clean_hk, discord_id=hc_uid)
                                 mgr.save_data()
 
                             # 帳密記憶

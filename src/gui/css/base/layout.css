@@ -56,6 +56,7 @@ h2{font-size:20px;font-weight:700;margin-bottom:12px}
   z-index:0 !important;
   pointer-events:none;
   overflow:hidden;
+  contain:strict; /* 嚴格隔離背景動圖重繪邊界，避免牽動前景卡片排版與繪製計算 */
   display:none; /* 🌟 核心防呆：無自訂背景圖時完全隱藏，杜絕任何遮罩覆蓋文字 */
 }
 .app.has-bg .app-bg-layer{
@@ -63,14 +64,30 @@ h2{font-size:20px;font-weight:700;margin-bottom:12px}
 }
 .app-bg-img{
   position:absolute;
-  inset:-30px;
+  inset:0;
   background-size:cover;
   background-position:center;
   background-repeat:no-repeat;
-  filter:blur(var(--bg-blur,0px));
+  filter:none;
   opacity:var(--bg-opacity,0.8);
-  transition:filter .15s,opacity .15s;
+  transform:translateZ(0);
+  transition:opacity .15s;
   z-index:1;
+}
+/* 當模糊值 > 0 時啟用 GPU 32-bit 原生高畫質模糊與邊緣防漏白外擴；模糊 = 0 時維持 inset:0 呈現 100% 原始銳利度 */
+.app-bg-img.is-blurred{
+  inset:-30px;
+  filter:blur(var(--bg-blur,0px));
+  will-change:filter;
+}
+/* 視窗最小化或隱藏於背景時，徹底凍結背景動圖合成與全域無限動畫，使閒置 CPU 歸零 */
+html.app-hidden .app-bg-layer{
+  display:none !important;
+}
+html.app-hidden *,
+html.app-hidden *::before,
+html.app-hidden *::after{
+  animation-play-state:paused !important;
 }
 .app-bg-overlay{
   position:absolute;

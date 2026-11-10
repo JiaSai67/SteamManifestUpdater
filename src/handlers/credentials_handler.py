@@ -30,9 +30,9 @@ class CredentialsHandler:
             mgr = account_manager.get_account_manager()
             mgr.reload_data()
 
-            # 🌟 主動向官方伺服器檢測連線與同步真實配額 (每 3 秒限制頻率，零額度消耗)
+            # 🌟 主動向官方伺服器檢測連線與同步真實配額 (每 30 秒節流，零額度消耗，降低背景執行緒與 IPC 喚醒頻率)
             now = time.time()
-            if getattr(self, "_last_ryuu_quota_sync", 0) + 3 < now:
+            if getattr(self, "_last_ryuu_quota_sync", 0) + 30 < now:
                 self._last_ryuu_quota_sync = now
                 try:
                     mgr.sync_all_quotas_from_server()
@@ -55,16 +55,48 @@ class CredentialsHandler:
             ryuu_limit = ryuu_active.get("daily_limit", 50) if ryuu_active else 50
             ryuu_name = ryuu_active.get("name", "未登入") if (ryuu_active and ryuu_logged_in) else ("未登入" if not ryuu_active else f"{ryuu_active.get('name', '帳號')} (未授權/過期)")
 
-            # 全域預設 Hubcap Key
+            # 全域預設 Hubcap Key (1機1號全機共用，支援 config.json 與 accounts_registry 雙向同步與過期舊鑰自動自癒)
             raw_hubcap_key = hubcap_manager.get_api_key()
-            default_hubcap_stats = hubcap_manager.fetch_user_stats(raw_hubcap_key) if raw_hubcap_key else {}
-            default_hubcap_uid = str(default_hubcap_stats.get("user_id", "")).strip()
-            default_hubcap_uname = str(default_hubcap_stats.get("username", "")).strip().lower()
+            default_hubcap_stats = hubcap_manager.fetch_user_stats() if (raw_hubcap_key or mgr.get_any_hubcap_key()) else {}
+            # 若 fetch_user_stats 觸發了自動自癒升級，重新讀取最新金鑰
+            raw_hubcap_key = hubcap_manager.get_api_key()
             hc_conn = mgr.get_platform_connection_status("hubcap")
             hc_conn_err = bool(default_hubcap_stats.get("connection_error") or hc_conn.get("connection_error"))
             hc_err_msg = str(default_hubcap_stats.get("error") or hc_conn.get("error_msg") or "").strip()
 
-            # 為 Ryuu 帳號清單標註詳細驗證狀態與專屬 Hubcap 狀態
+            def _build_hubcap_acc_obj(h_key: str) -> Dict[str, Any]:
+                clean_hk = hubcap_manager.clean_api_key(h_key)
+                if not clean_hk:
+                    return {
+                        "is_configured": False,
+                        "is_valid": False,
+                        "connection_error": False,
+                        "quota_exhausted": False,
+                        "remaining": 0,
+                        "daily_limit": 25,
+                        "daily_usage": 0,
+                        "api_key_masked": "",
+                        "error": ""
+                    }
+                h_stats = default_hubcap_stats if (clean_hk == raw_hubcap_key and default_hubcap_stats) else hubcap_manager.fetch_user_stats(clean_hk)
+                nonlocal hc_conn_err, hc_err_msg
+                if h_stats.get("connection_error"):
+                    hc_conn_err = True
+                    if h_stats.get("error"):
+                        hc_err_msg = str(h_stats.get("error"))
+                return {
+                    "is_configured": True,
+                    "is_valid": bool(h_stats.get("is_valid", h_stats.get("ok"))),
+                    "connection_error": bool(h_stats.get("connection_error") or hc_conn.get("connection_error")),
+                    "quota_exhausted": bool(h_stats.get("quota_exhausted") or h_stats.get("remaining", 0) <= 0),
+                    "remaining": h_stats.get("remaining", 0),
+                    "daily_limit": h_stats.get("daily_limit", 25) or 25,
+                    "daily_usage": h_stats.get("daily_usage", 0),
+                    "api_key_masked": (clean_hk[:4] + "••••••••" + clean_hk[-4:]) if len(clean_hk) > 8 else "••••••••",
+                    "error": h_stats.get("error", "")
+                }
+
+            # 為 Ryuu 帳號清單標註詳細驗證狀態與全機共用 Hubcap 狀態
             for acc in ryuu_accs:
                 is_val = mgr.has_valid_credentials(acc, "ryuu")
                 acc["has_valid_credentials"] = is_val
@@ -87,46 +119,9 @@ class CredentialsHandler:
                 else:
                     acc["status_badge"] = "正常"
 
-                # 注入該帳號專屬的 Hubcap 狀態
-                acc_did = str(acc.get("discord_id", "")).strip()
-                acc_id = str(acc.get("id", "")).strip()
-                acc_email = str(acc.get("email", "")).strip().lower()
-                acc_name = str(acc.get("name", "")).strip().lower()
-                h_key = mgr.get_hubcap_key(acc_did) or mgr.get_hubcap_key(acc_id) or mgr.get_hubcap_key(acc_email)
-
-                # 若未單獨綁定，但有全域 Key 且 Discord ID 或 Username 吻合，自動歸屬綁定
-                if not h_key and raw_hubcap_key:
-                    if (default_hubcap_uid and acc_did == default_hubcap_uid) or (default_hubcap_uname and default_hubcap_uname in acc_name):
-                        h_key = raw_hubcap_key
-                        mgr.set_hubcap_key(acc_id, raw_hubcap_key, acc_did)
-
-                if h_key:
-                    h_stats = hubcap_manager.fetch_user_stats(h_key)
-                    if h_stats.get("connection_error"):
-                        hc_conn_err = True
-                        if h_stats.get("error"):
-                            hc_err_msg = str(h_stats.get("error"))
-                    acc["hubcap"] = {
-                        "is_configured": True,
-                        "is_valid": bool(h_stats.get("ok")),
-                        "connection_error": bool(h_stats.get("connection_error") or hc_conn.get("connection_error")),
-                        "remaining": h_stats.get("remaining", 0),
-                        "daily_limit": h_stats.get("daily_limit", 25),
-                        "daily_usage": h_stats.get("daily_usage", 0),
-                        "api_key_masked": (h_key[:4] + "••••••••" + h_key[-4:]) if len(h_key) > 8 else "••••••••",
-                        "error": h_stats.get("error", "")
-                    }
-                else:
-                    acc["hubcap"] = {
-                        "is_configured": False,
-                        "is_valid": False,
-                        "connection_error": False,
-                        "remaining": 0,
-                        "daily_limit": 25,
-                        "daily_usage": 0,
-                        "api_key_masked": "",
-                        "error": ""
-                    }
+                # 注入 Hubcap 狀態 (1機1號全機共用：始終以全機最新有效金鑰為準，杜絕舊帳號殘留過期金鑰覆蓋)
+                h_key = raw_hubcap_key or mgr.get_any_hubcap_key()
+                acc["hubcap"] = _build_hubcap_acc_obj(h_key)
 
             ryuu_left, ryuu_total = mgr.get_total_remaining_quota("ryuu")
 
@@ -138,7 +133,7 @@ class CredentialsHandler:
             lt_limit = lt_active.get("daily_limit", 25) if lt_active else 25
             lt_name = lt_active.get("name", "未登入") if (lt_active and lt_logged_in) else ("未登入" if not lt_active else f"{lt_active.get('name', '帳號')} (未授權/過期)")
 
-            # 為 Lua.tools 帳號清單標註詳細驗證狀態與專屬 Hubcap 狀態
+            # 為 Lua.tools 帳號清單標註詳細驗證狀態與全機共用 Hubcap 狀態
             for acc in lt_accs:
                 is_val = mgr.has_valid_credentials(acc, "lua_tools")
                 acc["has_valid_credentials"] = is_val
@@ -154,51 +149,12 @@ class CredentialsHandler:
                 else:
                     acc["status_badge"] = "正常"
 
-                acc_did = str(acc.get("discord_id", "")).strip()
-                acc_id = str(acc.get("id", "")).strip()
-                acc_email = str(acc.get("email", "")).strip().lower()
-                acc_name = str(acc.get("name", "")).strip().lower()
-                h_key = mgr.get_hubcap_key(acc_did) or mgr.get_hubcap_key(acc_id) or mgr.get_hubcap_key(acc_email)
-
-                # 若未單獨綁定，但有全域 Key 且 Discord ID 或 Username 吻合，自動歸屬綁定
-                if not h_key and raw_hubcap_key:
-                    if (default_hubcap_uid and acc_did == default_hubcap_uid) or (default_hubcap_uname and default_hubcap_uname in acc_name):
-                        h_key = raw_hubcap_key
-                        mgr.set_hubcap_key(acc_id, raw_hubcap_key, acc_did)
-
-                if h_key:
-                    h_stats = hubcap_manager.fetch_user_stats(h_key)
-                    if h_stats.get("connection_error"):
-                        hc_conn_err = True
-                        if h_stats.get("error"):
-                            hc_err_msg = str(h_stats.get("error"))
-                    acc["hubcap"] = {
-                        "is_configured": True,
-                        "is_valid": bool(h_stats.get("is_valid", h_stats.get("ok"))),
-                        "connection_error": bool(h_stats.get("connection_error") or hc_conn.get("connection_error")),
-                        "quota_exhausted": bool(h_stats.get("quota_exhausted") or h_stats.get("remaining", 0) <= 0),
-                        "remaining": h_stats.get("remaining", 0),
-                        "daily_limit": h_stats.get("daily_limit", 25) or 25,
-                        "daily_usage": h_stats.get("daily_usage", 0),
-                        "api_key_masked": (h_key[:4] + "••••••••" + h_key[-4:]) if len(h_key) > 8 else "••••••••",
-                        "error": h_stats.get("error", "")
-                    }
-                else:
-                    acc["hubcap"] = {
-                        "is_configured": False,
-                        "is_valid": False,
-                        "connection_error": False,
-                        "quota_exhausted": False,
-                        "remaining": 0,
-                        "daily_limit": 25,
-                        "daily_usage": 0,
-                        "api_key_masked": "",
-                        "error": ""
-                    }
+                h_key = raw_hubcap_key or mgr.get_any_hubcap_key()
+                acc["hubcap"] = _build_hubcap_acc_obj(h_key)
 
             lt_left, lt_total = mgr.get_total_remaining_quota("lua_tools")
 
-            # 3. 匯總所有帳號的 Hubcap 總額度 (去重計算)
+            # 3. 匯總所有帳號與全機 Hubcap 總額度 (去重計算，僅計入有效金鑰，支援無 Discord 帳號純 Hubcap 模式)
             seen_hubcap_keys = set()
             hubcap_total_left = 0
             hubcap_total_limit = 0
@@ -208,11 +164,19 @@ class CredentialsHandler:
                 for a in a_list:
                     ah = a.get("hubcap", {})
                     ak = ah.get("api_key_masked")
-                    if (ah.get("is_valid") or ah.get("is_configured")) and ak and ak not in seen_hubcap_keys:
+                    if ah.get("is_valid") and not ah.get("connection_error") and ak and ak not in seen_hubcap_keys:
                         seen_hubcap_keys.add(ak)
                         hubcap_total_left += ah.get("remaining", 0)
                         hubcap_total_limit += (ah.get("daily_limit") or 25)
                         hubcap_total_used += ah.get("daily_usage", 0)
+
+            if not seen_hubcap_keys and raw_hubcap_key:
+                raw_masked = (raw_hubcap_key[:4] + "••••••••" + raw_hubcap_key[-4:]) if len(raw_hubcap_key) > 8 else "••••••••"
+                if bool(default_hubcap_stats.get("is_valid", default_hubcap_stats.get("ok"))) and not hc_conn_err:
+                    seen_hubcap_keys.add(raw_masked)
+                    hubcap_total_left = int(default_hubcap_stats.get("remaining", 0))
+                    hubcap_total_limit = int(default_hubcap_stats.get("daily_limit") or 25)
+                    hubcap_total_used = int(default_hubcap_stats.get("daily_usage", 0))
 
             # 4. 使用者個人資料 (User Profile)
             steam_users = self.list_steam_accounts()
@@ -307,36 +271,35 @@ class CredentialsHandler:
             return {"ok": False, "error": str(e)}
 
     def save_hubcap_api_key(self, api_key: str, target_account_id: str = "") -> Dict[str, Any]:
-        """儲存並驗證指定帳號或全域的 HubcapDB API Key"""
+        """儲存並驗證指定帳號或全域的 HubcapDB API Key (1機1號雙向同步至 config.json 與 accounts_registry.json)"""
         try:
             from managers import hubcap_manager, account_manager
-            clean_key = str(api_key or "").strip()
+            clean_key = hubcap_manager.clean_api_key(api_key)
             mgr = account_manager.get_account_manager()
             target_id = str(target_account_id or "").strip()
 
             if not clean_key:
-                if target_id:
-                    mgr.set_hubcap_key(target_id, "")
-                else:
-                    hubcap_manager.set_api_key("")
+                # 1機1號全機共用：清除時同步清空 config.json 與所有帳號映射，杜絕殘留舊金鑰
+                hubcap_manager.set_api_key("")
+                mgr.clear_all_hubcap_keys()
                 hubcap_manager.clear_stats_cache()
-                return {"ok": True, "msg": "已清除 HubcapDB API Key"}
+                return {"ok": True, "msg": "已徹底清除 HubcapDB API Key"}
 
             # 立即連線驗證 (強制發送即時請求)
             stats = hubcap_manager.fetch_user_stats(clean_key, force_refresh=True)
             if stats.get("ok"):
                 rem = stats.get("remaining", 0)
-                lim = stats.get("daily_limit", 0)
+                lim = stats.get("daily_limit", 25) or 25
                 h_uid = str(stats.get("user_id", "")).strip()
                 uname = str(stats.get("username", "")).strip()
 
-                # 綁定至指定帳號或自動關聯之 Discord ID
-                bind_target = target_id or h_uid
-                if bind_target:
-                    mgr.set_hubcap_key(bind_target, clean_key, h_uid)
-                # 同步設定主 Key
-                if not hubcap_manager.get_api_key() or not target_id:
-                    hubcap_manager.set_api_key(clean_key)
+                # 🌟 核心修復：無條件同步寫入 config.json 主金鑰，確保 hubcap_manager 所有 API 100% 讀取到最新金鑰！
+                hubcap_manager.set_api_key(clean_key)
+
+                # 同步寫入 accounts_registry.json 映射表
+                mgr.clear_all_hubcap_keys()
+                bind_target = target_id or h_uid or "hubcap_default"
+                mgr.set_hubcap_key(bind_target, clean_key, h_uid)
 
                 target_tip = f"【{uname}】" if uname else ""
                 return {

@@ -614,11 +614,33 @@ function renderQuotaMatrix(res, forceRender) {
   }
   accountOrder = validAccountOrder;
 
+  var globalHcEarly = res.hubcap || {};
+  // 🌟 若尚未綁定 Discord (Ryuu / Lua.tools)，但已單獨設定 HubcapDB API Key，建立本機共用列以便展示與管理配額
+  if (accountOrder.length === 0 && (globalHcEarly.is_configured || globalHcEarly.is_valid)) {
+    var localKey = 'hubcap_device_only';
+    accountsMap[localKey] = {
+      key: localKey,
+      raw_id: 'hubcap_default',
+      discord_id: '本機共用憑證',
+      name: '本機 HubcapDB 金鑰',
+      email: '僅啟用 HubcapDB 官方 API 通道',
+      avatar_url: '',
+      is_device_only: true,
+      ryuu: null,
+      lua: null,
+      hubcap: globalHcEarly
+    };
+    accountOrder.push(localKey);
+  }
+
   if (accountOrder.length === 0) {
     wrap.innerHTML = '<div style="text-align:center;padding:36px 0;color:var(--gray);font-size:13px">' +
       '<div style="font-size:24px;margin-bottom:8px">📭</div>' +
-      '尚無已綁定帳號<br>' +
-      '<button class="btn btn-p btn-s" onclick="startDualPlatformSandboxLogin()" style="margin-top:10px">🔑 立即登入 Discord 綁定帳號</button>' +
+      '尚無已綁定帳號或 API 憑證<br>' +
+      '<div style="display:inline-flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:12px">' +
+        '<button class="btn btn-p btn-s" onclick="startDualPlatformSandboxLogin()">🔑 立即登入 Discord 綁定帳號</button>' +
+        '<button class="btn btn-o btn-s" onclick="openHubcapKeyInputModal()">⚙️ 設定 HubcapDB API Key</button>' +
+      '</div>' +
     '</div>';
     return;
   }
@@ -641,7 +663,7 @@ function renderQuotaMatrix(res, forceRender) {
       totals.ryuu.limit += rLim;
     }
     var itemHc = item.hubcap || (item.ryuu && item.ryuu.hubcap) || (item.lua && item.lua.hubcap);
-    if (itemHc && itemHc.is_valid) {
+    if (itemHc && (itemHc.is_valid || itemHc.quota_exhausted) && !itemHc.connection_error) {
       var hMask = itemHc.api_key_masked || ('acc_' + m);
       if (!seenHubcapKeys[hMask]) {
         seenHubcapKeys[hMask] = true;
@@ -656,6 +678,10 @@ function renderQuotaMatrix(res, forceRender) {
       totals.luatools.left += lLft;
       totals.luatools.limit += lLim;
     }
+  }
+  if (Object.keys(seenHubcapKeys).length === 0 && globalHcEarly && (globalHcEarly.is_valid || globalHcEarly.quota_exhausted) && !globalHcEarly.connection_error) {
+    totals.hubcap.left = (globalHcEarly.remaining != null ? globalHcEarly.remaining : 0);
+    totals.hubcap.limit = (globalHcEarly.daily_limit || 25);
   }
   
   var html = '<table class="cred-matrix-table">';
@@ -802,6 +828,14 @@ function renderQuotaMatrix(res, forceRender) {
       key: acc.key || ''
     }).replace(/"/g, '&quot;');
 
+    var delBtnHtml = acc.is_device_only
+      ? '<button class="btn-del-matrix-acc" onclick="event.stopPropagation();openHubcapKeyInputModal()" title="管理或清除 HubcapDB 金鑰" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;border-radius:6px;padding:3px 7px;cursor:pointer;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;flex-shrink:0;transition:all 0.2s ease;">' +
+          '<span>⚙️</span><span>設定</span>' +
+        '</button>'
+      : '<button class="btn-del-matrix-acc" onclick="event.stopPropagation();deleteAccount(\'all\',\'' + escHtml(deleteAccId) + '\',\'' + escHtml(accTargetName).replace(/'/g, "\\'") + '\', ' + extraJson + ')" title="徹底刪除此帳號" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:6px;padding:3px 7px;cursor:pointer;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;flex-shrink:0;transition:all 0.2s ease;">' +
+          '<span>🗑️</span><span>刪除</span>' +
+        '</button>';
+
     var userCell = '<div class="user-cell-wrap" style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px">' +
       '<div style="display:flex;align-items:center;gap:9px;min-width:0;flex:1">' +
         '<img class="user-cell-avatar" src="' + avatarSrc + '" onerror="this.src=\'' + defaultAvatar + '\'" alt="avatar" />' +
@@ -810,9 +844,7 @@ function renderQuotaMatrix(res, forceRender) {
           '<div class="user-cell-email">' + emailDisplay + '</div>' +
         '</div>' +
       '</div>' +
-      '<button class="btn-del-matrix-acc" onclick="event.stopPropagation();deleteAccount(\'all\',\'' + escHtml(deleteAccId) + '\',\'' + escHtml(accTargetName).replace(/'/g, "\\'") + '\', ' + extraJson + ')" title="徹底刪除此帳號" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:6px;padding:3px 7px;cursor:pointer;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;flex-shrink:0;transition:all 0.2s ease;">' +
-        '<span>🗑️</span><span>刪除</span>' +
-      '</button>' +
+      delBtnHtml +
     '</div>';
     
     html += '<tr data-row-idx="' + rIdx + '">';
@@ -881,7 +913,7 @@ function renderQuotaMatrix(res, forceRender) {
       if (isHubcapConnErr && ((configuredHc && configuredHc.is_configured) || (globalHc && globalHc.is_configured))) {
         totHtml = '<span class="quota-capsule quota-total-capsule exhausted">Error</span>';
       } else if (totals.hubcap.limit > 0) {
-        totHtml = '<span class="quota-capsule quota-total-capsule">' + totals.hubcap.left + ' / ' + totals.hubcap.limit + '</span>';
+        totHtml = '<span class="quota-capsule quota-total-capsule' + (totals.hubcap.left === 0 ? ' exhausted' : '') + '">' + totals.hubcap.left + ' / ' + totals.hubcap.limit + '</span>';
       } else {
         totHtml = '<span class="quota-capsule quota-total-capsule" style="opacity:0.65">0 / 0</span>';
       }
@@ -890,8 +922,8 @@ function renderQuotaMatrix(res, forceRender) {
     } else if (tPlatform === 'luatools' && lt.connection_error) {
       totHtml = '<span class="quota-capsule quota-total-capsule exhausted" title="' + escHtml(lt.error_msg || 'Lua.tools 連線異常') + '">Error</span>';
     } else {
-      if (tot.limit > 0 && tot.left > 0) {
-        totHtml = '<span class="quota-capsule quota-total-capsule">' + tot.left + ' / ' + tot.limit + '</span>';
+      if (tot.limit > 0) {
+        totHtml = '<span class="quota-capsule quota-total-capsule' + (tot.left === 0 ? ' exhausted' : '') + '">' + tot.left + ' / ' + tot.limit + '</span>';
       } else {
         totHtml = '<span class="quota-capsule quota-total-capsule" style="opacity:0.65">0 / 0</span>';
       }
@@ -996,7 +1028,7 @@ async function loadCredentialsStatus(showToast, prefetchedRes){
     var hcKeyMeta = document.getElementById('hubcap-key-meta');
 
     var hcLeft = hc.remaining || 0;
-    var hcLimit = hc.daily_limit || (hc.is_configured ? 50 : 0);
+    var hcLimit = hc.daily_limit || (hc.is_configured ? 25 : 0);
     var hcPct = hcLimit > 0 ? Math.min(100, Math.round((hcLeft / hcLimit) * 100)) : 0;
 
     if(hcBadge){

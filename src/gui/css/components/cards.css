@@ -369,11 +369,9 @@ body.dark .card.has-onlinefix.needs-try-update,
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
   line-height: 1.25;
   white-space: nowrap;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   letter-spacing: 0.2px;
 }
-/* 🌟 角標專用內嵌網站/網盤小圖標 (嚴格防禦尺寸，杜絕被父級卡片圖片樣式污染) */
+/* 🌟 角標專用內嵌網站/網盤小圖標 (嚴格防禦尺寸，杜絕被父級卡片圖片樣式污染，移除昂貴 drop-shadow 重繪) */
 .card-corner-tags .corner-tag .corner-tag-img,
 .card-corner-tags .corner-tag img,
 .corner-tag .corner-tag-img,
@@ -396,7 +394,9 @@ img.corner-tag-img {
   border: none !important;
   box-shadow: none !important;
   flex-shrink: 0 !important;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)) !important;
+  opacity: 1 !important;
+  animation: none !important;
+  filter: none !important;
 }
 
 /* 🌟 Google Drive 網盤補丁標籤 (微深色半透明帶綠邊科技感) */
@@ -440,7 +440,6 @@ img.corner-tag-img {
 .corner-tag.tag-up {
   background: linear-gradient(135deg, #FF9800, #F57C00) !important;
   box-shadow: 0 2px 6px rgba(245, 124, 0, 0.45) !important;
-  animation: pulseBadge 1.5s infinite ease-in-out;
 }
 /* 🌟 模式 2：可嘗試更新醒目標籤 (淺紅漸層) */
 .search-tag.tag-try-up,
@@ -450,7 +449,6 @@ img.corner-tag-img {
   color: #ffffff !important;
   box-shadow: 0 2px 7px rgba(239, 68, 68, 0.4) !important;
   font-weight: 700 !important;
-  animation: pulseBadge 1.8s infinite ease-in-out;
 }
 #glist.list .card-corner-tags {
   position: static;
@@ -675,7 +673,6 @@ img.corner-tag-img {
   white-space: nowrap !important;
   flex-shrink: 0 !important;
   line-height: 1.2 !important;
-  animation: pulseBadge 1.5s infinite ease-in-out !important;
   box-shadow: 0 1px 4px rgba(245, 124, 0, 0.4) !important;
   z-index: 2 !important;
 }

@@ -34,21 +34,27 @@ class InstallHandler:
         appid_str = str(appid).strip()
         sp = self._steam_path or steam_manager.find_steam_path()
 
-        # 1. 嘗試線上多源聚合查詢 (給予 8 秒連線並支援重試)
+        # 1. 嘗試線上多源聚合查詢 (給予 8 秒連線並支援重試，三平台純查詢皆為 0 配額消耗)
         search_res = {}
         depots = {}
         best_source = "ryuu"
         try:
-            search_res = self._unified_mgr.search_all_sources(appid_str, timeout=8)
-            depots = search_res.get("ryuu", {}).get("depots", {})
+            search_res = self._unified_mgr.search_all_sources(appid_str, timeout=8, allow_hubcap_network=True)
             best_source = search_res.get("best_source", "ryuu")
+            if best_source == "hubcap":
+                depots = search_res.get("hubcap", {}).get("depots", {}) or search_res.get("ryuu", {}).get("depots", {})
+            else:
+                depots = search_res.get("ryuu", {}).get("depots", {}) or search_res.get("hubcap", {}).get("depots", {})
 
             # 若初次查詢未取得 depots，進行一次重試
             if not depots:
                 time.sleep(0.5)
-                search_res = self._unified_mgr.search_all_sources(appid_str, timeout=10)
-                depots = search_res.get("ryuu", {}).get("depots", {})
+                search_res = self._unified_mgr.search_all_sources(appid_str, timeout=10, allow_hubcap_network=True)
                 best_source = search_res.get("best_source", "ryuu")
+                if best_source == "hubcap":
+                    depots = search_res.get("hubcap", {}).get("depots", {}) or search_res.get("ryuu", {}).get("depots", {})
+                else:
+                    depots = search_res.get("ryuu", {}).get("depots", {}) or search_res.get("hubcap", {}).get("depots", {})
         except Exception as e:
             print(f"[fetch_manifest] AppID {appid_str} 線上多源查詢異常: {e}")
 
@@ -185,14 +191,24 @@ class InstallHandler:
         lua_f = Path(sp) / "config" / "lua" / f"{appid}.lua"
         return {"exists": bool(lua_f.exists() and lua_f.stat().st_size > 20)}
 
-    def auto_stock_after_import(self, appid: str, game_name: str = "") -> Dict[str, Any]:
+    def auto_stock_after_import(self, appid: str, game_name: str = "", is_install: bool = False) -> Dict[str, Any]:
         """
         入庫後自動執行「多源最佳清單部署 + ACF 防 401 赦免 + 鎖定」
-        支援 SteamDB 官方對齊、智能多源重試與快取即時更新。
+        支援 SteamDB 官方對齊、多平台額度與版本仲裁、非最新版友善提示與進度條即時推播。
         自動生成全鏈路結構化 Manifest 診斷 Log 報告。
         """
         from managers.manifest_logger import ManifestUpdateLogger
         appid_str = str(appid).strip()
+
+        def on_progress(p_text: str, pct: Optional[int] = None):
+            if getattr(self, "_window", None):
+                try:
+                    pct_js = json.dumps(pct) if pct is not None else "null"
+                    self._window.evaluate_js(
+                        f"window.onManifestProgress && window.onManifestProgress({json.dumps(appid_str)}, {json.dumps(p_text)}, {pct_js});"
+                    )
+                except Exception:
+                    pass
 
         # 嘗試解析遊戲名稱供日誌報告展示
         if not game_name:
@@ -206,7 +222,7 @@ class InstallHandler:
 
         try:
             logger = ManifestUpdateLogger(appid_str, game_name=game_name or f"App_{appid_str}")
-            logger.log_step("啟動更新", f"收到 AppID {appid_str} 之 Manifest 更新請求")
+            logger.log_step("啟動更新", f"收到 AppID {appid_str} 之 Manifest {'一鍵入庫' if is_install else '更新'}請求")
 
             if not appid_str or not appid_str.isdigit():
                 logger.log_error("參數校驗", f"無效或未提供 AppID: '{appid}'")
@@ -223,33 +239,51 @@ class InstallHandler:
             from managers import version_resolver
 
             # 1. 取得 SteamDB 最新 Manifest 資訊作為最高仲裁基準
+            on_progress("🔍 [檢查 3/4] 正在查詢 SteamDB 官方最新 Manifest 版本基準...", 9)
             logger.log_step("SteamDB檢測", f"查詢 SteamDB 最新官方 Manifest 基準: {appid_str}")
             sdb_info = version_resolver.fetch_steamdb_manifests(appid_str, timeout=4)
             sdb_manifests = sdb_info.get("manifests", {})
             logger.log_step("SteamDB結果", f"SteamDB 包含 {len(sdb_manifests)} 個 Depot 官方基準清單")
 
-            # 2. 進行多源搜尋仲裁（傳入 sdb_manifests）
-            logger.log_step("多源仲裁", "比對 Ryuu, HubcapDB 與 Lua.tools 可用來源...")
+            # 2. 進行多源搜尋與配額版本仲裁（傳入 sdb_manifests）
+            on_progress("⚖️ [檢查 4/4] 正在檢查 Ryuu · Lua.tools · HubcapDB 額度與版本...", 11)
+            logger.log_step("多源仲裁", "比對 Ryuu, Lua.tools 與 HubcapDB 額度及版本...")
             search_res = self._unified_mgr.search_all_sources(appid_str, timeout=8, steamdb_manifests=sdb_manifests)
 
             # 若初次未找到可用源，自動重試一次
             if search_res.get("best_source") == "none":
+                on_progress("🔄 正在重試連線檢索各平台可用清單...", 12)
                 logger.log_step("多源仲裁", "初次搜尋無可用源，延長逾時重試...", status="WARN")
                 search_res = self._unified_mgr.search_all_sources(appid_str, timeout=10, steamdb_manifests=sdb_manifests)
 
-            logger.log_step("仲裁結果", f"最佳來源: {search_res.get('best_source')}，仲裁依據: {search_res.get('best_reason')}")
+            best_src_code = search_res.get("best_source", "none")
+            src_label_map = {"ryuu": "Ryuu", "luatools": "Lua.tools", "hubcap": "HubcapDB"}
+            best_src_label = src_label_map.get(best_src_code, best_src_code)
+            logger.log_step("仲裁結果", f"最佳來源: {best_src_code}，候選順序: {search_res.get('candidate_order')}，依據: {search_res.get('best_reason')}")
 
-            # 3. 執行部署 (支援進度即時回呼至前端 UI，若 Ryuu 失敗即刻顯示備援切換)
-            def on_progress(p_text: str):
-                if getattr(self, "_window", None):
-                    try:
-                        self._window.evaluate_js(f"window.onManifestProgress && window.onManifestProgress({json.dumps(appid_str)}, {json.dumps(p_text)});")
-                    except Exception:
-                        pass
+            if best_src_code != "none":
+                if search_res.get("expected_outdated"):
+                    on_progress(f"⚠️ 版本非官方最新，優先採用 {best_src_label} 可用版本部署清單...", 13)
+                else:
+                    on_progress(f"📥 檢查完成！優先使用 {best_src_label} 通道下載最新清單...", 13)
 
-            ok, msg = self._unified_mgr.deploy_best_manifest(appid_str, search_res, progress_cb=on_progress, logger=logger)
+            # 3. 執行部署 (支援進度即時回呼至前端 UI)
+            def on_deploy_step(step_text: str):
+                on_progress(step_text, 14)
 
-            # 🌟 核心同步：確定完成更新後，立即將該遊戲更新狀態移出待更新名單，同步寫入快取
+            ok, msg = self._unified_mgr.deploy_best_manifest(
+                appid_str,
+                search_res,
+                progress_cb=on_deploy_step,
+                logger=logger,
+                is_install=bool(is_install)
+            )
+
+            is_outdated = bool(search_res.get("deployed_outdated", False))
+            outdated_warning = str(search_res.get("outdated_warning", "")).strip()
+            final_src = search_res.get("deployed_source") or search_res.get("best_source", "ryuu")
+
+            # 🌟 核心同步：完成部署後同步寫入快取 (區分官方最新版與非最新版提示狀態)
             if ok:
                 updates_file = config_manager.get_storage_dir() / "manifest_updates.json"
                 updates_file.parent.mkdir(parents=True, exist_ok=True)
@@ -258,13 +292,24 @@ class InstallHandler:
                     updates = {}
                     if updates_file.exists():
                         updates = json.loads(updates_file.read_text(encoding="utf-8"))
-                    updates[appid_str] = {
-                        "appid": appid_str,
-                        "has_update": False,
-                        "version_status": "最新版",
-                        "latest_date": datetime.now().strftime("%Y-%m-%d"),
-                        "best_source": search_res.get("best_source", "ryuu")
-                    }
+                    if is_outdated:
+                        updates[appid_str] = {
+                            "appid": appid_str,
+                            "has_update": True,
+                            "update_mode": "try_update",
+                            "can_auto_update": False,
+                            "version_status": "非最新版 (待收錄)",
+                            "latest_date": datetime.now().strftime("%Y-%m-%d"),
+                            "best_source": final_src
+                        }
+                    else:
+                        updates[appid_str] = {
+                            "appid": appid_str,
+                            "has_update": False,
+                            "version_status": "最新版",
+                            "latest_date": datetime.now().strftime("%Y-%m-%d"),
+                            "best_source": final_src
+                        }
                     updates_file.write_text(json.dumps(updates, ensure_ascii=False, indent=2), encoding="utf-8")
                 except Exception:
                     pass
@@ -274,7 +319,10 @@ class InstallHandler:
             self.invalidate_games_cache()
             return {
                 "ok": ok,
-                "complete": ok,
+                "complete": ok and not is_outdated,
+                "is_outdated": is_outdated,
+                "warning": outdated_warning,
+                "best_source": final_src,
                 "msg": msg,
                 "log_path": log_res.get("log_path"),
                 "log_filename": log_res.get("log_filename"),

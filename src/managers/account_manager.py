@@ -334,47 +334,65 @@ class AccountManager:
                 if matched:
                     if acc.get("hubcap_api_key"):
                         return acc["hubcap_api_key"]
-                    for match_key in [did, email, acc_id]:
+                    for match_key in [did, email, acc_id, name]:
                         if match_key and match_key in keys_map and keys_map[match_key]:
                             return keys_map[match_key]
+        if keys_map.get("hubcap_default"):
+            return keys_map["hubcap_default"]
         return ""
+
+    @staticmethod
+    def _clean_hubcap_key_str(raw_key: str) -> str:
+        val = str(raw_key or "").strip().strip('"').strip("'").strip()
+        while val.lower().startswith("bearer "):
+            val = val[7:].strip().strip('"').strip("'").strip()
+        return val
 
     def set_hubcap_key(self, account_identifier: str, api_key: str, discord_id: str = "") -> bool:
         """為指定帳號綁定專屬的 Hubcap API Key"""
         self._check_reload()
-        if "hubcap_keys" not in self.data:
+        if "hubcap_keys" not in self.data or not isinstance(self.data.get("hubcap_keys"), dict):
             self.data["hubcap_keys"] = {}
-            
-        clean_key = str(api_key or "").strip()
-        candidates = self._normalize_ident(account_identifier)
+
+        clean_key = self._clean_hubcap_key_str(api_key)
+
+        candidates = self._normalize_ident(account_identifier) if account_identifier else []
         if discord_id:
             candidates.extend(self._normalize_ident(discord_id))
+        if not candidates:
+            candidates = ["hubcap_default"]
         candidates = list(dict.fromkeys(candidates))
-        
+
         for c in candidates:
             if c:
                 if clean_key:
                     self.data["hubcap_keys"][c] = clean_key
                 else:
                     self.data["hubcap_keys"].pop(c, None)
-                    
-        # 同步更新匹配的帳號物件
+
+        # 同步更新匹配的帳號物件及其關聯識別鍵
         for plat in ["lua_tools", "ryuu"]:
             for acc in self.data.get(plat, []):
                 acc_id = str(acc.get("id", "")).strip()
                 did = str(acc.get("discord_id", "")).strip()
                 email = str(acc.get("email", "")).strip().lower()
                 name = str(acc.get("name", "")).strip().lower()
-                
+
                 acc_identifiers = [acc_id, did, email, name]
                 matched = any(c and c in acc_identifiers for c in candidates)
-                
+
                 if matched:
                     if clean_key:
                         acc["hubcap_api_key"] = clean_key
+                        for extra_k in [acc_id, did]:
+                            if extra_k:
+                                self.data["hubcap_keys"][extra_k] = clean_key
                     else:
                         acc.pop("hubcap_api_key", None)
-                        
+                        for extra_k in [acc_id, did]:
+                            if extra_k:
+                                self.data["hubcap_keys"].pop(extra_k, None)
+
         self.save_data()
         return True
 
@@ -382,6 +400,41 @@ class AccountManager:
         """獲取所有帳號的 Hubcap API Key 映射"""
         self._check_reload()
         return self.data.get("hubcap_keys", {})
+
+    def get_any_hubcap_key(self) -> str:
+        """取得任一已綁定之有效格式 Hubcap API Key (優先取最新寫入項目)"""
+        all_keys = self.get_all_unique_hubcap_keys()
+        return all_keys[-1] if all_keys else ""
+
+    def get_all_unique_hubcap_keys(self) -> list:
+        """取得 accounts_registry.json 中所有不重複的候選 Hubcap API Key 列表 (依新舊順序排列)"""
+        self._check_reload()
+        found = []
+        keys_map = self.data.get("hubcap_keys", {})
+        if isinstance(keys_map, dict):
+            for v in keys_map.values():
+                val = self._clean_hubcap_key_str(v)
+                if val and val not in found:
+                    found.append(val)
+        for plat in ["ryuu", "lua_tools"]:
+            for acc in self.data.get(plat, []):
+                val = self._clean_hubcap_key_str(acc.get("hubcap_api_key") or "")
+                if val and val not in found:
+                    found.append(val)
+        return found
+
+    def clear_all_hubcap_keys(self) -> bool:
+        """徹底清空所有帳號映射與帳號物件內殘留的 Hubcap API Key"""
+        self._check_reload()
+        self.data["hubcap_keys"] = {}
+        if "hubcap" in self.data:
+            self.data["hubcap"] = {}
+        for plat in ["ryuu", "lua_tools"]:
+            for acc in self.data.get(plat, []):
+                if isinstance(acc, dict):
+                    acc.pop("hubcap_api_key", None)
+        self.save_data()
+        return True
 
     def save_account_credentials(self, account_id: str = "", email: str = "", password: str = "", discord_id: str = ""):
         """安全保存帳號密碼到本地保管箱 (Base64 加密與多維度索引)"""
@@ -1424,8 +1477,14 @@ class AccountManager:
                 self.data[p] = []
             self.data["active_account_ryuu"] = None
             self.data["active_account_lt"] = None
+            self.data["hubcap_keys"] = {}
             if "hubcap" in self.data:
                 self.data["hubcap"] = {}
+            try:
+                from managers import hubcap_manager
+                hubcap_manager.set_api_key("")
+            except Exception:
+                pass
             self.save_data()
             self.registry_updated.emit()
             return True

@@ -45,6 +45,7 @@
 
   var Downloader = {
     _activeDownloads: {},
+    _installingGames: {},
 
     // 取得固定之全系統下載與檢驗管線定義
     getPipeline: function(){
@@ -52,7 +53,7 @@
     },
 
     // ─────────────────────────────────────────────────────────────────
-    // 1. 核心下載管線 (入庫與更新共用之唯一底層，支援雙重檢驗與 Hubcap 熱替換)
+    // 1. 核心下載管線 (入庫與更新共用之唯一底層，支援跨平台額度與版本聯合仲裁)
     // ─────────────────────────────────────────────────────────────────
     downloadManifest: async function(appid, name, options){
       var aidStr = String(appid || '').trim();
@@ -75,20 +76,24 @@
             throw new Error('pywebview 後端 API 未就緒');
           }
 
-          // 呼叫後端最高標準仲裁下載與部署管線
-          var res = await pywebview.api.auto_stock_after_import(aidStr, gName);
+          // 呼叫後端多平台額度+版本仲裁與部署管線
+          var res = await pywebview.api.auto_stock_after_import(aidStr, gName, !!options.isInstall);
           if(!res || !res.ok){
             var msg = (res && res.msg) ? res.msg : '伺服器未收錄或下載超時';
             throw new Error(msg);
           }
 
-          // 🌟 核心即時廣播 (0ms 零延遲)：部署成功瞬間立即將卡片與記憶體標記為最新，瞬間消除需更新提示與角標！
+          var isOutdated = !!(res && res.is_outdated);
+          var warnText = (res && res.warning) ? String(res.warning) : '';
+          var verStatus = isOutdated ? '非最新版 (待收錄)' : '最新版';
+
+          // 即時廣播狀態變更 (若非官方最新版則保留可嘗試更新標記，不誤標為最新版)
           self.notifyGameStatusChanged({
             appid: aidStr,
             name: gName,
             is_installed: true,
-            has_update: false,
-            version_status: '最新版',
+            has_update: isOutdated,
+            version_status: verStatus,
             best_source: (res && res.best_source) || '官方'
           });
 
@@ -97,7 +102,13 @@
             pywebview.api.refresh_single_game_status(aidStr).catch(function(){});
           }
 
-          return { ok: true, data: res, status: { has_update: false, version_status: '最新版' } };
+          return {
+            ok: true,
+            isOutdated: isOutdated,
+            warning: warnText,
+            data: res,
+            status: { has_update: isOutdated, version_status: verStatus }
+          };
         } finally {
           delete self._activeDownloads[aidStr];
           if(typeof window.updateManageQuota === 'function'){
@@ -300,40 +311,87 @@
     },
 
     // ─────────────────────────────────────────────────────────────────
-    // 2. 一鍵入庫調度入口 (包含 DLL 自檢、核心下載、網盤補丁與安裝監控)
+    // 2. 一鍵入庫調度入口 (0ms 立即顯示進度條 · 融合全項下載前檢查 · 非最新版友善提示放行)
     // ─────────────────────────────────────────────────────────────────
     installGame: async function(appid, name){
       var aidStr = String(appid).trim();
       var gameTitle = name || ('AppID ' + aidStr);
 
-      // 🌟 核心防護守衛：一鍵入庫前檢查憑證與額度
-      var canProceed = await this.validateCredentialsAndQuota('一鍵入庫');
-      if(!canProceed){
+      if(this._installingGames[aidStr]){
+        if(window.tt) tt('ℹ️ 「' + gameTitle + '」已在入庫排程中，請查看卡片進度條', 'in', 2800);
         return;
       }
+      this._installingGames[aidStr] = true;
 
       try {
-        // 階段 1: 0% ~ 4% 【Steam 環境與 DLL 核心自檢（若缺失直接自動補齊，無須詢問）】
-        if(window.updateCardProgress) updateCardProgress(aidStr, 1, '🔍 正在檢查 Steam 核心檔案與 DLL 運行環境...', false);
+        // 🌟 0ms 零延遲：按下「一鍵入庫」瞬間立即顯示進度條，徹底消除用戶空等焦慮！
+        if(window.updateCardProgress) {
+          updateCardProgress(aidStr, 1, '⏳ 已進入入庫排程，正在啟動下載前檢查...', false);
+        }
+        await new Promise(function(r){
+          if(typeof requestAnimationFrame === 'function'){
+            requestAnimationFrame(function(){ setTimeout(r, 0); });
+          } else {
+            setTimeout(r, 16);
+          }
+        });
+
+        // 階段 1-A: 2% ~ 4% 【檢查 1/4：跨平台憑證與可用配額核驗】
+        if(window.updateCardProgress) {
+          updateCardProgress(aidStr, 2, '🔑 [檢查 1/4] 正在核驗 Ryuu · Lua.tools · HubcapDB 憑證與配額...', false);
+        }
+        var canProceed = await this.validateCredentialsAndQuota('一鍵入庫');
+        if(!canProceed){
+          if(window.resetCardProgress) resetCardProgress(aidStr);
+          return;
+        }
+        if(window.updateCardProgress) {
+          updateCardProgress(aidStr, 4, '✅ [檢查 1/4] 跨平台憑證與可用配額核驗通過', false);
+        }
+
+        // 階段 1-B: 5% ~ 7% 【檢查 2/4：Steam 環境與 DLL 核心自檢（若缺失直接自動補齊）】
+        if(window.updateCardProgress) {
+          updateCardProgress(aidStr, 5, '🛡️ [檢查 2/4] 正在檢查 Steam 核心檔案與 DLL 運行環境...', false);
+        }
         var dlls = await pywebview.api.check_dlls();
         if(dlls.missing > 0){
-          if(window.updateCardProgress) updateCardProgress(aidStr, 2, '⚡ 正在自動補齊 OpenSteamTools 核心檔案...', false);
+          if(window.updateCardProgress) {
+            updateCardProgress(aidStr, 6, '⚡ [檢查 2/4] 正在自動補齊 OpenSteamTools 核心檔案...', false);
+          }
           var ikr = await pywebview.api.inject_kernel();
           if(!ikr.ok){
-            if(window.updateCardProgress) updateCardProgress(aidStr, 2, '❌ 核心檔案注入失敗', true);
+            if(window.updateCardProgress) updateCardProgress(aidStr, 6, '❌ 核心檔案注入失敗', true);
+            if(window.finishCardProgress) finishCardProgress(aidStr, false, '❌ 核心檔案注入失敗');
             if(window.tt) tt('❌ 核心檔案自動安裝失敗（請確認已關閉防毒即時保護）', 'er');
             return;
           }
         }
-        if(window.updateCardProgress) updateCardProgress(aidStr, 4, '✅ Steam 運行環境與 DLL 核心檢測完成', false);
-        await new Promise(function(r){ setTimeout(r, 120); });
+        if(window.updateCardProgress) {
+          updateCardProgress(aidStr, 7, '✅ [檢查 2/4] Steam 運行環境與 DLL 核心檢測完成', false);
+        }
+        await new Promise(function(r){ setTimeout(r, 80); });
 
-        // 階段 2: 4% ~ 12% 【多源清單比對與下載】
-        // 🌟 徹底告別舊有脆弱的 fetch_manifest 阻斷點，全面接入後端多源仲裁與 Hubcap 備援！
-        if(window.updateCardProgress) updateCardProgress(aidStr, 8, '🔍 正在比對 SteamCMD、Ryuu 與 HubcapDB 庫存...', false);
+        // 階段 2: 8% ~ 16% 【檢查 3/4 & 4/4：SteamDB 官方基準查詢 + 多平台額度與版本仲裁下載】
+        if(window.updateCardProgress) {
+          updateCardProgress(aidStr, 8, '🔍 [檢查 3/4] 正在查詢 SteamDB 官方最新 Manifest 版本基準...', false);
+        }
         var dlResult = await this.downloadManifest(aidStr, gameTitle, { isInstall: true });
-        if(window.updateCardProgress) updateCardProgress(aidStr, 16, '✅ 官方 Manifest 清單與解密金鑰部署完成', false);
-        await new Promise(function(r){ setTimeout(r, 120); });
+        var isOutdatedManifest = !!(dlResult && dlResult.isOutdated);
+        if(isOutdatedManifest){
+          var warnTip = dlResult.warning || '目前平台尚未收錄 Steam 官方最新版本，已先以現有可用版本繼續入庫';
+          if(window.updateCardProgress) {
+            updateCardProgress(aidStr, 16, '⚠️ 清單部署完成：' + warnTip, false);
+          }
+          if(window.tt) {
+            tt('⚠️ 「' + gameTitle + '」提示：' + warnTip, 'wn', 6500);
+          }
+          await new Promise(function(r){ setTimeout(r, 350); });
+        } else {
+          if(window.updateCardProgress) {
+            updateCardProgress(aidStr, 16, '✅ 官方最新 Manifest 清單與解密金鑰部署完成', false);
+          }
+          await new Promise(function(r){ setTimeout(r, 120); });
+        }
 
         // 階段 3: 16% ~ 22% 【Google Drive 網盤補丁庫查找】
         if(window.updateCardProgress) updateCardProgress(aidStr, 18, '📁 正在查找 Google Drive 網盤補丁庫...', false);
@@ -489,6 +547,8 @@
         if(window.updateCardProgress) updateCardProgress(aidStr, 100, completionText, false, true);
         if(hasCloudPatch && !patchInstalled && patchErrorMsg){
           if(window.tt) tt('⚠️ ' + gameTitle + ' 主程式已入庫，但線上補丁安裝異常：' + patchErrorMsg, 'wn', 6000);
+        } else if(isOutdatedManifest){
+          if(window.tt) tt('✅ ' + gameTitle + ' 入庫成功' + (patchInstalled ? ' (已部署聯機補丁)' : '') + ' · ⚠️ 提示：當前為現有可用版本（官方最新版待平台收錄）', 'wn', 6500);
         } else {
           if(window.tt) tt('✅ ' + gameTitle + ' 入庫成功' + (patchInstalled ? ' (已部署聯機補丁)' : ' (無專屬線上補丁)'), 'ok');
         }
@@ -502,6 +562,8 @@
         if(window.updateCardProgress) updateCardProgress(aidStr, 0, '❌ 發生錯誤: ' + (e.message || e), true);
         if(window.finishCardProgress) finishCardProgress(aidStr, false, '❌ 發生錯誤: ' + (e.message || e));
         if(window.tt) tt('❌ 入庫過程出錯: ' + (e.message || e), 'er');
+      } finally {
+        delete this._installingGames[aidStr];
       }
     },
 
@@ -549,6 +611,21 @@
         if(!res || res.ok === false){
           var errMsg = (res && (res.msg || (res.data && res.data.msg))) || 'Manifest 更新未完成';
           throw new Error(errMsg);
+        }
+
+        if(res.isOutdated){
+          if(ov) {
+            var statWarn = ov.querySelector('.card-update-status');
+            if(statWarn) statWarn.textContent = '⚠️ 平台尚未收錄最新版，已維持可用版本';
+            var spinWarn = ov.querySelector('.card-spinner');
+            if(spinWarn) spinWarn.style.borderTopColor = '#F59E0B';
+          }
+          if(!options.silentBatch){
+            var upWarn = res.warning || '官方已有新版本，但目前可用平台尚未收錄最新清單';
+            if(window.tt) tt('⚠️ 「' + gName + '」提示：' + upWarn, 'wn', 5500);
+          }
+          await new Promise(function(r){ setTimeout(r, 400); });
+          return true;
         }
 
         // 🌟 即刻消除卡片需更新提示與發光邊框 (0ms 反饋)

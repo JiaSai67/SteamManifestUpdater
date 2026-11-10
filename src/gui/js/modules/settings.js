@@ -280,7 +280,8 @@ function goSettingsActivate(){
 // ═══════════════════════════════════════════════════════
 // 背景管理核心模組 (swBg / addBgThumb / loadBgThumbs)
 // ═══════════════════════════════════════════════════════
-async function swBg(id){
+async function swBg(id, skipSave){
+  window._currentBgId = id || '';
   // 高亮選中縮略圖
   document.querySelectorAll('#bg-g > div').forEach(function(e){
     e.style.borderColor = (e.getAttribute('data-bg') === (id || '')) ? 'var(--pink-deep)' : 'transparent';
@@ -289,37 +290,49 @@ async function swBg(id){
     var app = document.getElementById('app');
     var bgImg = document.getElementById('app-bg-img');
     var bgLayer = document.getElementById('app-bg-layer');
+    var blurPx = parseInt(window._currentBgBlur, 10) || 0;
     if(id){
-      var d = await pywebview.api.get_bg_data(id);
-      if(d && app){
+      var uri = await pywebview.api.get_bg_data(id);
+      if(uri && app){
         app.classList.add('has-bg');
         if(bgLayer) bgLayer.style.display = 'block';
-        if(bgImg) bgImg.style.backgroundImage = 'url(' + d + ')';
-        else app.style.backgroundImage = 'url(' + d + ')';
+        if(bgImg){
+          bgImg.style.backgroundImage = 'url("' + uri + '")';
+          bgImg.classList.toggle('is-blurred', blurPx > 0);
+        } else {
+          app.style.backgroundImage = 'url("' + uri + '")';
+        }
       }
     } else if(app) {
       app.classList.remove('has-bg');
       if(bgLayer) bgLayer.style.display = 'none';
-      if(bgImg) bgImg.style.backgroundImage = '';
-      else app.style.backgroundImage = '';
+      if(bgImg){
+        bgImg.style.backgroundImage = '';
+        bgImg.classList.remove('is-blurred');
+      } else {
+        app.style.backgroundImage = '';
+      }
     }
   } catch(e){
     tt('背景切換失敗: ' + (e.message || e.toString()), 'er');
     return;
   }
-  try { await pywebview.api.set_config('bg', id); } catch(e){}
-  try { await pywebview.api.set_config('bg_active', id); } catch(e){}
+  if(!skipSave){
+    try { await pywebview.api.set_config('bg', id); } catch(e){}
+    try { await pywebview.api.set_config('bg_active', id); } catch(e){}
+  }
 }
 
 function addBgThumb(img){
   var g = document.getElementById('bg-g');
   if(!g) return;
   var d = document.createElement('div');
-  d.style.cssText = 'width:64px;cursor:pointer;text-align:center;font-size:9px;color:var(--gray);border:2px solid transparent;border-radius:6px;padding:3px';
+  var isAct = (window._currentBgId || '') === (img.id || '');
+  d.style.cssText = 'width:64px;cursor:pointer;text-align:center;font-size:9px;color:var(--gray);border:2px solid ' + (isAct ? 'var(--pink-deep)' : 'transparent') + ';border-radius:6px;padding:3px';
   d.setAttribute('data-bg', img.id);
   d.onclick = function(){ swBg(img.id); };
   var imgTag = img.thumb 
-    ? '<img src="' + img.thumb + '" style="width:56px;height:36px;border-radius:3px;object-fit:cover">' 
+    ? '<img src="' + img.thumb + '" loading="lazy" decoding="async" style="width:56px;height:36px;border-radius:3px;object-fit:cover">' 
     : '<div style="width:56px;height:36px;border-radius:3px;background:var(--pink-pale);display:flex;align-items:center;justify-content:center;font-size:18px">🖼</div>';
   var delBtn = '<span onclick="event.stopPropagation();removeBg(\'' + (img.id || '').replace(/'/g, "\\'") + '\')" style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:var(--err);color:#fff;font-size:10px;line-height:16px;text-align:center;cursor:pointer;display:none" class="bg-del">×</span>';
   d.innerHTML = '<div style="position:relative">' + imgTag + delBtn + '</div>';
@@ -361,7 +374,7 @@ function addBg(){
         d.style.cssText = 'width:64px;cursor:pointer;text-align:center;font-size:9px;color:var(--gray);border:2px solid transparent;border-radius:6px;padding:3px';
         d.setAttribute('data-bg', info.id);
         d.onclick = function(){ swBg(info.id); };
-        d.innerHTML = '<div style="position:relative"><img src="'+info.thumb+'" style="width:56px;height:36px;border-radius:3px;object-fit:cover"><span onclick="event.stopPropagation();removeBg(\''+jsesc(info.id)+'\')" style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:var(--err);color:#fff;font-size:10px;line-height:16px;text-align:center;cursor:pointer;display:none" class="bg-del">×</span></div>';
+        d.innerHTML = '<div style="position:relative"><img src="'+info.thumb+'" loading="lazy" decoding="async" style="width:56px;height:36px;border-radius:3px;object-fit:cover"><span onclick="event.stopPropagation();removeBg(\''+jsesc(info.id)+'\')" style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:var(--err);color:#fff;font-size:10px;line-height:16px;text-align:center;cursor:pointer;display:none" class="bg-del">×</span></div>';
         d.onmouseenter = function(){ this.querySelector('.bg-del').style.display='block'; };
         d.onmouseleave = function(){ this.querySelector('.bg-del').style.display='none'; };
         g.insertBefore(d, plus);

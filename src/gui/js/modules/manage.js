@@ -104,7 +104,11 @@ async function updateManageQuota(prefetchedRes){
       ltChipHtml = '<span class="quota-chip quota-chip-lua" onclick="switchPage(\'credentials\')" title="' + ltTitle + '">🌙 Lua: <b>' + ltTotalLeft + '</b> 次</span>';
     }
 
-    box.innerHTML = rChipHtml + hcChipHtml + ltChipHtml;
+    var nextQuotaHtml = rChipHtml + hcChipHtml + ltChipHtml;
+    if(box._lastQuotaHtml !== nextQuotaHtml){
+      box._lastQuotaHtml = nextQuotaHtml;
+      box.innerHTML = nextQuotaHtml;
+    }
   } catch(e){}
 }
 
