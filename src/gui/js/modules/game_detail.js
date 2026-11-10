@@ -668,6 +668,19 @@ async function openGameDetail(appid, name, image){
       }
     }
 
+    // 🌟 雙向同步搜尋頁小卡狀態：若在小卡詳情確認 Ryuu / HubcapDB / 網盤補丁庫任一支援，即時同步將搜尋頁「不支援」更新為「一鍵入庫」
+    var sActEl = document.getElementById('sact-' + targetAppid);
+    if(sActEl && !isInstalled){
+      var anySupported = !!(ryuu.available || hc_info.available || hc_info.has_cache || gdrive.available || (data.best_source && data.best_source !== 'none'));
+      if(anySupported){
+        sActEl.innerHTML = '<button class="btn btn-p btn-s" onclick="event.stopPropagation(); ag(\''+targetAppid+'\',\''+jsesc(_curDetailName)+'\')">一鍵入庫</button>';
+        var sVerEl = document.getElementById('stag-ver-' + targetAppid);
+        if(sVerEl && sVerEl.classList.contains('tag-none')){
+          sVerEl.style.display = 'none';
+        }
+      }
+    }
+
     // 渲染 Depot 子分類選項卡
     if(tabsEl){
       var tabHtml = '';

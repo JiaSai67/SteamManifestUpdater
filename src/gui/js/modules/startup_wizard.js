@@ -573,10 +573,15 @@ async function s(){
       }).join('');
       fixImgs(list);
 
-      // 🌟 非同步平行查詢每張小卡的 Manifest 版本日期與雲端補丁庫狀態 (非阻塞秒開)
-      results.forEach(function(item){
+      // 🌟 非同步受控併發查詢每張小卡的 Manifest 版本日期與雲端補丁庫狀態 (非阻塞秒開且防止瞬間過載觸發備源 429)
+      var queueIdx = 0;
+      var maxConcurrent = 4;
+      function runNextSearchStatus(){
+        if(queueIdx >= results.length) return;
+        var item = results[queueIdx++];
         var aid = String(item.appid);
         var nm = item.name || '';
+        var isIns = (_installedAppids && _installedAppids.has(aid)) || (window._pre && window._pre._games && window._pre._games.some(function(g){ return String(g.appid) === aid; }));
         pywebview.api.get_search_item_status(aid, nm).then(function(stat){
           if(!stat) return;
           var cardEl = document.getElementById('scard-' + aid);
@@ -585,12 +590,12 @@ async function s(){
           var gdriveTag = document.getElementById('stag-gdrive-' + aid);
           var ofTag = document.getElementById('stag-of-' + aid);
           var zgTag = document.getElementById('stag-zg-' + aid);
-          var cdiv = document.getElementById('cdiv-' + aid);
 
-          // 1. 版本日期標籤 (跟隨 Ryuu 的 Manifest ID 與 SteamDB 日期)
+          // 1. 版本日期標籤 (跟隨 Ryuu / HubcapDB 的 Manifest ID 與 SteamDB 日期)
           if(verTag){
             if(stat.version_date){
               verTag.textContent = '📅 版本：' + stat.version_date;
+              verTag.className = 'search-tag tag-ver';
               verTag.style.display = 'inline-flex';
             } else if(!stat.has_manifest){
               verTag.textContent = '無可用清單';
@@ -642,7 +647,7 @@ async function s(){
             depTag.style.display = isDep ? 'inline-flex' : 'none';
           }
 
-          // 3. 操作按鈕更新 (旋轉中 → 一鍵入庫 / 不支援)
+          // 4. 操作按鈕更新 (旋轉中 → 一鍵入庫 / 不支援)
           if(actWrap && !stat.is_installed){
             if(stat.has_manifest){
               actWrap.innerHTML = '<button class="btn btn-p btn-s" onclick="event.stopPropagation(); ag(\''+aid+'\',\''+jsesc(nm)+'\')">一鍵入庫</button>';
@@ -652,11 +657,17 @@ async function s(){
           }
         }).catch(function(err){
           console.error('[search status update] error for aid ' + aid, err);
-          if(actWrap && !isIns){
-            actWrap.innerHTML = '<button class="btn btn-p btn-s" onclick="event.stopPropagation(); ag(\''+aid+'\',\''+jsesc(nm)+'\')">一鍵入庫</button>';
+          var actWrapErr = document.getElementById('sact-' + aid);
+          if(actWrapErr && !isIns){
+            actWrapErr.innerHTML = '<button class="btn btn-p btn-s" onclick="event.stopPropagation(); ag(\''+aid+'\',\''+jsesc(nm)+'\')">一鍵入庫</button>';
           }
+        }).finally(function(){
+          runNextSearchStatus();
         });
-      });
+      }
+      for(var w = 0; w < Math.min(maxConcurrent, results.length); w++){
+        runNextSearchStatus();
+      }
     }
   } catch(e) {
     list.innerHTML = '<div class="empty"><div class="icon">❌</div><p>搜尋失敗: '+(e.message||e.toString())+'</p></div>';

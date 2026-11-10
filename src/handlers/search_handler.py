@@ -92,11 +92,18 @@ class SearchHandler:
         if q.isdigit():
             if q in c_data:
                 c_info = c_data[q]
-                return [{
+                res_single = [{
                     "appid": q,
                     "name": sanitize_game_name(c_info.get("name", f"App_{q}"), q),
                     "image": c_info.get("header_image") or f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{q}/header.jpg"
                 }]
+                try:
+                    from managers import hubcap_manager
+                    if hubcap_manager.get_api_key():
+                        hubcap_manager.batch_check_library([q], timeout=4)
+                except Exception:
+                    pass
+                return res_single
 
             # 嘗試反查名稱
             name = name_resolver.resolve_game_name(q, steam_path=self._steam_path)
@@ -128,6 +135,13 @@ class SearchHandler:
                             img_from_api = str(first_hit["header_image"]).strip()
                 except Exception:
                     pass
+
+            try:
+                from managers import hubcap_manager
+                if hubcap_manager.get_api_key():
+                    hubcap_manager.batch_check_library([q], timeout=4)
+            except Exception:
+                pass
 
             return [{
                 "appid": q,
@@ -177,6 +191,15 @@ class SearchHandler:
                         "image": img_url
                     })
                     if len(results) >= 20: break
+
+        # 🌟 搜尋結果出爐時，優先透過 HubcapDB 0 配額批量端點 POST /api/v1/library 一次性預熱全部結果的在庫狀態！
+        if results:
+            try:
+                from managers import hubcap_manager
+                if hubcap_manager.get_api_key():
+                    hubcap_manager.batch_check_library([r.get("appid") for r in results if r.get("appid")], timeout=4)
+            except Exception:
+                pass
 
         return results
 
@@ -1066,14 +1089,32 @@ class SearchHandler:
             ):
                 has_manifest = True
 
+            # 🌟 二次深度兜底：當 Ryuu 節點掛掉或未命中，且初查尚未取得支援狀態時，主動確保 HubcapDB 免費端點與公開金鑰池已完成核驗
+            if not has_manifest:
+                try:
+                    from managers import hubcap_manager
+                    if hubcap_manager.get_api_key() and hubcap_data.get("status_msg") != "未收錄":
+                        hc_fallback = hubcap_manager.query_manifest_info(appid_str, use_cache=False, timeout=6)
+                        if hc_fallback.get("available"):
+                            has_manifest = True
+                            hubcap_data = hc_fallback
+                except Exception:
+                    pass
+
+            # 若 Ryuu 節點發生 HTTP 521 / 連線異常導致無法查詢，且該遊戲具備有效 SteamDB Depots 與公開 DepotKey，不誤鎖為「不支援」
+            if not has_manifest and sdb_manifests and ryuu_data.get("connection_error"):
+                try:
+                    keys_pool = self._unified_mgr.get_cached_depot_keys() or {}
+                    if any(str(did) in keys_pool for did in sdb_manifests.keys()) or not hubcap_data.get("status_msg"):
+                        has_manifest = True
+                except Exception:
+                    pass
+
             if not version_date_str:
-                r_time = ryuu_data.get("time", "") or hubcap_data.get("last_modified", "")
-                if r_time and "T" in r_time:
-                    try:
-                        dt = datetime.fromisoformat(r_time)
-                        version_date_str = f"{dt.month}月{dt.day}日"
-                    except Exception:
-                        pass
+                r_time = str(hubcap_data.get("last_modified", "") or ryuu_data.get("time", "") or hubcap_data.get("time", "")).strip()
+                m_date = re.search(r'(\d{4})-(\d{1,2})-(\d{1,2})', r_time)
+                if m_date:
+                    version_date_str = f"{int(m_date.group(2))}月{int(m_date.group(3))}日"
         except Exception as e:
             print(f"[get_search_item_status] AppID {appid_str} 查詢 Manifest 異常: {e}")
             # 網路波動異常時，若有補丁庫或已安裝則支援，否則預設給予嘗試入庫機會

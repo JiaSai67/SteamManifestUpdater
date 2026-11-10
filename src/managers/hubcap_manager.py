@@ -5,6 +5,7 @@ HubcapDB (hubcapmanifest.com) 管理模組
 
 import json
 import logging
+import threading
 import time
 import urllib.request
 import urllib.error
@@ -19,8 +20,14 @@ DEFAULT_HUBCAP_DOMAIN = "https://hubcapmanifest.com"
 
 # 快取結構: {api_key: {"time": float, "stats": dict, "last_valid_stats": dict}}
 _user_stats_cache: Dict[str, Dict[str, Any]] = {}
-CACHE_TTL_SECONDS = 5  # 5 秒短快取，兼顧即時檢測與防止同瞬間重複請求
+CACHE_TTL_SECONDS = 15  # 15 秒短快取，兼顧即時檢測與防止搜尋多卡併發重複請求
 FALLBACK_GRACE_PERIOD = 0  # 連線異常時直接回報 Error，不以歷史數字掩蓋異常
+
+# 併發控制鎖與記憶體快取，避免搜尋 10~15 張卡片時瞬間併發打爆 HubcapDB 觸發 HTTP 429 或寫檔衝突
+_cache_lock = threading.Lock()
+_api_semaphore = threading.Semaphore(3)
+_memory_manifest_cache: Optional[Dict[str, Dict[str, Any]]] = None
+_library_available_cache: Dict[str, Dict[str, Any]] = {}
 
 def clean_api_key(raw_key: Optional[str]) -> str:
     """標準化清理使用者貼上的 HubcapDB API Key (去除隱形空白、換行、引號與重複 Bearer 前綴)"""
@@ -63,29 +70,33 @@ def get_api_key() -> str:
 
 def set_api_key(api_key: str) -> bool:
     """儲存 Hubcap API Key 到 config.json 並清空舊快取與錯誤狀態"""
-    global _manifest_zip_cache
+    global _manifest_zip_cache, _memory_manifest_cache
     clean = clean_api_key(api_key)
     cfg = config_manager.get_config()
     cfg["hubcap_api_key"] = clean
     config_manager.save_config(cfg)
     clear_stats_cache()
     _manifest_zip_cache.clear()
+    _library_available_cache.clear()
     try:
         from managers import account_manager
         account_manager.get_account_manager().set_platform_connection_status("hubcap", False, "")
     except Exception:
         pass
     # 清理負向磁碟快取，確保新設定金鑰後查詢立即生效
-    try:
-        cf = _get_hubcap_cache_file()
-        if cf.exists():
-            c_data = json.loads(cf.read_text(encoding="utf-8"))
-            if isinstance(c_data, dict):
-                cleaned_cache = {k: v for k, v in c_data.items() if isinstance(v, dict) and v.get("available")}
-                if len(cleaned_cache) != len(c_data):
-                    cf.write_text(json.dumps(cleaned_cache, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+    with _cache_lock:
+        _memory_manifest_cache = None
+        try:
+            cf = _get_hubcap_cache_file()
+            if cf.exists():
+                c_data = json.loads(cf.read_text(encoding="utf-8"))
+                if isinstance(c_data, dict):
+                    cleaned_cache = {k: v for k, v in c_data.items() if isinstance(v, dict) and v.get("available")}
+                    if len(cleaned_cache) != len(c_data):
+                        cf.write_text(json.dumps(cleaned_cache, ensure_ascii=False, indent=2), encoding="utf-8")
+                    _memory_manifest_cache = cleaned_cache
+        except Exception:
+            pass
     return True
 
 def get_domain() -> str:
@@ -224,6 +235,16 @@ def fetch_user_stats(api_key: Optional[str] = None, force_refresh: bool = False,
                 account_manager.get_account_manager().set_platform_connection_status("hubcap", False, "")
             except Exception:
                 pass
+            # 🌟 區分「每分鐘瞬時速率限制 (Rate Limit)」與「每日下載配額耗盡」：
+            # 若先前已有 last_valid_stats 且剩餘配額 > 0，則瞬時 429 僅代表查詢併發過快，保留先前有效配額狀態！
+            if cached and cached.get("last_valid_stats") and int(cached["last_valid_stats"].get("remaining", 0)) > 0:
+                preserved = dict(cached["last_valid_stats"])
+                _user_stats_cache[key] = {
+                    "time": now,
+                    "stats": preserved,
+                    "last_valid_stats": preserved
+                }
+                return preserved
             prev_limit = 25
             if cached and cached.get("last_valid_stats"):
                 prev_limit = cached["last_valid_stats"].get("daily_limit") or 25
@@ -318,28 +339,38 @@ def _get_hubcap_cache_file() -> Path:
     return p
 
 def _load_hubcap_cached_info(appid: str) -> Optional[Dict[str, Any]]:
-    try:
-        cf = _get_hubcap_cache_file()
-        if cf.exists():
-            c = json.loads(cf.read_text(encoding="utf-8"))
-            return c.get(str(appid))
-    except Exception:
-        pass
-    return None
+    global _memory_manifest_cache
+    with _cache_lock:
+        if _memory_manifest_cache is None:
+            try:
+                cf = _get_hubcap_cache_file()
+                if cf.exists():
+                    loaded = json.loads(cf.read_text(encoding="utf-8"))
+                    _memory_manifest_cache = loaded if isinstance(loaded, dict) else {}
+                else:
+                    _memory_manifest_cache = {}
+            except Exception:
+                _memory_manifest_cache = {}
+        return _memory_manifest_cache.get(str(appid))
 
 def _save_hubcap_cached_info(appid: str, data: Dict[str, Any]):
-    try:
-        cf = _get_hubcap_cache_file()
-        c = {}
-        if cf.exists():
-            try:
-                c = json.loads(cf.read_text(encoding="utf-8"))
-            except Exception:
-                c = {}
-        c[str(appid)] = data
-        cf.write_text(json.dumps(c, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+    global _memory_manifest_cache
+    with _cache_lock:
+        try:
+            cf = _get_hubcap_cache_file()
+            if _memory_manifest_cache is None:
+                if cf.exists():
+                    try:
+                        loaded = json.loads(cf.read_text(encoding="utf-8"))
+                        _memory_manifest_cache = loaded if isinstance(loaded, dict) else {}
+                    except Exception:
+                        _memory_manifest_cache = {}
+                else:
+                    _memory_manifest_cache = {}
+            _memory_manifest_cache[str(appid)] = data
+            cf.write_text(json.dumps(_memory_manifest_cache, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
 
 def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int = 10, use_cache: bool = True, cache_ttl: int = 120) -> Dict[str, Any]:
     """
@@ -374,7 +405,10 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
     if use_cache:
         cached_early = _load_hubcap_cached_info(appid_str)
         if cached_early and (time.time() - float(cached_early.get("cached_at", 0)) < cache_ttl):
-            if cached_early.get("available") or cached_early.get("error") == "未收錄":
+            # 若快取為有效在庫（含真實 Depots）或明確未收錄，直接命中快取
+            dep_early = cached_early.get("depots") or {}
+            has_real_gids = any(str(v).isdigit() for v in dep_early.values()) if isinstance(dep_early, dict) else False
+            if (cached_early.get("available") and has_real_gids) or cached_early.get("error") == "未收錄":
                 res_early = dict(cached_early)
                 res_early["from_cache"] = True
                 return res_early
@@ -394,10 +428,13 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
     last_err = ""
 
     # 1. 查詢 /api/v1/manifest/{appid}/contents (0 配額消耗，直接取得所有 Depot ID 與 Manifest GID)
-    try:
-        req = urllib.request.Request(free_contents_url, headers=headers)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = resp.read()
+    # 使用 _api_semaphore 控制最大同時連線數並具備 429 退避重試，防止搜尋 10~15 張卡片時瞬間併發觸發 HTTP 429
+    for attempt in range(1, 3):
+        try:
+            with _api_semaphore:
+                req = urllib.request.Request(free_contents_url, headers=headers)
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    data = resp.read()
             if data:
                 json_data = json.loads(data.decode("utf-8"))
                 if isinstance(json_data, dict):
@@ -429,17 +466,20 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
                     last_mod = str(json_data.get("last_modified", "")).strip()
                     time_disp = last_mod[:16].replace("T", " ") if last_mod else "即時在庫"
 
-                    if extracted_depots and zip_exists:
+                    if extracted_depots or zip_exists:
+                        if not extracted_depots:
+                            extracted_depots = {appid_str: "available"}
                         res_ok = {
                             "available": True,
                             "depots": extracted_depots,
                             "source": "HubcapDB",
-                            "has_zip": zip_exists,
+                            "has_zip": True,
                             "file_size": int(json_data.get("file_size") or 0),
                             "last_modified": last_mod,
                             "time": time_disp,
                             "branch": str(json_data.get("branch", "public")),
                             "quota_exhausted": False,
+                            "connection_error": False,
                             "cached_at": time.time()
                         }
                         _save_hubcap_cached_info(appid_str, res_ok)
@@ -457,25 +497,97 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
                         }
                         _save_hubcap_cached_info(appid_str, res_not_found)
                         return res_not_found
-    except urllib.error.HTTPError as he:
-        last_err = f"HTTP {he.code}"
-        if he.code == 401 and api_key is None:
-            # 觸發金鑰自癒檢測，若救回有效新金鑰則立即重試一次免費查詢
-            heal_st = fetch_user_stats(force_refresh=True)
-            new_k = get_api_key()
-            if heal_st.get("ok") and new_k and new_k != key:
-                return query_manifest_info(appid_str, api_key=new_k, timeout=timeout, use_cache=False, cache_ttl=cache_ttl)
-        if he.code == 404:
+        except urllib.error.HTTPError as he:
+            last_err = f"HTTP {he.code}"
+            if he.code == 401 and api_key is None:
+                # 觸發金鑰自癒檢測，若救回有效新金鑰則立即重試一次免費查詢
+                heal_st = fetch_user_stats(force_refresh=True)
+                new_k = get_api_key()
+                if heal_st.get("ok") and new_k and new_k != key:
+                    return query_manifest_info(appid_str, api_key=new_k, timeout=timeout, use_cache=False, cache_ttl=cache_ttl)
+                break
+            if he.code == 404:
+                try:
+                    from managers import account_manager
+                    account_manager.get_account_manager().set_platform_connection_status("hubcap", False, "")
+                except Exception:
+                    pass
+                res_404 = {
+                    "available": False,
+                    "depots": {},
+                    "source": "HubcapDB",
+                    "has_zip": False,
+                    "quota_exhausted": False,
+                    "connection_error": False,
+                    "error": "未收錄",
+                    "cached_at": time.time()
+                }
+                _save_hubcap_cached_info(appid_str, res_404)
+                return res_404
+            elif he.code == 429:
+                # 僅代表觸發每分鐘速率限制 (Rate Limit)，短暫退避後自動重試
+                last_err = "請求頻率過高 (HTTP 429)"
+                if attempt == 1:
+                    time.sleep(0.45)
+                    continue
+        except Exception as e:
+            last_err = str(e)
+            logger.debug("嘗試 Hubcap 免費端點 %s 失敗: %s", free_contents_url, e)
+            if attempt == 1:
+                time.sleep(0.25)
+                continue
+
+    # 2. 備援：查詢 /api/v1/status/{appid} (同樣為 free: true 0 配額端點)
+    try:
+        with _api_semaphore:
+            req_st = urllib.request.Request(free_status_url, headers=headers)
+            with urllib.request.urlopen(req_st, timeout=timeout) as resp_st:
+                st_data = json.loads(resp_st.read().decode("utf-8"))
+        if isinstance(st_data, dict):
             try:
                 from managers import account_manager
                 account_manager.get_account_manager().set_platform_connection_status("hubcap", False, "")
             except Exception:
                 pass
+            is_avail = (st_data.get("status") == "available") or bool(st_data.get("manifest_file_exists"))
+            if not is_avail:
+                res_unavail = {
+                    "available": False,
+                    "depots": {},
+                    "source": "HubcapDB",
+                    "game_name": str(st_data.get("game_name", "")).strip(),
+                    "quota_exhausted": False,
+                    "connection_error": False,
+                    "error": "未收錄",
+                    "cached_at": time.time()
+                }
+                _save_hubcap_cached_info(appid_str, res_unavail)
+                return res_unavail
+            else:
+                # 🌟 關鍵修復：當 /api/v1/status/{appid} 確認遊戲在庫 (available=True) 時，必須明確回傳 available: True！
+                last_mod_st = str(st_data.get("last_updated") or st_data.get("last_modified") or st_data.get("uploaded_at") or "").strip()
+                time_disp_st = last_mod_st[:16].replace("T", " ") if last_mod_st else "即時在庫"
+                cached_dep = (_load_hubcap_cached_info(appid_str) or {}).get("depots") or {}
+                res_st_ok = {
+                    "available": True,
+                    "depots": cached_dep if cached_dep else {appid_str: "available"},
+                    "source": "HubcapDB",
+                    "has_zip": True,
+                    "game_name": str(st_data.get("game_name", "")).strip(),
+                    "last_modified": last_mod_st,
+                    "time": time_disp_st,
+                    "quota_exhausted": False,
+                    "connection_error": False,
+                    "cached_at": time.time()
+                }
+                _save_hubcap_cached_info(appid_str, res_st_ok)
+                return res_st_ok
+    except urllib.error.HTTPError as he:
+        if he.code == 404:
             res_404 = {
                 "available": False,
                 "depots": {},
                 "source": "HubcapDB",
-                "has_zip": False,
                 "quota_exhausted": False,
                 "connection_error": False,
                 "error": "未收錄",
@@ -484,55 +596,33 @@ def query_manifest_info(appid: str, api_key: Optional[str] = None, timeout: int 
             _save_hubcap_cached_info(appid_str, res_404)
             return res_404
         elif he.code == 429:
-            # 僅代表觸發每分鐘速率限制 (Rate Limit)
             last_err = "請求頻率過高 (HTTP 429)"
-    except Exception as e:
-        last_err = str(e)
-        logger.debug("嘗試 Hubcap 免費端點 %s 失敗: %s", free_contents_url, e)
-
-    # 2. 備援：查詢 /api/v1/status/{appid} (同樣為 free: true 0 配額端點)
-    try:
-        req_st = urllib.request.Request(free_status_url, headers=headers)
-        with urllib.request.urlopen(req_st, timeout=timeout) as resp_st:
-            st_data = json.loads(resp_st.read().decode("utf-8"))
-            if isinstance(st_data, dict):
-                try:
-                    from managers import account_manager
-                    account_manager.get_account_manager().set_platform_connection_status("hubcap", False, "")
-                except Exception:
-                    pass
-                is_avail = (st_data.get("status") == "available") and bool(st_data.get("manifest_file_exists"))
-                if not is_avail:
-                    res_unavail = {
-                        "available": False,
-                        "depots": {},
-                        "source": "HubcapDB",
-                        "game_name": str(st_data.get("game_name", "")).strip(),
-                        "quota_exhausted": False,
-                        "connection_error": False,
-                        "error": "未收錄",
-                        "cached_at": time.time()
-                    }
-                    _save_hubcap_cached_info(appid_str, res_unavail)
-                    return res_unavail
-    except urllib.error.HTTPError as he:
-        if he.code == 404:
-            res_404 = {
-                "available": False,
-                "depots": {},
-                "source": "HubcapDB",
-                "quota_exhausted": False,
-                "connection_error": False,
-                "error": "未收錄",
-                "cached_at": time.time()
-            }
-            _save_hubcap_cached_info(appid_str, res_404)
-            return res_404
-        last_err = f"HTTP {he.code}"
+        else:
+            last_err = f"HTTP {he.code}"
     except Exception as e:
         last_err = str(e)
 
-    is_conn_err = bool(last_err and not quota_exhausted and last_err != "HTTP 404")
+    # 3. 備援：若先前已透過 batch_check_library (/api/v1/library) 確認該 AppID 在 HubcapDB 庫中，直接回傳在庫可用！
+    lib_hit = _library_available_cache.get(appid_str)
+    if lib_hit and (time.time() - float(lib_hit.get("cached_at", 0)) < 600):
+        last_mod_lib = str(lib_hit.get("uploaded_at") or lib_hit.get("last_modified") or "").strip()
+        time_disp_lib = last_mod_lib[:16].replace("T", " ") if last_mod_lib else "即時在庫"
+        res_lib_ok = {
+            "available": True,
+            "depots": {appid_str: "available"},
+            "source": "HubcapDB",
+            "has_zip": True,
+            "game_name": str(lib_hit.get("game_name", "")).strip(),
+            "last_modified": last_mod_lib,
+            "time": time_disp_lib,
+            "quota_exhausted": False,
+            "connection_error": False,
+            "cached_at": time.time()
+        }
+        return res_lib_ok
+
+    is_rate_limit = ("429" in str(last_err))
+    is_conn_err = bool(last_err and not quota_exhausted and not is_rate_limit and last_err != "HTTP 404")
     if is_conn_err:
         clear_stats_cache()
         try:
@@ -600,7 +690,8 @@ def search_hubcap_games(query: str, by_appid: bool = False, limit: int = 50, api
 def batch_check_library(app_ids: list, include_adult: bool = True, api_key: Optional[str] = None, timeout: int = 10) -> Dict[str, Any]:
     """
     呼叫 HubcapDB 官方免費批量檢查端點 POST /api/v1/library (free: true，0 配額消耗)。
-    一次最多可傳入 5,000 個 AppID，快速回傳哪些 AppID 在 HubcapDB 有可用 Manifest。
+    一次最多可傳入 5,000 個 AppID，快速回傳哪些 AppID 在 HubcapDB 有可用 Manifest，
+    並同步預熱記憶體與本地快取，大幅加速搜尋小卡的多源狀態核驗！
     """
     clean_ids = [int(str(x).strip()) for x in (app_ids or []) if str(x).strip().isdigit()]
     if not clean_ids:
@@ -620,17 +711,47 @@ def batch_check_library(app_ids: list, include_adult: bool = True, api_key: Opti
         "Authorization": f"Bearer {key}"
     }
     try:
-        req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            avail_list = data.get("available", []) if isinstance(data, dict) else []
-            avail_map = {str(item.get("app_id")): item for item in avail_list if isinstance(item, dict) and item.get("app_id")}
-            return {
-                "ok": True,
-                "available": avail_map,
-                "missing": data.get("missing", []) if isinstance(data, dict) else [],
-                "available_count": len(avail_map)
-            }
+        with _api_semaphore:
+            req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        avail_list = data.get("available", []) if isinstance(data, dict) else []
+        avail_map = {}
+        now_ts = time.time()
+        for item in avail_list:
+            if isinstance(item, dict) and item.get("app_id"):
+                aid_s = str(item.get("app_id")).strip()
+                avail_map[aid_s] = item
+                _library_available_cache[aid_s] = {**item, "cached_at": now_ts}
+            elif isinstance(item, (int, str)) and str(item).strip().isdigit():
+                aid_s = str(item).strip()
+                avail_map[aid_s] = {"app_id": int(aid_s)}
+                _library_available_cache[aid_s] = {"app_id": int(aid_s), "cached_at": now_ts}
+
+        missing_list = data.get("missing", []) if isinstance(data, dict) else []
+        # 對於明確不在 HubcapDB 庫中的 AppID，預寫入短期未收錄快取，避免後續每張搜尋卡片再發送無謂的 HTTP 請求
+        for m_id in missing_list:
+            m_str = str(m_id).strip()
+            if m_str and m_str not in avail_map:
+                existing = _load_hubcap_cached_info(m_str)
+                if not (existing and existing.get("available")):
+                    _save_hubcap_cached_info(m_str, {
+                        "available": False,
+                        "depots": {},
+                        "source": "HubcapDB",
+                        "has_zip": False,
+                        "quota_exhausted": False,
+                        "connection_error": False,
+                        "error": "未收錄",
+                        "cached_at": now_ts
+                    })
+
+        return {
+            "ok": True,
+            "available": avail_map,
+            "missing": missing_list,
+            "available_count": len(avail_map)
+        }
     except Exception as e:
         return {"ok": False, "available": {}, "missing": clean_ids, "error": str(e)}
 

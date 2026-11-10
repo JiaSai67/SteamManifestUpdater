@@ -208,30 +208,67 @@ def fetch_steamdb_manifests(app_id_str: str, timeout: int = 5) -> dict:
 
     # 🌟 補全跨 Depot (含 DLC Depots) 機制：
     # SteamCMD 主遊戲 info 通常只包含主程式 Depot，DLC Depots 隔離在個別 DLC AppID 下。
-    # 藉由 Ryuu manifestinfo 自動補齊該遊戲名下全部官方最新 public 分支 Manifest (含 DLC Depots)。
+    # 藉由 Ryuu manifestinfo 或 HubcapDB 0 配額 contents 端點自動補齊該遊戲名下全部官方最新 public 分支 Manifest。
     try:
-        req_r = urllib.request.Request(
-            f"https://generator.ryuu.lol/manifestinfo/{app_id_str}",
-            headers={"User-Agent": "Mozilla/5.0"}
-        )
-        with urllib.request.urlopen(req_r, timeout=min(timeout, 3)) as resp_r:
-            data_r = json.loads(resp_r.read().decode("utf-8"))
-            bm = data_r.get("branch_manifests", {})
-            pub_depots = bm.get("public", {}).get("depots", {})
+        from managers import unified_manifest_manager
+        u_mgr = unified_manifest_manager.get_unified_manifest_manager()
+        if time.time() < getattr(u_mgr, "_ryuu_down_until", 0.0):
+            # Ryuu 節點處於斷路器冷卻期 (如 HTTP 521)，直接讀取本地快取而不重複發起網路連線阻塞
+            cached_r = u_mgr._load_ryuu_cached_info(app_id_str) or {}
+            pub_depots = cached_r.get("branch_manifests", {}).get("public", {}).get("depots", {}) or cached_r.get("steamdb_target", {})
             if pub_depots:
                 for d_id, gid in pub_depots.items():
                     d_id_str = str(d_id).strip()
                     if d_id_str not in res["manifests"]:
                         res["manifests"][d_id_str] = str(gid)
                         res["found"] = True
-            ts = data_r.get("timestamp")
-            if ts and not res["date_str"]:
-                try:
-                    res["date_str"] = datetime.datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d")
-                except Exception:
-                    pass
+        else:
+            req_r = urllib.request.Request(
+                f"https://generator.ryuu.lol/manifestinfo/{app_id_str}",
+                headers={"User-Agent": "Mozilla/5.0"}
+            )
+            with urllib.request.urlopen(req_r, timeout=min(timeout, 2.5)) as resp_r:
+                data_r = json.loads(resp_r.read().decode("utf-8"))
+                bm = data_r.get("branch_manifests", {})
+                pub_depots = bm.get("public", {}).get("depots", {})
+                if pub_depots:
+                    for d_id, gid in pub_depots.items():
+                        d_id_str = str(d_id).strip()
+                        if d_id_str not in res["manifests"]:
+                            res["manifests"][d_id_str] = str(gid)
+                            res["found"] = True
+                ts = data_r.get("timestamp")
+                if ts and not res["date_str"]:
+                    try:
+                        res["date_str"] = datetime.datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d")
+                    except Exception:
+                        pass
+    except urllib.error.HTTPError as he_r:
+        if he_r.code >= 500:
+            try:
+                from managers import unified_manifest_manager
+                u_mgr = unified_manifest_manager.get_unified_manifest_manager()
+                u_mgr._ryuu_down_until = time.time() + 30.0
+                u_mgr._ryuu_last_err = f"HTTP {he_r.code}"
+            except Exception:
+                pass
     except Exception:
         pass
+
+    # 若 SteamCMD 與 Ryuu 皆未取回 Manifest (例如 Ryuu 521 掛點且 SteamCMD PICS 暫無回應)，嘗試自 HubcapDB 0 配額快取/端點補齊
+    if not res["manifests"]:
+        try:
+            from managers import hubcap_manager
+            hc_cached = hubcap_manager._load_hubcap_cached_info(app_id_str)
+            if hc_cached and hc_cached.get("available") and hc_cached.get("depots"):
+                for d_id, gid in hc_cached["depots"].items():
+                    if str(gid).isdigit():
+                        res["manifests"][str(d_id).strip()] = str(gid).strip()
+                        res["found"] = True
+                if not res["date_str"] and hc_cached.get("last_modified"):
+                    res["date_str"] = str(hc_cached["last_modified"])[:10]
+        except Exception:
+            pass
 
     _steamdb_cache[app_id_str] = (now, res)
     return res
@@ -383,11 +420,16 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
     steamdb_date_str = steamdb_info.get("date_str", "")
     steamdb_ts = steamdb_info.get("timestamp", 0)
 
-    # 🌟 依使用者最新規範：更新檢查回復只比對 Ryuu，Hubcap 絕不自動聯網，保護配額
+    # 🌟 整合多源 0 配額查詢結果 (Ryuu + HubcapDB /contents + Lua.tools)，確保 Ryuu 節點異常時自動無縫切換 HubcapDB 備源
     ryuu_manifests = unified_search.get("ryuu", {}).get("depots", {})
-    best_manifests = ryuu_manifests
-    best_source = "ryuu"
-    best_reason = "更新檢查以 Ryuu 純查詢中繼數據為基礎"
+    raw_hc_manifests = unified_search.get("hubcap", {}).get("depots", {}) or {}
+    hubcap_manifests = {str(k).strip(): str(v).strip() for k, v in raw_hc_manifests.items() if str(v).strip() and str(v).strip() != "available"}
+    best_source = unified_search.get("best_source", "ryuu")
+    if best_source not in ("ryuu", "hubcap", "luatools"):
+        best_source = "hubcap" if (hubcap_manifests and not ryuu_manifests) else "ryuu"
+    best_manifests = hubcap_manifests if (best_source == "hubcap" and hubcap_manifests) else (ryuu_manifests or hubcap_manifests)
+    best_reason = unified_search.get("best_reason") or "更新檢查以多源純查詢中繼數據為基礎"
+    best_source_name = {"ryuu": "Ryuu", "hubcap": "HubcapDB", "luatools": "Lua.tools"}.get(best_source, "Ryuu")
 
     # 3.5 🌟 拓撲自檢：判斷是否存在已棄置 (Deprecated) 的 Depot 與架構遷移需求
     topo = identify_depot_topology(
@@ -406,7 +448,7 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
     # SteamDB 官方基準清單 (作為官方最新標準)
     latest_manifests = dict(steamdb_manifests) if steamdb_manifests else {}
     for d_id, b_m in (best_manifests or {}).items():
-        if d_id not in latest_manifests and d_id not in topo.get("deprecated_depots", {}):
+        if d_id not in latest_manifests and d_id not in topo.get("deprecated_depots", {}) and str(b_m).isdigit():
             latest_manifests[d_id] = b_m
 
     # 若本地宣告的 Depot 在 SteamDB 官方歷史庫中有記錄，且未被判定為棄置，補全已知最新 GID 與發布時間
@@ -423,10 +465,10 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
     result["latest_date"] = steamdb_date_str if steamdb_date_str else "未知"
     result["latest_manifests"] = latest_manifests
     result["unified_search"] = unified_search
-    result["best_source"] = "ryuu"
-    result["best_source_name"] = "Ryuu"
+    result["best_source"] = best_source
+    result["best_source_name"] = best_source_name
     result["best_reason"] = best_reason
-    result["hubcap_manifests"] = unified_search.get("hubcap", {}).get("depots", {})
+    result["hubcap_manifests"] = hubcap_manifests or raw_hc_manifests
     result["best_manifests"] = best_manifests
 
     # 5. 🌟 判斷是否存在真正未完成的架構遷移 (Depot 棄置與替換)
@@ -493,7 +535,7 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
 
     result["diff_count"] = diff_count
 
-    # 8. 🌟 判斷 Ryuu 是否與官方最新版完全對齊 (is_ryuu_aligned)
+    # 8. 🌟 判斷 Ryuu / HubcapDB 是否與官方最新版完全對齊
     is_ryuu_aligned = False
     if ryuu_manifests and latest_manifests:
         active_latest = {d: str(gid) for d, gid in latest_manifests.items() if d not in topo.get("deprecated_depots", {})}
@@ -504,8 +546,19 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
             elif unified_search.get("ryuu", {}).get("is_aligned_steamdb"):
                 is_ryuu_aligned = True
 
-    # 9. 判斷 Ryuu 是否能提供比本地新的更新 (ryuu_has_update)
+    is_hubcap_aligned = False
+    if hubcap_manifests and latest_manifests:
+        active_latest = {d: str(gid) for d, gid in latest_manifests.items() if d not in topo.get("deprecated_depots", {})}
+        if active_latest:
+            hc_matches = sum(1 for d, gid in active_latest.items() if str(hubcap_manifests.get(str(d), "")) == gid)
+            if hc_matches == len(active_latest):
+                is_hubcap_aligned = True
+            elif unified_search.get("hubcap", {}).get("is_aligned_steamdb"):
+                is_hubcap_aligned = True
+
+    # 9. 判斷 Ryuu 或 HubcapDB 是否能提供比本地新的更新
     ryuu_has_update = False
+    hubcap_has_update = False
     diff_update_depots = []
     if ryuu_manifests and local_manifests:
         for d_id, r_gid in ryuu_manifests.items():
@@ -517,37 +570,50 @@ def resolve_manifest_version_diff(appid, local_manifests=None, local_date_ts=Non
                 diff_update_depots.append((str(d_id), str(l_gid or "無"), str(r_gid)))
     elif ryuu_manifests and not local_manifests:
         ryuu_has_update = True
+
+    if hubcap_manifests and local_manifests:
+        for d_id, hc_gid in hubcap_manifests.items():
+            if d_id in topo.get("deprecated_depots", {}):
+                continue
+            l_gid = local_manifests.get(str(d_id))
+            if not l_gid or str(l_gid) != str(hc_gid):
+                hubcap_has_update = True
+                if not any(item[0] == str(d_id) for item in diff_update_depots):
+                    diff_update_depots.append((str(d_id), str(l_gid or "無"), str(hc_gid)))
+    elif hubcap_manifests and not local_manifests:
+        hubcap_has_update = True
+
     if needs_topology_migration:
         ryuu_has_update = True
+        if hubcap_manifests:
+            hubcap_has_update = True
 
     # 10. 檢查用戶是否已輸入 Hubcap API Key
     from managers import hubcap_manager
     has_hubcap_key = bool(hubcap_manager.get_api_key())
 
-    # 11. 🌟 核心雙模式分流仲裁 (依使用者指示)：
-    # 模式 1：原本的黃框，顯示「可更新」，這是 Ryuu 有提供更新源時才呈現
-    # 模式 2：新方法，淺紅框，顯示「可嘗試更新」，這是偵測到用戶有輸入 hubcap api 且發現 ryuu 版本跟最新版對不上時才觸發
+    # 11. 🌟 核心雙模式分流仲裁 (依使用者指示，同時支援 Ryuu 掛點時 HubcapDB 備源直接提供更新)：
     if is_latest:
         update_mode = "none"
         has_available_update = False
         version_status = "最新版"
-    elif is_ryuu_aligned and ryuu_has_update:
-        # 模式 1：黃框，顯示可更新
+    elif (is_ryuu_aligned and ryuu_has_update) or (has_hubcap_key and is_hubcap_aligned and hubcap_has_update):
+        # 模式 1：黃框，顯示可更新 (Ryuu 或已綁定之 HubcapDB 已收錄官方最新版)
         update_mode = "update"
         has_available_update = True
         version_status = f"舊 {diff_count} 版" if diff_count > 1 else "可更新"
     elif has_hubcap_key and not is_ryuu_aligned:
         # 模式 2：淺紅框，顯示可嘗試更新
         update_mode = "try_update"
-        has_available_update = False
+        has_available_update = bool(hubcap_has_update)
         version_status = "可嘗試更新"
-    elif ryuu_has_update:
-        # Ryuu 雖非官方最新版，但比本地新，且用戶未配置 Hubcap API -> 仍可更新 Ryuu 現有版本
+    elif ryuu_has_update or (has_hubcap_key and hubcap_has_update):
+        # 雖非官方最新版，但比本地新 -> 仍可更新現有版本
         update_mode = "update"
         has_available_update = True
         version_status = f"舊 {diff_count} 版"
     else:
-        # Ryuu 無更新，且未綁定 Hubcap API Key -> 待雲端同步
+        # 無更新，且未綁定 Hubcap API Key -> 待雲端同步
         update_mode = "pending"
         has_available_update = False
         version_status = f"舊 {diff_count} 版 (待雲端同步)"

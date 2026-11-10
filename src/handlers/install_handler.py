@@ -42,19 +42,47 @@ class InstallHandler:
             search_res = self._unified_mgr.search_all_sources(appid_str, timeout=8, allow_hubcap_network=True)
             best_source = search_res.get("best_source", "ryuu")
             if best_source == "hubcap":
-                depots = search_res.get("hubcap", {}).get("depots", {}) or search_res.get("ryuu", {}).get("depots", {})
+                depots = (
+                    search_res.get("hubcap", {}).get("depots", {})
+                    or search_res.get("ryuu", {}).get("depots", {})
+                    or search_res.get("luatools", {}).get("depots", {})
+                )
             else:
-                depots = search_res.get("ryuu", {}).get("depots", {}) or search_res.get("hubcap", {}).get("depots", {})
+                depots = (
+                    search_res.get("ryuu", {}).get("depots", {})
+                    or search_res.get("hubcap", {}).get("depots", {})
+                    or search_res.get("luatools", {}).get("depots", {})
+                )
 
             # 若初次查詢未取得 depots，進行一次重試
             if not depots:
-                time.sleep(0.5)
+                time.sleep(0.4)
                 search_res = self._unified_mgr.search_all_sources(appid_str, timeout=10, allow_hubcap_network=True)
                 best_source = search_res.get("best_source", "ryuu")
                 if best_source == "hubcap":
-                    depots = search_res.get("hubcap", {}).get("depots", {}) or search_res.get("ryuu", {}).get("depots", {})
+                    depots = (
+                        search_res.get("hubcap", {}).get("depots", {})
+                        or search_res.get("ryuu", {}).get("depots", {})
+                        or search_res.get("luatools", {}).get("depots", {})
+                    )
                 else:
-                    depots = search_res.get("ryuu", {}).get("depots", {}) or search_res.get("hubcap", {}).get("depots", {})
+                    depots = (
+                        search_res.get("ryuu", {}).get("depots", {})
+                        or search_res.get("hubcap", {}).get("depots", {})
+                        or search_res.get("luatools", {}).get("depots", {})
+                    )
+
+            # 若 HubcapDB 確定在庫但僅有 placeholder (如透過 status/library 端點命中)，強制重查一次 /contents 取回完整 GID
+            if depots and all(str(v) == "available" for v in depots.values()):
+                try:
+                    from managers import hubcap_manager
+                    hc_full = hubcap_manager.query_manifest_info(appid_str, use_cache=False, timeout=8)
+                    if hc_full.get("available") and hc_full.get("depots"):
+                        depots = hc_full["depots"]
+                        if search_res.get("hubcap"):
+                            search_res["hubcap"]["depots"] = dict(depots)
+                except Exception:
+                    pass
         except Exception as e:
             print(f"[fetch_manifest] AppID {appid_str} 線上多源查詢異常: {e}")
 
@@ -66,7 +94,8 @@ class InstallHandler:
                 sdb_manifests = sdb_info.get("manifests", {})
                 if sdb_manifests:
                     depots = sdb_manifests
-                    best_source = "steamdb"
+                    if best_source == "none":
+                        best_source = "steamdb"
             except Exception as e:
                 print(f"[fetch_manifest] AppID {appid_str} SteamDB 提取異常: {e}")
 
@@ -86,7 +115,7 @@ class InstallHandler:
                     has_any_key = True
                 else:
                     lua_lines.append(f"addappid({did_str})")
-                if gid:
+                if gid and str(gid).isdigit():
                     lua_lines.append(f'setManifestid({did_str}, "{gid}")')
 
             assembled_lua = "\n".join(lua_lines) + "\n"

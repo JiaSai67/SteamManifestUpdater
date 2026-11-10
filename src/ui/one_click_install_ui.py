@@ -531,6 +531,20 @@ class OneClickInstallWidget(QWidget):
                 return True
             return False
 
+        def _check_hubcap():
+            try:
+                from managers import hubcap_manager
+                if hubcap_manager.get_api_key():
+                    hc_info = hubcap_manager.query_manifest_info(str(appid), timeout=6)
+                    if hc_info.get("available"):
+                        self.lua_resource_status = "available"
+                        self.lua_available_source = "HubcapDB"
+                        self.refresh_all_status()
+                        return True
+            except Exception:
+                pass
+            return False
+
 
         # 優先順位 1: Ryuu Generator (專屬端點 0 消耗快速檢查)
         from managers import ryuu_manager, account_manager
@@ -550,8 +564,8 @@ class OneClickInstallWidget(QWidget):
                 self.lua_available_source = "Ryuu Generator"
                 self.refresh_all_status()
             else:
-                # Ryuu 查無此遊戲或無配額，檢查網盤或 Fallback 至 Lua.tools
-                if not _check_cloud_patch():
+                # Ryuu 查無此遊戲、無配額或節點異常，依序檢查 HubcapDB、網盤或 Fallback 至 Lua.tools
+                if not _check_hubcap() and not _check_cloud_patch():
                     _fallback_to_lt()
 
         self.ryuu_check_thread.result_ready.connect(_on_ryuu_check_done)

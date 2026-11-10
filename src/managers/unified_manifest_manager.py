@@ -3,6 +3,7 @@ import re
 import json
 import time
 import stat
+import threading
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +30,9 @@ class UnifiedManifestManager:
         self.config = config_manager.get_config()
         self.keys_api_url = "https://api.993499094.xyz/depotkeys.json"
         self._depot_keys_cache = None
+        self._ryuu_cache_lock = threading.Lock()
+        self._ryuu_down_until = 0.0
+        self._ryuu_last_err = ""
 
     def get_cached_depot_keys(self) -> Dict[str, str]:
         """讀取或快取公開 23.9 萬把 DepotKeys"""
@@ -60,7 +64,7 @@ class UnifiedManifestManager:
             print(f"[UnifiedManifestManager] 獲取公共 DepotKeys 失敗: {e}")
             return {}
 
-    def _query_hubcap(self, appid: str, timeout: int = 6, allow_network: bool = True) -> Dict[str, Any]:
+    def _query_hubcap(self, appid: str, timeout: int = 6, allow_network: bool = True, steamdb_manifests: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
         查詢 HubcapDB 平台收錄狀態（0 配額消耗）。
         🌟 採用 HubcapDB 官方免費純查詢端點 GET /api/v1/manifest/{appid}/contents (free: true)，
@@ -72,10 +76,15 @@ class UnifiedManifestManager:
 
             if not allow_network:
                 cached = hubcap_manager._load_hubcap_cached_info(appid_str)
-                if cached and cached.get("available") and cached.get("depots"):
+                if cached and cached.get("available"):
+                    c_dep = dict(cached.get("depots") or {})
+                    if (not c_dep or c_dep == {appid_str: "available"}) and steamdb_manifests:
+                        c_dep = dict(steamdb_manifests)
+                    elif not c_dep:
+                        c_dep = {appid_str: "available"}
                     return {
                         "available": True,
-                        "depots": cached.get("depots", {}),
+                        "depots": c_dep,
                         "time": cached.get("time", "本地快取"),
                         "last_modified": cached.get("last_modified", ""),
                         "is_aligned_steamdb": False,
@@ -97,13 +106,22 @@ class UnifiedManifestManager:
 
             # 透過 0 配額免費端點 /api/v1/manifest/{appid}/contents 查詢 (內建 120s 短期快取)
             info = hubcap_manager.query_manifest_info(appid_str, timeout=timeout)
+            is_avail = bool(info.get("available"))
+            hc_depots = dict(info.get("depots") or {}) if is_avail else {}
+            if is_avail:
+                # 若為 /status 或 /library 備援確認在庫而尚未附帶具體 GID，結合 SteamDB 官方清單補齊以便後續流程完整運作
+                if (not hc_depots or hc_depots == {appid_str: "available"}) and steamdb_manifests:
+                    hc_depots = dict(steamdb_manifests)
+                elif not hc_depots:
+                    hc_depots = {appid_str: "available"}
+
             return {
-                "available": bool(info.get("available") and info.get("depots")),
-                "depots": info.get("depots", {}) if info.get("available") else {},
+                "available": is_avail,
+                "depots": hc_depots,
                 "time": info.get("time", "即時在庫"),
                 "last_modified": info.get("last_modified", ""),
                 "is_aligned_steamdb": False,
-                "has_zip": info.get("has_zip", False),
+                "has_zip": info.get("has_zip", is_avail),
                 "quota_exhausted": bool(info.get("quota_exhausted")),
                 "from_cache": bool(info.get("from_cache")),
                 "status_msg": info.get("error", "")
@@ -150,7 +168,7 @@ class UnifiedManifestManager:
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             fut_ryuu = executor.submit(self._query_ryuu, appid_str, timeout)
-            fut_hubcap = executor.submit(self._query_hubcap, appid_str, timeout, allow_hubcap_network)
+            fut_hubcap = executor.submit(self._query_hubcap, appid_str, timeout, allow_hubcap_network, steamdb_manifests)
             fut_luatools = executor.submit(self._query_luatools, appid_str, timeout)
 
             try:
@@ -239,43 +257,45 @@ class UnifiedManifestManager:
         return p
 
     def _load_ryuu_cached_info(self, appid: str) -> Optional[Dict[str, Any]]:
-        try:
-            cache_file = self._get_ryuu_cache_path()
-            if cache_file.exists():
-                c = json.loads(cache_file.read_text(encoding="utf-8"))
-                return c.get(str(appid))
-        except Exception:
-            pass
+        with self._ryuu_cache_lock:
+            try:
+                cache_file = self._get_ryuu_cache_path()
+                if cache_file.exists():
+                    c = json.loads(cache_file.read_text(encoding="utf-8"))
+                    return c.get(str(appid))
+            except Exception:
+                pass
         return None
 
     def _save_ryuu_cached_info(self, appid: str, data: Dict[str, Any]):
-        try:
-            cache_file = self._get_ryuu_cache_path()
-            c = {}
-            if cache_file.exists():
-                try: c = json.loads(cache_file.read_text(encoding="utf-8"))
-                except Exception: c = {}
-            c[str(appid)] = data
-            cache_file.write_text(json.dumps(c, ensure_ascii=False, indent=2), encoding="utf-8")
-        except Exception:
-            pass
+        with self._ryuu_cache_lock:
+            try:
+                cache_file = self._get_ryuu_cache_path()
+                c = {}
+                if cache_file.exists():
+                    try: c = json.loads(cache_file.read_text(encoding="utf-8"))
+                    except Exception: c = {}
+                c[str(appid)] = data
+                cache_file.write_text(json.dumps(c, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception:
+                pass
 
     def _query_ryuu(self, appid: str, timeout: int = 10) -> Dict[str, Any]:
         """
         查詢 generator.ryuu.lol
-        - 逾時放寬至 10 秒
-        - 具備短暫重試機制（遇超時/連線波動重試 1 次）
+        - 具備節點斷路器 (Circuit Breaker)：當 Ryuu 節點發生 HTTP 521 / 5xx 異常時，30 秒內自動切換為 2 秒快速單次探測，絕不拖慢 HubcapDB / Lua.tools 備源查找！
         - 具備快取兜底保護：若網路波動失敗，自動回退使用先前已知有效的庫存資料，絕不誤判為未收錄！
         - 全鏈路診斷日誌記錄到 logs/manifest_checks.log
         """
         data = {"available": False, "depots": {}, "time": "無", "branch_manifests": {}, "steamdb_target": {}}
         url = f"https://generator.ryuu.lol/manifestinfo/{appid}"
         start_t = time.time()
-        max_attempts = 2
         last_error = ""
 
-        # 放寬逾時，若傳入小於 8 則自動提升至 10 秒
-        effective_timeout = max(timeout, 10)
+        # 若 Ryuu 節點處於斷路器冷卻期 (如剛發生 HTTP 521)，自動縮短逾時且僅嘗試 1 次，確保秒速切換備源
+        in_cooldown = (start_t < self._ryuu_down_until)
+        max_attempts = 1 if in_cooldown else 2
+        effective_timeout = 2.0 if in_cooldown else min(max(timeout, 5), 10)
 
         for attempt in range(1, max_attempts + 1):
             try:
@@ -323,7 +343,9 @@ class UnifiedManifestManager:
                         except Exception:
                             data["time"] = str(ts)
 
-                    # 成功獲取，寫入本地快取並記錄日誌
+                    # 成功獲取，解除斷路器並寫入本地快取與日誌
+                    self._ryuu_down_until = 0.0
+                    self._ryuu_last_err = ""
                     try:
                         from managers import account_manager
                         account_manager.get_account_manager().set_platform_connection_status("ryuu", False, "")
@@ -339,16 +361,26 @@ class UnifiedManifestManager:
                 last_error = f"HTTP {e.code}"
                 if e.code == 404:
                     # 伺服器明確回傳 404：確定無此遊戲，但連線本身正常，不再重試
+                    self._ryuu_down_until = 0.0
+                    self._ryuu_last_err = ""
                     try:
                         from managers import account_manager
                         account_manager.get_account_manager().set_platform_connection_status("ryuu", False, "")
                     except Exception:
                         pass
                     break
-                time.sleep(0.5)
+                if e.code >= 500:
+                    # 節點掛掉 (如 HTTP 521 / 502 / 503)：立即觸發 30 秒斷路器，不重複無謂等待
+                    self._ryuu_down_until = time.time() + 30.0
+                    self._ryuu_last_err = last_error
+                    break
+                time.sleep(0.3)
             except Exception as e:
                 last_error = str(e)
-                time.sleep(0.5)
+                self._ryuu_down_until = time.time() + 15.0
+                self._ryuu_last_err = last_error
+                if attempt < max_attempts:
+                    time.sleep(0.3)
 
         elapsed = time.time() - start_t
         # 若非 404 / 429，且發生 5xx (如 521) 或網路連線異常，標記 Ryuu 平台連線異常
@@ -479,19 +511,28 @@ class UnifiedManifestManager:
             official_depots = {str(k).strip(): str(v).strip() for k, v in steamdb_manifests.items() if str(k).strip()}
 
         ryuu = result.get("ryuu", {})
+        ryuu_conn_err = bool(ryuu.get("connection_error"))
         ryuu_ok = bool(ryuu.get("available", False) and ryuu.get("depots"))
+        ryuu_live_ok = bool(ryuu_ok and not ryuu_conn_err)
         ryuu_depots = {str(k).strip(): str(v).strip() for k, v in ryuu.get("depots", {}).items()}
 
         luatools = result.get("luatools", {})
+        lt_conn_err = bool(luatools.get("connection_error"))
         lt_ok = bool(luatools.get("available", False))
+        lt_live_ok = bool(lt_ok and not lt_conn_err)
         if lt_ok and ryuu_depots and not luatools.get("depots"):
             luatools["depots"] = dict(ryuu_depots)
+        elif lt_ok and official_depots and not luatools.get("depots"):
+            luatools["depots"] = dict(official_depots)
 
         # Ryuu 與 Lua.tools 共享同一 Ryuu 來源池
         ryuu_pool_ok = ryuu_ok or lt_ok
+        ryuu_pool_live_ok = ryuu_live_ok or lt_live_ok
 
         hubcap = result.get("hubcap", {})
-        hubcap_ok = bool(hubcap.get("available", False) and hubcap.get("depots"))
+        hubcap_ok = bool(hubcap.get("available", False))
+        if hubcap_ok and not hubcap.get("depots"):
+            hubcap["depots"] = dict(official_depots) if official_depots else {str(result.get("appid", "")): "available"}
         hubcap_depots = {str(k).strip(): str(v).strip() for k, v in hubcap.get("depots", {}).items()}
 
         # 1. 評估 Ryuu (= Lua.tools) 與官方最新版對齊度
@@ -519,7 +560,7 @@ class UnifiedManifestManager:
             if hubcap_depots:
                 common_hc = [k for k in official_depots if k in hubcap_depots]
                 if common_hc:
-                    hubcap_match_count = sum(1 for k in common_hc if hubcap_depots[k] == official_depots[k])
+                    hubcap_match_count = sum(1 for k in common_hc if hubcap_depots[k] == official_depots[k] or hubcap_depots[k] == "available")
                     hubcap_matches_steamdb = (hubcap_match_count == len(official_depots))
         else:
             hubcap_matches_steamdb = hubcap_ok
@@ -529,7 +570,7 @@ class UnifiedManifestManager:
 
         hubcap_is_newer = False
         if hubcap_ok:
-            if not ryuu_pool_ok:
+            if not ryuu_pool_live_ok:
                 hubcap_is_newer = True
             elif official_depots:
                 if hubcap_matches_steamdb and not ryuu_matches_steamdb:
@@ -541,46 +582,58 @@ class UnifiedManifestManager:
         result["hubcap_is_newer"] = hubcap_is_newer
         result["expected_outdated"] = False
 
-        # 3. 依照多平台額度與版本優先級裁決
+        # 3. 依照多平台額度、節點連線狀態與版本優先級裁決
         candidate_order = []
-        if ryuu_pool_ok and ryuu_matches_steamdb and (ryuu_has_quota or lt_has_quota):
-            # 🌟 分支 1：Ryuu = Lua.tools 版本為最新且額度充足 -> 優先 Ryuu，其次 Lua.tools
-            if ryuu_has_quota and ryuu_ok:
+        if ryuu_pool_live_ok and ryuu_matches_steamdb and ((ryuu_live_ok and ryuu_has_quota) or (lt_live_ok and lt_has_quota)):
+            # 🌟 分支 1：Ryuu = Lua.tools 節點連線正常、版本為最新且額度充足 -> 優先 Ryuu，其次 Lua.tools
+            if ryuu_has_quota and ryuu_live_ok:
                 result["best_source"] = "ryuu"
                 result["best_reason"] = "Ryuu 版本為官方最新且額度充足（優先採用 Ryuu）"
                 candidate_order = ["ryuu", "luatools", "hubcap"]
             else:
                 result["best_source"] = "luatools"
-                result["best_reason"] = "Ryuu=Lua.tools 版本為官方最新，Ryuu 額度不足，自動採用次選 Lua.tools"
-                candidate_order = ["luatools", "ryuu", "hubcap"]
+                result["best_reason"] = "Ryuu=Lua.tools 版本為官方最新，自動採用 Lua.tools"
+                candidate_order = ["luatools", "hubcap", "ryuu"]
         else:
-            # 🌟 分支 2：Ryuu = Lua.tools 版本並非最新，或兩者額度均不足
-            if hubcap_ok and hc_has_quota and (hubcap_is_newer or (not ryuu_has_quota and not lt_has_quota)):
+            # 🌟 分支 2：Ryuu 節點異常 (如 HTTP 521)、版本並非最新、或兩者額度均不足
+            if hubcap_ok and hc_has_quota and (hubcap_is_newer or not ryuu_pool_live_ok or (not ryuu_has_quota and not lt_has_quota)):
                 result["best_source"] = "hubcap"
-                if not ryuu_pool_ok:
+                if ryuu_conn_err:
+                    result["best_reason"] = "Ryuu 節點連線異常，已自動切換至 HubcapDB 備援通道"
+                elif not ryuu_pool_ok:
                     result["best_reason"] = "Ryuu 與 Lua.tools 尚未收錄，HubcapDB 在庫且額度充足，採用 HubcapDB"
                 elif hubcap_is_newer:
                     result["best_reason"] = "Ryuu/Lua.tools 版本並非最新，經檢查 HubcapDB 版本更新且額度充足，採用 HubcapDB"
                 else:
                     result["best_reason"] = "Ryuu 與 Lua.tools 額度不足，經檢查 HubcapDB 在庫且額度充足，採用 HubcapDB"
                 result["expected_outdated"] = bool(official_depots and not hubcap_matches_steamdb)
-                candidate_order = ["hubcap", "ryuu", "luatools"]
-            elif ryuu_pool_ok and (ryuu_has_quota or lt_has_quota):
+                candidate_order = ["hubcap", "luatools", "ryuu"]
+            elif ryuu_pool_live_ok and ((ryuu_live_ok and ryuu_has_quota) or (lt_live_ok and lt_has_quota)):
                 # 使用者未設定 HubcapDB、HubcapDB 無額度或版本未更新 -> 不拒絕入庫，退回優先 Ryuu、其次 Lua.tools 並標記提示
                 result["expected_outdated"] = bool(official_depots and not ryuu_matches_steamdb)
-                if ryuu_has_quota and ryuu_ok:
+                if ryuu_has_quota and ryuu_live_ok:
                     result["best_source"] = "ryuu"
                     result["best_reason"] = "官方已有新版但目前無更新來源可用，優先採用 Ryuu 現有可用版本入庫"
                     candidate_order = ["ryuu", "luatools", "hubcap"]
                 else:
                     result["best_source"] = "luatools"
-                    result["best_reason"] = "官方已有新版且 Ryuu 額度不足，採用次選 Lua.tools 現有可用版本入庫"
-                    candidate_order = ["luatools", "ryuu", "hubcap"]
+                    result["best_reason"] = "採用次選 Lua.tools 現有可用版本入庫"
+                    candidate_order = ["luatools", "hubcap", "ryuu"]
             elif hubcap_ok and hc_has_quota:
                 result["best_source"] = "hubcap"
                 result["best_reason"] = "採用 HubcapDB 現有可用版本"
                 result["expected_outdated"] = bool(official_depots and not hubcap_matches_steamdb)
-                candidate_order = ["hubcap", "ryuu", "luatools"]
+                candidate_order = ["hubcap", "luatools", "ryuu"]
+            elif lt_live_ok:
+                result["best_source"] = "luatools"
+                result["best_reason"] = "嘗試透過 Lua.tools 通道獲取可用版本"
+                result["expected_outdated"] = bool(official_depots and not ryuu_matches_steamdb)
+                candidate_order = ["luatools", "hubcap", "ryuu"]
+            elif hubcap_ok:
+                result["best_source"] = "hubcap"
+                result["best_reason"] = "嘗試透過 HubcapDB 通道獲取可用版本"
+                result["expected_outdated"] = bool(official_depots and not hubcap_matches_steamdb)
+                candidate_order = ["hubcap", "luatools", "ryuu"]
             elif ryuu_ok:
                 result["best_source"] = "ryuu"
                 result["best_reason"] = "嘗試透過 Ryuu 通道獲取可用版本"
@@ -590,12 +643,7 @@ class UnifiedManifestManager:
                 result["best_source"] = "luatools"
                 result["best_reason"] = "嘗試透過 Lua.tools 通道獲取可用版本"
                 result["expected_outdated"] = bool(official_depots and not ryuu_matches_steamdb)
-                candidate_order = ["luatools", "ryuu", "hubcap"]
-            elif hubcap_ok:
-                result["best_source"] = "hubcap"
-                result["best_reason"] = "嘗試透過 HubcapDB 通道獲取可用版本"
-                result["expected_outdated"] = bool(official_depots and not hubcap_matches_steamdb)
-                candidate_order = ["hubcap", "ryuu", "luatools"]
+                candidate_order = ["luatools", "hubcap", "ryuu"]
             else:
                 result["best_source"] = "none"
                 result["best_reason"] = "所有來源均無此遊戲 Manifest"
