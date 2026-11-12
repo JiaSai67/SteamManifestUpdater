@@ -93,15 +93,18 @@
 .app.dark .fc-mode-btn.active .fc-mode-count,.app.dark.has-bg .fc-mode-btn.active .fc-mode-count{background:rgba(255,117,151,.25);color:#FFD0DC}
 
 /* 搜尋 + 下拉式選單複合元件 */
-.fc-combo-container{position:relative;display:flex;flex-direction:column;gap:6px}
-.fc-search-combo{display:flex;align-items:center;height:35px;border:1.5px solid rgba(255,183,197,.6);border-radius:10px;background:rgba(255,255,255,.92);padding:0 6px 0 10px;transition:border-color .18s,box-shadow .18s}
+.fc-combo-container{position:relative;display:flex;flex-direction:column}
+.fc-search-combo{display:flex;align-items:center;height:36px;border:1.5px solid rgba(255,183,197,.6);border-radius:10px;background:rgba(255,255,255,.92);padding:0 6px 0 10px;transition:border-color .18s,box-shadow .18s}
 .fc-search-combo:focus-within{border-color:var(--pink-deep);box-shadow:0 0 0 3px rgba(255,143,167,.18)}
+.fc-search-combo.has-selection{border-color:rgba(255,102,153,.75);background:rgba(255,248,250,.96)}
 .app.dark .fc-search-combo,.app.dark.has-bg .fc-search-combo{background:rgba(15,10,13,.92);border-color:rgba(255,183,197,.22)}
+.app.dark .fc-search-combo.has-selection,.app.dark.has-bg .fc-search-combo.has-selection{border-color:rgba(255,117,151,.55);background:rgba(28,16,22,.94)}
 .fc-search-icon{font-size:12px;margin-right:6px;opacity:.75;flex-shrink:0}
 .fc-search-input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:12px;font-family:var(--font);color:#2D2528;height:100%}
 .app.dark .fc-search-input,.app.dark.has-bg .fc-search-input{color:#FFF}
 .fc-search-input::placeholder{color:#9E9296}
-.fc-search-clear,.fc-dropdown-toggle{border:none;background:transparent;color:#7D7074;cursor:pointer;padding:2px 6px;border-radius:6px;font-size:12px;font-weight:700;line-height:1;transition:background .15s,color .15s}
+.fc-search-clear,.fc-dropdown-toggle{border:none;background:transparent;color:#7D7074;cursor:pointer;padding:2px 6px;border-radius:6px;font-size:12px;font-weight:700;line-height:1;transition:background .15s,color .15s,transform .15s}
+.fc-dropdown-toggle.open{transform:rotate(180deg);color:var(--pink-deep)}
 .fc-search-clear:hover,.fc-dropdown-toggle:hover{background:rgba(255,143,167,.15);color:#D81B60}
 .app.dark .fc-search-clear,.app.dark .fc-dropdown-toggle,
 .app.dark.has-bg .fc-search-clear,.app.dark.has-bg .fc-dropdown-toggle{color:#C8BDC1}

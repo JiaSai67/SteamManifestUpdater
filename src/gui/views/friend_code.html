@@ -70,18 +70,15 @@
           </button>
         </div>
 
-        <!-- 搜尋 + 下拉式選單 (同時支援手動關鍵字搜尋與傳統下拉選單選擇) -->
+        <!-- 搜尋 + 下拉式選單 (單一整合式篩選與快速選擇) -->
         <div class="fc-combo-container" id="fc-combo-container">
-          <div class="fc-search-combo">
+          <div class="fc-search-combo" id="fc-search-combo">
             <span class="fc-search-icon">🔍</span>
-            <input type="text" id="fc-search-game" class="fc-search-input" placeholder="輸入遊戲名稱或 AppID 搜尋，或由下方下拉選單選擇…" oninput="onFcGameSearchInput()" onfocus="openFcSearchDropdown()" autocomplete="off">
-            <button type="button" id="fc-search-clear" class="fc-search-clear" onclick="clearFcGameSearch()" title="清除搜尋條件" style="display:none">✕</button>
+            <input type="text" id="fc-search-game" class="fc-search-input" placeholder="輸入遊戲名稱或 AppID 搜尋，或點擊右側 ▾ 展開選單…" oninput="onFcGameSearchInput()" onfocus="onFcGameSearchFocus()" autocomplete="off">
+            <button type="button" id="fc-search-clear" class="fc-search-clear" onclick="clearFcGameSearch()" title="清除搜尋或重選遊戲" style="display:none">✕</button>
             <button type="button" id="fc-dropdown-toggle" class="fc-dropdown-toggle" onclick="toggleFcSearchDropdown()" title="展開或收合快速選單">▾</button>
           </div>
           <div id="fc-dropdown-menu" class="fc-dropdown-menu" style="display:none"></div>
-          <select id="fc-select-game" class="fc-select" onchange="onFcGameSelectChange()">
-            <option value="">-- 請挑選本機已入庫且已安裝線上補丁的遊戲 --</option>
-          </select>
         </div>
 
         <div class="fc-inspect-strip">

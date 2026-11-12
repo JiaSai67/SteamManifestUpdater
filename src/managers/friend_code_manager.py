@@ -424,7 +424,7 @@ class FriendCodeManager:
                     "timestamp": ts,
                     "manifest_count": details["manifest_copied"],
                     "patch_files_count": details["patch_files_copied"],
-                    "version": "2.0.11",
+                    "version": "2.0.12",
                 }
                 zf.writestr("package_meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
 

@@ -12,6 +12,9 @@ var _fcGamesCache = [];
 var _fcPackMode = 'with_patch'; // 'with_patch' | 'lua_manifest'
 var _fcDropdownOpen = false;
 var _fcOutsideClickBound = false;
+var _fcSelectedAppId = '';
+var _fcSelectedGameName = '';
+var _fcInputShowsSelection = false;
 
 function _fcEsc(s) {
   return String(s == null ? '' : s)
@@ -130,7 +133,36 @@ function setFcPackMode(mode) {
   if (btnPatch) btnPatch.classList.toggle('active', norm === 'with_patch');
   if (btnNoPatch) btnNoPatch.classList.toggle('active', norm === 'lua_manifest');
 
+  if (_fcSelectedAppId) {
+    var modeAll = _getFcModeFilteredGames('');
+    var stillValid = false;
+    for (var i = 0; i < modeAll.length; i++) {
+      if (String(modeAll[i].appid || '') === _fcSelectedAppId) {
+        stillValid = true;
+        break;
+      }
+    }
+    if (!stillValid) {
+      _fcSelectedAppId = '';
+      _fcSelectedGameName = '';
+      _fcInputShowsSelection = false;
+      var searchEl = document.getElementById('fc-search-game');
+      if (searchEl) searchEl.value = '';
+    }
+  }
+
   _applyFcFilterAndRender(false);
+}
+
+function _getFcGameById(appId) {
+  var target = String(appId || '');
+  if (!target) return null;
+  for (var i = 0; i < _fcGamesCache.length; i++) {
+    if (String(_fcGamesCache[i].appid || '') === target) {
+      return _fcGamesCache[i];
+    }
+  }
+  return null;
 }
 
 function _getFcModeFilteredGames(keyword) {
@@ -177,54 +209,50 @@ function _renderFcGamesDropdown(games) {
   _bindFcOutsideClickOnce();
   _fcGamesCache = Array.isArray(games) ? games : [];
   _updateFcModeCounts();
+  if (_fcSelectedAppId) {
+    var modeAll = _getFcModeFilteredGames('');
+    var okExist = false;
+    for (var i = 0; i < modeAll.length; i++) {
+      if (String(modeAll[i].appid || '') === _fcSelectedAppId) {
+        okExist = true;
+        break;
+      }
+    }
+    if (!okExist) {
+      _fcSelectedAppId = '';
+      _fcSelectedGameName = '';
+      _fcInputShowsSelection = false;
+      var searchEl = document.getElementById('fc-search-game');
+      if (searchEl) searchEl.value = '';
+    }
+  }
   _applyFcFilterAndRender(false);
 }
 
 function _applyFcFilterAndRender(autoOpenMenu) {
-  var sel = document.getElementById('fc-select-game');
   var searchEl = document.getElementById('fc-search-game');
+  var comboBox = document.getElementById('fc-search-combo');
   var clearBtn = document.getElementById('fc-search-clear');
   var menu = document.getElementById('fc-dropdown-menu');
-  if (!sel) return;
 
-  var prevVal = sel.value || '';
-  var kw = searchEl ? searchEl.value.trim() : '';
-  if (clearBtn) clearBtn.style.display = kw ? 'inline-block' : 'none';
+  var modeTotal = _getFcModeFilteredGames('').length;
+  var kw = (!_fcInputShowsSelection && searchEl) ? searchEl.value.trim() : '';
+
+  if (searchEl) {
+    searchEl.placeholder = (_fcPackMode === 'lua_manifest')
+      ? ('輸入遊戲名稱或 AppID 搜尋，或點右側 ▾ 展開（共 ' + modeTotal + ' 款已入庫）')
+      : ('輸入遊戲名稱或 AppID 搜尋，或點右側 ▾ 展開（共 ' + modeTotal + ' 款含補丁）');
+  }
+
+  var hasInputTxt = !!(searchEl && searchEl.value.trim());
+  if (clearBtn) clearBtn.style.display = (hasInputTxt || _fcSelectedAppId) ? 'inline-block' : 'none';
+  if (comboBox) comboBox.classList.toggle('has-selection', !!_fcSelectedAppId);
 
   var filtered = _getFcModeFilteredGames(kw);
   var modeEmptyText = (_fcPackMode === 'lua_manifest')
     ? '⚠️ 尚未偵測到已入庫 (Lua + Manifest) 的遊戲'
     : '⚠️ 尚未偵測到已安裝線上補丁的遊戲（可切換至右側「📜 無補丁純入庫」模式）';
-  var defaultPlaceholder = (_fcPackMode === 'lua_manifest')
-    ? ('-- 請挑選本機已入庫遊戲 (共 ' + filtered.length + ' 款符合) --')
-    : ('-- 請挑選已安裝線上補丁的遊戲 (共 ' + filtered.length + ' 款符合) --');
 
-  var html = '';
-  var stillExists = false;
-  if (filtered.length > 0) {
-    html = '<option value="">' + _fcEsc(defaultPlaceholder) + '</option>';
-    for (var i = 0; i < filtered.length; i++) {
-      var g = filtered[i];
-      var aid = String(g.appid || '');
-      var nm = g.name || ('AppID ' + aid);
-      var hasPatch = !!(g.has_patch || g.deployed);
-      var tagTxt = (_fcPackMode === 'lua_manifest')
-        ? (hasPatch ? '[含補丁·純入庫打包] ' : '[Lua+Manifest] ')
-        : '🎮 ';
-      if (aid === prevVal) stillExists = true;
-      var selected = (aid === prevVal) ? ' selected' : '';
-      html += '<option value="' + _fcEsc(aid) + '" data-name="' + _fcEsc(nm) + '"' + selected + '>'
-        + _fcEsc(tagTxt + nm) + ' (AppID: ' + _fcEsc(aid) + ')</option>';
-    }
-  } else {
-    html = '<option value="">' + _fcEsc(kw ? ('🔍 找不到符合「' + kw + '」的遊戲') : modeEmptyText) + '</option>';
-  }
-  sel.innerHTML = html;
-  if (stillExists) {
-    sel.value = prevVal;
-  }
-
-  // 同步渲染自訂搜尋下拉選單 (#fc-dropdown-menu)
   if (menu) {
     if (filtered.length === 0) {
       menu.innerHTML = '<div class="fc-dropdown-empty">'
@@ -236,8 +264,7 @@ function _applyFcFilterAndRender(autoOpenMenu) {
         var item = filtered[j];
         var itemAid = String(item.appid || '');
         var itemNm = item.name || ('AppID ' + itemAid);
-        var itemHasPatch = !!(item.has_patch || item.deployed);
-        var isSel = (itemAid === sel.value) ? ' selected' : '';
+        var isSel = (itemAid === _fcSelectedAppId) ? ' selected' : '';
         var badgeHtml = (_fcPackMode === 'lua_manifest')
           ? '<span class="fc-dropdown-tag nopatch">📜 Lua+Manifest</span>'
           : '<span class="fc-dropdown-tag patch">🎮 含補丁</span>';
@@ -256,7 +283,7 @@ function _applyFcFilterAndRender(autoOpenMenu) {
     }
   }
 
-  if (sel.value) {
+  if (_fcSelectedAppId) {
     onFcGameSelectChange();
   } else {
     _fcInspectReady = false;
@@ -265,29 +292,58 @@ function _applyFcFilterAndRender(autoOpenMenu) {
   }
 }
 
+function onFcGameSearchFocus() {
+  var searchEl = document.getElementById('fc-search-game');
+  if (_fcInputShowsSelection && searchEl && typeof searchEl.select === 'function') {
+    setTimeout(function() {
+      try { searchEl.select(); } catch (e) {}
+    }, 0);
+  }
+  _applyFcFilterAndRender(true);
+}
+
 function onFcGameSearchInput() {
+  _fcInputShowsSelection = false;
+  _fcSelectedAppId = '';
+  _fcSelectedGameName = '';
   _applyFcFilterAndRender(true);
 }
 
 function clearFcGameSearch() {
+  _fcInputShowsSelection = false;
+  _fcSelectedAppId = '';
+  _fcSelectedGameName = '';
   var searchEl = document.getElementById('fc-search-game');
-  if (searchEl) searchEl.value = '';
+  if (searchEl) {
+    searchEl.value = '';
+    searchEl.focus();
+  }
   _applyFcFilterAndRender(false);
   closeFcSearchDropdown();
 }
 
 function openFcSearchDropdown() {
   var menu = document.getElementById('fc-dropdown-menu');
+  var toggleBtn = document.getElementById('fc-dropdown-toggle');
   if (!menu) return;
   _fcDropdownOpen = true;
   menu.style.display = 'block';
+  if (toggleBtn) toggleBtn.classList.add('open');
+  if (_fcSelectedAppId) {
+    var activeItem = menu.querySelector('.fc-dropdown-item.selected');
+    if (activeItem && typeof activeItem.scrollIntoView === 'function') {
+      try { activeItem.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    }
+  }
 }
 
 function closeFcSearchDropdown() {
   var menu = document.getElementById('fc-dropdown-menu');
+  var toggleBtn = document.getElementById('fc-dropdown-toggle');
   if (!menu) return;
   _fcDropdownOpen = false;
   menu.style.display = 'none';
+  if (toggleBtn) toggleBtn.classList.remove('open');
 }
 
 function toggleFcSearchDropdown() {
@@ -299,21 +355,17 @@ function toggleFcSearchDropdown() {
 }
 
 function selectFcDropdownGame(appId) {
-  var sel = document.getElementById('fc-select-game');
+  var g = _getFcGameById(appId);
+  _fcSelectedAppId = String(appId || '').trim();
+  _fcSelectedGameName = g ? (g.name || ('AppID ' + _fcSelectedAppId)) : _fcSelectedAppId;
+  _fcInputShowsSelection = true;
+
   var searchEl = document.getElementById('fc-search-game');
-  var clearBtn = document.getElementById('fc-search-clear');
-  if (!sel) return;
-
-  // 若先前有搜尋字詞，清空搜尋篩選以便完整下拉選單也能保留所有項目並選中該遊戲
-  if (searchEl && searchEl.value.trim()) {
-    searchEl.value = '';
-    if (clearBtn) clearBtn.style.display = 'none';
-    _applyFcFilterAndRender(false);
+  if (searchEl) {
+    searchEl.value = '🎮 ' + _fcSelectedGameName + ' (AppID: ' + _fcSelectedAppId + ')';
   }
-
-  sel.value = String(appId || '');
   closeFcSearchDropdown();
-  onFcGameSelectChange();
+  _applyFcFilterAndRender(false);
 }
 
 function _resetFcInspectChips() {
@@ -335,8 +387,7 @@ function _resetFcInspectChips() {
 }
 
 async function onFcGameSelectChange() {
-  var sel = document.getElementById('fc-select-game');
-  var aid = sel ? (sel.value || '').trim() : '';
+  var aid = (_fcSelectedAppId || '').trim();
 
   // 同步更新浮動選單的選中狀態
   var menu = document.getElementById('fc-dropdown-menu');
@@ -534,14 +585,13 @@ function closeFcWebhookTutorialModal() {
 function _updateFcGenerateBtnState() {
   var btn = document.getElementById('btn-fc-generate');
   if (!btn) return;
-  var sel = document.getElementById('fc-select-game');
   var wh = document.getElementById('fc-input-webhook');
-  var hasGame = !!(sel && sel.value);
+  var hasGame = !!(_fcSelectedAppId && _fcSelectedAppId.trim());
   var hasWh = !!(wh && _isFcValidWebhookFormat(wh.value));
   var canGo = hasGame && _fcInspectReady && hasWh && !_fcHostPollTimer;
   btn.disabled = !canGo;
   if (!hasGame) {
-    btn.title = '請先選擇要打包分享的遊戲';
+    btn.title = '請先搜尋或從下拉選單挑選要打包分享的遊戲';
   } else if (!_fcInspectReady) {
     btn.title = (_fcPackMode === 'lua_manifest') ? '所選遊戲本地 Lua / Manifest 清單尚未齊全' : '所選遊戲本地三檔尚未齊全';
   } else if (!hasWh) {
@@ -556,15 +606,13 @@ function _updateFcGenerateBtnState() {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function submitGenerateFriendCode() {
-  var sel = document.getElementById('fc-select-game');
   var wh = document.getElementById('fc-input-webhook');
-  if (!sel || !sel.value) {
+  var appId = (_fcSelectedAppId || '').trim();
+  if (!appId) {
     _fcToast('⚠️ 請先選擇要打包的遊戲');
     return;
   }
-  var appId = sel.value.trim();
-  var opt = sel.options[sel.selectedIndex];
-  var gameName = (opt && opt.getAttribute('data-name')) ? opt.getAttribute('data-name') : appId;
+  var gameName = (_fcSelectedGameName || '').trim() || appId;
   var webhookUrl = wh ? wh.value.trim() : '';
 
   if (!_isFcValidWebhookFormat(webhookUrl)) {
