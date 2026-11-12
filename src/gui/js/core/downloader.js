@@ -86,6 +86,21 @@
           var isOutdated = !!(res && res.is_outdated);
           var warnText = (res && res.warning) ? String(res.warning) : '';
           var verStatus = isOutdated ? '非最新版 (待收錄)' : '最新版';
+          var unexpectedHubcap = !!(res && res.unexpected_hubcap_fallback);
+          var fallbackReason = (res && res.fallback_reason) ? String(res.fallback_reason) : '';
+          var quotaNotice = (res && res.quota_notice) ? String(res.quota_notice) : '';
+          var hcRemaining = (res && typeof res.hubcap_remaining === 'number') ? res.hubcap_remaining : null;
+          var hcDailyLimit = (res && typeof res.hubcap_daily_limit === 'number') ? res.hubcap_daily_limit : null;
+
+          if(unexpectedHubcap && typeof window.showTokenConsumeNotice === 'function'){
+            window.showTokenConsumeNotice({
+              appid: aidStr,
+              name: gName,
+              reason: fallbackReason || quotaNotice || 'Ryuu 下載檔完整性驗證失敗，已直接轉用 HubcapDB',
+              remaining: hcRemaining,
+              dailyLimit: hcDailyLimit
+            });
+          }
 
           // 即時廣播狀態變更 (若非官方最新版則保留可嘗試更新標記，不誤標為最新版)
           self.notifyGameStatusChanged({
@@ -106,6 +121,11 @@
             ok: true,
             isOutdated: isOutdated,
             warning: warnText,
+            unexpectedHubcapFallback: unexpectedHubcap,
+            fallbackReason: fallbackReason,
+            quotaNotice: quotaNotice,
+            hubcapRemaining: hcRemaining,
+            hubcapDailyLimit: hcDailyLimit,
             data: res,
             status: { has_update: isOutdated, version_status: verStatus }
           };
@@ -386,6 +406,11 @@
             tt('⚠️ 「' + gameTitle + '」提示：' + warnTip, 'wn', 6500);
           }
           await new Promise(function(r){ setTimeout(r, 350); });
+        } else if(dlResult && dlResult.unexpectedHubcapFallback){
+          if(window.updateCardProgress) {
+            updateCardProgress(aidStr, 16, '⚠️ 已自動改用 HubcapDB 完整資源（意外消耗 1 次配額）', false);
+          }
+          await new Promise(function(r){ setTimeout(r, 250); });
         } else {
           if(window.updateCardProgress) {
             updateCardProgress(aidStr, 16, '✅ 官方最新 Manifest 清單與解密金鑰部署完成', false);

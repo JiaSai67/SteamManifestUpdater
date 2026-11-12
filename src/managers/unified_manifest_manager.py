@@ -7,7 +7,7 @@ import threading
 import urllib.request
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, Callable
+from typing import Dict, Any, Optional, Tuple, Callable, List
 
 from managers import config_manager, steam_manager
 
@@ -663,6 +663,275 @@ class UnifiedManifestManager:
         else:
             result["hubcap_status"] = "未收錄或未配置"
 
+    def _check_recent_invalid_install_path(self, appid_str: str, steam_path: Optional[str]) -> bool:
+        """檢查 Steam content_log.txt 近期是否曾針對此 AppID 出現 Invalid install path（典型缺 PICS addtoken 症狀）"""
+        if not steam_path or not appid_str:
+            return False
+        try:
+            log_file = Path(steam_path) / "logs" / "content_log.txt"
+            if not log_file.exists():
+                return False
+            size = log_file.stat().st_size
+            with open(log_file, "rb") as f:
+                if size > 65536:
+                    f.seek(size - 65536)
+                tail = f.read().decode("utf-8", errors="ignore")
+            return f"Failed installing AppID {appid_str} (Invalid install path)" in tail
+        except Exception:
+            return False
+
+    def validate_package_integrity(
+        self,
+        appid_str: str,
+        lua_text: str,
+        manifest_bytes_map: Optional[Dict[str, bytes]] = None,
+        steam_path: Optional[str] = None,
+        official_info: Optional[Dict[str, Any]] = None,
+        is_install: bool = False,
+        allow_local_tar_stub: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        驗證下載或本地部署包之完整性：
+        1. Lua 非空且含有效 addappid() 宣告
+        2. Lua 內所有有效 setManifestid() 皆具備對應 .manifest 實體內容，且無任何損毀 / HTML / JSON 錯誤頁 .manifest
+        3. 若 Steam PICS 顯示此遊戲受 Token 保護且屬於新安裝（或尚無 appmanifest ACF），Lua 必須包含 addtoken(appid, ...)
+        """
+        if not lua_text or not lua_text.strip():
+            return {"ok": False, "code": "EMPTY_LUA", "reason": "Lua 設定檔內容為空或讀取失敗", "manifest_ids": {}}
+
+        if not re.search(r"addappid\s*\(\s*\d+", lua_text):
+            return {"ok": False, "code": "EMPTY_LUA", "reason": "Lua 缺少有效 addappid 宣告", "manifest_ids": {}}
+
+        active_manifests: Dict[str, str] = {}
+        for raw_line in lua_text.splitlines():
+            code_part = raw_line.split("--", 1)[0]
+            if not code_part.strip():
+                continue
+            for m in re.finditer(r'setManifestid\s*\(\s*(\d+)\s*,\s*["\'](\d+)["\']', code_part):
+                active_manifests[m.group(1)] = m.group(2)
+
+        def _is_valid_manifest_bytes(m_bytes: bytes) -> bool:
+            if not m_bytes or len(m_bytes) < 16:
+                return False
+            head = m_bytes[:4]
+            if head in (b"\xd0\x17\xf6\x71", b"PK\x03\x04"):
+                return True
+            if allow_local_tar_stub and head == b"tar.":
+                return True
+            return False
+
+        # 若有 ZIP 內提取出的所有 .manifest 位元組，先全面驗明其二進位檔頭不可為錯誤頁 / 截斷檔
+        if manifest_bytes_map is not None:
+            if not manifest_bytes_map and official_info and official_info.get("manifests"):
+                return {
+                    "ok": False,
+                    "code": "MISSING_MANIFEST",
+                    "reason": "壓縮包內未包含任何 .manifest 清單檔案",
+                    "manifest_ids": active_manifests,
+                }
+            for fname, m_bytes in manifest_bytes_map.items():
+                if not _is_valid_manifest_bytes(m_bytes):
+                    preview = m_bytes[:4] if m_bytes else b""
+                    return {
+                        "ok": False,
+                        "code": "CORRUPT_MANIFEST",
+                        "reason": f"清單檔 {fname} 二進位格式異常或為 HTML/文字錯誤回應 (檔頭: {preview!r}, 長度: {len(m_bytes or b'')})",
+                        "manifest_ids": active_manifests,
+                    }
+
+        # 逐一檢查 Lua 有效 setManifestid() 所宣告的 .manifest 是否存在且有效
+        for did, gid in active_manifests.items():
+            fname = f"{did}_{gid}.manifest"
+            m_bytes = None
+            if manifest_bytes_map is not None:
+                m_bytes = manifest_bytes_map.get(fname)
+            elif steam_path:
+                m_path = Path(steam_path) / "depotcache" / fname
+                if m_path.exists():
+                    try:
+                        m_bytes = m_path.read_bytes()
+                    except Exception:
+                        m_bytes = None
+            if m_bytes is None:
+                return {
+                    "ok": False,
+                    "code": "MISSING_MANIFEST",
+                    "reason": f"Lua 宣告了 Depot {did} ({gid})，但缺少對應實體檔 {fname}",
+                    "manifest_ids": active_manifests,
+                }
+            if not _is_valid_manifest_bytes(m_bytes):
+                preview = m_bytes[:4] if m_bytes else b""
+                return {
+                    "ok": False,
+                    "code": "CORRUPT_MANIFEST",
+                    "reason": f"實體清單 {fname} 二進位損毀或為錯誤內容 (檔頭: {preview!r})",
+                    "manifest_ids": active_manifests,
+                }
+
+        # 檢查 PICS Token 保護：僅於全新安裝或尚未建立 appmanifest_<appid>.acf 時要求必須含 addtoken
+        acf_exists = bool(steam_path and steam_manager.find_appmanifest(appid_str, steam_path))
+        needs_install_token_check = bool(is_install or not acf_exists)
+
+        pics_protected = False
+        if official_info and official_info.get("steamcmd_ok"):
+            if official_info.get("missing_token") and not official_info.get("has_config"):
+                pics_protected = True
+        elif self._check_recent_invalid_install_path(appid_str, steam_path):
+            pics_protected = True
+
+        if needs_install_token_check and pics_protected:
+            has_addtoken = bool(
+                re.search(
+                    rf'(?m)^[ \t]*(?!--).*?\baddtoken\s*\(\s*["\']?{re.escape(appid_str)}["\']?\s*,',
+                    lua_text,
+                )
+            )
+            if not has_addtoken:
+                return {
+                    "ok": False,
+                    "code": "MISSING_PICS_TOKEN",
+                    "reason": f"AppID {appid_str} 受 Steam PICS Token 保護且無公開 config，但 Lua 缺少 addtoken({appid_str}, ...)（直接安裝會導致 Steam 報「安裝路徑無效」）",
+                    "manifest_ids": active_manifests,
+                }
+
+        return {"ok": True, "code": "OK", "reason": "完整性校驗通過", "manifest_ids": active_manifests}
+
+    def _extract_zip_entries_in_memory(
+        self, appid_str: str, zip_bytes: bytes
+    ) -> Tuple[Optional[str], Dict[str, bytes], Dict[str, str], List[Tuple[str, bytes]], Optional[str]]:
+        """將下載到的 ZIP 封包於記憶體中安全拆解為 Lua 文本、Manifest 位元組表與清單字典，不觸及磁碟。"""
+        import io, zipfile
+
+        lua_entries: List[Tuple[str, bytes]] = []
+        manifest_bytes_map: Dict[str, bytes] = {}
+        extracted_manifests: Dict[str, str] = {}
+
+        try:
+            with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+                for zname in zf.namelist():
+                    if zname.endswith("/"):
+                        continue
+                    fname = Path(zname).name
+                    if not fname:
+                        continue
+                    lower_name = fname.lower()
+                    if lower_name.endswith(".manifest"):
+                        m_bytes = zf.read(zname)
+                        manifest_bytes_map[fname] = m_bytes
+                        m_parts = fname[:-9].split("_")
+                        if len(m_parts) == 2 and m_parts[0].isdigit() and m_parts[1].isdigit():
+                            extracted_manifests[m_parts[0]] = m_parts[1]
+                    elif lower_name.endswith(".lua"):
+                        l_bytes = zf.read(zname)
+                        lua_entries.append((fname, l_bytes))
+        except Exception as ze:
+            return None, {}, {}, [], f"ZIP 封包結構異常或解壓失敗: {ze}"
+
+        lua_text = ""
+        main_lua_name = f"{appid_str}.lua"
+        for fname, l_bytes in lua_entries:
+            if fname == main_lua_name:
+                lua_text = l_bytes.decode("utf-8", errors="ignore")
+                break
+        if not lua_text and lua_entries:
+            lua_text = "\n".join(b.decode("utf-8", errors="ignore") for _, b in lua_entries)
+
+        return lua_text, manifest_bytes_map, extracted_manifests, lua_entries, None
+
+    def _write_validated_zip_entries(
+        self,
+        appid_str: str,
+        steam_p: str,
+        manifest_bytes_map: Dict[str, bytes],
+        extracted_manifests: Dict[str, str],
+        lua_entries: List[Tuple[str, bytes]],
+        logger: Optional[Any] = None,
+    ) -> None:
+        """將通過記憶體完整性驗證之 Manifest 與 Lua 寫入 Steam 目錄、永久金庫與備援目錄並完成閉環同步。"""
+        depotcache = Path(steam_p) / "depotcache"
+        depotcache.mkdir(parents=True, exist_ok=True)
+        c_backup = Path(steam_p) / "config" / "depotcache"
+        c_backup.mkdir(parents=True, exist_ok=True)
+        lua_dir = Path(steam_p) / "config" / "lua"
+        lua_dir.mkdir(parents=True, exist_ok=True)
+        st_lua = Path(steam_p) / "config" / "stplug-in"
+        cfg_lua = config_manager.get_config().get("lua_dir")
+
+        for m_name, m_bytes in manifest_bytes_map.items():
+            m_target = depotcache / m_name
+            if m_target.exists():
+                try: os.chmod(m_target, stat.S_IWRITE | stat.S_IREAD)
+                except Exception: pass
+            m_target.write_bytes(m_bytes)
+            try: os.chmod(m_target, stat.S_IWRITE | stat.S_IREAD)
+            except Exception: pass
+
+            try:
+                c_backup_file = c_backup / m_name
+                if c_backup_file.exists():
+                    try: os.chmod(c_backup_file, stat.S_IWRITE | stat.S_IREAD)
+                    except Exception: pass
+                c_backup_file.write_bytes(m_bytes)
+                try: os.chmod(c_backup_file, stat.S_IREAD)
+                except Exception: pass
+                if logger:
+                    logger.log_file_op("永久備份 Manifest", str(c_backup_file), size=len(m_bytes), success=True, details="寫入永久金庫 (防 Steam 解除安裝刪除)")
+            except Exception as be:
+                if logger:
+                    logger.log_file_op("永久備份 Manifest", str(c_backup / m_name), size=len(m_bytes), success=False, details=str(be))
+
+            m_parts = m_name[:-9].split("_")
+            if logger:
+                logger.log_file_op("解壓寫入 Manifest", str(m_target), size=len(m_bytes), success=True, details=f"Depot: {m_parts[0] if len(m_parts)==2 else 'Unknown'}, Manifest: {m_parts[1] if len(m_parts)==2 else m_name}")
+
+        for l_name, l_bytes in lua_entries:
+            l_path = lua_dir / l_name
+            if l_path.exists():
+                try: os.chmod(l_path, stat.S_IWRITE | stat.S_IREAD)
+                except Exception: pass
+            l_path.write_bytes(l_bytes)
+
+            if st_lua.exists():
+                try:
+                    st_l_path = st_lua / l_name
+                    if st_l_path.exists():
+                        try: os.chmod(st_l_path, stat.S_IWRITE | stat.S_IREAD)
+                        except Exception: pass
+                    st_l_path.write_bytes(l_bytes)
+                except Exception: pass
+
+            if cfg_lua and Path(cfg_lua).resolve() != lua_dir.resolve():
+                try:
+                    Path(cfg_lua).mkdir(parents=True, exist_ok=True)
+                    cfg_l_path = Path(cfg_lua) / l_name
+                    if cfg_l_path.exists():
+                        try: os.chmod(cfg_l_path, stat.S_IWRITE | stat.S_IREAD)
+                        except Exception: pass
+                    cfg_l_path.write_bytes(l_bytes)
+                except Exception: pass
+
+            try:
+                l_text = l_bytes.decode("utf-8", errors="ignore")
+                for km in re.finditer(r'addappid\s*\(\s*(\d+)\s*,\s*\d+\s*,\s*"([a-fA-F0-9]{64})"', l_text):
+                    k_did, k_val = km.group(1), km.group(2)
+                    if self._depot_keys_cache is None:
+                        self._depot_keys_cache = {}
+                    self._depot_keys_cache[k_did] = k_val
+            except Exception:
+                pass
+
+            if logger:
+                logger.log_file_op("解壓寫入 Lua", str(l_path), size=len(l_bytes), success=True, details="主設定檔")
+
+        steam_manager.sync_lua_with_deployed_manifests(
+            appid_str, manifests_dict=extracted_manifests, lua_dir=lua_dir
+        )
+        steam_manager.verify_and_sync_local_manifests(
+            appid_str, steam_path=steam_p, lua_dir=lua_dir, target_manifests=extracted_manifests
+        )
+        steam_manager.sanitize_lua_manifests(appid_str, steam_p, lua_dir)
+        steam_manager.lock_game_version(appid_str, steam_p)
+
     def deploy_best_manifest(self, appid: str, search_result: Any = None, progress_cb: Optional[Callable[[str], None]] = None, logger: Optional[Any] = None, steam_path: Optional[str] = None, is_install: bool = False) -> Tuple[bool, str]:
         """
         【多平台配額與版本智慧仲裁部署引擎】
@@ -713,10 +982,12 @@ class UnifiedManifestManager:
         is_synced = local_check.get("is_synced", False)
 
         official_manifests = {}
+        sdb_info = {}
         try:
             sdb_info = version_resolver.fetch_steamdb_manifests(appid_str, timeout=4)
             official_manifests = sdb_info.get("manifests", {}) or {}
         except Exception:
+            sdb_info = {}
             official_manifests = {}
 
         # 🌟 拓撲檢測：檢查是否存在已棄置 Depot 待遷移
@@ -758,6 +1029,29 @@ class UnifiedManifestManager:
                     except Exception:
                         pass
 
+            # 🌟 深度完整性防護：檢查本機 .manifest 二進位格式與 PICS addtoken（安裝時若缺 addtoken 不可短路跳過！）
+            if is_already_matched and steam_p:
+                try:
+                    lua_f = Path(steam_p) / "config" / "lua" / f"{appid_str}.lua"
+                    lua_txt = lua_f.read_text(encoding="utf-8", errors="ignore") if lua_f.exists() else ""
+                    local_integ = self.validate_package_integrity(
+                        appid_str,
+                        lua_txt,
+                        manifest_bytes_map=None,
+                        steam_path=steam_p,
+                        official_info=sdb_info,
+                        is_install=is_install,
+                        allow_local_tar_stub=True,
+                    )
+                    if not local_integ.get("ok"):
+                        is_already_matched = False
+                        warn_local = f"本地清單檔案未通過完整性校驗 ({local_integ.get('reason')})，將自動從雲端重新取得完整資源"
+                        print(f"[UnifiedManifestManager] AppID {appid_str} {warn_local}")
+                        if logger:
+                            logger.log_step("本地完整性不通過", warn_local, status="WARN")
+                except Exception:
+                    pass
+
             if is_already_matched:
                 steam_manager.sanitize_lua_manifests(appid_str, steam_p)
                 steam_manager.lock_game_version(appid_str, steam_p)
@@ -798,13 +1092,71 @@ class UnifiedManifestManager:
         deployed_ok = False
         deployed_msg = ""
         deployed_src = ""
+        integrity_defect_reason = ""
+        pending_candidates = list(candidate_order)
+        tried_sources = set()
+        skip_sources = set()
 
-        for idx_c, cand in enumerate(candidate_order):
+        def _strip_integrity_prefix(raw_msg: str) -> Tuple[bool, str]:
+            text = str(raw_msg or "")
+            if text.startswith("[INTEGRITY]"):
+                return True, text[len("[INTEGRITY]"):].strip()
+            return False, text
+
+        def _record_unexpected_hubcap_if_needed(cur_src: str) -> None:
+            if cur_src != "hubcap":
+                return
+            if not integrity_defect_reason and best_src == "hubcap":
+                return
+            hc_rem = None
+            hc_lim = None
+            try:
+                hc_stats = hubcap_manager.fetch_user_stats(force_refresh=True)
+                if hc_stats and hc_stats.get("ok"):
+                    hc_rem = hc_stats.get("remaining")
+                    hc_lim = hc_stats.get("daily_limit")
+            except Exception:
+                pass
+            if hc_rem is None:
+                hc_snap_fb = quota_snap.get("hubcap") or {}
+                hc_rem = hc_snap_fb.get("remaining")
+                hc_lim = hc_snap_fb.get("daily_limit")
+            reason_txt = (
+                integrity_defect_reason
+                or errors_by_source.get("ryuu")
+                or errors_by_source.get("luatools")
+                or "主通道下載檔案不完整或失效"
+            )
+            rem_str = f"（今日剩餘 {hc_rem}/{hc_lim} 次）" if (hc_rem is not None and hc_lim is not None) else ""
+            notice_msg = (
+                f"偵測到主來源檔案異常（{reason_txt}），已直接轉向 HubcapDB 取得完整資源，"
+                f"意外消耗 1 次 HubcapDB 配額{rem_str}。"
+            )
+            search_result["unexpected_hubcap_fallback"] = True
+            search_result["hubcap_quota_consumed"] = True
+            search_result["fallback_reason"] = reason_txt
+            search_result["hubcap_remaining"] = hc_rem
+            search_result["hubcap_daily_limit"] = hc_lim
+            search_result["quota_notice"] = notice_msg
+            if logger:
+                logger.log_step("意外配額消耗通知", notice_msg, status="WARN")
+            if progress_cb:
+                progress_cb(f"⚠️ {notice_msg}")
+
+        while pending_candidates:
+            cand = pending_candidates.pop(0)
+            if cand in tried_sources or cand in skip_sources:
+                continue
+            tried_sources.add(cand)
+
             if cand == "ryuu":
                 if progress_cb:
                     progress_cb("正在透過 Ryuu 官方授權通道下載 Manifest 與 Lua 打包檔...")
-                c_ok, c_msg = self._deploy_from_ryuu_http(appid_str, progress_cb, logger=logger)
-                if not c_ok and has_qt_app:
+                c_ok, c_msg = self._deploy_from_ryuu_http(
+                    appid_str, progress_cb, logger=logger, official_info=sdb_info, is_install=is_install
+                )
+                is_int_err, clean_msg = _strip_integrity_prefix(c_msg)
+                if not c_ok and has_qt_app and not is_int_err:
                     c_ok_qt, c_msg_qt = self._deploy_from_ryuu(appid_str, progress_cb)
                     if c_ok_qt:
                         c_ok, c_msg = c_ok_qt, c_msg_qt
@@ -812,7 +1164,9 @@ class UnifiedManifestManager:
                 prev_ryuu_err = errors_by_source.get("ryuu", "")
                 if progress_cb:
                     progress_cb("正在透過 Lua.tools 授權通道下載 Manifest 與 Lua 打包檔...")
-                c_ok, c_msg = self._deploy_from_luatools_http(appid_str, progress_cb, ryuu_error=prev_ryuu_err, logger=logger)
+                c_ok, c_msg = self._deploy_from_luatools_http(
+                    appid_str, progress_cb, ryuu_error=prev_ryuu_err, logger=logger, official_info=sdb_info, is_install=is_install
+                )
             elif cand == "hubcap":
                 hc_key = hubcap_manager.get_api_key()
                 if not hc_key:
@@ -827,24 +1181,64 @@ class UnifiedManifestManager:
                 continue
 
             if not c_ok:
-                errors_by_source[cand] = c_msg
-                if idx_c + 1 < len(candidate_order):
-                    next_cand = candidate_order[idx_c + 1]
-                    next_label = {"ryuu": "Ryuu", "luatools": "Lua.tools", "hubcap": "HubcapDB"}.get(next_cand, next_cand)
+                is_int_err, clean_msg = _strip_integrity_prefix(c_msg)
+                errors_by_source[cand] = clean_msg
+                if is_int_err and cand in ("ryuu", "luatools"):
+                    integrity_defect_reason = clean_msg
+                    if cand == "ryuu":
+                        skip_sources.add("luatools")
+                    if "hubcap" not in tried_sources and "hubcap" not in skip_sources:
+                        if "hubcap" in pending_candidates:
+                            pending_candidates.remove("hubcap")
+                        pending_candidates.insert(0, "hubcap")
                     if logger:
-                        logger.log_step("切換備援", f"{cand} 下載未果 ({c_msg})，自動切換至下一優先級平台 {next_label}...", status="WARN")
+                        logger.log_step("完整性故障直切HubcapDB", f"{cand} 檔案完整性異常 ({clean_msg})，已跳過同源通道並直接切換至 HubcapDB 備援", status="WARN")
                     if progress_cb:
-                        progress_cb(f"⚠️ {cand} 未完成，正在自動切換至 {next_label} 備援通道...")
+                        progress_cb(f"⚠️ {cand} 下載檔案完整性校驗失敗（{clean_msg}），正直接切換至 HubcapDB 取得完整資源...")
+                else:
+                    next_candidates = [c for c in pending_candidates if c not in tried_sources and c not in skip_sources]
+                    if next_candidates:
+                        next_cand = next_candidates[0]
+                        next_label = {"ryuu": "Ryuu", "luatools": "Lua.tools", "hubcap": "HubcapDB"}.get(next_cand, next_cand)
+                        if logger:
+                            logger.log_step("切換備援", f"{cand} 下載未果 ({clean_msg})，自動切換至下一優先級平台 {next_label}...", status="WARN")
+                        if progress_cb:
+                            progress_cb(f"⚠️ {cand} 未完成，正在自動切換至 {next_label} 備援通道...")
                 continue
 
-            # 下載成功後關卡 1：檢查本機 Lua 宣告與實體 .manifest 完整性
+            # 下載成功後關卡 1：檢查本機 Lua 宣告與實體 .manifest 完整性（含二進位標頭與 PICS addtoken）
             if steam_p:
                 local_verify = steam_manager.verify_and_sync_local_manifests(appid_str, steam_path=steam_p)
                 missing_f = local_verify.get("missing_files", [])
-                if missing_f or not local_verify.get("is_synced", False):
-                    errors_by_source[cand] = f"{cand} 檔案自洽性未過關 (缺少實體 Manifest: {missing_f})"
+                lua_f_post = Path(steam_p) / "config" / "lua" / f"{appid_str}.lua"
+                lua_txt_post = lua_f_post.read_text(encoding="utf-8", errors="ignore") if lua_f_post.exists() else ""
+                post_integ = self.validate_package_integrity(
+                    appid_str,
+                    lua_txt_post,
+                    manifest_bytes_map=None,
+                    steam_path=steam_p,
+                    official_info=sdb_info,
+                    is_install=is_install,
+                    allow_local_tar_stub=False,
+                )
+                if missing_f or not local_verify.get("is_synced", False) or not post_integ.get("ok"):
+                    fail_reason = (
+                        f"缺少實體 Manifest: {missing_f}" if (missing_f or not local_verify.get("is_synced", False))
+                        else post_integ.get("reason", "部署後完整性未通過")
+                    )
+                    errors_by_source[cand] = f"{cand} 完整性未過關 ({fail_reason})"
                     if logger:
-                        logger.log_step("自洽性未過", errors_by_source[cand], status="WARN")
+                        logger.log_step("完整性未過關", errors_by_source[cand], status="WARN")
+                    if cand in ("ryuu", "luatools"):
+                        integrity_defect_reason = fail_reason
+                        if cand == "ryuu":
+                            skip_sources.add("luatools")
+                        if "hubcap" not in tried_sources and "hubcap" not in skip_sources:
+                            if "hubcap" in pending_candidates:
+                                pending_candidates.remove("hubcap")
+                            pending_candidates.insert(0, "hubcap")
+                        if progress_cb:
+                            progress_cb(f"⚠️ {cand} 檔案完整性驗證未通過（{fail_reason}），正直接切換至 HubcapDB 備援...")
                     continue
 
                 # 關卡 2：比對是否已達 SteamDB 官方最新版
@@ -886,6 +1280,7 @@ class UnifiedManifestManager:
                                     if logger:
                                         logger.log_step("Hubcap升級未果", f"{msg_hc}，保留已就緒之 {cand} 可用版本繼續入庫", status="WARN")
 
+                _record_unexpected_hubcap_if_needed(cand)
                 deployed_ok = True
                 deployed_msg = c_msg
                 deployed_src = cand
@@ -902,6 +1297,7 @@ class UnifiedManifestManager:
                     search_result["deployed_outdated"] = False
                     return True, c_msg
             else:
+                _record_unexpected_hubcap_if_needed(cand)
                 deployed_ok = True
                 deployed_msg = c_msg
                 deployed_src = cand
@@ -995,16 +1391,21 @@ class UnifiedManifestManager:
         except Exception as e:
             return False, f"Ryuu 下載發生異常: {e}"
 
-    def _deploy_from_ryuu_http(self, appid: str, progress_cb: Optional[Callable[[str], None]] = None, logger: Optional[Any] = None) -> Tuple[bool, str]:
-        """純 Webview 模式下的 Ryuu HTTP 帶 Cookie 專用下載與部署通道 (支援預熱防 400、0 消耗預檢與全自動多帳號輪替)"""
-        import io, zipfile, sqlite3, tempfile, shutil, urllib.request, time
+    def _deploy_from_ryuu_http(self, appid: str, progress_cb: Optional[Callable[[str], None]] = None, logger: Optional[Any] = None, official_info: Optional[Dict[str, Any]] = None, is_install: bool = False) -> Tuple[bool, str]:
+        """純 Webview 模式下的 Ryuu HTTP 帶 Cookie 專用下載與部署通道 (支援預熱防 400、0 消耗預檢、記憶體完整性驗證與全自動多帳號輪替)"""
+        import sqlite3, tempfile, shutil, urllib.request, time
         from pathlib import Path
-        from managers import account_manager, steam_manager, config_manager, ryuu_manager
+        from managers import account_manager, steam_manager, config_manager, ryuu_manager, version_resolver
 
         appid_str = str(appid).strip()
         if not appid_str or not appid_str.isdigit():
             if logger: logger.log_error("參數校驗", f"無效或未提供 AppID: '{appid}'")
             return False, f"無效或未提供 AppID: '{appid}'"
+        if official_info is None:
+            try:
+                official_info = version_resolver.fetch_steamdb_manifests(appid_str, timeout=4)
+            except Exception:
+                official_info = {}
         mgr = account_manager.get_account_manager()
 
         # 🌟 步驟 1：預檢與伺服器預熱 (0 額度消耗之盡力嘗試，下載端點嚴格採用標準 URL)
@@ -1130,97 +1531,39 @@ class UnifiedManifestManager:
 
                         steam_p = steam_manager.find_steam_path()
                         if not steam_p: return False, "找不到 Steam 安裝路徑"
-                        depotcache = Path(steam_p) / "depotcache"
-                        depotcache.mkdir(parents=True, exist_ok=True)
-                        lua_dir = Path(steam_p) / "config" / "lua"
-                        lua_dir.mkdir(parents=True, exist_ok=True)
 
-                        extracted_manifests = {}
-                        import stat
-                        with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                            for zname in zf.namelist():
-                                if zname.endswith(".manifest"):
-                                    m_bytes = zf.read(zname)
-                                    m_name = Path(zname).name
-                                    m_target = depotcache / m_name
-                                    if m_target.exists():
-                                        try: os.chmod(m_target, stat.S_IWRITE | stat.S_IREAD)
-                                        except Exception: pass
-                                    m_target.write_bytes(m_bytes)
-                                    try:
-                                        os.chmod(m_target, stat.S_IWRITE | stat.S_IREAD)  # 🌟 depotcache 永遠保持可讀寫
-                                    except Exception: pass
-                                    # 永久備份至 Steam/config/depotcache
-                                    try:
-                                        c_backup = Path(steam_p) / "config" / "depotcache"
-                                        c_backup.mkdir(parents=True, exist_ok=True)
-                                        c_backup_file = c_backup / m_name
-                                        if c_backup_file.exists():
-                                            try: os.chmod(c_backup_file, stat.S_IWRITE | stat.S_IREAD)
-                                            except Exception: pass
-                                        c_backup_file.write_bytes(m_bytes)
-                                        try:
-                                            os.chmod(c_backup_file, stat.S_IREAD)  # 🌟 備援金庫設為唯讀保護
-                                        except Exception: pass
-                                        if logger:
-                                            logger.log_file_op("永久備份 Manifest", str(c_backup_file), size=len(m_bytes), success=True, details="寫入永久金庫 (防 Steam 解除安裝刪除)")
-                                    except Exception as be:
-                                        if logger:
-                                            logger.log_file_op("永久備份 Manifest", str(Path(steam_p) / "config" / "depotcache" / m_name), size=len(m_bytes), success=False, details=str(be))
-                                    m_parts = m_name.replace(".manifest", "").split("_")
-                                    if len(m_parts) == 2:
-                                        extracted_manifests[m_parts[0]] = m_parts[1]
-                                    if logger:
-                                        logger.log_file_op("解壓寫入 Manifest", str(m_target), size=len(m_bytes), success=True, details=f"Depot: {m_parts[0] if len(m_parts)==2 else 'Unknown'}, Manifest: {m_parts[1] if len(m_parts)==2 else m_name}")
-                                elif zname.endswith(".lua"):
-                                    l_bytes = zf.read(zname)
-                                    l_path = lua_dir / Path(zname).name
-                                    if l_path.exists():
-                                        try: os.chmod(l_path, stat.S_IWRITE | stat.S_IREAD)
-                                        except Exception: pass
-                                    l_path.write_bytes(l_bytes)
-                                    # 同步至 config/stplug-in (SteamTools 目錄)
-                                    st_lua = Path(steam_p) / "config" / "stplug-in"
-                                    if st_lua.exists():
-                                        try:
-                                            st_l_path = st_lua / Path(zname).name
-                                            if st_l_path.exists():
-                                                try: os.chmod(st_l_path, stat.S_IWRITE | stat.S_IREAD)
-                                                except Exception: pass
-                                            st_l_path.write_bytes(l_bytes)
-                                        except Exception: pass
-                                    # 同步至自訂 lua 目錄
-                                    cfg_lua = config_manager.get_config().get("lua_dir")
-                                    if cfg_lua and Path(cfg_lua).resolve() != lua_dir.resolve():
-                                        try:
-                                            Path(cfg_lua).mkdir(parents=True, exist_ok=True)
-                                            cfg_l_path = Path(cfg_lua) / Path(zname).name
-                                            if cfg_l_path.exists():
-                                                try: os.chmod(cfg_l_path, stat.S_IWRITE | stat.S_IREAD)
-                                                except Exception: pass
-                                            cfg_l_path.write_bytes(l_bytes)
-                                        except Exception: pass
-                                    # 🌟 自動解析並永久快取 64 位元 Depot 解密金鑰
-                                    try:
-                                        l_text = l_bytes.decode("utf-8", errors="ignore")
-                                        for km in re.finditer(r'addappid\s*\(\s*(\d+)\s*,\s*\d+\s*,\s*"([a-fA-F0-9]{64})"', l_text):
-                                            k_did, k_val = km.group(1), km.group(2)
-                                            if self._depot_keys_cache is None: self._depot_keys_cache = {}
-                                            self._depot_keys_cache[k_did] = k_val
-                                    except Exception:
-                                        pass
-                                    if logger:
-                                        logger.log_file_op("解壓寫入 Lua", str(l_path), size=len(l_bytes), success=True, details="主設定檔")
+                        lua_text, manifest_bytes_map, extracted_manifests, lua_entries, zip_err = self._extract_zip_entries_in_memory(appid_str, data)
+                        if zip_err:
+                            mgr.set_platform_connection_status("ryuu", False, "")
+                            mgr.mark_account_valid("ryuu", acc_id)
+                            mgr.record_quota_usage("ryuu", acc_id, 1)
+                            mgr.set_active_account("ryuu", acc_id)
+                            if logger:
+                                logger.log_step("完整性校驗失敗", f"Ryuu [{acc_name}] ZIP 壓縮檔損毀 ({zip_err})", status="WARN")
+                            return False, f"[INTEGRITY] {zip_err}"
 
-                        # 🌟 核心閉環驗證：以剛部署的真實 Manifest 檔案更新並閉環校準 Lua (含棄置 Depot 自動遷移)
-                        steam_manager.sync_lua_with_deployed_manifests(
-                            appid_str, manifests_dict=extracted_manifests, lua_dir=lua_dir
+                        integ = self.validate_package_integrity(
+                            appid_str,
+                            lua_text or "",
+                            manifest_bytes_map=manifest_bytes_map,
+                            steam_path=steam_p,
+                            official_info=official_info,
+                            is_install=is_install,
+                            allow_local_tar_stub=False,
                         )
-                        steam_manager.verify_and_sync_local_manifests(
-                            appid_str, steam_path=steam_p, lua_dir=lua_dir, target_manifests=extracted_manifests
+                        if not integ.get("ok"):
+                            mgr.set_platform_connection_status("ryuu", False, "")
+                            mgr.mark_account_valid("ryuu", acc_id)
+                            mgr.record_quota_usage("ryuu", acc_id, 1)
+                            mgr.set_active_account("ryuu", acc_id)
+                            reason = integ.get("reason", "下載封包完整性驗證未通過")
+                            if logger:
+                                logger.log_step("完整性校驗失敗", f"Ryuu [{acc_name}] ({integ.get('code')}): {reason}（不寫入磁碟）", status="WARN")
+                            return False, f"[INTEGRITY] {reason}"
+
+                        self._write_validated_zip_entries(
+                            appid_str, steam_p, manifest_bytes_map, extracted_manifests, lua_entries, logger=logger
                         )
-                        steam_manager.sanitize_lua_manifests(appid_str, steam_p, lua_dir)
-                        steam_manager.lock_game_version(appid_str, steam_p)
 
                         # 🌟 同步本地 manifest_updates.json 內紀錄的 local_manifestid (最終是否為最新版由外層依據 SteamDB 比對決定)
                         try:
@@ -1329,16 +1672,21 @@ class UnifiedManifestManager:
 
         return False, last_error or "所有可用 Ryuu 帳號均無法完成下載"
 
-    def _deploy_from_luatools_http(self, appid: str, progress_cb: Optional[Callable[[str], None]] = None, ryuu_error: str = "", logger: Optional[Any] = None) -> Tuple[bool, str]:
-        """純 Webview 模式下的 Lua.tools HTTP 帶 Cookie 專用下載與備援部署通道 (支援多帳號與來源優先級完整 ZIP 下載)"""
-        import io, zipfile, sqlite3, tempfile, shutil, urllib.request, stat
+    def _deploy_from_luatools_http(self, appid: str, progress_cb: Optional[Callable[[str], None]] = None, ryuu_error: str = "", logger: Optional[Any] = None, official_info: Optional[Dict[str, Any]] = None, is_install: bool = False) -> Tuple[bool, str]:
+        """純 Webview 模式下的 Lua.tools HTTP 帶 Cookie 專用下載與備援部署通道 (支援多帳號、記憶體完整性驗證與來源優先級完整 ZIP 下載)"""
+        import sqlite3, tempfile, shutil, urllib.request
         from pathlib import Path
-        from managers import account_manager, steam_manager, config_manager
+        from managers import account_manager, steam_manager, version_resolver
 
         appid_str = str(appid).strip()
         if not appid_str or not appid_str.isdigit():
             if logger: logger.log_error("參數校驗", f"無效或未提供 AppID: '{appid}'")
             return False, f"無效或未提供 AppID: '{appid}'"
+        if official_info is None:
+            try:
+                official_info = version_resolver.fetch_steamdb_manifests(appid_str, timeout=4)
+            except Exception:
+                official_info = {}
         mgr = account_manager.get_account_manager()
 
         accounts_to_try = mgr.get_all_valid_accounts("lua_tools")
@@ -1459,83 +1807,36 @@ class UnifiedManifestManager:
 
                     # 成功獲取 ZIP 打包檔
                     if zip_bytes:
-                        extracted_manifests = {}
-                        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
-                            for zname in zf.namelist():
-                                if zname.endswith(".manifest"):
-                                    m_bytes = zf.read(zname)
-                                    m_name = Path(zname).name
-                                    m_target = depotcache / m_name
-                                    if m_target.exists():
-                                        try: os.chmod(m_target, stat.S_IWRITE | stat.S_IREAD)
-                                        except Exception: pass
-                                    m_target.write_bytes(m_bytes)
-                                    try:
-                                        import stat
-                                        os.chmod(m_target, stat.S_IWRITE | stat.S_IREAD)  # 🌟 depotcache 永遠保持可讀寫
-                                    except Exception: pass
-                                    # 永久備份至 Steam/config/depotcache
-                                    try:
-                                        c_backup = Path(steam_p) / "config" / "depotcache"
-                                        c_backup.mkdir(parents=True, exist_ok=True)
-                                        c_backup_file = c_backup / m_name
-                                        if c_backup_file.exists():
-                                            try: os.chmod(c_backup_file, stat.S_IWRITE | stat.S_IREAD)
-                                            except Exception: pass
-                                        c_backup_file.write_bytes(m_bytes)
-                                        try:
-                                            os.chmod(c_backup_file, stat.S_IREAD)  # 🌟 備援金庫設為唯讀保護
-                                        except Exception: pass
-                                        if logger:
-                                            logger.log_file_op("永久備份 Manifest", str(c_backup_file), size=len(m_bytes), success=True, details="寫入永久金庫 (防 Steam 解除安裝刪除)")
-                                    except Exception as be:
-                                        if logger:
-                                            logger.log_file_op("永久備份 Manifest", str(Path(steam_p) / "config" / "depotcache" / m_name), size=len(m_bytes), success=False, details=str(be))
-                                    m_parts = m_name.replace(".manifest", "").split("_")
-                                    if len(m_parts) == 2:
-                                        extracted_manifests[m_parts[0]] = m_parts[1]
-                                    if logger:
-                                        logger.log_file_op("解壓寫入 Manifest", str(m_target), size=len(m_bytes), success=True, details=f"Depot: {m_parts[0] if len(m_parts)==2 else 'Unknown'}, Manifest: {m_parts[1] if len(m_parts)==2 else m_name}")
-                                elif zname.endswith(".lua"):
-                                    l_bytes = zf.read(zname)
-                                    l_path = lua_dir / Path(zname).name
-                                    if l_path.exists():
-                                        try: os.chmod(l_path, stat.S_IWRITE | stat.S_IREAD)
-                                        except Exception: pass
-                                    l_path.write_bytes(l_bytes)
-                                    # 同步至 config/stplug-in
-                                    st_lua = Path(steam_p) / "config" / "stplug-in"
-                                    if st_lua.exists():
-                                        try:
-                                            st_l_path = st_lua / Path(zname).name
-                                            if st_l_path.exists():
-                                                try: os.chmod(st_l_path, stat.S_IWRITE | stat.S_IREAD)
-                                                except Exception: pass
-                                            st_l_path.write_bytes(l_bytes)
-                                        except Exception: pass
-                                    # 同步至自訂 lua 目錄
-                                    cfg_lua = config_manager.get_config().get("lua_dir")
-                                    if cfg_lua and Path(cfg_lua).resolve() != lua_dir.resolve():
-                                        try:
-                                            Path(cfg_lua).mkdir(parents=True, exist_ok=True)
-                                            cfg_l_path = Path(cfg_lua) / Path(zname).name
-                                            if cfg_l_path.exists():
-                                                try: os.chmod(cfg_l_path, stat.S_IWRITE | stat.S_IREAD)
-                                                except Exception: pass
-                                            cfg_l_path.write_bytes(l_bytes)
-                                        except Exception: pass
-                                    if logger:
-                                        logger.log_file_op("解壓寫入 Lua", str(l_path), size=len(l_bytes), success=True, details="主設定檔")
+                        lua_text, manifest_bytes_map, extracted_manifests, lua_entries, zip_err = self._extract_zip_entries_in_memory(appid_str, zip_bytes)
+                        if zip_err:
+                            mgr.set_platform_connection_status("lua_tools", False, "")
+                            mgr.mark_account_valid("lua_tools", acc_id)
+                            mgr.record_quota_usage("lua_tools", acc_id)
+                            if logger:
+                                logger.log_step("完整性校驗失敗", f"Lua.tools [{acc_name}] ZIP 壓縮檔損毀 ({zip_err})", status="WARN")
+                            return False, f"[INTEGRITY] {zip_err}"
 
-                        # 🌟 自動閉環校驗並鎖定
-                        steam_manager.sync_lua_with_deployed_manifests(
-                            appid_str, manifests_dict=extracted_manifests, lua_dir=lua_dir
+                        integ = self.validate_package_integrity(
+                            appid_str,
+                            lua_text or "",
+                            manifest_bytes_map=manifest_bytes_map,
+                            steam_path=steam_p,
+                            official_info=official_info,
+                            is_install=is_install,
+                            allow_local_tar_stub=False,
                         )
-                        steam_manager.verify_and_sync_local_manifests(
-                            appid_str, steam_path=steam_p, lua_dir=lua_dir, target_manifests=extracted_manifests
+                        if not integ.get("ok"):
+                            mgr.set_platform_connection_status("lua_tools", False, "")
+                            mgr.mark_account_valid("lua_tools", acc_id)
+                            mgr.record_quota_usage("lua_tools", acc_id)
+                            reason = integ.get("reason", "下載封包完整性驗證未通過")
+                            if logger:
+                                logger.log_step("完整性校驗失敗", f"Lua.tools [{acc_name}] ({integ.get('code')}): {reason}（不寫入磁碟）", status="WARN")
+                            return False, f"[INTEGRITY] {reason}"
+
+                        self._write_validated_zip_entries(
+                            appid_str, steam_p, manifest_bytes_map, extracted_manifests, lua_entries, logger=logger
                         )
-                        steam_manager.sanitize_lua_manifests(appid_str, steam_p, lua_dir)
-                        steam_manager.lock_game_version(appid_str, steam_p)
                         mgr.set_platform_connection_status("lua_tools", False, "")
                         mgr.mark_account_valid("lua_tools", acc_id)
                         mgr.record_quota_usage("lua_tools", acc_id)

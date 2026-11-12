@@ -175,7 +175,10 @@ def fetch_steamdb_manifests(app_id_str: str, timeout: int = 5) -> dict:
         "date_str": "",
         "timestamp": 0,
         "build_id": "",
-        "depots_info": {}
+        "depots_info": {},
+        "steamcmd_ok": False,
+        "missing_token": False,
+        "has_config": False
     }
     try:
         req = urllib.request.Request(
@@ -185,6 +188,10 @@ def fetch_steamdb_manifests(app_id_str: str, timeout: int = 5) -> dict:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             app_d = data.get("data", {}).get(app_id_str, {})
+            if isinstance(app_d, dict) and app_d:
+                res["steamcmd_ok"] = True
+                res["missing_token"] = bool(app_d.get("_missing_token", False))
+                res["has_config"] = bool(app_d.get("config"))
             pub = app_d.get("depots", {}).get("branches", {}).get("public", {})
             ts = pub.get("timeupdated") or pub.get("timebuildupdated")
             if ts:

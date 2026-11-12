@@ -115,6 +115,56 @@ function tt(msg, type, duration){
   e._t=setTimeout(function(){e.classList.remove('show')}, ms);
 }
 
+// 🌟 意外 HubcapDB 配額消耗獨立浮動通知（不會被單一 #toast 覆蓋，支援批次疊加顯示）
+window.showTokenConsumeNotice = function(info){
+  try {
+    info = info || {};
+    var stack = document.getElementById('token-consume-notice-stack');
+    if(!stack){
+      stack = document.createElement('div');
+      stack.id = 'token-consume-notice-stack';
+      stack.style.cssText = 'position:fixed;top:18px;right:18px;z-index:99999;display:flex;flex-direction:column;gap:10px;max-width:420px;width:calc(100vw - 36px);pointer-events:none;';
+      document.body.appendChild(stack);
+    } else if(stack.parentNode !== document.body || document.body.lastElementChild !== stack){
+      document.body.appendChild(stack);
+    }
+
+    var gName = String(info.name || ('App ' + (info.appid || ''))).trim();
+    var aid = String(info.appid || '').trim();
+    var reason = String(info.reason || '主來源檔案完整性驗證失敗').trim();
+    var rem = info.remaining;
+    var lim = info.dailyLimit;
+    var hasQuotaNums = (typeof rem === 'number' && typeof lim === 'number');
+    var quotaText = hasQuotaNums
+      ? ('額外消耗 1 次 HubcapDB 配額（今日剩餘 ' + rem + ' / ' + lim + ' 次）')
+      : '額外消耗 1 次 HubcapDB 配額';
+
+    var card = document.createElement('div');
+    card.style.cssText = 'pointer-events:auto;background:rgba(24,18,22,0.95);border:1px solid rgba(245,158,11,0.75);border-left:4px solid #F59E0B;color:#FFF8EB;box-shadow:0 12px 30px rgba(0,0,0,0.45);backdrop-filter:blur(10px);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.5;transition:opacity 0.25s ease,transform 0.25s ease;';
+    card.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;">' +
+        '<span style="font-weight:700;color:#FBBF24;font-size:13px;">⚠️ 意外配額消耗通知</span>' +
+        '<button type="button" aria-label="關閉通知" style="background:none;border:none;color:#D1D5DB;cursor:pointer;font-size:15px;line-height:1;padding:0 2px;">✕</button>' +
+      '</div>' +
+      '<div style="color:#F3F4F6;margin-bottom:3px;"><strong>對象：</strong>' + escHtml(gName) + (aid ? ' (' + escHtml(aid) + ')' : '') + '</div>' +
+      '<div style="color:#E5E7EB;margin-bottom:6px;word-break:break-word;"><strong>原因：</strong>' + escHtml(reason) + '</div>' +
+      '<div style="display:inline-block;background:rgba(245,158,11,0.18);border:1px solid rgba(245,158,11,0.45);color:#FDE68A;border-radius:6px;padding:3px 8px;font-weight:600;font-size:12px;">' + escHtml(quotaText) + '</div>';
+
+    var removeCard = function(){
+      if(card._removed) return;
+      card._removed = true;
+      card.style.opacity = '0';
+      card.style.transform = 'translateX(12px)';
+      setTimeout(function(){ try { card.remove(); } catch(e){} }, 250);
+    };
+    var closeBtn = card.querySelector('button');
+    if(closeBtn) closeBtn.addEventListener('click', removeCard);
+
+    stack.appendChild(card);
+    setTimeout(removeCard, Number(info.durationMs) || 15000);
+  } catch(e){}
+};
+
 // 🌟 多源檢查、下載與備援即時進度監聽 (同步驅動「一鍵入庫」進度條與「管理入庫」更新狀態)
 window.onManifestProgress = function(appid, text, pct){
   try {
