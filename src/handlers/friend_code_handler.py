@@ -7,6 +7,7 @@ import re
 import ctypes
 from pathlib import Path
 from typing import Dict, Any, List
+from managers import config_manager
 from managers import steam_manager
 from managers import onlinefix_manager
 from managers.friend_code_manager import get_friend_code_manager
@@ -31,16 +32,19 @@ class FriendCodeHandler:
         except Exception as e:
             return {"ok": False, "msg": f"初始化友邀代碼資料失敗: {e}"}
 
-    def get_ready_games_for_friend_code(self, pack_mode: str = "all") -> List[Dict[str, Any]]:
+    def get_ready_games_for_friend_code(self, pack_mode: str = "all", force_refresh: bool = True) -> List[Dict[str, Any]]:
         """
         極速批次掃描本地可供「友邀代碼」打包分享之遊戲清單（與線上組隊完全獨立）：
         - 支援兩種打包方法：
           1. with_patch (含線上補丁): 具備 Manifest + Lua + 線上聯機補丁
           2. lua_manifest (無補丁純入庫): 具備 Lua + Manifest 即可打包
-        - 採用 O(1) 記憶體集合索引 depotcache 與 Lua，即使本地有數百款遊戲亦能毫秒級載入。
+        - 相容 Ryuu (2 參數) 與 HubcapDB (3 參數含容量) 等所有 setManifestid 格式。
         """
         try:
-            games = self.list_games()
+            try:
+                games = self.list_games(force_refresh=bool(force_refresh))
+            except TypeError:
+                games = self.list_games()
             sp = getattr(self, "_steam_path", None) or steam_manager.find_steam_path()
             manifest_names = set()
             manifest_depots = set()
@@ -49,10 +53,18 @@ class FriendCodeHandler:
             if sp:
                 sp_path = Path(sp)
                 lua_dirs = [
-                    sp_path / "config" / "stplug-in",
                     sp_path / "config" / "lua",
+                    sp_path / "config" / "stplug-in",
                     sp_path / "config" / "stplugins",
                 ]
+                try:
+                    cfg_lua_dir = config_manager.get_config().get("lua_dir")
+                    if cfg_lua_dir:
+                        cfg_p = Path(cfg_lua_dir)
+                        if cfg_p not in lua_dirs:
+                            lua_dirs.append(cfg_p)
+                except Exception:
+                    pass
                 depot_caches = [sp_path / "depotcache", sp_path / "config" / "depotcache"]
                 try:
                     for lib in steam_manager.get_steam_libraries(sp):
@@ -72,7 +84,11 @@ class FriendCodeHandler:
                         except Exception:
                             pass
 
-            mf_pattern = re.compile(r'set[M|m]anifest[i|I]d\s*\(\s*(\d+)\s*,\s*["\'](\d+)["\']\s*\)')
+            # 同時相容 setManifestid(did, "gid") 與 HubcapDB setManifestid(did, "gid", size)
+            mf_pattern = re.compile(
+                r'^[ \t]*(?!--)[^\r\n]*?set[Mm]anifest[Ii]d\s*\(\s*(\d+)\s*,\s*["\']?(\d+)["\']?(?:\s*,\s*[^)\r\n]*)?\)',
+                re.MULTILINE
+            )
             seen = set()
             result = []
             norm_filter = str(pack_mode or "all").strip()
@@ -82,12 +98,16 @@ class FriendCodeHandler:
                 if not appid or appid in seen:
                     continue
 
-                # 1. 檢查是否具備實體 Manifest 檔案 (O(1) 集合比對)
+                # 1. 檢查是否具備 Lua 腳本與實體 Manifest 檔案 (O(1) 集合比對)
+                has_lua = False
                 has_manifest = appid in manifest_depots
-                if not has_manifest and lua_dirs:
+                if lua_dirs:
                     for ld in lua_dirs:
                         lf = ld / f"{appid}.lua"
                         if lf.exists():
+                            has_lua = True
+                            if has_manifest:
+                                break
                             try:
                                 txt = lf.read_text(encoding="utf-8", errors="ignore")
                                 for m in mf_pattern.finditer(txt):
@@ -97,7 +117,8 @@ class FriendCodeHandler:
                                         break
                             except Exception:
                                 pass
-                            break
+                            if has_manifest:
+                                break
 
                 # 2. 檢查是否具備線上聯機補丁 (已部署至遊戲目錄 或 本地快取有補丁壓縮包)
                 has_patch = bool(g.get("deployed"))
@@ -117,7 +138,7 @@ class FriendCodeHandler:
 
                 if norm_filter == "with_patch" and not (has_manifest and has_patch):
                     continue
-                if norm_filter == "lua_manifest" and not has_manifest:
+                if norm_filter == "lua_manifest" and not (has_manifest and has_lua):
                     continue
 
                 seen.add(appid)
@@ -128,7 +149,7 @@ class FriendCodeHandler:
                     "name": name,
                     "english_name": eng_name,
                     "has_manifest": bool(has_manifest),
-                    "has_lua": True,
+                    "has_lua": bool(has_lua),
                     "has_patch": bool(has_patch),
                     "deployed": bool(has_patch),
                 })

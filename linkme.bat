@@ -4,8 +4,8 @@ cd /d "%~dp0"
 set CWD=%~dp0
 if "%CWD:~-1%"=="\" set CWD=%CWD:~0,-1%
 
-set PROJECT_NAME=Steam Manifest 更新工具2.0.13
-set PROJECT_DESC=全新 2.0.13 櫻花流光極速版：下載前檔頭與 PICS Token 完整性防呆驗證、缺陷自動直切 HubcapDB 與意外配額獨立通知、多源 Manifest (Ryuu + Lua.tools + HubcapDB) 自動比對、友邀代碼雙打包與組隊一鍵安裝
+set PROJECT_NAME=Steam Manifest 更新工具2.0.14
+set PROJECT_DESC=全新 2.0.14 櫻花流光極速版：修復友邀代碼相容 HubcapDB 三參數 setManifestid 格式辨識與打包推送、下載完整性與 PICS Token 驗證、缺陷直切 HubcapDB 與意外配額通知
 set EXEC_FILE=%CWD%\src\main.py
 
 echo Registering "%PROJECT_NAME%" to AI Tool Launcher...

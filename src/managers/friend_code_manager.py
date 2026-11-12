@@ -200,24 +200,28 @@ class FriendCodeManager:
             lua_dirs.append(Path(cfg_lua_dir))
 
         depot_manifest_pairs: List[Tuple[str, str]] = []
-        lua_content = ""
+        pattern = re.compile(
+            r'^[ \t]*(?!--)[^\r\n]*?set[Mm]anifest[Ii]d\s*\(\s*(\d+)\s*,\s*["\']?(\d+)["\']?(?:\s*,\s*[^)\r\n]*)?\)',
+            re.MULTILINE
+        )
         for ld in lua_dirs:
             if not ld.exists():
                 continue
             lf = ld / f"{app_id}.lua"
             if lf.exists():
-                result["lua"]["ready"] = True
-                result["lua"]["path"] = str(lf)
+                if not result["lua"]["ready"]:
+                    result["lua"]["ready"] = True
+                    result["lua"]["path"] = str(lf)
                 try:
                     lua_content = lf.read_text(encoding="utf-8", errors="ignore")
+                    pairs = [(m.group(1), m.group(2)) for m in pattern.finditer(lua_content)]
+                    if pairs:
+                        result["lua"]["ready"] = True
+                        result["lua"]["path"] = str(lf)
+                        depot_manifest_pairs = pairs
+                        break
                 except Exception:
                     pass
-                break
-
-        if lua_content:
-            pattern = re.compile(r'set[M|m]anifest[i|I]d\s*\(\s*(\d+)\s*,\s*["\'](\d+)["\']\s*\)')
-            for m in pattern.finditer(lua_content):
-                depot_manifest_pairs.append((m.group(1), m.group(2)))
 
         # 2. 檢查對應之實體 .manifest 檔案
         libs = steam_manager.get_steam_libraries(steam_path)
@@ -424,7 +428,7 @@ class FriendCodeManager:
                     "timestamp": ts,
                     "manifest_count": details["manifest_copied"],
                     "patch_files_count": details["patch_files_copied"],
-                    "version": "2.0.13",
+                    "version": "2.0.14",
                 }
                 zf.writestr("package_meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
 
