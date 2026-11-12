@@ -40,7 +40,7 @@
   <link rel="stylesheet" href="css/components/splash.css">
   <link rel="stylesheet" href="css/views/search.css">
   <link rel="stylesheet" href="css/views/manage.css">
-    <link rel="stylesheet" href="css/views/friend_code.css?v=20261102_fc_v2">
+    <link rel="stylesheet" href="css/views/friend_code.css?v=20261112_fc_v3">
 <link rel="stylesheet" href="css/views/party.css?v=20261013_dual_theme_v19">
   <link rel="stylesheet" href="css/views/credentials.css">
   <link rel="stylesheet" href="css/views/settings.css">
@@ -124,7 +124,7 @@
 </div>
 <div class="app-bg-layer" id="app-bg-layer"><div class="app-bg-img" id="app-bg-img"></div><div class="app-bg-overlay" id="app-bg-overlay"></div></div>
 <div class="rsz" id="rsz"><i class="rn" data-side="n"></i><i class="rs" data-side="s"></i><i class="re" data-side="e"></i><i class="rw" data-side="w"></i><i class="rne" data-side="ne"></i><i class="rnw" data-side="nw"></i><i class="rse" data-side="se"></i><i class="rsw" data-side="sw"></i></div>
-<div class="titlebar" id="titlebar"><span class="tt" id="ttl">Steam 入庫與清單更新工具 (多源極速版) v2.0.10 極速版</span><div class="btns no-drag"><button class="no-drag" onclick="pywebview.api.minimize()">─</button><button class="no-drag" onclick="pywebview.api.maximize()">□</button><button class="bc no-drag" onclick="pywebview.api.close()">✕</button></div></div>
+<div class="titlebar" id="titlebar"><span class="tt" id="ttl">Steam 入庫與清單更新工具 (多源極速版) v2.0.11 極速版</span><div class="btns no-drag"><button class="no-drag" onclick="pywebview.api.minimize()">─</button><button class="no-drag" onclick="pywebview.api.maximize()">□</button><button class="bc no-drag" onclick="pywebview.api.close()">✕</button></div></div>
 <div class="body-row">
 
 <div class="sidebar">
@@ -276,15 +276,45 @@
         <span class="fc-badge" id="fc-host-badge">分享方</span>
       </div>
 
-      <!-- 步驟 1：選擇遊戲 -->
+      <!-- 步驟 1：選擇打包模式與遊戲 -->
       <div class="fc-step">
         <div class="fc-step-head">
-          <span class="fc-step-label"><span class="fc-step-num">1</span>選擇遊戲</span>
-          <button type="button" class="btn btn-o btn-xs" onclick="refreshFcReadyGames()" title="重新掃描本機已部署聯機補丁的遊戲">🔄 重新整理</button>
+          <span class="fc-step-label"><span class="fc-step-num">1</span>選擇打包模式與遊戲</span>
+          <button type="button" class="btn btn-o btn-xs" onclick="refreshFcReadyGames()" title="重新掃描本機可打包的遊戲資源">🔄 重新整理</button>
         </div>
-        <select id="fc-select-game" class="fc-select" onchange="onFcGameSelectChange()">
-          <option value="">-- 請挑選本機已入庫且已安裝線上補丁的遊戲 --</option>
-        </select>
+
+        <!-- 兩種獨立打包模式切換 -->
+        <div class="fc-mode-switch" role="tablist" aria-label="友邀代碼打包模式">
+          <button type="button" id="fc-mode-with-patch" class="fc-mode-btn active" onclick="setFcPackMode('with_patch')">
+            <div class="fc-mode-top">
+              <span>🎮 含線上補丁</span>
+              <span id="fc-count-with-patch" class="fc-mode-count">0</span>
+            </div>
+            <div class="fc-mode-desc">需具備線上補丁 + Lua + Manifest</div>
+          </button>
+          <button type="button" id="fc-mode-lua-manifest" class="fc-mode-btn" onclick="setFcPackMode('lua_manifest')">
+            <div class="fc-mode-top">
+              <span>📜 無補丁純入庫</span>
+              <span id="fc-count-lua-manifest" class="fc-mode-count">0</span>
+            </div>
+            <div class="fc-mode-desc">僅打包 Lua + Manifest (免線上補丁)</div>
+          </button>
+        </div>
+
+        <!-- 搜尋 + 下拉式選單 (同時支援手動關鍵字搜尋與傳統下拉選單選擇) -->
+        <div class="fc-combo-container" id="fc-combo-container">
+          <div class="fc-search-combo">
+            <span class="fc-search-icon">🔍</span>
+            <input type="text" id="fc-search-game" class="fc-search-input" placeholder="輸入遊戲名稱或 AppID 搜尋，或由下方下拉選單選擇…" oninput="onFcGameSearchInput()" onfocus="openFcSearchDropdown()" autocomplete="off">
+            <button type="button" id="fc-search-clear" class="fc-search-clear" onclick="clearFcGameSearch()" title="清除搜尋條件" style="display:none">✕</button>
+            <button type="button" id="fc-dropdown-toggle" class="fc-dropdown-toggle" onclick="toggleFcSearchDropdown()" title="展開或收合快速選單">▾</button>
+          </div>
+          <div id="fc-dropdown-menu" class="fc-dropdown-menu" style="display:none"></div>
+          <select id="fc-select-game" class="fc-select" onchange="onFcGameSelectChange()">
+            <option value="">-- 請挑選本機已入庫且已安裝線上補丁的遊戲 --</option>
+          </select>
+        </div>
+
         <div class="fc-inspect-strip">
           <span id="fc-chip-manifest" class="fc-res-chip">📄 Manifest</span>
           <span id="fc-chip-lua" class="fc-res-chip">📜 Lua 腳本</span>
@@ -848,7 +878,7 @@
 <!-- 📄 View: about.html -->
 <div class="page" id="p-about">
 <h2>🌸 Steam 入庫與清單更新工具 (多源極速版)</h2>
-<div style="font-size:12px;font-weight:600;color:var(--pink-deep);margin-bottom:2px" id="ver">v2.0.10 極速版</div>
+<div style="font-size:12px;font-weight:600;color:var(--pink-deep);margin-bottom:2px" id="ver">v2.0.11 極速版</div>
 <div class="about-card"><h4 style="color:var(--err)">⚠️ 注意事項</h4><p>D加密遊戲需要 D 加密授權<br>一般不支援聯網驗證的線上遊戲<br>一般不支援第三方平台驗證的遊戲（如 EA / Origin、Ubisoft Connect 等）</p></div>
 <div class="about-card"><h4>🔐 D加密 解決方法</h4><p>大部分 D 加密遊戲：正版帳號打開一次遊戲（購買後退款亦可）<br>虛擬機或使用專屬相容補丁（遊戲版本號需一致）</p></div>
 <div class="about-card"><h4>🖥️ 支援平台</h4><p>Windows 10 / Windows 11 (64-bit)</p></div>
@@ -1682,7 +1712,7 @@
 <script src="js/modules/game_detail.js?v=20261108_wv2_perf"></script>
 <script src="js/modules/manage.js?v=20261108_wv2_perf"></script>
 <script src="js/modules/credentials.js?v=20261108_wv2_perf"></script>
-<script src="js/modules/friend_code.js?v=20261102_fc_v2"></script>
+<script src="js/modules/friend_code.js?v=20261112_fc_v3"></script>
 <script src="js/modules/party_p2p.js"></script>
 <script src="js/modules/party.js?v=20261013_dual_theme_v19"></script>
 <script src="js/modules/startup_wizard.js"></script>

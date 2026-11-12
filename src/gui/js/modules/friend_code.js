@@ -8,6 +8,10 @@ var _fcPreviewSeq = 0;
 var _fcInspectReady = false;
 var _fcCurrentResult = null;
 var _fcHistoryCache = [];
+var _fcGamesCache = [];
+var _fcPackMode = 'with_patch'; // 'with_patch' | 'lua_manifest'
+var _fcDropdownOpen = false;
+var _fcOutsideClickBound = false;
 
 function _fcEsc(s) {
   return String(s == null ? '' : s)
@@ -98,31 +102,160 @@ async function initFriendCodePage() {
 async function refreshFcReadyGames() {
   if (!window.pywebview || !pywebview.api) return;
   try {
-    var games = await pywebview.api.get_ready_games_for_friend_code();
+    var games = await pywebview.api.get_ready_games_for_friend_code('all');
     _renderFcGamesDropdown(games || []);
-    _fcToast('🔄 已重新掃描本機可打包之聯機遊戲');
+    _fcToast('🔄 已重新掃描本機可打包之遊戲資源');
   } catch (e) {
     _fcToast('⚠️ 掃描遊戲清單失敗');
   }
 }
 
+function _bindFcOutsideClickOnce() {
+  if (_fcOutsideClickBound) return;
+  _fcOutsideClickBound = true;
+  document.addEventListener('mousedown', function(ev) {
+    var container = document.getElementById('fc-combo-container');
+    if (container && !container.contains(ev.target)) {
+      closeFcSearchDropdown();
+    }
+  });
+}
+
+function setFcPackMode(mode) {
+  var norm = (mode === 'lua_manifest') ? 'lua_manifest' : 'with_patch';
+  _fcPackMode = norm;
+
+  var btnPatch = document.getElementById('fc-mode-with-patch');
+  var btnNoPatch = document.getElementById('fc-mode-lua-manifest');
+  if (btnPatch) btnPatch.classList.toggle('active', norm === 'with_patch');
+  if (btnNoPatch) btnNoPatch.classList.toggle('active', norm === 'lua_manifest');
+
+  _applyFcFilterAndRender(false);
+}
+
+function _getFcModeFilteredGames(keyword) {
+  var kw = String(keyword == null ? '' : keyword).trim().toLowerCase();
+  var out = [];
+  for (var i = 0; i < _fcGamesCache.length; i++) {
+    var g = _fcGamesCache[i];
+    if (!g) continue;
+    var hasPatch = !!(g.has_patch || g.deployed);
+    var hasMf = (g.has_manifest !== false);
+
+    if (_fcPackMode === 'with_patch' && !hasPatch) continue;
+    if (_fcPackMode === 'lua_manifest' && !hasMf) continue;
+
+    if (kw) {
+      var aid = String(g.appid || '').toLowerCase();
+      var nm = String(g.name || '').toLowerCase();
+      var enm = String(g.english_name || '').toLowerCase();
+      if (aid.indexOf(kw) === -1 && nm.indexOf(kw) === -1 && enm.indexOf(kw) === -1) {
+        continue;
+      }
+    }
+    out.push(g);
+  }
+  return out;
+}
+
+function _updateFcModeCounts() {
+  var patchCnt = 0;
+  var luaMfCnt = 0;
+  for (var i = 0; i < _fcGamesCache.length; i++) {
+    var g = _fcGamesCache[i];
+    if (!g) continue;
+    if (g.has_patch || g.deployed) patchCnt++;
+    if (g.has_manifest !== false) luaMfCnt++;
+  }
+  var elPatch = document.getElementById('fc-count-with-patch');
+  var elLuaMf = document.getElementById('fc-count-lua-manifest');
+  if (elPatch) elPatch.textContent = patchCnt + ' 款';
+  if (elLuaMf) elLuaMf.textContent = luaMfCnt + ' 款';
+}
+
 function _renderFcGamesDropdown(games) {
+  _bindFcOutsideClickOnce();
+  _fcGamesCache = Array.isArray(games) ? games : [];
+  _updateFcModeCounts();
+  _applyFcFilterAndRender(false);
+}
+
+function _applyFcFilterAndRender(autoOpenMenu) {
   var sel = document.getElementById('fc-select-game');
+  var searchEl = document.getElementById('fc-search-game');
+  var clearBtn = document.getElementById('fc-search-clear');
+  var menu = document.getElementById('fc-dropdown-menu');
   if (!sel) return;
+
   var prevVal = sel.value || '';
-  var html = '<option value="">-- 請挑選本機已入庫且已安裝線上補丁的遊戲 --</option>';
-  if (games && games.length > 0) {
-    for (var i = 0; i < games.length; i++) {
-      var g = games[i];
+  var kw = searchEl ? searchEl.value.trim() : '';
+  if (clearBtn) clearBtn.style.display = kw ? 'inline-block' : 'none';
+
+  var filtered = _getFcModeFilteredGames(kw);
+  var modeEmptyText = (_fcPackMode === 'lua_manifest')
+    ? '⚠️ 尚未偵測到已入庫 (Lua + Manifest) 的遊戲'
+    : '⚠️ 尚未偵測到已安裝線上補丁的遊戲（可切換至右側「📜 無補丁純入庫」模式）';
+  var defaultPlaceholder = (_fcPackMode === 'lua_manifest')
+    ? ('-- 請挑選本機已入庫遊戲 (共 ' + filtered.length + ' 款符合) --')
+    : ('-- 請挑選已安裝線上補丁的遊戲 (共 ' + filtered.length + ' 款符合) --');
+
+  var html = '';
+  var stillExists = false;
+  if (filtered.length > 0) {
+    html = '<option value="">' + _fcEsc(defaultPlaceholder) + '</option>';
+    for (var i = 0; i < filtered.length; i++) {
+      var g = filtered[i];
       var aid = String(g.appid || '');
       var nm = g.name || ('AppID ' + aid);
+      var hasPatch = !!(g.has_patch || g.deployed);
+      var tagTxt = (_fcPackMode === 'lua_manifest')
+        ? (hasPatch ? '[含補丁·純入庫打包] ' : '[Lua+Manifest] ')
+        : '🎮 ';
+      if (aid === prevVal) stillExists = true;
       var selected = (aid === prevVal) ? ' selected' : '';
-      html += '<option value="' + _fcEsc(aid) + '" data-name="' + _fcEsc(nm) + '"' + selected + '>🎮 ' + _fcEsc(nm) + ' (AppID: ' + _fcEsc(aid) + ')</option>';
+      html += '<option value="' + _fcEsc(aid) + '" data-name="' + _fcEsc(nm) + '"' + selected + '>'
+        + _fcEsc(tagTxt + nm) + ' (AppID: ' + _fcEsc(aid) + ')</option>';
     }
   } else {
-    html = '<option value="">⚠️ 尚未偵測到已安裝線上補丁的遊戲（請先於遊戲入庫/管理入庫完成部署）</option>';
+    html = '<option value="">' + _fcEsc(kw ? ('🔍 找不到符合「' + kw + '」的遊戲') : modeEmptyText) + '</option>';
   }
   sel.innerHTML = html;
+  if (stillExists) {
+    sel.value = prevVal;
+  }
+
+  // 同步渲染自訂搜尋下拉選單 (#fc-dropdown-menu)
+  if (menu) {
+    if (filtered.length === 0) {
+      menu.innerHTML = '<div class="fc-dropdown-empty">'
+        + _fcEsc(kw ? ('🔍 找不到符合「' + kw + '」的遊戲') : modeEmptyText)
+        + '</div>';
+    } else {
+      var mHtml = '';
+      for (var j = 0; j < filtered.length; j++) {
+        var item = filtered[j];
+        var itemAid = String(item.appid || '');
+        var itemNm = item.name || ('AppID ' + itemAid);
+        var itemHasPatch = !!(item.has_patch || item.deployed);
+        var isSel = (itemAid === sel.value) ? ' selected' : '';
+        var badgeHtml = (_fcPackMode === 'lua_manifest')
+          ? '<span class="fc-dropdown-tag nopatch">📜 Lua+Manifest</span>'
+          : '<span class="fc-dropdown-tag patch">🎮 含補丁</span>';
+        mHtml += '<div class="fc-dropdown-item' + isSel + '" data-appid="' + _fcEsc(itemAid) + '" onclick="selectFcDropdownGame(\'' + _fcEsc(itemAid) + '\')">'
+          + '<span class="fc-dropdown-name">' + _fcEsc(itemNm) + '</span>'
+          + '<span class="fc-dropdown-meta">'
+          + '<span class="fc-dropdown-appid">#' + _fcEsc(itemAid) + '</span>'
+          + badgeHtml
+          + '</span>'
+          + '</div>';
+      }
+      menu.innerHTML = mHtml;
+    }
+    if (autoOpenMenu) {
+      openFcSearchDropdown();
+    }
+  }
+
   if (sel.value) {
     onFcGameSelectChange();
   } else {
@@ -132,19 +265,89 @@ function _renderFcGamesDropdown(games) {
   }
 }
 
+function onFcGameSearchInput() {
+  _applyFcFilterAndRender(true);
+}
+
+function clearFcGameSearch() {
+  var searchEl = document.getElementById('fc-search-game');
+  if (searchEl) searchEl.value = '';
+  _applyFcFilterAndRender(false);
+  closeFcSearchDropdown();
+}
+
+function openFcSearchDropdown() {
+  var menu = document.getElementById('fc-dropdown-menu');
+  if (!menu) return;
+  _fcDropdownOpen = true;
+  menu.style.display = 'block';
+}
+
+function closeFcSearchDropdown() {
+  var menu = document.getElementById('fc-dropdown-menu');
+  if (!menu) return;
+  _fcDropdownOpen = false;
+  menu.style.display = 'none';
+}
+
+function toggleFcSearchDropdown() {
+  if (_fcDropdownOpen) {
+    closeFcSearchDropdown();
+  } else {
+    _applyFcFilterAndRender(true);
+  }
+}
+
+function selectFcDropdownGame(appId) {
+  var sel = document.getElementById('fc-select-game');
+  var searchEl = document.getElementById('fc-search-game');
+  var clearBtn = document.getElementById('fc-search-clear');
+  if (!sel) return;
+
+  // 若先前有搜尋字詞，清空搜尋篩選以便完整下拉選單也能保留所有項目並選中該遊戲
+  if (searchEl && searchEl.value.trim()) {
+    searchEl.value = '';
+    if (clearBtn) clearBtn.style.display = 'none';
+    _applyFcFilterAndRender(false);
+  }
+
+  sel.value = String(appId || '');
+  closeFcSearchDropdown();
+  onFcGameSelectChange();
+}
+
 function _resetFcInspectChips() {
   var m = document.getElementById('fc-chip-manifest');
   var l = document.getElementById('fc-chip-lua');
   var p = document.getElementById('fc-chip-patch');
   if (m) { m.className = 'fc-res-chip'; m.textContent = '📄 Manifest'; }
   if (l) { l.className = 'fc-res-chip'; l.textContent = '📜 Lua 腳本'; }
-  if (p) { p.className = 'fc-res-chip'; p.textContent = '🎮 線上補丁'; }
+  if (p) {
+    if (_fcPackMode === 'lua_manifest') {
+      p.className = 'fc-res-chip neutral';
+      p.textContent = '➖ 免線上補丁';
+    } else {
+      p.className = 'fc-res-chip';
+      p.textContent = '🎮 線上補丁';
+    }
+  }
   _setFcBadge('fc-host-badge', '', '分享方');
 }
 
 async function onFcGameSelectChange() {
   var sel = document.getElementById('fc-select-game');
   var aid = sel ? (sel.value || '').trim() : '';
+
+  // 同步更新浮動選單的選中狀態
+  var menu = document.getElementById('fc-dropdown-menu');
+  if (menu) {
+    var items = menu.querySelectorAll('.fc-dropdown-item');
+    for (var i = 0; i < items.length; i++) {
+      var itAid = items[i].getAttribute('data-appid') || '';
+      items[i].classList.toggle('selected', itAid === aid);
+    }
+  }
+
   if (!aid) {
     _fcInspectReady = false;
     _resetFcInspectChips();
@@ -157,11 +360,20 @@ async function onFcGameSelectChange() {
   var p = document.getElementById('fc-chip-patch');
   if (m) { m.className = 'fc-res-chip'; m.textContent = '📄 Manifest …'; }
   if (l) { l.className = 'fc-res-chip'; l.textContent = '📜 Lua 腳本 …'; }
-  if (p) { p.className = 'fc-res-chip'; p.textContent = '🎮 線上補丁 …'; }
+  if (p) {
+    p.className = 'fc-res-chip';
+    p.textContent = (_fcPackMode === 'lua_manifest') ? '➖ 免線上補丁' : '🎮 線上補丁 …';
+  }
   _setFcBadge('fc-host-badge', 'warn', '檢查中');
 
   try {
-    var insp = await pywebview.api.inspect_party_resources(aid);
+    var insp = null;
+    if (pywebview.api.inspect_friend_code_game) {
+      var resObj = await pywebview.api.inspect_friend_code_game(aid, _fcPackMode);
+      insp = (resObj && resObj.data) ? resObj.data : resObj;
+    } else {
+      insp = await pywebview.api.inspect_party_resources(aid);
+    }
     var mOk = !!(insp && insp.manifest && insp.manifest.ready);
     var lOk = !!(insp && insp.lua && insp.lua.ready);
     var pOk = !!(insp && insp.patch && insp.patch.ready);
@@ -174,16 +386,25 @@ async function onFcGameSelectChange() {
       l.className = 'fc-res-chip ' + (lOk ? 'ok' : 'bad');
       l.textContent = lOk ? '✓ Lua 腳本' : '✕ Lua 腳本';
     }
-    if (p) {
-      p.className = 'fc-res-chip ' + (pOk ? 'ok' : 'bad');
-      p.textContent = pOk ? '✓ 線上補丁' : '✕ 線上補丁';
+    if (_fcPackMode === 'lua_manifest') {
+      if (p) {
+        p.className = 'fc-res-chip neutral';
+        p.textContent = '➖ 不打包補丁';
+      }
+      _fcInspectReady = !!(mOk && lOk);
+    } else {
+      if (p) {
+        p.className = 'fc-res-chip ' + (pOk ? 'ok' : 'bad');
+        p.textContent = pOk ? '✓ 線上補丁' : '✕ 線上補丁';
+      }
+      _fcInspectReady = !!(mOk && lOk && pOk);
     }
-
-    _fcInspectReady = !!(mOk && lOk && pOk);
   } catch (e) {
     _fcInspectReady = false;
   }
-  _setFcBadge('fc-host-badge', _fcInspectReady ? 'ok' : 'err', _fcInspectReady ? '三檔就緒' : '三檔不全');
+  var okBadgeText = (_fcPackMode === 'lua_manifest') ? '清單就緒' : '三檔就緒';
+  var errBadgeText = (_fcPackMode === 'lua_manifest') ? '清單不全' : '三檔不全';
+  _setFcBadge('fc-host-badge', _fcInspectReady ? 'ok' : 'err', _fcInspectReady ? okBadgeText : errBadgeText);
   _updateFcGenerateBtnState();
 }
 
@@ -322,11 +543,11 @@ function _updateFcGenerateBtnState() {
   if (!hasGame) {
     btn.title = '請先選擇要打包分享的遊戲';
   } else if (!_fcInspectReady) {
-    btn.title = '所選遊戲本地三檔尚未齊全';
+    btn.title = (_fcPackMode === 'lua_manifest') ? '所選遊戲本地 Lua / Manifest 清單尚未齊全' : '所選遊戲本地三檔尚未齊全';
   } else if (!hasWh) {
     btn.title = '請填寫正確的 Discord Webhook 網址';
   } else {
-    btn.title = '立即封裝三檔並生成加密友邀代碼';
+    btn.title = (_fcPackMode === 'lua_manifest') ? '立即封裝 Lua+Manifest 清單並生成加密友邀代碼' : '立即封裝三檔並生成加密友邀代碼';
   }
 }
 
@@ -358,7 +579,7 @@ async function submitGenerateFriendCode() {
   if (errBox) errBox.style.display = 'none';
 
   try {
-    var res = await pywebview.api.start_generate_friend_code(appId, gameName, webhookUrl);
+    var res = await pywebview.api.start_generate_friend_code(appId, gameName, webhookUrl, _fcPackMode);
     if (!res || !res.ok) {
       _fcToast('❌ ' + ((res && res.msg) || '啟動打包失敗'));
       if (errBox) {
@@ -447,8 +668,9 @@ function _renderFcGeneratedResult(item) {
   var codeEl = document.getElementById('fc-result-code-text');
   var sizeStr = _fcFmtSize(item.size);
   var partTag = item.is_multipart ? (' · ' + (item.total_parts || 2) + ' 分卷') : ' · 單檔極速包';
+  var modeLabel = (item.pack_mode === 'lua_manifest') ? '📜 純入庫清單 (Lua+Manifest)' : '🎮 含線上補丁完整包';
   if (metaEl) {
-    metaEl.innerHTML = '🎮 <b>' + _fcEsc(item.game_name) + '</b> <span style="opacity:.8">(AppID: ' + _fcEsc(item.app_id) + (sizeStr ? ' · ' + sizeStr : '') + partTag + ')</span><br>'
+    metaEl.innerHTML = '🎮 <b>' + _fcEsc(item.game_name) + '</b> <span style="opacity:.8">(AppID: ' + _fcEsc(item.app_id) + (sizeStr ? ' · ' + sizeStr : '') + partTag + ' · ' + modeLabel + ')</span><br>'
       + '<span style="font-size:10.5px;opacity:.82">🕒 加密時間戳：' + _fcEsc(item.created_at) + ' ｜ 長度：' + item.code.length + ' 碼純英數</span>';
   }
   if (codeEl) {
@@ -488,10 +710,11 @@ function _renderFcHistoryList(list) {
     var it = list[i];
     var sz = _fcFmtSize(it.size);
     var pInfo = it.is_multipart ? (it.total_parts + '卷') : '單檔';
+    var mInfo = (it.pack_mode === 'lua_manifest') ? '📜 純入庫' : '🎮 含補丁';
     html += '<div class="fc-history-item">'
       + '<div class="fc-history-meta">'
       + '<div class="fc-history-title">🎮 ' + _fcEsc(it.game_name) + ' <span style="font-weight:400;opacity:.75">(' + _fcEsc(it.app_id) + ')</span></div>'
-      + '<div class="fc-history-sub">🕒 ' + _fcEsc(it.created_at) + (sz ? ' · ' + sz : '') + ' · ' + pInfo + '</div>'
+      + '<div class="fc-history-sub">🕒 ' + _fcEsc(it.created_at) + (sz ? ' · ' + sz : '') + ' · ' + pInfo + ' · ' + mInfo + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:5px;flex-shrink:0">'
       + '<button type="button" class="btn btn-p btn-xs" onclick="copyFcHistoryItem(\'' + _fcEsc(it.id) + '\')" title="複製此筆友邀代碼">📋 複製</button>'
@@ -622,11 +845,12 @@ function onFriendCodeInputChange() {
       if (remoteRes && remoteRes.ok && remoteRes.remote_verified) {
         var sz = _fcFmtSize(remoteRes.size);
         var pTag = remoteRes.is_multipart ? ('共 ' + (remoteRes.total_parts || 2) + ' 分卷') : '單檔極速包';
+        var rModeTag = (remoteRes.pack_mode === 'lua_manifest') ? '📜 純入庫清單 (Lua+Manifest)' : '🎮 含線上補丁完整包';
         if (banner) {
           banner.className = 'fc-verify-banner valid';
           banner.innerHTML = '✅ <b>本地解密與雲端檔案核驗通過！</b><br>'
             + '🎮 遊戲：<b>' + _fcEsc(remoteRes.game_name) + '</b> '
-            + '<span style="opacity:.85">(AppID: ' + _fcEsc(remoteRes.app_id || '自動識別') + (sz ? ' · ' + sz : '') + ' · ' + pTag + ')</span><br>'
+            + '<span style="opacity:.85">(AppID: ' + _fcEsc(remoteRes.app_id || '自動識別') + (sz ? ' · ' + sz : '') + ' · ' + pTag + ' · ' + rModeTag + ')</span><br>'
             + '<span style="font-size:10.5px;opacity:.82">🕒 好友打包時間：' + _fcEsc(remoteRes.created_at) + '</span>';
         }
       } else if (remoteRes && !remoteRes.ok) {

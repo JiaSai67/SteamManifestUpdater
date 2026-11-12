@@ -369,13 +369,15 @@ class DiscordStorage:
         app_id: str,
         webhook_url: str = "",
         game_name: str = "",
-        progress_cb=None
+        progress_cb=None,
+        pack_mode: str = "with_patch"
     ) -> Dict[str, Any]:
         """
-        為「友邀代碼」上傳核心三檔整合包至 Discord Webhook：
+        為「友邀代碼」上傳整合包至 Discord Webhook：
+        - 支援兩種獨立打包模式：with_patch (含線上補丁三檔完整包) / lua_manifest (純 Lua + Manifest 入庫清單包)
         - 單檔 (<= 9MB)：單一訊息同時夾帶附件與結構化 Embed 元資料，回傳該訊息之 entry_message_id。
         - 多分卷 (> 9MB)：切片為 <= 8MB 分卷逐一上傳後，額外發送 1 則輕量索引訊息記載所有分卷 MsgID，
-          使友邀代碼無論面對單檔或數十個分卷，皆能維持固定 52 碼極簡長度！
+          使友邀代碼無論面對單檔或數十個分卷，皆能維持固定極簡長度！
         """
         p = Path(file_path)
         if not p.exists() or not p.is_file():
@@ -392,6 +394,8 @@ class DiscordStorage:
         post_url = f"{clean_webhook}?wait=true"
         now_ts = int(time.time())
         safe_game = (game_name or f"AppID {app_id}").strip()
+        norm_pack_mode = "lua_manifest" if str(pack_mode or "").strip() == "lua_manifest" else "with_patch"
+        mode_desc_label = "📜 純入庫清單 (Lua + Manifest，不含線上補丁)" if norm_pack_mode == "lua_manifest" else "🎮 含線上補丁完整包 (Manifest + Lua + 線上補丁)"
 
         # -------------------------------------------------------------
         # 情況 A: 單檔直傳 (<= 9MB)
@@ -404,6 +408,7 @@ class DiscordStorage:
             fc_meta = {
                 "v": 1,
                 "mode": "single",
+                "pack_mode": norm_pack_mode,
                 "app_id": str(app_id),
                 "game_name": safe_game[:80],
                 "size": file_size,
@@ -415,6 +420,7 @@ class DiscordStorage:
                     "title": f"🎫 【{safe_game}】友邀代碼整合包",
                     "description": (
                         f"🎮 **遊戲 AppID**：`{app_id}`\n"
+                        f"🏷️ **打包模式**：{mode_desc_label}\n"
                         f"📦 **整合包大小**：`{file_size / 1024 / 1024:.2f} MB` (單檔極速包)\n"
                         f"🔒 **狀態**：已加密生成友邀代碼，好友貼上代碼即可全自動下載安裝。"
                     ),
@@ -549,6 +555,7 @@ class DiscordStorage:
             fc_meta = {
                 "v": 1,
                 "mode": "multipart",
+                "pack_mode": norm_pack_mode,
                 "app_id": str(app_id),
                 "game_name": safe_game[:80],
                 "size": file_size,
@@ -560,6 +567,7 @@ class DiscordStorage:
                 "title": f"🎫 【{safe_game}】友邀代碼多分卷索引 ({total_parts} 卷)",
                 "description": (
                     f"🎮 **遊戲 AppID**：`{app_id}`\n"
+                    f"🏷️ **打包模式**：{mode_desc_label}\n"
                     f"📦 **總計大小**：`{file_size / 1024 / 1024:.2f} MB` (共 `{total_parts}` 個安全分卷)\n"
                     f"🔒 **狀態**：索引已建立，請勿刪除此訊息以免友邀代碼失效。"
                 ),
@@ -692,6 +700,9 @@ class DiscordStorage:
                 break
 
         mode = fc_meta.get("mode", "single")
+        pack_mode = str(fc_meta.get("pack_mode", "with_patch") or "with_patch").strip()
+        if pack_mode not in ("with_patch", "lua_manifest"):
+            pack_mode = "with_patch"
         app_id = str(fc_meta.get("app_id", "")).strip()
         game_name = str(fc_meta.get("game_name", "")).strip()
         total_size = int(fc_meta.get("size", 0) or 0)
@@ -716,6 +727,7 @@ class DiscordStorage:
                     "ok": True,
                     "is_multipart": True,
                     "total_parts": len(part_ids),
+                    "pack_mode": pack_mode,
                     "app_id": app_id,
                     "game_name": game_name or (f"AppID {app_id}" if app_id else "好友分享遊戲"),
                     "size": total_size,
@@ -750,6 +762,7 @@ class DiscordStorage:
                 "ok": True,
                 "is_multipart": True,
                 "total_parts": len(ordered_urls),
+                "pack_mode": pack_mode,
                 "app_id": app_id,
                 "game_name": game_name or (f"AppID {app_id}" if app_id else "好友分享遊戲"),
                 "size": total_size,
@@ -767,6 +780,7 @@ class DiscordStorage:
             "ok": True,
             "is_multipart": False,
             "total_parts": 1,
+            "pack_mode": pack_mode,
             "app_id": app_id,
             "game_name": game_name or (f"AppID {app_id}" if app_id else "好友分享遊戲"),
             "size": total_size,

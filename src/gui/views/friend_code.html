@@ -45,15 +45,45 @@
         <span class="fc-badge" id="fc-host-badge">分享方</span>
       </div>
 
-      <!-- 步驟 1：選擇遊戲 -->
+      <!-- 步驟 1：選擇打包模式與遊戲 -->
       <div class="fc-step">
         <div class="fc-step-head">
-          <span class="fc-step-label"><span class="fc-step-num">1</span>選擇遊戲</span>
-          <button type="button" class="btn btn-o btn-xs" onclick="refreshFcReadyGames()" title="重新掃描本機已部署聯機補丁的遊戲">🔄 重新整理</button>
+          <span class="fc-step-label"><span class="fc-step-num">1</span>選擇打包模式與遊戲</span>
+          <button type="button" class="btn btn-o btn-xs" onclick="refreshFcReadyGames()" title="重新掃描本機可打包的遊戲資源">🔄 重新整理</button>
         </div>
-        <select id="fc-select-game" class="fc-select" onchange="onFcGameSelectChange()">
-          <option value="">-- 請挑選本機已入庫且已安裝線上補丁的遊戲 --</option>
-        </select>
+
+        <!-- 兩種獨立打包模式切換 -->
+        <div class="fc-mode-switch" role="tablist" aria-label="友邀代碼打包模式">
+          <button type="button" id="fc-mode-with-patch" class="fc-mode-btn active" onclick="setFcPackMode('with_patch')">
+            <div class="fc-mode-top">
+              <span>🎮 含線上補丁</span>
+              <span id="fc-count-with-patch" class="fc-mode-count">0</span>
+            </div>
+            <div class="fc-mode-desc">需具備線上補丁 + Lua + Manifest</div>
+          </button>
+          <button type="button" id="fc-mode-lua-manifest" class="fc-mode-btn" onclick="setFcPackMode('lua_manifest')">
+            <div class="fc-mode-top">
+              <span>📜 無補丁純入庫</span>
+              <span id="fc-count-lua-manifest" class="fc-mode-count">0</span>
+            </div>
+            <div class="fc-mode-desc">僅打包 Lua + Manifest (免線上補丁)</div>
+          </button>
+        </div>
+
+        <!-- 搜尋 + 下拉式選單 (同時支援手動關鍵字搜尋與傳統下拉選單選擇) -->
+        <div class="fc-combo-container" id="fc-combo-container">
+          <div class="fc-search-combo">
+            <span class="fc-search-icon">🔍</span>
+            <input type="text" id="fc-search-game" class="fc-search-input" placeholder="輸入遊戲名稱或 AppID 搜尋，或由下方下拉選單選擇…" oninput="onFcGameSearchInput()" onfocus="openFcSearchDropdown()" autocomplete="off">
+            <button type="button" id="fc-search-clear" class="fc-search-clear" onclick="clearFcGameSearch()" title="清除搜尋條件" style="display:none">✕</button>
+            <button type="button" id="fc-dropdown-toggle" class="fc-dropdown-toggle" onclick="toggleFcSearchDropdown()" title="展開或收合快速選單">▾</button>
+          </div>
+          <div id="fc-dropdown-menu" class="fc-dropdown-menu" style="display:none"></div>
+          <select id="fc-select-game" class="fc-select" onchange="onFcGameSelectChange()">
+            <option value="">-- 請挑選本機已入庫且已安裝線上補丁的遊戲 --</option>
+          </select>
+        </div>
+
         <div class="fc-inspect-strip">
           <span id="fc-chip-manifest" class="fc-res-chip">📄 Manifest</span>
           <span id="fc-chip-lua" class="fc-res-chip">📜 Lua 腳本</span>

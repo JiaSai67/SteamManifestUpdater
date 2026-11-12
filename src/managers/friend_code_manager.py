@@ -24,12 +24,11 @@ import threading
 import datetime
 import requests
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 from managers import config_manager
 from managers import steam_manager
 from managers import onlinefix_manager
-from managers.party_packager import get_party_packager
 from managers.discord_storage import get_discord_storage, is_valid_webhook_url
 from utils import friend_code_crypto
 
@@ -52,6 +51,8 @@ class FriendCodeManager:
             return
         self._initialized = True
         self.root_dir = config_manager._root_dir
+        self.fc_temp_dir = self.root_dir / "data" / "friend_code_packages"
+        self.fc_temp_dir.mkdir(parents=True, exist_ok=True)
         self.history_path = self.root_dir / "data" / "friend_codes_history.json"
         self._history_lock = threading.Lock()
 
@@ -113,6 +114,9 @@ class FriendCodeManager:
             raw = self._load_raw_history()
         safe_list = []
         for item in raw:
+            pm = str(item.get("pack_mode", "with_patch") or "with_patch").strip()
+            if pm not in ("with_patch", "lua_manifest"):
+                pm = "with_patch"
             safe_list.append({
                 "id": item.get("id", ""),
                 "app_id": item.get("app_id", ""),
@@ -121,6 +125,7 @@ class FriendCodeManager:
                 "size": item.get("size", 0),
                 "is_multipart": bool(item.get("is_multipart", False)),
                 "total_parts": int(item.get("total_parts", 1) or 1),
+                "pack_mode": pm,
                 "created_at": item.get("created_at", ""),
                 "can_revoke": bool(item.get("file_id")),
             })
@@ -156,6 +161,511 @@ class FriendCodeManager:
         return {"ok": True, "deleted_cloud": deleted_cloud, "msg": msg, "history": self.get_public_history()}
 
     # ═════════════════════════════════════════════════════════════════════
+    # 🔍 友邀代碼專屬獨立資源檢測與打包引擎 (與線上組隊 PartyPackager 完全隔離)
+    # ═════════════════════════════════════════════════════════════════════
+
+    def inspect_friend_code_resources(self, app_id: str, pack_mode: str = "with_patch") -> Dict[str, Any]:
+        """
+        友邀代碼專屬資源檢查，支援兩種獨立打包模式：
+        - Mode 1 (with_patch): 原本必須具備線上補丁的作法 (Manifest + Lua + 線上聯機補丁 三檔齊全)
+        - Mode 2 (lua_manifest): 沒有線上補丁，但有 Lua 和 Manifest 的作法 (僅需 Lua + Manifest 二檔齊全)
+        """
+        app_id = str(app_id or "").strip()
+        norm_mode = "lua_manifest" if str(pack_mode or "").strip() == "lua_manifest" else "with_patch"
+        steam_path = steam_manager.find_steam_path()
+
+        result: Dict[str, Any] = {
+            "app_id": app_id,
+            "pack_mode": norm_mode,
+            "manifest": {"ready": False, "count": 0, "files": [], "paths": []},
+            "lua": {"ready": False, "path": ""},
+            "patch": {"ready": False, "files_count": 0, "source": "none", "paths": [], "archive_paths": []},
+            "all_ready": False,
+        }
+        if not app_id or not steam_path:
+            return result
+
+        # 1. 檢查 Lua 腳本並解析所有 (depot_id, manifest_id)
+        cfg_lua_dir = None
+        try:
+            cfg_lua_dir = config_manager.get_config().get("lua_dir")
+        except Exception:
+            pass
+        lua_dirs = [
+            Path(steam_path) / "config" / "stplug-in",
+            Path(steam_path) / "config" / "lua",
+            Path(steam_path) / "config" / "stplugins",
+        ]
+        if cfg_lua_dir:
+            lua_dirs.append(Path(cfg_lua_dir))
+
+        depot_manifest_pairs: List[Tuple[str, str]] = []
+        lua_content = ""
+        for ld in lua_dirs:
+            if not ld.exists():
+                continue
+            lf = ld / f"{app_id}.lua"
+            if lf.exists():
+                result["lua"]["ready"] = True
+                result["lua"]["path"] = str(lf)
+                try:
+                    lua_content = lf.read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    pass
+                break
+
+        if lua_content:
+            pattern = re.compile(r'set[M|m]anifest[i|I]d\s*\(\s*(\d+)\s*,\s*["\'](\d+)["\']\s*\)')
+            for m in pattern.finditer(lua_content):
+                depot_manifest_pairs.append((m.group(1), m.group(2)))
+
+        # 2. 檢查對應之實體 .manifest 檔案
+        libs = steam_manager.get_steam_libraries(steam_path)
+        depot_caches = [Path(steam_path) / "depotcache", Path(steam_path) / "config" / "depotcache"]
+        for lib in libs:
+            dc = lib / "depotcache"
+            if dc not in depot_caches:
+                depot_caches.append(dc)
+
+        found_manifests: List[Path] = []
+        seen_names = set()
+
+        for depot_id, manifest_id in depot_manifest_pairs:
+            target_name = f"{depot_id}_{manifest_id}.manifest"
+            for dc in depot_caches:
+                if not dc.exists():
+                    continue
+                mf = dc / target_name
+                if mf.exists() and target_name not in seen_names:
+                    seen_names.add(target_name)
+                    found_manifests.append(mf)
+                    break
+
+        if not found_manifests and depot_manifest_pairs:
+            for depot_id, _ in depot_manifest_pairs:
+                for dc in depot_caches:
+                    if not dc.exists():
+                        continue
+                    for mf in dc.glob(f"{depot_id}_*.manifest"):
+                        if mf.name not in seen_names:
+                            seen_names.add(mf.name)
+                            found_manifests.append(mf)
+
+        if not found_manifests:
+            for dc in depot_caches:
+                if not dc.exists():
+                    continue
+                for mf in dc.glob(f"{app_id}_*.manifest"):
+                    if mf.name not in seen_names:
+                        seen_names.add(mf.name)
+                        found_manifests.append(mf)
+
+        if found_manifests:
+            result["manifest"]["ready"] = True
+            result["manifest"]["count"] = len(found_manifests)
+            result["manifest"]["files"] = [m.name for m in found_manifests]
+            result["manifest"]["paths"] = [str(m) for m in found_manifests]
+
+        # 3. 檢查線上聯機補丁 (依據 pack_mode 決定是否需要)
+        patch_files: List[Tuple[str, Path]] = []
+        patch_source = "none"
+
+        rec = onlinefix_manager.get_fix_record(app_id)
+        game_dir = (rec.get("game_dir") if rec else None) or onlinefix_manager._find_steam_game_dir(app_id)
+
+        if game_dir and Path(game_dir).exists():
+            g_path = Path(game_dir)
+            if rec and rec.get("installed_files"):
+                for rel_p in rec["installed_files"]:
+                    fp = g_path / rel_p
+                    if fp.exists():
+                        if fp.is_file():
+                            patch_files.append((rel_p, fp))
+                        elif fp.is_dir():
+                            for root_w, _, files_w in os.walk(fp):
+                                for fl_w in files_w:
+                                    sub_fp = Path(root_w) / fl_w
+                                    rel_to_g = str(sub_fp.relative_to(g_path)).replace("\\", "/")
+                                    patch_files.append((rel_to_g, sub_fp))
+                if patch_files:
+                    patch_source = "record"
+
+            if not patch_files and hasattr(onlinefix_manager, "scan_existing_crack_files"):
+                try:
+                    cracks = onlinefix_manager.scan_existing_crack_files(g_path)
+                    for rel_p in cracks:
+                        fp = g_path / rel_p
+                        if fp.exists() and fp.is_file():
+                            patch_files.append((rel_p, fp))
+                    if patch_files:
+                        patch_source = "scanned"
+                except Exception:
+                    pass
+
+            if not patch_files:
+                for sig_name in ["OnlineFix64.dll", "OnlineFix.ini", "OnlineFix.url", "SteamOverlay64.dll"]:
+                    fp = g_path / sig_name
+                    if fp.exists() and fp.is_file():
+                        patch_files.append((sig_name, fp))
+                if patch_files:
+                    patch_source = "signatures"
+
+        if patch_files:
+            result["patch"]["ready"] = True
+            result["patch"]["files_count"] = len(patch_files)
+            result["patch"]["source"] = patch_source
+            result["patch"]["paths"] = [(rel_p, str(fp)) for rel_p, fp in patch_files]
+        else:
+            cached_archives: List[Path] = []
+            try:
+                app_cache_dir = onlinefix_manager.get_app_cache_dir(app_id)
+                if app_cache_dir and Path(app_cache_dir).exists():
+                    for f in Path(app_cache_dir).iterdir():
+                        if f.is_file() and f.suffix.lower() in (".rar", ".zip", ".7z"):
+                            cached_archives.append(f)
+            except Exception:
+                pass
+            if cached_archives:
+                result["patch"]["ready"] = True
+                result["patch"]["files_count"] = len(cached_archives)
+                result["patch"]["source"] = "cache_archive"
+                result["patch"]["archive_paths"] = [str(p) for p in cached_archives]
+
+        if norm_mode == "lua_manifest":
+            # 模式二：沒有線上補丁，但有 Lua 和 Manifest 的作法
+            result["all_ready"] = bool(result["manifest"]["ready"] and result["lua"]["ready"])
+        else:
+            # 模式一：原本必須具備線上補丁的作法
+            result["all_ready"] = bool(
+                result["manifest"]["ready"] and result["lua"]["ready"] and result["patch"]["ready"]
+            )
+        return result
+
+    def build_friend_code_package(
+        self,
+        app_id: str,
+        tag: str,
+        pack_mode: str = "with_patch",
+        game_name: str = ""
+    ) -> Tuple[bool, str, Dict[str, Any]]:
+        """
+        友邀代碼專屬封裝引擎 (與線上組隊 PartyPackager 完全獨立)：
+        - pack_mode == "with_patch": 打包 Manifest + Lua + 線上聯機補丁 (三檔完整包)
+        - pack_mode == "lua_manifest": 僅打包 Lua + Manifest (不含線上聯機補丁)
+        """
+        app_id = str(app_id or "").strip()
+        norm_mode = "lua_manifest" if str(pack_mode or "").strip() == "lua_manifest" else "with_patch"
+        inspect = self.inspect_friend_code_resources(app_id, pack_mode=norm_mode)
+
+        details: Dict[str, Any] = {
+            "app_id": app_id,
+            "pack_mode": norm_mode,
+            "manifest_copied": 0,
+            "lua_copied": False,
+            "patch_files_copied": 0,
+            "inspect": inspect,
+        }
+
+        if not inspect.get("all_ready"):
+            missing = []
+            if not inspect["manifest"]["ready"]:
+                missing.append("Manifest 清單檔案")
+            if not inspect["lua"]["ready"]:
+                missing.append("Lua 授權腳本")
+            if norm_mode == "with_patch" and not inspect["patch"]["ready"]:
+                missing.append("線上聯機補丁")
+            details["error"] = f"缺少必要項目：{'、'.join(missing)}"
+            return False, "", details
+
+        self.fc_temp_dir.mkdir(parents=True, exist_ok=True)
+        ts = int(time.time())
+        mode_tag = "LUA_MF" if norm_mode == "lua_manifest" else "FULL"
+        zip_path = self.fc_temp_dir / f"FriendCode_{app_id}_{mode_tag}_{tag}_{ts}.zip"
+
+        try:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+                # 1. 寫入實體 Manifest 檔案
+                for mf_str in inspect["manifest"]["paths"]:
+                    mf_p = Path(mf_str)
+                    if mf_p.exists():
+                        zf.write(mf_p, f"manifest/{mf_p.name}")
+                        details["manifest_copied"] += 1
+
+                # 2. 寫入 Lua 授權腳本
+                lua_str = inspect["lua"]["path"]
+                if lua_str and Path(lua_str).exists():
+                    lua_p = Path(lua_str)
+                    zf.write(lua_p, f"lua/{lua_p.name}")
+                    details["lua_copied"] = True
+
+                # 3. 僅在 with_patch 模式下封裝線上聯機補丁
+                if norm_mode == "with_patch":
+                    for rel_p, fp_str in inspect["patch"].get("paths", []):
+                        fp = Path(fp_str)
+                        if fp.exists() and fp.is_file():
+                            clean_rel = str(rel_p).replace("\\", "/").lstrip("/")
+                            zf.write(fp, f"patch/files/{clean_rel}")
+                            details["patch_files_copied"] += 1
+
+                    if details["patch_files_copied"] == 0 and inspect["patch"].get("archive_paths"):
+                        for arc_str in inspect["patch"]["archive_paths"]:
+                            arc_p = Path(arc_str)
+                            if arc_p.exists() and arc_p.is_file():
+                                zf.write(arc_p, f"patch/{arc_p.name}")
+                                details["patch_files_copied"] += 1
+
+                # 4. 寫入 package_meta.json
+                meta = {
+                    "app_id": app_id,
+                    "game_name": (game_name or f"AppID {app_id}").strip(),
+                    "room_code": tag,
+                    "pack_mode": norm_mode,
+                    "patch_included": bool(norm_mode == "with_patch" and details["patch_files_copied"] > 0),
+                    "timestamp": ts,
+                    "manifest_count": details["manifest_copied"],
+                    "patch_files_count": details["patch_files_copied"],
+                    "version": "2.0.11",
+                }
+                zf.writestr("package_meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
+
+            logger.info(
+                f"[FriendCode] 友邀代碼專屬打包完成 ({norm_mode}): {zip_path.name} "
+                f"(Manifest={details['manifest_copied']}, Lua={details['lua_copied']}, Patch={details['patch_files_copied']})"
+            )
+            return True, str(zip_path), details
+        except Exception as e:
+            logger.error(f"[FriendCode] 建立友邀代碼整合包失敗: {e}", exc_info=True)
+            details["error"] = str(e)
+            return False, "", details
+
+    def extract_and_apply_friend_code_package(self, package_zip_path: str, app_id: str) -> Dict[str, Any]:
+        """友邀代碼接收端專屬：部署壓縮包內的 Manifest 清單與 Lua 腳本並完成閉環校準"""
+        import stat
+        p = Path(package_zip_path)
+        if not p.exists():
+            return {"ok": False, "msg": f"找不到整合包檔案: {package_zip_path}"}
+
+        steam_path = steam_manager.find_steam_path()
+        applied = {"manifest": False, "lua": False, "manifest_count": 0}
+
+        try:
+            with zipfile.ZipFile(p, "r") as zf:
+                namelist = zf.namelist()
+                extracted_manifests: Dict[str, str] = {}
+
+                # 1. 部署 Manifest 檔案至 depotcache
+                manifest_files = [n for n in namelist if n.startswith("manifest/") and n.endswith(".manifest")]
+                if manifest_files and steam_path:
+                    target_dcs = [
+                        Path(steam_path) / "depotcache",
+                        Path(steam_path) / "config" / "depotcache",
+                    ]
+                    game_dir_pre = onlinefix_manager._find_steam_game_dir(app_id)
+                    if game_dir_pre:
+                        try:
+                            lib_dc = Path(game_dir_pre).parent.parent.parent / "depotcache"
+                            if lib_dc not in target_dcs:
+                                target_dcs.append(lib_dc)
+                        except Exception:
+                            pass
+
+                    for dc_dir in target_dcs:
+                        dc_dir.mkdir(parents=True, exist_ok=True)
+                        for mf in manifest_files:
+                            fn = Path(mf).name
+                            target_f = dc_dir / fn
+                            if target_f.exists():
+                                try:
+                                    os.chmod(target_f, stat.S_IWRITE | stat.S_IREAD)
+                                except Exception:
+                                    pass
+                            with zf.open(mf) as src, open(target_f, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+
+                    for mf in manifest_files:
+                        fn = Path(mf).name
+                        applied["manifest_count"] += 1
+                        m_match = re.match(r"^(\d+)_(\d+)\.manifest$", fn)
+                        if m_match:
+                            extracted_manifests[m_match.group(1)] = m_match.group(2)
+
+                    if applied["manifest_count"] > 0:
+                        applied["manifest"] = True
+
+                # 2. 部署 Lua 腳本至所有外掛目錄並設定唯讀保護
+                lua_files = [n for n in namelist if n.startswith("lua/") and n.endswith(".lua")]
+                if lua_files and steam_path:
+                    cfg_lua_dir = None
+                    try:
+                        cfg_lua_dir = config_manager.get_config().get("lua_dir")
+                    except Exception:
+                        pass
+                    target_dirs = [
+                        Path(steam_path) / "config" / "stplug-in",
+                        Path(steam_path) / "config" / "lua",
+                        Path(steam_path) / "config" / "stplugins",
+                    ]
+                    if cfg_lua_dir:
+                        target_dirs.append(Path(cfg_lua_dir))
+
+                    for td in target_dirs:
+                        td.mkdir(parents=True, exist_ok=True)
+                        for lf in lua_files:
+                            fn = Path(lf).name
+                            target_f = td / fn
+                            if target_f.exists():
+                                try:
+                                    os.chmod(target_f, stat.S_IWRITE | stat.S_IREAD)
+                                except Exception:
+                                    pass
+                            with zf.open(lf) as src, open(target_f, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                            try:
+                                os.chmod(target_f, stat.S_IREAD)
+                            except Exception:
+                                pass
+
+                    applied["lua"] = True
+
+                # 3. 閉環校準 Manifest 與 Lua
+                if steam_path:
+                    try:
+                        if extracted_manifests:
+                            steam_manager.sync_lua_with_deployed_manifests(
+                                app_id, manifests_dict=extracted_manifests, lua_dir=Path(steam_path) / "config" / "stplug-in"
+                            )
+                        steam_manager.verify_and_sync_local_manifests(
+                            app_id, steam_path=steam_path, target_manifests=extracted_manifests
+                        )
+                        steam_manager.unlock_game_version(app_id, steam_path)
+                    except Exception as cl_err:
+                        logger.warning(f"[FriendCode] 閉環校準過程異常 (非阻斷): {cl_err}")
+
+            return {"ok": True, "applied": applied, "msg": "Manifest 與 Lua 部署完成"}
+        except Exception as e:
+            logger.error(f"[FriendCode] 部署 Manifest/Lua 失敗: {e}", exc_info=True)
+            return {"ok": False, "msg": f"部署清單與腳本失敗: {e}"}
+
+    def apply_friend_code_patch_files(self, package_zip_path: str, app_id: str) -> Dict[str, Any]:
+        """友邀代碼接收端專屬：將壓縮包內的 patch/files/* 或 patch/* 解壓套用至已安裝之遊戲目錄"""
+        import stat
+        p = Path(package_zip_path)
+        if not p.exists():
+            return {"ok": False, "msg": f"找不到整合包檔案: {package_zip_path}"}
+
+        game_dir = None
+        for _ in range(5):
+            game_dir = onlinefix_manager._find_steam_game_dir(app_id)
+            if game_dir and Path(game_dir).exists():
+                break
+            time.sleep(1.0)
+        if not game_dir or not Path(game_dir).exists():
+            return {"ok": False, "msg": f"尚未找到 AppID {app_id} 的遊戲目錄，請確認 Steam 是否已下載安裝完成"}
+
+        g_path = Path(game_dir)
+        applied_count = 0
+        installed_rel_paths: List[str] = []
+        backed_up_rel_paths: List[str] = []
+
+        try:
+            with zipfile.ZipFile(p, "r") as zf:
+                namelist = zf.namelist()
+                patch_files = [n for n in namelist if n.startswith("patch/files/") and not n.endswith("/")]
+                patch_archives = [n for n in namelist if n.startswith("patch/") and not n.startswith("patch/files/") and not n.endswith("/")]
+
+                if not patch_files and patch_archives:
+                    temp_arc_dir = self.fc_temp_dir / f"_fc_arc_{app_id}_{int(time.time() * 1000)}"
+                    temp_arc_dir.mkdir(parents=True, exist_ok=True)
+                    try:
+                        primary_arc = None
+                        for pa in patch_archives:
+                            arc_name = Path(pa).name
+                            out_arc = temp_arc_dir / arc_name
+                            with zf.open(pa) as src, open(out_arc, "wb") as dst:
+                                shutil.copyfileobj(src, dst)
+                            if primary_arc is None or onlinefix_manager._is_primary_archive_part(arc_name):
+                                primary_arc = out_arc
+                        if primary_arc and primary_arc.exists():
+                            ok_fix, msg_fix = onlinefix_manager.install_fix(
+                                app_id, primary_arc, g_path, delete_archive=True, source_drive="Friend Code Sync"
+                            )
+                            if ok_fix:
+                                rec_now = onlinefix_manager.get_fix_record(app_id) or {}
+                                cnt = len(rec_now.get("installed_files", [])) or 1
+                                return {"ok": True, "files_count": cnt, "msg": f"已成功套用 {cnt} 個線上補丁檔案"}
+                            return {"ok": False, "msg": msg_fix}
+                    finally:
+                        if temp_arc_dir.exists():
+                            shutil.rmtree(temp_arc_dir, ignore_errors=True)
+
+                if not patch_files:
+                    return {"ok": True, "files_count": 0, "msg": "純入庫包 (不含線上補丁)"}
+
+                for pf in patch_files:
+                    rel_sub = pf.replace("patch/files/", "", 1)
+                    target_pf = g_path / rel_sub
+                    target_pf.parent.mkdir(parents=True, exist_ok=True)
+
+                    if target_pf.exists() and target_pf.is_file():
+                        bak_f = target_pf.with_suffix(target_pf.suffix + ".bak")
+                        if not onlinefix_manager.is_known_crack_file(target_pf) and not bak_f.exists():
+                            try:
+                                shutil.copy2(target_pf, bak_f)
+                                backed_up_rel_paths.append(rel_sub)
+                            except Exception:
+                                pass
+
+                    if target_pf.exists():
+                        try:
+                            os.chmod(target_pf, stat.S_IWRITE | stat.S_IREAD)
+                        except Exception:
+                            pass
+                    with zf.open(pf) as src, open(target_pf, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                    installed_rel_paths.append(rel_sub)
+                    applied_count += 1
+
+            try:
+                record = {
+                    "appid": str(app_id),
+                    "installed_files": installed_rel_paths,
+                    "backed_up_files": backed_up_rel_paths,
+                    "manual_install": False,
+                    "source_drive": "Friend Code Sync",
+                    "game_dir": str(g_path),
+                    "timestamp": int(time.time()),
+                }
+                onlinefix_manager._save_record(app_id, record)
+            except Exception as re_err:
+                logger.warning(f"[FriendCode] 寫入補丁部署記錄失敗: {re_err}")
+
+            quarantined_files = []
+            for rel_p in installed_rel_paths:
+                f_path = g_path / rel_p
+                if not f_path.exists() and any(f_path.name.lower().endswith(ext) for ext in [".dll", ".exe", ".ini"]):
+                    quarantined_files.append(f_path.name)
+            if quarantined_files:
+                return {
+                    "ok": False,
+                    "msg": f"防毒軟體攔截：補丁解壓後遭隔離 ({', '.join(quarantined_files[:2])})，請新增防毒排除項"
+                }
+
+            return {"ok": True, "files_count": applied_count, "msg": f"已成功套用 {applied_count} 個線上補丁檔案"}
+        except Exception as e:
+            return {"ok": False, "msg": f"補丁套用失敗: {e}"}
+
+    def cleanup_friend_code_package(self, package_path: str) -> bool:
+        """安全清理友邀代碼暫存整合包檔案"""
+        try:
+            p = Path(package_path)
+            if p.exists() and p.is_file():
+                p.unlink()
+                return True
+        except Exception:
+            pass
+        return False
+
+    # ═════════════════════════════════════════════════════════════════════
     # 📦 發起方：本地三檔打包 + Discord Webhook 上傳 + 生成 52 碼友邀代碼
     # ═════════════════════════════════════════════════════════════════════
 
@@ -167,11 +677,19 @@ class FriendCodeManager:
         with self._host_lock:
             self._host_state.update(kwargs)
 
-    def start_generate_friend_code(self, app_id: str, game_name: str = "", discord_webhook: str = "") -> Dict[str, Any]:
-        """啟動非同步打包與上傳任務，完成後產出 52 碼中英混合加密友邀代碼"""
+    def start_generate_friend_code(
+        self,
+        app_id: str,
+        game_name: str = "",
+        discord_webhook: str = "",
+        pack_mode: str = "with_patch"
+    ) -> Dict[str, Any]:
+        """啟動非同步打包與上傳任務，支援兩種獨立打包模式：with_patch (含線上補丁) / lua_manifest (純 Lua+Manifest)"""
         app_id = str(app_id or "").strip()
         if not app_id:
             return {"ok": False, "msg": "請先選擇要打包分享的遊戲"}
+
+        norm_mode = "lua_manifest" if str(pack_mode or "").strip() == "lua_manifest" else "with_patch"
 
         discord_mgr = get_discord_storage()
         webhook_target = (discord_webhook or "").strip() or discord_mgr.get_custom_webhook_url()
@@ -180,6 +698,7 @@ class FriendCodeManager:
         if not is_valid_webhook_url(webhook_target):
             return {"ok": False, "msg": "Discord Webhook 網址格式無效，請確認為 https://discord.com/api/webhooks/... 官方格式"}
 
+        init_status = "正在檢查本地 Lua 與 Manifest 清單完整性…" if norm_mode == "lua_manifest" else "正在檢查本地核心三檔完整性…"
         with self._host_lock:
             if self._host_task_running:
                 return {"ok": False, "msg": "目前已有正在進行中的打包上傳任務，請稍候"}
@@ -187,43 +706,53 @@ class FriendCodeManager:
             self._host_state = {
                 "state": "running",
                 "progress": 5,
-                "status_text": "正在檢查本地核心三檔完整性…",
+                "status_text": init_status,
                 "error_msg": "",
                 "result": None,
             }
 
         t = threading.Thread(
             target=self._run_host_package_task,
-            args=(app_id, (game_name or "").strip(), webhook_target),
+            args=(app_id, (game_name or "").strip(), webhook_target, norm_mode),
             daemon=True,
             name=f"FriendCodeHost_{app_id}"
         )
         t.start()
         return {"ok": True, "msg": "已啟動本地打包與加密生成任務"}
 
-    def _run_host_package_task(self, app_id: str, game_name: str, webhook_target: str):
-        packager = get_party_packager()
+    def _run_host_package_task(self, app_id: str, game_name: str, webhook_target: str, pack_mode: str = "with_patch"):
         discord_mgr = get_discord_storage()
         zip_path = ""
+        norm_mode = "lua_manifest" if str(pack_mode or "").strip() == "lua_manifest" else "with_patch"
         try:
-            # 1. 嚴格檢查三檔 (Manifest + Lua + 線上補丁)
-            inspect = packager.inspect_party_resources(app_id)
+            # 1. 依據打包模式執行友邀代碼專屬檢查 (與線上組隊完全隔離)
+            inspect = self.inspect_friend_code_resources(app_id, pack_mode=norm_mode)
             missing = []
             if not inspect.get("manifest", {}).get("ready"):
                 missing.append("Manifest 清單檔案")
             if not inspect.get("lua", {}).get("ready"):
                 missing.append("Lua 腳本")
-            if not inspect.get("patch", {}).get("ready"):
+            if norm_mode == "with_patch" and not inspect.get("patch", {}).get("ready"):
                 missing.append("線上聯機補丁")
             if missing or not inspect.get("all_ready"):
-                err = f"本地三檔未齊全，缺少：{'、'.join(missing)}。請先完成入庫並安裝線上補丁後再打包！"
-                self._set_host_state(state="error", progress=0, status_text="三檔檢查未通過", error_msg=err)
+                if norm_mode == "lua_manifest":
+                    err = f"本地清單檔案未齊全，缺少：{'、'.join(missing)}。請確認該遊戲已完成入庫！"
+                    self._set_host_state(state="error", progress=0, status_text="清單檢查未通過", error_msg=err)
+                else:
+                    err = f"本地三檔未齊全，缺少：{'、'.join(missing)}。請先安裝線上補丁，或切換為「僅打包 Lua + Manifest」模式！"
+                    self._set_host_state(state="error", progress=0, status_text="三檔檢查未通過", error_msg=err)
                 return
 
-            # 2. 本地封裝 ZIP
-            self._set_host_state(progress=18, status_text=f"正在封裝《{game_name or app_id}》核心三檔整合包…")
+            # 2. 友邀代碼專屬本地封裝 ZIP
+            mode_label = "純入庫清單 (Lua + Manifest)" if norm_mode == "lua_manifest" else "核心三檔整合包 (含線上補丁)"
+            self._set_host_state(progress=18, status_text=f"正在封裝《{game_name or app_id}》{mode_label}…")
             temp_tag = f"FC_{uuid.uuid4().hex[:6].upper()}"
-            ok, zip_path, details = packager.build_party_package(app_id, temp_tag)
+            ok, zip_path, details = self.build_friend_code_package(
+                app_id=app_id,
+                tag=temp_tag,
+                pack_mode=norm_mode,
+                game_name=game_name or f"AppID {app_id}"
+            )
             if not ok or not zip_path:
                 err = f"本地封裝整合包失敗: {details.get('error') if isinstance(details, dict) else details}"
                 self._set_host_state(state="error", progress=0, status_text="封裝失敗", error_msg=err)
@@ -238,7 +767,8 @@ class FriendCodeManager:
                 app_id=app_id,
                 webhook_url=webhook_target,
                 game_name=game_name or f"AppID {app_id}",
-                progress_cb=_on_up_progress
+                progress_cb=_on_up_progress,
+                pack_mode=norm_mode
             )
             if not up_res or not up_res.get("ok"):
                 err = (up_res or {}).get("msg") or "上傳至 Discord Webhook 失敗"
@@ -269,6 +799,7 @@ class FriendCodeManager:
                 "size": int(up_res.get("size", 0) or 0),
                 "is_multipart": is_mp,
                 "total_parts": int(up_res.get("total_parts", 1) or 1),
+                "pack_mode": norm_mode,
                 "created_at": created_str,
                 "file_id": up_res.get("file_id", ""),
             }
@@ -285,6 +816,7 @@ class FriendCodeManager:
                 "size": raw_entry["size"],
                 "is_multipart": is_mp,
                 "total_parts": raw_entry["total_parts"],
+                "pack_mode": norm_mode,
                 "created_at": created_str,
                 "can_revoke": True,
             }
@@ -301,7 +833,7 @@ class FriendCodeManager:
         finally:
             if zip_path:
                 try:
-                    packager.cleanup_package_file(zip_path)
+                    self.cleanup_friend_code_package(zip_path)
                 except Exception:
                     pass
             with self._host_lock:
@@ -345,6 +877,7 @@ class FriendCodeManager:
                 }
             res.update({
                 "remote_verified": True,
+                "pack_mode": pkg_info.get("pack_mode", "with_patch"),
                 "app_id": pkg_info.get("app_id", ""),
                 "game_name": pkg_info.get("game_name", ""),
                 "size": pkg_info.get("size", 0),
@@ -421,18 +954,24 @@ class FriendCodeManager:
             return f"{mb:.2f} MB"
         return f"{num_bytes / 1024:.1f} KB"
 
-    def _extract_meta_from_zip(self, zip_path: Path) -> Dict[str, str]:
-        """從下載完成的整合包 ZIP 內部讀取 package_meta.json 或檔名作為權威 AppID / 遊戲名稱來源"""
-        info = {"app_id": "", "game_name": ""}
+    def _extract_meta_from_zip(self, zip_path: Path) -> Dict[str, Any]:
+        """從下載完成的整合包 ZIP 內部讀取 package_meta.json 或檔名作為權威 AppID / 遊戲名稱與打包模式來源"""
+        info: Dict[str, Any] = {"app_id": "", "game_name": "", "pack_mode": "with_patch", "has_patch": False}
         try:
             with zipfile.ZipFile(zip_path, "r") as zf:
                 names = zf.namelist()
+                has_patch_files = any(n.startswith("patch/") and not n.endswith("/") for n in names)
+                info["has_patch"] = has_patch_files
+                if not has_patch_files:
+                    info["pack_mode"] = "lua_manifest"
                 if "package_meta.json" in names:
                     meta = json.loads(zf.read("package_meta.json").decode("utf-8", errors="ignore"))
                     if meta.get("app_id"):
                         info["app_id"] = str(meta["app_id"]).strip()
                     if meta.get("game_name"):
                         info["game_name"] = str(meta["game_name"]).strip()
+                    if meta.get("pack_mode") in ("with_patch", "lua_manifest"):
+                        info["pack_mode"] = meta["pack_mode"]
                 if not info["app_id"]:
                     for n in names:
                         if n.startswith("lua/") and n.endswith(".lua"):
@@ -445,9 +984,8 @@ class FriendCodeManager:
         return info
 
     def _run_redeem_install_task(self, dec: Dict[str, Any], task_id: str):
-        packager = get_party_packager()
         discord_mgr = get_discord_storage()
-        dl_dir = packager.temp_pack_dir / "friend_downloads"
+        dl_dir = self.fc_temp_dir / "friend_downloads"
         dl_dir.mkdir(parents=True, exist_ok=True)
         target_zip = dl_dir / f"fc_{task_id[:8]}.zip"
         temp_parts: List[Path] = []
@@ -598,12 +1136,13 @@ class FriendCodeManager:
                 )
                 return
 
-            # 補齊 ZIP 內權威 AppID 與遊戲名稱
+            # 補齊 ZIP 內權威 AppID、遊戲名稱與打包模式
             z_meta = self._extract_meta_from_zip(target_zip)
             if not app_id and z_meta.get("app_id"):
-                app_id = z_meta["app_id"]
+                app_id = str(z_meta["app_id"])
             if (not game_name or game_name.startswith("AppID ")) and z_meta.get("game_name"):
-                game_name = z_meta["game_name"]
+                game_name = str(z_meta["game_name"])
+            is_no_patch_pkg = (z_meta.get("pack_mode") == "lua_manifest") or (not z_meta.get("has_patch", False))
 
             if not app_id:
                 self._set_recv_state(
@@ -631,7 +1170,7 @@ class FriendCodeManager:
             if self._is_cancelled(task_id):
                 return
             self._set_recv_state(stage=3, progress=28, status_text=f"正在部署《{game_name}》Manifest 清單與 Lua 腳本…")
-            init_res = packager.extract_and_apply_package(str(target_zip), app_id)
+            init_res = self.extract_and_apply_friend_code_package(str(target_zip), app_id)
             if not init_res.get("ok"):
                 self._set_recv_state(
                     state="error",
@@ -652,6 +1191,54 @@ class FriendCodeManager:
             st_info = api_inst.check_game_installed_status(app_id)
             is_installed = bool(st_info.get("is_installed", False))
 
+            # 🌟 分流 A：若為「模式二：沒有線上補丁，但有 Lua 和 Manifest 的作法」(lua_manifest)
+            if is_no_patch_pkg:
+                if not is_installed:
+                    self._set_recv_state(stage=4, progress=75, status_text="正在喚起 Steam 客戶端彈出遊戲安裝視窗…")
+                    sp = steam_manager.find_steam_path()
+                    if sp:
+                        try:
+                            steam_manager.unlock_game_version(app_id, sp)
+                            acf = steam_manager.find_appmanifest(app_id, sp)
+                            if acf and acf.exists():
+                                c = acf.read_text(encoding="utf-8", errors="ignore")
+                                if '"StateFlags"\t\t"4"' not in c and '"StateFlags" "4"' not in c:
+                                    acf.unlink(missing_ok=True)
+                                elif re.search(r'"UpdateResult"\s+"[^0"]+"', c):
+                                    c = re.sub(r'"UpdateResult"\s+"[^"]*"', '"UpdateResult"\t\t"0"', c)
+                                    acf.write_text(c, encoding="utf-8")
+                        except Exception as ue:
+                            logger.warning(f"[FriendCode] 喚起 Steam 前清理殘留 ACF 異常: {ue}")
+
+                    time.sleep(2.0)
+                    if self._is_cancelled(task_id):
+                        return
+                    try:
+                        os.startfile(f"steam://install/{app_id}")
+                    except Exception:
+                        import webbrowser
+                        webbrowser.open(f"steam://install/{app_id}")
+
+                    self._set_recv_state(
+                        state="success",
+                        stage=5,
+                        progress=100,
+                        speed_str="",
+                        status_text=f"🎉《{game_name}》Manifest 與 Lua 入庫清單已全自動部署完成！請在彈出的 Steam 視窗點擊安裝（純入庫包，不含線上補丁）。",
+                        error_msg=""
+                    )
+                else:
+                    self._set_recv_state(
+                        state="success",
+                        stage=5,
+                        progress=100,
+                        speed_str="",
+                        status_text=f"🎉《{game_name}》Manifest 與 Lua 入庫清單已全自動更新同步完成！（純入庫包，不含線上補丁）",
+                        error_msg=""
+                    )
+                return
+
+            # 🌟 分流 B：若為「模式一：含線上補丁之完整包」(with_patch)
             if not is_installed:
                 self._set_recv_state(stage=4, progress=33, status_text="正在喚起 Steam 客戶端開始下載遊戲主程式…")
                 sp = steam_manager.find_steam_path()
@@ -757,7 +1344,7 @@ class FriendCodeManager:
                     break
                 time.sleep(1.0)
 
-            patch_res = packager.apply_patch_files(str(target_zip), app_id)
+            patch_res = self.apply_friend_code_patch_files(str(target_zip), app_id)
             if patch_res.get("ok"):
                 self._set_recv_state(
                     state="success",
@@ -793,7 +1380,7 @@ class FriendCodeManager:
                     pass
             try:
                 if target_zip.exists():
-                    packager.cleanup_package_file(str(target_zip))
+                    self.cleanup_friend_code_package(str(target_zip))
             except Exception:
                 pass
             with self._recv_lock:

@@ -6,8 +6,8 @@ Steam Manifest Updater 2.0 - Root Entry Point
 import sys
 from pathlib import Path
 
-VERSION = "2.0.10"
-__version__ = "2.0.10"
+VERSION = "2.0.11"
+__version__ = "2.0.11"
 
 _src_dir = Path(__file__).resolve().parent / "src"
 if str(_src_dir) not in sys.path:
